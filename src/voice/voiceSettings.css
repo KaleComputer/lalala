@@ -101,6 +101,9 @@
 }
 
 /* A section: its title, a line on what it is, then its rows in one bordered group. */
+[data-lalala-settings-section] {
+  scroll-margin-top: 20px;
+}
 [data-lalala-settings-section] > h2 {
   margin: 0 0 4px;
   padding: 0 4px;
@@ -166,6 +169,18 @@
   align-items: center;
   gap: 8px;
   min-width: 0;
+}
+/* A command to copy (lalala.talk's pairing): the whole line, wrapping, under its row. */
+[data-lalala-settings-code] {
+  grid-column: 1 / -1;
+  display: block;
+  padding: 8px 10px;
+  border: 1px solid var(--s-hair);
+  color: var(--s-ink);
+  background: var(--s-raise);
+  font: 400 12px / 1.5 var(--s-mono);
+  overflow-wrap: anywhere;
+  user-select: all;
 }
 [data-lalala-settings-error] {
   margin: 0;

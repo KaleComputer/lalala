@@ -1,16 +1,76 @@
 // lalala.talk's side of src/voice/adapters: no server, so layout and settings stay in this browser,
 // speech runs in it, and the call reaches the visitor's own T3 Code from the tab (once paired).
 // Imported before the canvas, whose store and bridge read the adapters when they load.
-import { installAdapters } from "../../../src/voice/adapters";
+import { useSyncExternalStore } from "react";
+
+import { type HarnessAdapter, installAdapters } from "../../../src/voice/adapters";
 import { browserBrain, browserHarness } from "../../../src/voice/adapters/harness/browser";
+import { type Session, forgetSession, saveBrainThread } from "../../../src/voice/adapters/harness/t3";
 import { browserSpeech } from "../../../src/voice/adapters/speech/browser";
 import { browserStorage } from "../../../src/voice/adapters/storage/browser";
 
-installAdapters({
-  storage: browserStorage,
-  speech: browserSpeech(),
-  ...(browserBrain() ? { harness: browserHarness() } : {}),
-});
+type Listener = (event: unknown) => void;
+
+// The bridge subscribes once when it loads, so pairing (or another thread) later swaps what this
+// harness follows underneath its listeners instead of installing a new one.
+let current: HarnessAdapter | null = browserBrain() ? browserHarness() : null;
+let version = 0;
+const subscriptions = new Map<Listener, () => void>();
+const brainListeners = new Set<() => void>();
+
+const UNPAIRED = { type: "hello", connected: false, error: null, workspaceRoot: null, shell: null, rows: [] };
+
+function follow(next: HarnessAdapter | null) {
+  current = next;
+  version += 1;
+  for (const [listener, stop] of subscriptions) {
+    stop();
+    subscriptions.set(listener, next ? next.events(listener) : () => {});
+    if (!next) listener(UNPAIRED);
+  }
+  for (const listener of brainListeners) listener();
+}
+
+const harness: HarnessAdapter = {
+  config: () => current?.config() ?? Promise.resolve(null),
+  events(listener) {
+    subscriptions.set(listener, current ? current.events(listener) : () => {});
+    return () => {
+      subscriptions.get(listener)?.();
+      subscriptions.delete(listener);
+    };
+  },
+  send(command) {
+    if (!current) return Promise.reject(new Error("Not paired with T3 Code yet"));
+    return current.send(command);
+  },
+};
+
+installAdapters({ storage: browserStorage, speech: browserSpeech(), harness });
+
+/** The call talks to this thread on the paired T3 from now on. */
+export function followBrainThread(session: Session, threadId: string) {
+  saveBrainThread(session.origin, threadId);
+  follow(browserHarness());
+}
+
+/** Forgets the pairing: the bar goes back to opening the Connection section. */
+export function disconnectBrain() {
+  forgetSession();
+  follow(null);
+}
+
+/** Which brain the call follows: changes on every pairing or thread pick (0 while unpaired). */
+export function useBrainVersion() {
+  return useSyncExternalStore(
+    (listener) => {
+      brainListeners.add(listener);
+      return () => brainListeners.delete(listener);
+    },
+    () => (current ? version + 1 : 0),
+    () => 0,
+  );
+}
 
 // The settings' topic sounds, where the app's build lists them (src/voice/extrasImages.ts).
 globalThis.__lalalaImages = Object.fromEntries(

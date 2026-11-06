@@ -135,7 +135,8 @@ export function VoiceSettings(props: {
   readonly tabHost: HTMLElement;
   readonly children?: ReactNode;
 }) {
-  const [open, setOpen] = useState(false);
+  const at = useSyncExternalStore(subscribeOpen, readOpen, readOpen);
+  const open = at !== null;
 
   // oxlint-disable-next-line t3code/no-unreasoned-state-sync -- takes the other devices' newer settings when this page comes back into view
   useEffect(() => {
@@ -156,7 +157,7 @@ export function VoiceSettings(props: {
           data-open={open ? "" : undefined}
           aria-expanded={open}
           aria-label="Voice settings"
-          onClick={() => setOpen(!open)}
+          onClick={() => (open ? closeVoiceSettings() : openVoiceSettings())}
         >
           <svg viewBox="0 0 24 24" aria-hidden="true">
             <path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z" />
@@ -167,7 +168,7 @@ export function VoiceSettings(props: {
       )}
       {open
         ? createPortal(
-            <SettingsSheet onClose={() => setOpen(false)}>
+            <SettingsSheet section={at} onClose={closeVoiceSettings}>
               {props.children ?? <AppSections />}
             </SettingsSheet>,
             document.body,
@@ -176,6 +177,23 @@ export function VoiceSettings(props: {
     </>
   );
 }
+
+// Whether the sheet is open, and at which section ("" for the top): anything can open it (the
+// site's call button opens it at Connection), even before the bar has mounted.
+let openAt: string | null = null;
+const openListeners = new Set<() => void>();
+const readOpen = () => openAt;
+function subscribeOpen(listener: () => void) {
+  openListeners.add(listener);
+  return () => openListeners.delete(listener);
+}
+function setOpenAt(next: string | null) {
+  openAt = next;
+  for (const listener of openListeners) listener();
+}
+/** Opens the settings sheet, scrolled to the section with this title. */
+export const openVoiceSettings = (section = "") => setOpenAt(section);
+export const closeVoiceSettings = () => setOpenAt(null);
 
 const fetchBrain = () =>
   fetch(BRAIN_ROUTE, { cache: "no-store" })
@@ -192,14 +210,26 @@ const fetchBrain = () =>
       brain: null,
     }));
 
-function SettingsSheet(props: { readonly onClose: () => void; readonly children: ReactNode }) {
+function SettingsSheet(props: {
+  readonly section: string;
+  readonly onClose: () => void;
+  readonly children: ReactNode;
+}) {
   const panelRef = useRef<HTMLDivElement>(null);
   const onClose = props.onClose;
+
+  // oxlint-disable-next-line t3code/no-unreasoned-state-sync -- scrolls the sheet (DOM) to the section it was opened at
+  useEffect(() => {
+    if (props.section === "") return;
+    panelRef.current
+      ?.querySelector(`[data-lalala-settings-section][aria-label="${CSS.escape(props.section)}"]`)
+      ?.scrollIntoView({ block: "start" });
+  }, [props.section]);
 
   // oxlint-disable-next-line t3code/no-unreasoned-state-sync -- takes the newest synced settings while the sheet is open; Esc closes it
   useEffect(() => {
     pullSynced();
-    panelRef.current?.focus();
+    panelRef.current?.focus({ preventScroll: true });
     const onKey = (event: KeyboardEvent) => {
       if (event.key === "Escape" && !event.defaultPrevented) onClose();
     };
@@ -341,7 +371,7 @@ type PickOption = {
   /** The row gets a play button (onPlay). */
   readonly playable?: boolean;
 };
-type PickGroup = { readonly label?: string; readonly options: ReadonlyArray<PickOption> };
+export type PickGroup = { readonly label?: string; readonly options: ReadonlyArray<PickOption> };
 
 const modelGroups = (providers: ReadonlyArray<Provider>): PickGroup[] =>
   providers.map((provider) => ({
@@ -379,7 +409,7 @@ function playTopicSound(name: string): void {
  * the button shows the choice, the list opens inline under the row (no popover to clip, no iOS wheel).
  * Arrows, Home/End, Enter and Esc work like a listbox.
  */
-function PickRow(props: {
+export function PickRow(props: {
   readonly title: string;
   readonly description?: ReactNode;
   readonly label: string;

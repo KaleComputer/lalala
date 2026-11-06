@@ -1,5 +1,5 @@
 // lalala.talk's harness: the tab itself follows the brain thread on the visitor's own T3 Code
-// (paired on /connect) and sends turns to it, speaking the same events as vite/t3bridge.mjs.
+// (paired in the settings' Connection section) and sends turns to it, speaking the same events as vite/t3bridge.mjs.
 import type { HarnessAdapter } from "..";
 import { T3Socket, readBrainThread, readSession, uuid } from "./t3";
 
@@ -39,7 +39,7 @@ const slim = (visibility: string, item: Item) => ({
 });
 type Row = ReturnType<typeof slim>;
 
-/** The paired T3 and its brain thread, or null until /connect has both. */
+/** The paired T3 and its brain thread, or null until the settings' Connection section has both. */
 export function browserBrain() {
   const session = readSession();
   const threadId = session && readBrainThread(session.origin);
@@ -86,6 +86,8 @@ export function browserHarness(): HarnessAdapter {
       socket = next;
       next.onClose = () => {
         socket = null;
+        // Closed on purpose (the last listener left): no reconnect.
+        if (!started) return;
         state.connected = false;
         emit(hello());
         retry = setTimeout(connect, 2_000);
@@ -152,9 +154,9 @@ export function browserHarness(): HarnessAdapter {
         listeners.delete(listener);
         if (listeners.size > 0) return;
         clearTimeout(retry);
+        started = false;
         socket?.close();
         socket = null;
-        started = false;
       };
     },
     async send(command) {

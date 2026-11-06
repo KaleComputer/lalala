@@ -58,7 +58,14 @@ type VoiceConfig = {
  * words go to that thread as turns, its finished replies are spoken back, and the thread (a normal
  * agent with T3's tools) acts on the instance or edits this UI. Ctrl+Option+V toggles the mic.
  */
-export function VoiceHost({ bar }: { readonly bar?: Partial<ComponentProps<typeof VoiceBar>> } = {}) {
+export function VoiceHost({
+  bar,
+  autoStart = false,
+}: {
+  readonly bar?: Partial<ComponentProps<typeof VoiceBar>>;
+  /** Starts the call as soon as the voice is set up (lalala.talk, right after pairing). */
+  readonly autoStart?: boolean;
+} = {}) {
   const environmentId = usePrimaryEnvironmentId();
   const projects = useProjects();
   const shells = useThreadShells();
@@ -395,6 +402,14 @@ export function VoiceHost({ bar }: { readonly bar?: Partial<ComponentProps<typeo
       }
     }
   }, [items]);
+
+  const autoStartedRef = useRef(false);
+  // oxlint-disable-next-line t3code/no-unreasoned-state-sync -- starts the call once its config (read from the harness) is in
+  useEffect(() => {
+    if (!autoStart || config === null || autoStartedRef.current) return;
+    autoStartedRef.current = true;
+    void toggle();
+  }, [autoStart, config]);
 
   // oxlint-disable-next-line t3code/no-unreasoned-state-sync -- global mic hotkey and teardown
   useEffect(() => {

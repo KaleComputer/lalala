@@ -5,20 +5,6 @@
   overflow: hidden;
 }
 
-/* The canvas menu works out of a call here: there is no call needed to arrange the page. */
-[data-lalala-landing] ~ [data-lalala-dock] [data-lalala-presence]
-  .lalala-tabs:has(.fr-tmr[hidden])
-  [data-lalala-canvas-name] {
-  cursor: pointer;
-  pointer-events: auto;
-}
-[data-lalala-landing] ~ [data-lalala-dock] [data-lalala-presence]
-  .lalala-tabs:has(.fr-tmr[hidden])
-  [data-lalala-canvas-name]
-  > * {
-  opacity: 1;
-}
-
 /* The headline card: the headline grows and shrinks with the card. */
 [data-landing-talk] {
   display: grid;
@@ -32,17 +18,4 @@
   font: 600 clamp(26px, 13cqi, 80px) / 1 "Oxanium", ui-monospace, monospace;
   letter-spacing: -0.02em;
   text-wrap: balance;
-}
-
-[data-landing-talk] p {
-  margin: 1em 0 0;
-  color: rgba(245, 238, 226, 0.5);
-  font: 400 12px / 1.4 "Geist Mono", ui-monospace, monospace;
-}
-
-/* The settings' Connect link, drawn as the settings' buttons are. */
-a[data-landing-link] {
-  display: inline-flex;
-  align-items: center;
-  text-decoration: none;
 }
