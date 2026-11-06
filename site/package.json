@@ -7,6 +7,8 @@
     "build": "next build"
   },
   "dependencies": {
+    "@huggingface/transformers": "^3.8.1",
+    "kokoro-js": "^1.2.1",
     "next": "16.4.5",
     "react": "19.3.1",
     "react-dom": "19.3.1"
