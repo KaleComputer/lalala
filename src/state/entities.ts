@@ -16,6 +16,10 @@ export function useProjects() {
   );
 }
 
+/** What is wrong with the link to the harness (T3 Code), or null while it is up. */
+export const useHarnessLink = () =>
+  useBridge((state) => (state.connected ? null : (state.error ?? "Connecting to T3 Code…")));
+
 export function useThreadShells() {
   const shell = useBridge((state) => state.shell);
   return useMemo(

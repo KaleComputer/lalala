@@ -7,6 +7,8 @@ import {
   VOICE_THREAD_TITLE,
   ensureLalalaProject,
   launchVoiceThread,
+  localNetworkPermission,
+  localNetworkProblem,
   pairWithLink,
   readBrainThread,
   readSession,
@@ -45,9 +47,11 @@ const Shot = (props: { src: string; width: number; height: number; alt: string }
   <img data-lalala-settings-shot="" {...props} loading="lazy" decoding="async" />
 );
 
+type Pick = { readonly projectId: string; readonly threadId: string; readonly model: string };
+
 /**
- * Pairs lalala.talk with the visitor's own T3 Code, straight from this tab, and picks the thread
- * the call talks to (its brain thread). Starting the call closes the settings onto the bar.
+ * Pairs lalala.talk with the visitor's own T3 Code, straight from this tab, and sets up the thread
+ * the call talks to (its brain thread), then closes onto the bar. Picks made later apply at once.
  */
 export function ConnectSection() {
   const [connected, setConnected] = useState<Connected | null>(null);
@@ -63,7 +67,7 @@ export function ConnectSection() {
   const [choosing, setChoosing] = useState(false);
   const socketRef = useRef<T3Socket | null>(null);
 
-  async function open(session: Session) {
+  async function open(session: Session): Promise<Connected & Pick> {
     const socket = new T3Socket(session);
     await socket.connect();
     socketRef.current = socket;
@@ -81,11 +85,37 @@ export function ConnectSection() {
       workspace.threads.find((candidate) => candidate.id === current) ??
       workspace.threads.find((t) => t.projectId === own.id && t.title === VOICE_THREAD_TITLE);
     const project = workspace.projects.find((p) => p.id === thread?.projectId) ?? own;
-    setProjectId(project.id);
+    const pick = {
+      projectId: project.id,
+      threadId: thread?.id ?? NEW_THREAD,
+      model: modelValue(project.defaultModelSelection ?? workspace.defaultModel ?? firstModel(workspace)),
+    };
+    setProjectId(pick.projectId);
     setChoosing(project.id !== own.id);
-    setThreadId(thread?.id ?? NEW_THREAD);
-    setModel(modelValue(project.defaultModelSelection ?? workspace.defaultModel ?? firstModel(workspace)));
+    setThreadId(pick.threadId);
+    setModel(pick.model);
     setConnected({ session, socket, workspace });
+    return { session, socket, workspace, ...pick };
+  }
+
+  /** Points the call at the picked thread, launching a new voice thread first when asked. */
+  async function follow(to: Connected & Pick) {
+    let id = to.threadId;
+    if (id === NEW_THREAD) {
+      const [instanceId, slug] = to.model.split(SEP);
+      if (!instanceId || !slug) throw new Error("Pick a model for the voice thread.");
+      id = await launchVoiceThread(to.socket, to.projectId, { instanceId, model: slug });
+      const thread = { id, projectId: to.projectId, title: VOICE_THREAD_TITLE };
+      setConnected({ ...to, workspace: { ...to.workspace, threads: [thread, ...to.workspace.threads] } });
+    }
+    setThreadId(id);
+    followBrainThread(to.session, id);
+  }
+
+  /** Connected and set up: the settings close onto the bar (whose call starts if a tap led here). */
+  async function finish(to: Connected & Pick) {
+    await follow(to);
+    closeVoiceSettings();
   }
 
   const run = (work: () => Promise<void>) => {
@@ -99,14 +129,34 @@ export function ConnectSection() {
   // oxlint-disable-next-line t3code/no-unreasoned-state-sync -- resumes this browser's stored pairing (localStorage) and closes the socket with the sheet
   useEffect(() => {
     const stored = readSession();
-    if (stored) run(() => open(stored));
+    // A pairing whose thread was never set up (or failed) finishes now, as a fresh one does.
+    if (stored)
+      run(async () => {
+        const to = await open(stored);
+        if (readBrainThread(stored.origin) === null) await finish(to);
+      });
     return () => socketRef.current?.close();
   }, []);
 
-  function pair() {
+  function pair(input = link) {
     run(async () => {
-      await open(await pairWithLink(link));
+      let session: Session;
+      try {
+        session = await pairWithLink(input);
+      } catch (cause) {
+        // Waiting on Chrome's local network permission: pair as soon as the user allows it.
+        const permission = await localNetworkPermission();
+        if (permission && localNetworkProblem(permission))
+          permission.onchange = () => {
+            if (permission.state !== "granted") return;
+            permission.onchange = null;
+            pair(input);
+          };
+        throw cause;
+      }
+      const to = await open(session);
       setLink("");
+      await finish(to);
     });
   }
 
@@ -129,7 +179,7 @@ export function ConnectSection() {
         type="button"
         data-lalala-settings-button=""
         disabled={busy || link.trim() === ""}
-        onClick={pair}
+        onClick={() => pair()}
       >
         {busy ? "Connecting" : "Connect"}
       </button>
@@ -211,7 +261,7 @@ export function ConnectSection() {
         )}
         <Row
           title={`${way === "app" ? 5 : 3} · Allow the local network`}
-          description="Chrome then asks to let lalala.talk reach your local network. Allow it, or the tab cannot reach your T3 Code."
+          description="Chrome then asks to let lalala.talk reach your local network: allow it. Blocked it before? Click the icon left of the address bar, open Site settings and set Local network access to Allow."
         >
           {null}
         </Row>
@@ -232,22 +282,20 @@ export function ConnectSection() {
     options: provider.models.map((m) => ({ value: `${provider.instanceId}${SEP}${m.slug}`, label: m.name })),
   }));
 
-  const start = () =>
-    run(async () => {
-      let id = threadId;
-      if (id === NEW_THREAD) {
-        const [instanceId, slug] = model.split(SEP);
-        if (!instanceId || !slug) throw new Error("Pick a model first.");
-        id = await launchVoiceThread(socket, projectId, { instanceId, model: slug });
-      }
-      followBrainThread(session, id);
-      closeVoiceSettings();
-    });
+  const repick = (next: Partial<Pick>) => {
+    const to = { session, socket, workspace, projectId, threadId, model, ...next };
+    setProjectId(to.projectId);
+    setModel(to.model);
+    run(() => follow(to));
+  };
 
   return (
     <Section title={title} note={note}>
       {problem ? <p data-lalala-settings-error="">{problem}</p> : null}
-      <Row title="T3 Code" description={`${workspace.label} · ${session.origin}`}>
+      <Row
+        title="T3 Code"
+        description={`${workspace.label} · ${session.origin} · pairing valid until ${new Date(session.expiresAt).toLocaleDateString()}`}
+      >
         <span data-lalala-settings-status="" data-ok="">
           Connected
         </span>
@@ -261,10 +309,14 @@ export function ConnectSection() {
           value={projectId}
           disabled={busy}
           groups={[{ options: workspace.projects.map((p) => ({ value: p.id, label: p.title })) }]}
-          onChange={(next) => {
-            setProjectId(next);
-            setThreadId(NEW_THREAD);
-          }}
+          onChange={(next) =>
+            repick({
+              projectId: next,
+              threadId:
+                workspace.threads.find((t) => t.projectId === next && t.title === VOICE_THREAD_TITLE)?.id ??
+                NEW_THREAD,
+            })
+          }
         />
       ) : null}
       <PickRow
@@ -274,18 +326,17 @@ export function ConnectSection() {
         value={threadId}
         disabled={busy}
         groups={threadGroups}
-        onChange={setThreadId}
+        onChange={(next) => repick({ threadId: next })}
       />
-      {threadId === NEW_THREAD ? (
-        <PickRow
-          title="Model"
-          label="Model"
-          value={model}
-          disabled={busy}
-          groups={modelGroups}
-          onChange={setModel}
-        />
-      ) : null}
+      <PickRow
+        title="Model"
+        description="For new voice threads."
+        label="Model"
+        value={model}
+        disabled={busy}
+        groups={modelGroups}
+        onChange={(next) => (threadId === NEW_THREAD ? repick({ model: next }) : setModel(next))}
+      />
       {choosing ? null : (
         <Row title="Advanced" description={`The thread lives in lalala's own "${LALALA_PROJECT}" project.`}>
           <button type="button" data-lalala-settings-button="" disabled={busy} onClick={() => setChoosing(true)}>
@@ -293,16 +344,6 @@ export function ConnectSection() {
           </button>
         </Row>
       )}
-      <Row title="Call" description="Closes the settings and starts talking.">
-        <button
-          type="button"
-          data-lalala-settings-button=""
-          disabled={busy || !projectId}
-          onClick={start}
-        >
-          Start call
-        </button>
-      </Row>
       <Row title="Pairing" description="Forget this pairing; the call stops until you pair again.">
         <button
           type="button"

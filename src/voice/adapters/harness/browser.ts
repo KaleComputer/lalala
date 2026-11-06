@@ -1,10 +1,22 @@
 // lalala.talk's harness: the tab itself follows the brain thread on the visitor's own T3 Code
 // (paired in the settings' Connection section) and sends turns to it, speaking the same events as vite/t3bridge.mjs.
 import type { HarnessAdapter } from "..";
-import { T3Socket, readBrainThread, readSession, uuid } from "./t3";
+import {
+  SOCKET_CLOSED,
+  T3Socket,
+  localNetworkPermission,
+  localNetworkProblem,
+  readBrainThread,
+  readSession,
+  uuid,
+} from "./t3";
 
 const ACTIVE_RUN = new Set(["preparing", "queued", "starting", "running", "waiting"]);
 const MAX_ROWS = 400;
+const STEP_TIMEOUT_MS = 10_000;
+const RETRY_MS = [1_000, 2_000, 5_000, 10_000];
+// How long a turn waits for a dropped link to come back before it fails.
+const SEND_WAIT_MS = 15_000;
 
 type Item = {
   id: string;
@@ -57,7 +69,11 @@ export function browserHarness(): HarnessAdapter {
   };
   let socket: T3Socket | null = null;
   let started = false;
+  let connecting = false;
+  let failures = 0;
   let retry: ReturnType<typeof setTimeout> | undefined;
+  let permission: PermissionStatus | null = null;
+  const waiters = new Set<() => void>();
 
   const active = () => [...state.runs.values()].some((status) => ACTIVE_RUN.has(status));
   const brain = browserBrain();
@@ -75,22 +91,51 @@ export function browserHarness(): HarnessAdapter {
     for (const listener of listeners) listener(event);
   };
 
+  const fail = (message: string) => {
+    state.connected = false;
+    state.error = message;
+    emit(hello());
+  };
+
+  // Retries until T3 answers again; Chrome granting local network access, the network coming back,
+  // or the tab coming back into view retries right away.
+  const later = () => {
+    clearTimeout(retry);
+    if (!started) return;
+    retry = setTimeout(connect, RETRY_MS[Math.min(failures, RETRY_MS.length - 1)]);
+    failures += 1;
+  };
+  const now = () => {
+    if (!started || socket !== null || connecting) return;
+    clearTimeout(retry);
+    void connect();
+  };
+  const onVisible = () => {
+    if (document.visibilityState === "visible") now();
+  };
+
   async function connect() {
-    if (brain === null) {
-      state.error = "Not paired with T3 Code yet";
-      return emit(hello());
-    }
+    if (brain === null) return fail("Not paired with T3 Code yet");
+    if (connecting || socket !== null) return;
+    connecting = true;
     try {
+      permission ??= await localNetworkPermission();
+      if (permission) permission.onchange = now;
+      const problem = localNetworkProblem(permission);
+      // Blocked in Chrome: nothing to try until the user allows it (onchange retries).
+      if (permission?.state === "denied") return fail(problem!);
+      if (problem) fail(problem);
       const next = new T3Socket(brain.session);
-      await next.connect();
+      // While Chrome's prompt may be up the request waits on it, so no timeout then.
+      await next.connect(problem ? undefined : STEP_TIMEOUT_MS);
+      if (!started) return next.close();
       socket = next;
       next.onClose = () => {
         socket = null;
         // Closed on purpose (the last listener left): no reconnect.
         if (!started) return;
-        state.connected = false;
-        emit(hello());
-        retry = setTimeout(connect, 2_000);
+        fail("Reconnecting to T3 Code…");
+        later();
       };
       next
         .stream<{ kind: string; projection?: never; event?: { type: string; payload: never } }>(
@@ -112,7 +157,10 @@ export function browserHarness(): HarnessAdapter {
               );
               state.connected = true;
               state.error = null;
+              failures = 0;
               emit(hello());
+              for (const wake of waiters) wake();
+              waiters.clear();
             } else if (chunk.kind === "event" && chunk.event) {
               const { type, payload } = chunk.event as { type: string; payload: Item & { threadId?: string; status?: string } };
               if (type === "turn-item.updated" && payload.threadId === brain.threadId) {
@@ -130,16 +178,31 @@ export function browserHarness(): HarnessAdapter {
           },
         )
         .done.catch((error: Error) => {
-          state.error = `T3: ${error.message}`;
-          emit(hello());
+          if (socket !== next) return;
+          // The thread's stream ended with the socket still up: start over on a fresh one.
+          socket = null;
           next.close();
+          fail(`T3: ${error.message}`);
+          later();
         });
     } catch (error) {
-      state.connected = false;
-      state.error = `T3: ${(error as Error).message}`;
-      emit(hello());
-      retry = setTimeout(connect, 5_000);
+      fail((error as Error).message);
+      later();
+    } finally {
+      connecting = false;
     }
+  }
+
+  /** The socket once the thread's snapshot is in, waiting a while for a dropped link to return. */
+  async function linked() {
+    if (socket?.open && state.connected) return socket;
+    now();
+    await new Promise<void>((resolve) => {
+      const timer = setTimeout(resolve, SEND_WAIT_MS);
+      waiters.add(() => resolve(clearTimeout(timer)));
+    });
+    if (socket?.open && state.connected) return socket;
+    throw new Error(state.error ?? "T3 Code is not answering");
   }
 
   return {
@@ -148,6 +211,9 @@ export function browserHarness(): HarnessAdapter {
       listeners.add(listener);
       if (!started) {
         started = true;
+        failures = 0;
+        window.addEventListener("online", now);
+        document.addEventListener("visibilitychange", onVisible);
         void connect();
       } else listener(hello());
       return () => {
@@ -155,6 +221,9 @@ export function browserHarness(): HarnessAdapter {
         if (listeners.size > 0) return;
         clearTimeout(retry);
         started = false;
+        window.removeEventListener("online", now);
+        document.removeEventListener("visibilitychange", onVisible);
+        if (permission) permission.onchange = null;
         socket?.close();
         socket = null;
       };
@@ -164,29 +233,39 @@ export function browserHarness(): HarnessAdapter {
         threadId: string;
         message: { messageId: string; text: string; attachments?: { dataUrl?: string }[] };
       };
-      if (socket === null) throw new Error(state.error ?? "Not connected to T3 Code");
       if (brain === null || threadId !== brain.threadId) throw new Error("Not the brain thread");
       const uploads = (message.attachments ?? []).filter((a) => typeof a.dataUrl === "string");
-      const attachments =
-        uploads.length === 0
-          ? []
-          : (
-              await socket.request<{ attachments: unknown[] }>("assets.persistChatAttachments", {
-                threadId,
-                messageId: message.messageId,
-                attachments: uploads,
-              })
-            ).attachments;
-      return socket.dispatch({
-        type: "message.dispatch",
-        createdBy: "user",
-        creationSource: "web",
-        threadId,
-        messageId: message.messageId,
-        text: message.text,
-        attachments,
-        deliveryIntent: "auto",
-        dispatchMode: { type: "start_immediately" },
+      // One id for both tries, so T3 runs the turn once even if the first try did reach it.
+      const commandId = uuid();
+      const deliver = async () => {
+        const link = await linked();
+        const attachments =
+          uploads.length === 0
+            ? []
+            : (
+                await link.request<{ attachments: unknown[] }>("assets.persistChatAttachments", {
+                  threadId,
+                  messageId: message.messageId,
+                  attachments: uploads,
+                })
+              ).attachments;
+        return link.dispatch({
+          commandId,
+          type: "message.dispatch",
+          createdBy: "user",
+          creationSource: "web",
+          threadId,
+          messageId: message.messageId,
+          text: message.text,
+          attachments,
+          deliveryIntent: "auto",
+          dispatchMode: { type: "start_immediately" },
+        });
+      };
+      // The link dropped under this turn: once it is back, send it again.
+      return deliver().catch((error: Error) => {
+        if (error.message !== SOCKET_CLOSED) throw error;
+        return deliver();
       });
     },
   };

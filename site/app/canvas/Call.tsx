@@ -1,13 +1,19 @@
-import { type ComponentProps, useState } from "react";
+import { type ComponentProps } from "react";
 
 import { VoiceBar } from "../../../src/voice/VoiceBar";
 import { VoiceHost } from "../../../src/voice/VoiceHost";
-import { openVoiceSettings } from "../../../src/voice/VoiceSettings";
-import { useBrainVersion } from "./adapters";
+import { onVoiceSettingsClosed, openVoiceSettings } from "../../../src/voice/VoiceSettings";
+import { callStartsWith, useBrainVersion, wantCallOnConnect } from "./adapters";
 
 type BarProps = Partial<ComponentProps<typeof VoiceBar>>;
 
-const openConnection = () => openVoiceSettings("Connection");
+const openConnection = () => {
+  wantCallOnConnect(true);
+  openVoiceSettings("Connection");
+};
+
+// Closing the settings without connecting drops the tap's intent; the gear never starts a call.
+onVoiceSettingsClosed(() => wantCallOnConnect(false));
 
 /**
  * The canvas's call: the app's own VoiceHost once this browser is paired with a T3 Code. Until then
@@ -15,9 +21,7 @@ const openConnection = () => openVoiceSettings("Connection");
  */
 export function Call(props: BarProps) {
   const brain = useBrainVersion();
-  // The brain this page loaded with; a later one was just picked in Connection, so its call starts.
-  const [loadedWith] = useState(brain);
-  if (brain !== 0) return <VoiceHost key={brain} bar={props} autoStart={brain !== loadedWith} />;
+  if (brain !== 0) return <VoiceHost key={brain} bar={props} autoStart={callStartsWith(brain)} />;
   return (
     <VoiceBar
       {...props}

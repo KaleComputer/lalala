@@ -8,7 +8,12 @@ import { type ComponentProps, useEffect, useEffectEvent, useRef, useState } from
 
 import { readFileAsDataUrl } from "~/lib/imageCompression";
 import { newMessageId, newThreadId, randomUUID } from "~/lib/utils";
-import { useProjects, useThreadShells, useThreadVisibleTurnItems } from "../state/entities";
+import {
+  useHarnessLink,
+  useProjects,
+  useThreadShells,
+  useThreadVisibleTurnItems,
+} from "../state/entities";
 import { usePrimaryEnvironmentId } from "../state/environments";
 import { primaryServerSettingsAtom } from "../state/server";
 import { threadEnvironment } from "../state/threads";
@@ -69,6 +74,7 @@ export function VoiceHost({
   const environmentId = usePrimaryEnvironmentId();
   const projects = useProjects();
   const shells = useThreadShells();
+  const link = useHarnessLink();
   const serverSettings = useAtomValue(primaryServerSettingsAtom);
   const startTurn = useOrchestrationCommand(threadEnvironment.startTurn, { reportFailure: false });
 
@@ -434,12 +440,14 @@ export function VoiceHost({
   const unavailable = localProblem;
   const problem = error ?? unavailable;
   const live = phase !== "off" || starting;
-  const message = problem;
+  // In a call, a dropped link to T3 shows while it comes back (the harness retries on its own).
+  const linkProblem = live ? link : null;
+  const message = problem ?? linkProblem;
   const downloads = live ? loading : null;
   const state: VoiceBarState =
     problem !== null
       ? "error"
-      : starting || downloads !== null
+      : starting || downloads !== null || linkProblem !== null
         ? "connecting"
         : phase === "transcribing" || (phase === "listening" && (thinking || awaitingRun))
           ? quiet

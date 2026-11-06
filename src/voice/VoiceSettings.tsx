@@ -195,6 +195,11 @@ function setOpenAt(next: string | null) {
 /** Opens the settings sheet, scrolled to the section with this title. */
 export const openVoiceSettings = (section = "") => setOpenAt(section);
 export const closeVoiceSettings = () => setOpenAt(null);
+/** Calls `listener` whenever the settings sheet closes. */
+export const onVoiceSettingsClosed = (listener: () => void) =>
+  subscribeOpen(() => {
+    if (openAt === null) listener();
+  });
 
 const fetchBrain = () =>
   fetch(BRAIN_ROUTE, { cache: "no-store" })

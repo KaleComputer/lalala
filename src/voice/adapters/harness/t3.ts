@@ -24,6 +24,33 @@ function localFetch(url: string, init: RequestInit = {}) {
   return fetch(url, { ...init, ...extra } as RequestInit);
 }
 
+export const ALLOW_LOCAL_NETWORK =
+  "Allow local network in Chrome: answer its prompt next to the address bar.";
+export const LOCAL_NETWORK_BLOCKED =
+  "Allow local network in Chrome: click the icon left of the address bar, open Site settings, set Local network access to Allow.";
+
+/**
+ * Chrome's permission for this page to reach T3 on this computer, or null where none applies (a page
+ * served from localhost, or a browser without it). Its `onchange` says when the user answers.
+ */
+export async function localNetworkPermission(): Promise<PermissionStatus | null> {
+  if (LOOPBACK.test(location.hostname)) return null;
+  for (const name of ["loopback-network", "local-network-access"]) {
+    try {
+      return await navigator.permissions.query({ name } as unknown as PermissionDescriptor);
+    } catch {}
+  }
+  return null;
+}
+
+/** What the user has to do in Chrome before this page can reach T3, or null when nothing. */
+export const localNetworkProblem = (permission: PermissionStatus | null) =>
+  permission?.state === "denied"
+    ? LOCAL_NETWORK_BLOCKED
+    : permission?.state === "prompt"
+      ? ALLOW_LOCAL_NETWORK
+      : null;
+
 export function readSession(): Session | null {
   try {
     const session = JSON.parse(localStorage.getItem(SESSION_KEY) ?? "null") as Session | null;
@@ -113,7 +140,8 @@ export async function pairWithLink(input: string): Promise<Session> {
     response = await localFetch(`${origin}/oauth/token`, { method: "POST", body });
   } catch {
     throw new Error(
-      `Could not reach ${origin}. Is T3 Code running, and did the browser allow local network access?`,
+      localNetworkProblem(await localNetworkPermission()) ??
+        `Could not reach ${origin}. Is T3 Code running?`,
     );
   }
   const result = await response.json().catch(() => ({}));
@@ -149,17 +177,25 @@ export class T3Socket {
 
   constructor(readonly session: Session) {}
 
-  async connect() {
+  /**
+   * Opens the socket. `timeoutMs` bounds each step, so a T3 that never answers fails instead of
+   * hanging; leave it out while Chrome's local network prompt may be up, which holds the request.
+   */
+  async connect(timeoutMs?: number) {
     let ticketResponse: Response;
     try {
       ticketResponse = await localFetch(`${this.session.origin}/api/auth/websocket-ticket/rpc`, {
         method: "POST",
         headers: { authorization: `Bearer ${this.session.accessToken}` },
+        ...(timeoutMs ? { signal: AbortSignal.timeout(timeoutMs) } : {}),
       });
     } catch {
-      throw new Error(`Could not reach ${this.session.origin}. Is T3 Code running?`);
+      throw new Error(
+        localNetworkProblem(await localNetworkPermission()) ??
+          `Could not reach ${this.session.origin}. Is T3 Code running?`,
+      );
     }
-    if (ticketResponse.status === 401) throw new Error("T3 no longer accepts this pairing.");
+    if (ticketResponse.status === 401) throw new Error("T3 no longer accepts this pairing: pair again in the settings.");
     if (!ticketResponse.ok) throw new Error(`T3 answered ${ticketResponse.status}.`);
     const { ticket } = await ticketResponse.json();
     const url = new URL("/ws", this.session.origin.replace(/^http/, "ws"));
@@ -168,19 +204,35 @@ export class T3Socket {
     const ws = new WebSocket(url);
     this.#ws = ws;
     await new Promise((resolve, reject) => {
-      ws.addEventListener("open", resolve, { once: true });
-      ws.addEventListener("error", () => reject(new Error("The T3 socket failed to open.")), {
-        once: true,
-      });
+      const timer = timeoutMs
+        ? setTimeout(() => {
+            ws.close();
+            reject(new Error("T3 Code did not answer."));
+          }, timeoutMs)
+        : undefined;
+      ws.addEventListener("open", () => resolve(clearTimeout(timer)), { once: true });
+      ws.addEventListener(
+        "error",
+        () => {
+          clearTimeout(timer);
+          reject(new Error("The T3 socket failed to open."));
+        },
+        { once: true },
+      );
     });
     ws.addEventListener("message", (event) => this.#onMessage(String(event.data)));
     ws.addEventListener("close", () => {
       clearInterval(this.#ping);
-      for (const pending of this.#pending.values()) pending.reject(new Error("T3 socket closed"));
+      for (const pending of this.#pending.values()) pending.reject(new Error(SOCKET_CLOSED));
       this.#pending.clear();
       this.onClose();
     });
     this.#ping = setInterval(() => this.#send({ _tag: "Ping" }), 10_000);
+  }
+
+  /** Whether requests can go out now (false from the moment it starts closing). */
+  get open() {
+    return this.#ws?.readyState === WebSocket.OPEN;
   }
 
   close() {
@@ -213,6 +265,7 @@ export class T3Socket {
   #call<T>(tag: string, payload: unknown, onChunk?: (value: T) => void) {
     const id = String(this.#nextId++);
     const done = new Promise<unknown>((resolve, reject) => {
+      if (!this.open) return reject(new Error(SOCKET_CLOSED));
       this.#pending.set(id, { resolve, reject, onChunk: onChunk as Pending["onChunk"] });
       this.#send({ _tag: "Request", id, tag, payload, headers: [] });
     });
@@ -240,6 +293,8 @@ export class T3Socket {
     return this.request("orchestration.dispatchCommand", { commandId: uuid(), ...command });
   }
 }
+
+export const SOCKET_CLOSED = "T3 socket closed";
 
 function describeCause(cause: unknown) {
   const first = Array.isArray(cause) ? cause[0] : undefined;
