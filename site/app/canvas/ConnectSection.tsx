@@ -144,27 +144,27 @@ export function ConnectSection() {
         {way === "app" ? (
           <>
             <Row
-              title="1 · Open Sharing & access"
-              description="In T3 Code, open Settings, then Sharing & access."
-              below={<Shot src="/connect/step1.png" width={241} height={98} alt="T3 Code's settings sidebar with Sharing & access selected" />}
+              title="1 · Create a link"
+              description="In T3 Code, open Settings → Sharing & access and click Create link."
+              below={<Shot src="/connect/step1.png" width={500} height={26} alt="T3 Code's Authorized clients row with its Create link button" />}
             >
               {null}
             </Row>
             <Row
-              title="2 · Create a link"
-              description="Click Create link. Name it lalala.talk and keep only View environment and Operate tasks ticked."
+              title="2 · Set it up"
+              description="Name it lalala.talk, keep only View environment and Operate tasks ticked, then click Create link."
               below={<Shot src="/connect/step2.png" width={360} height={178} alt="T3 Code's Create pairing link dialog: label lalala.talk, View environment and Operate tasks ticked" />}
             >
               {null}
             </Row>
             <Row
-              title="3 · Copy the code"
-              description="Click Create link in the dialog, then Copy code on the new lalala.talk row."
-              below={<Shot src="/connect/step3.png" width={235} height={130} alt="The new pairing in T3 Code with its Copy code button" />}
+              title="3 · Copy the link"
+              description="The new lalala.talk row shows the link and a QR code: click Copy link. Where T3 shows only Copy code, copy that."
+              below={<Shot src="/connect/step3.png" width={460} height={146} alt="The new pairing in T3 Code: its link with Copy link, Copy code only, and a QR code" />}
             >
               {null}
             </Row>
-            {pasteRow("4 · Paste the code", "The code T3 Code copied, or a pairing link.", "Pairing code or link", "Pairing code")}
+            {pasteRow("4 · Paste it", "The link or code T3 Code copied.", "Pairing link or code", "Pairing link or code")}
           </>
         ) : (
           <>
