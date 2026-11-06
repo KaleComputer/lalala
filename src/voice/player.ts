@@ -365,6 +365,14 @@ export class SpeechPlayer {
       wake?.();
     };
     try {
+      const adapter = globalThis.__lalalaAdapters?.speech;
+      if (adapter) {
+        for await (const piece of adapter.speak(sentence.text, signal)) {
+          sentence.chunks.push(Float32Array.from(piece));
+          notify();
+        }
+        return;
+      }
       const response = await fetch(`/__lalala/tts?engine=${this.engine()}`, {
         method: "POST",
         headers: { "content-type": "application/json" },

@@ -32,24 +32,37 @@ const set = (next: BridgeState) => {
 };
 
 function start() {
+  // lalala.talk's tab follows T3 itself (the harness adapter); the app hears its dev server's bridge.
+  const harness = globalThis.__lalalaAdapters?.harness;
+  if (harness) return void harness.events((event) => onEvent(event as never));
   const source = new EventSource("/__lalala/t3/events");
-  source.onmessage = (message) => {
-    const event = JSON.parse(message.data);
-    if (event.type === "hello") {
-      set({
-        connected: event.connected,
-        error: event.error,
-        workspaceRoot: event.workspaceRoot,
-        shell: event.shell,
-        rows: event.rows,
-      });
-    } else if (event.type === "row") {
-      const rows = state.rows.filter((row) => row.item.id !== event.row.item.id);
-      set({ ...state, rows: [...rows, event.row] });
-    } else if (event.type === "active" && state.shell !== null) {
-      set({ ...state, shell: { ...state.shell, active: event.value } });
-    }
-  };
+  source.onmessage = (message) => onEvent(JSON.parse(message.data));
+}
+
+function onEvent(event: {
+  type: string;
+  connected: boolean;
+  error: string | null;
+  workspaceRoot: string | null;
+  shell: Shell | null;
+  rows: ReadonlyArray<OrchestrationV2ProjectedTurnItem>;
+  row: OrchestrationV2ProjectedTurnItem;
+  value: boolean;
+}) {
+  if (event.type === "hello") {
+    set({
+      connected: event.connected,
+      error: event.error,
+      workspaceRoot: event.workspaceRoot,
+      shell: event.shell,
+      rows: event.rows,
+    });
+  } else if (event.type === "row") {
+    const rows = state.rows.filter((row) => row.item.id !== event.row.item.id);
+    set({ ...state, rows: [...rows, event.row] });
+  } else if (event.type === "active" && state.shell !== null) {
+    set({ ...state, shell: { ...state.shell, active: event.value } });
+  }
 }
 if (typeof window !== "undefined") start();
 

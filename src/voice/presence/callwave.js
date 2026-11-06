@@ -140,6 +140,7 @@ export function createCallWave(canvas, { reduced = false, wash = null, state = (
   let washSet = "";
   let barsSet = "";
   let voice = "idle";
+  let fill = null; // a model download's progress (0..1) for the ASCII line, or null
   let moving = false; // her line or its ghost still off the middle
   let resting = false; // nothing here moves without sound: the page may poll instead of drawing every frame
   let asciiGl; // the restored ASCII shader (asciiline.mjs), made on the first connecting frame; null without WebGL
@@ -256,7 +257,7 @@ export function createCallWave(canvas, { reduced = false, wash = null, state = (
     if (k === "ascii") {
       // The old ASCII shader (the user, 23 Oct: "the one we had before"), copied into the room's clip.
       if (asciiGl === undefined) asciiGl = createAsciiLine();
-      const img = asciiGl?.draw({ width: W, height: H, dpr, x0: a, x1: b, y: cy, time: t, breath: 0.5 + 0.5 * Math.sin((t * Math.PI * 2) / 7) });
+      const img = asciiGl?.draw({ width: W, height: H, dpr, x0: a, x1: b, y: cy, time: t, breath: 0.5 + 0.5 * Math.sin((t * Math.PI * 2) / 7), fill });
       if (img) {
         asciiBy = asciiGl.kind;
         ctx.drawImage(img, 0, 0, W, H);
@@ -446,6 +447,8 @@ export function createCallWave(canvas, { reduced = false, wash = null, state = (
     moveTo() {},
     flash() {},
     setVoice: (v) => void (voice = v),
+    /** A model download's progress (0..1), lighting the connecting line's glyphs green from the left; null, none. */
+    setFill: (f) => void (fill = f),
     /** The kind drawn now, her and the user's eased levels, the voice line's highest point drawn (CSS px), the line's ends and the room (CSS px), the wash's opacity (checks). */
     get kind() {
       return kind;

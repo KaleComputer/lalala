@@ -4,7 +4,7 @@ import { threadRuntimeIsActive } from "@t3tools/client-runtime/state/models";
 import { squashAtomCommandFailure } from "@t3tools/client-runtime/state/runtime";
 import type { ThreadId } from "@t3tools/contracts";
 import * as DateTime from "effect/DateTime";
-import { useEffect, useEffectEvent, useRef, useState } from "react";
+import { type ComponentProps, useEffect, useEffectEvent, useRef, useState } from "react";
 
 import { readFileAsDataUrl } from "~/lib/imageCompression";
 import { newMessageId, newThreadId, randomUUID } from "~/lib/utils";
@@ -14,6 +14,7 @@ import { primaryServerSettingsAtom } from "../state/server";
 import { threadEnvironment } from "../state/threads";
 import { useOrchestrationCommand } from "../state/use-orchestration-command";
 import { markBriefed, needsBrief, withBrief, withCanvas } from "./brief";
+import type { ModelProgress } from "./adapters";
 import { speechEngine, useSpeechEngine } from "./engine";
 import { asksToSee, followCommand, isFollowing, setFollowing, takeFocus } from "./follow";
 import { type VoicePhase, VoiceSession } from "./speech";
@@ -57,7 +58,7 @@ type VoiceConfig = {
  * words go to that thread as turns, its finished replies are spoken back, and the thread (a normal
  * agent with T3's tools) acts on the instance or edits this UI. Ctrl+Option+V toggles the mic.
  */
-export function VoiceHost() {
+export function VoiceHost({ bar }: { readonly bar?: Partial<ComponentProps<typeof VoiceBar>> } = {}) {
   const environmentId = usePrimaryEnvironmentId();
   const projects = useProjects();
   const shells = useThreadShells();
@@ -124,11 +125,20 @@ export function VoiceHost() {
   const items = useThreadVisibleTurnItems(phase === "off" ? null : voiceThreadRef);
   const thinking = threadRuntimeIsActive(voiceThread?.runtime);
 
+  // lalala.talk: the harness and speech adapters stand in for the dev server and the speech service.
+  const harness = globalThis.__lalalaAdapters?.harness;
+  const speech = globalThis.__lalalaAdapters?.speech;
+  // The in-browser models' download and warm-up (the bar's readout); null once ready.
+  const [loading, setLoading] = useState<ReadonlyArray<ModelProgress> | null>(null);
+
   // oxlint-disable-next-line t3code/no-unreasoned-state-sync -- reads the dev server's voice config once
   useEffect(() => {
     let cancelled = false;
-    fetch("/__lalala/config")
-      .then((response) => (response.ok ? (response.json() as Promise<VoiceConfig>) : null))
+    (harness
+      ? harness.config()
+      : fetch("/__lalala/config").then((response) =>
+          response.ok ? (response.json() as Promise<VoiceConfig>) : null,
+        ))
       .then((value) => {
         if (!cancelled) setConfig(value);
       })
@@ -142,7 +152,7 @@ export function VoiceHost() {
 
   // oxlint-disable-next-line t3code/no-unreasoned-state-sync -- polls the local speech service while it is the chosen engine, so the bar says when it is down instead of falling back
   useEffect(() => {
-    if (engine !== "local") return;
+    if (engine !== "local" || speech) return;
     let cancelled = false;
     const check = () =>
       fetch("/__lalala/local/health")
@@ -161,6 +171,15 @@ export function VoiceHost() {
       window.clearInterval(timer);
     };
   }, [engine]);
+
+  // oxlint-disable-next-line t3code/no-unreasoned-state-sync -- polls the in-browser models' load state (workers outside React) while a call is on
+  useEffect(() => {
+    if (!speech?.progress || (phase === "off" && !starting)) return;
+    const read = () => setLoading(speech.progress?.() ?? null);
+    read();
+    const timer = window.setInterval(read, 250);
+    return () => window.clearInterval(timer);
+  }, [phase, starting]);
 
   // oxlint-disable-next-line t3code/no-unreasoned-state-sync -- installs the brain-edited theme file as T3's "Voice" theme
   useEffect(() => syncVoiceTheme(), []);
@@ -398,11 +417,14 @@ export function VoiceHost() {
 
   // Local speech needs its service up.
   const unavailable = localProblem;
-  const message = error ?? unavailable;
+  const problem = error ?? unavailable;
+  const live = phase !== "off" || starting;
+  const message = problem;
+  const downloads = live ? loading : null;
   const state: VoiceBarState =
-    message !== null
+    problem !== null
       ? "error"
-      : starting
+      : starting || downloads !== null
         ? "connecting"
         : phase === "transcribing" || (phase === "listening" && (thinking || awaitingRun))
           ? quiet
@@ -412,6 +434,9 @@ export function VoiceHost() {
 
   return (
     <VoiceBar
+      {...bar}
+      downloads={downloads}
+      disabled={false}
       state={state}
       message={message}
       label={

@@ -32,12 +32,22 @@ export type SpeechAdapter = {
   }>;
   /** One sentence as 24 kHz PCM, streamed in pieces as it renders. */
   speak(text: string, signal: AbortSignal): AsyncIterable<Float32Array>;
-  /** Model downloads and warm-up, for the bar's readout; null once ready or with nothing to load. */
-  progress?(): string | null;
+  /** The models this call loads, for the bar's download readout; null once all are ready. */
+  progress?(): ReadonlyArray<ModelProgress> | null;
+};
+
+/** One model a call downloads: its bytes so far against its size, `done` once all are here. */
+export type ModelProgress = {
+  readonly name: string;
+  readonly loaded: number;
+  readonly total: number;
+  readonly done: boolean;
 };
 
 /** The coding harness (T3 Code) the voice works through. */
 export type HarnessAdapter = {
+  /** What the app's `/__lalala/config` answers: the brain's workspace, or null while not set up. */
+  config(): Promise<{ readonly workspaceRoot: string; readonly model: string | null } | null>;
   /** The brain thread's events (vite/t3bridge.mjs's `hello`, `row`, `active`). Returns the unsubscribe. */
   events(listener: (event: unknown) => void): () => void;
   /** One orchestration command for the harness. */

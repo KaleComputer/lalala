@@ -1,6 +1,7 @@
 import { type ReactNode, useEffect, useEffectEvent, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 
+import type { ModelProgress } from "./adapters";
 import type { PresenceFrame } from "./presence/frame";
 import { CanvasTabs } from "./CanvasSwitcher";
 import { useUpdateReady } from "./phoneUpdate";
@@ -49,6 +50,8 @@ export function VoiceBar(props: {
   readonly canvasMenuAlways?: boolean;
   /** The settings' sections, in place of the app's (lalala.talk shows only what a browser can do). */
   readonly settings?: ReactNode;
+  /** Models the call is downloading (lalala.talk's in-browser speech): a line each over the room. */
+  readonly downloads?: ReadonlyArray<ModelProgress> | null;
 }) {
   const rootRef = useRef<HTMLDivElement>(null);
   const frameRef = useRef<PresenceFrame | null>(null);
@@ -58,12 +61,13 @@ export function VoiceBar(props: {
   const press = useEffectEvent(() => props.onPress());
   const readAnalysis = useEffectEvent(() => props.analysis?.() ?? null);
   const hearing = useEffectEvent(() => props.state === "hearing");
+  const fill = useEffectEvent(() => downloadFill(props.downloads));
 
   // oxlint-disable-next-line t3code/no-unreasoned-state-sync -- mounts Presence's own DOM-driven frame and wave once; they live outside React
   useEffect(() => {
     const root = rootRef.current;
     if (root === null) return;
-    const bar = mountPresenceBar(root, { onPress: press, analysis: readAnalysis, hearing });
+    const bar = mountPresenceBar(root, { onPress: press, analysis: readAnalysis, hearing, fill });
     if (bar === null) return;
     frameRef.current = bar.frame;
     setHosts(bar.hosts);
@@ -104,6 +108,9 @@ export function VoiceBar(props: {
         data-voice-state={props.state}
       />
       {slot !== null ? createPortal(props.toggle, slot) : null}
+      {inputHosts !== null && props.downloads
+        ? createPortal(<Downloads models={props.downloads} />, inputHosts.panel)
+        : null}
       {inputHosts !== null && props.onSubmit ? (
         <VoiceInput
           tabHost={inputHosts.tab}
@@ -164,5 +171,33 @@ export function VoiceBar(props: {
           )
         : null}
     </>
+  );
+}
+
+/** All the models' bytes so far against all their sizes, for the connecting line's green fill. */
+function downloadFill(models: ReadonlyArray<ModelProgress> | null | undefined) {
+  if (!models || models.length === 0) return null;
+  let loaded = 0;
+  let total = 0;
+  for (const model of models) {
+    loaded += model.loaded;
+    total += model.total;
+  }
+  return total > 0 ? loaded / total : 0;
+}
+
+const mb = (bytes: number) => Math.round(bytes / 1e6);
+
+/** The download readout over the room: a model's name, then its megabytes growing toward its size. */
+function Downloads({ models }: { readonly models: ReadonlyArray<ModelProgress> }) {
+  return (
+    <ol data-lalala-downloads="" aria-live="polite" aria-label="Downloading speech models">
+      {models.map((model) => (
+        <li key={model.name} data-done={model.done ? "" : undefined}>
+          <span>{model.name}</span>
+          <span>{model.done ? `\u2713 ${mb(model.total)} MB` : `${mb(model.loaded)} / ${mb(model.total)} MB`}</span>
+        </li>
+      ))}
+    </ol>
   );
 }

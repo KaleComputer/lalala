@@ -34,6 +34,12 @@
   text-wrap: balance;
 }
 
+[data-landing-talk] p {
+  margin: 1em 0 0;
+  color: rgba(245, 238, 226, 0.5);
+  font: 400 12px / 1.4 "Geist Mono", ui-monospace, monospace;
+}
+
 /* The settings' Connect link, drawn as the settings' buttons are. */
 a[data-landing-link] {
   display: inline-flex;

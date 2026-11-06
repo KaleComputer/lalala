@@ -1,4 +1,4 @@
-// A browser client for the visitor's own T3 Code server: pairing-link exchange, a WebSocket
+// lalala.talk's T3 client, straight from the tab to the visitor's own T3 Code server: pairing-link exchange, a WebSocket
 // ticket, and the Effect RPC JSON protocol T3's own clients speak on /ws. T3 already answers
 // cross-origin bearer requests (CORS `*`), so no helper or server change is needed.
 
@@ -28,7 +28,25 @@ export function readSession(): Session | null {
   }
 }
 
-export const forgetSession = () => localStorage.removeItem(SESSION_KEY);
+export const forgetSession = () => {
+  localStorage.removeItem(SESSION_KEY);
+  localStorage.removeItem(THREAD_KEY);
+};
+
+const THREAD_KEY = "lalala.t3.thread";
+
+/** The thread this browser talks to (the app's brain thread), for the paired T3 at `origin`. */
+export function readBrainThread(origin: string): string | null {
+  try {
+    const stored = JSON.parse(localStorage.getItem(THREAD_KEY) ?? "null") as { origin?: string; threadId?: string } | null;
+    return stored?.origin === origin && typeof stored.threadId === "string" ? stored.threadId : null;
+  } catch {
+    return null;
+  }
+}
+
+export const saveBrainThread = (origin: string, threadId: string) =>
+  localStorage.setItem(THREAD_KEY, JSON.stringify({ origin, threadId }));
 
 /** Trades a T3 pairing link (`http://127.0.0.1:3773/pair#token=…`) for a bearer session. */
 export async function pairWithLink(link: string): Promise<Session> {
@@ -256,7 +274,7 @@ export async function launchVoiceThread(
     commandId: uuid(),
     creationSource: "web",
     projectId,
-    title: "Voice (lalala.talk)",
+    title: "voice (lalala.talk)",
     modelSelection,
     runtimeMode: "full-access",
     interactionMode: "default",
@@ -265,73 +283,3 @@ export async function launchVoiceThread(
   return result.threadId;
 }
 
-export const sendMessage = (socket: T3Socket, threadId: string, text: string) =>
-  socket.dispatch({
-    type: "message.dispatch",
-    createdBy: "user",
-    creationSource: "web",
-    threadId,
-    messageId: uuid(),
-    text,
-    attachments: [],
-    deliveryIntent: "auto",
-    dispatchMode: { type: "start_immediately" },
-  });
-
-export type ReplyItem = { id: string; text: string; streaming: boolean };
-
-const ACTIVE_RUN = new Set(["preparing", "queued", "starting", "running", "waiting"]);
-
-/**
- * Follows a thread: `onReply` for every top-level assistant message created after subscribing
- * (full text so far, each update), `onBusy` when a run starts or settles.
- */
-export function followThread(
-  socket: T3Socket,
-  threadId: string,
-  handlers: {
-    onTitle: (title: string) => void;
-    onReply: (item: ReplyItem) => void;
-    onBusy: (busy: boolean) => void;
-    onProblem: (text: string) => void;
-  },
-) {
-  const known = new Set<string>();
-  const runs = new Map<string, string>();
-  const busy = () => [...runs.values()].some((status) => ACTIVE_RUN.has(status));
-  return socket.stream<{
-    kind: string;
-    projection?: {
-      thread: { title: string };
-      runs: { id: string; status: string }[];
-      visibleTurnItems: { item: { id: string } }[];
-    };
-    event?: { type: string; payload: Record<string, never> };
-  }>("orchestration.subscribeThread", { threadId, acceptBoundedSnapshot: true }, (chunk) => {
-    if (chunk.kind === "snapshot" && chunk.projection) {
-      handlers.onTitle(chunk.projection.thread.title);
-      for (const row of chunk.projection.visibleTurnItems) known.add(row.item.id);
-      for (const run of chunk.projection.runs) runs.set(run.id, run.status);
-      handlers.onBusy(busy());
-    } else if (chunk.kind === "event" && chunk.event) {
-      const { type, payload } = chunk.event;
-      if (type === "turn-item.updated" && payload.threadId === threadId) {
-        const item = payload as unknown as {
-          id: string;
-          type: string;
-          text?: string;
-          streaming?: boolean;
-          parentItemId?: string | null;
-        };
-        if (item.parentItemId || known.has(item.id)) return;
-        if (item.type === "error") return handlers.onProblem(item.text ?? "The agent hit an error.");
-        if (item.type !== "assistant_message") return;
-        handlers.onReply({ id: item.id, text: item.text ?? "", streaming: item.streaming === true });
-      } else if (type === "run.created" || type === "run.updated") {
-        const run = payload as unknown as { id: string; status: string };
-        runs.set(run.id, run.status);
-        handlers.onBusy(busy());
-      }
-    }
-  });
-}

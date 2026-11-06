@@ -17,6 +17,8 @@ const config = {
   // The app's own aliases (vite.config.mjs): T3 Code imports point at the small stand-ins in src/t3.
   turbopack: {
     root,
+    // The app's Vite `?raw` imports (the brain's brief, src/voice/brain.md) as strings.
+    rules: { "*.md": { condition: { query: "?raw" }, type: "text" } },
     resolveAlias: {
       "~/*": "../src/*",
       "@t3tools/contracts": "../src/t3/contracts.ts",
@@ -29,6 +31,9 @@ const config = {
       "@effect/atom-react": "../src/t3/atomReact.ts",
       "effect/DateTime": "../src/t3/dateTime.ts",
       "@tanstack/react-router": "../src/t3/router.ts",
+      // The browser speech adapter's workers (src/voice/adapters/speech) use the site's packages.
+      "kokoro-js": "./node_modules/kokoro-js/dist/kokoro.js",
+      "parakeet.js": "./node_modules/parakeet.js/src/index.js",
     },
   },
   env: { LALALA_TOPIC_SOUNDS: topicSounds.join(",") },

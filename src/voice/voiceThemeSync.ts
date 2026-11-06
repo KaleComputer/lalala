@@ -62,8 +62,12 @@ export function syncVoiceTheme(): void {
 }
 
 // The brain edits voiceTheme.ts while the page is open; apply it in place instead of reloading.
-if (import.meta.hot) {
-  import.meta.hot.accept("./voiceTheme", (next) => {
+// Typed by hand: Next's types (lalala.talk builds this file too) know only webpack's `accept()`.
+const hot = import.meta.hot as
+  | { accept(path: string, callback: (next: unknown) => void): void }
+  | undefined;
+if (hot) {
+  hot.accept("./voiceTheme", (next) => {
     sync((next as { voiceTheme?: VoiceTheme | null } | undefined)?.voiceTheme ?? null);
   });
 }

@@ -8,11 +8,10 @@ import { useState } from "react";
 import { CanvasCard } from "../../../src/voice/extras/CanvasCard";
 import { VoiceExtras } from "../../../src/voice/extras/VoiceExtras";
 import { StreamerFilter } from "../../../src/voice/streamerMode";
-import { VoiceBar } from "../../../src/voice/VoiceBar";
 import { CanvasRows, Row, Section, SoundSection } from "../../../src/voice/VoiceSettings";
 import "../../../src/voice/voicePage.css";
 import "./landing.css";
-import { useCall } from "./useCall";
+import { Call } from "./Call";
 
 const HIDDEN = "lalala:landing-hidden";
 /** The device bar and its rail take this much of the first view's bottom (CanvasCard's BAR_ROOM). */
@@ -55,7 +54,6 @@ export default function Landing() {
     }
   };
   const remove = (id: string) => () => keepHidden([...hidden, id]);
-  const call = useCall();
 
   return (
     <>
@@ -66,6 +64,7 @@ export default function Landing() {
               <CanvasCard id="talk" title="lalala" at={at} onRemove={remove("talk")}>
                 <div data-landing-talk="">
                   <h1>talk to all your agents</h1>
+                  <p>all speech runs on your device</p>
                 </div>
               </CanvasCard>
             )}
@@ -73,15 +72,14 @@ export default function Landing() {
         </div>
       </main>
       <div data-lalala-dock="" data-lalala-canvas="">
-        <VoiceBar
-          {...call}
+        <Call
           canvasMenuAlways
           settings={
             <>
               <Section title="Connection">
                 <Row
                   title="T3 Code"
-                  description="Pair this page with the T3 Code on your computer to talk to your own agents."
+                  description="Pair this page with the T3 Code on your computer, and pick the thread lalala talks to."
                 >
                   <a href="/connect" data-lalala-settings-button="" data-landing-link="">
                     Connect

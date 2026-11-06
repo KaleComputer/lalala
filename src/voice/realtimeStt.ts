@@ -3,6 +3,7 @@
  * realtime's message shapes. 16 kHz PCM streams only while the user talks; a manual commit per utterance
  * returns its transcript. Without a socket, the same engine's batch endpoint takes it, never the other.
  */
+import type { SpeechAdapter } from "./adapters";
 import { type SpeechEngine, speechEngine, subscribeSpeechEngine } from "./engine";
 
 export const STT_SAMPLE_RATE = 16_000;
@@ -99,6 +100,9 @@ export class RealtimeStt {
   private carry: string[] = [];
   /** The open local socket transcribes only what its voice detection called speech. */
   private vad = false;
+  /** lalala.talk's in-browser speech (the speech adapter) instead of the local service's socket. */
+  private readonly adapter = globalThis.__lalalaAdapters?.speech;
+  private session: ReturnType<SpeechAdapter["listen"]> | null = null;
 
   /**
    * Whether a transcript can only come from real speech: Scribe always (its own voice detection),
@@ -113,6 +117,11 @@ export class RealtimeStt {
    * utterance starts: a changed engine choice switches the socket here, between utterances.
    */
   warm(): void {
+    if (this.adapter) {
+      this.session ??= this.adapter.listen();
+      this.session.catch(() => (this.session = null));
+      return;
+    }
     const engine = speechEngine();
     if (engine !== this.engine && this.pending.length === 0) {
       this.engine = engine;
@@ -125,6 +134,8 @@ export class RealtimeStt {
   }
 
   close(): void {
+    void this.session?.then((session) => session.close()).catch(() => {});
+    this.session = null;
     this.closed = true;
     this.unsubscribe?.();
     this.unsubscribe = null;
@@ -138,6 +149,7 @@ export class RealtimeStt {
   /** Streams audio of the utterance in progress; sends in ~100 ms batches. */
   push(chunk: Int16Array): void {
     this.utterance.push(chunk);
+    if (this.adapter) return;
     this.unsent.push(chunk);
     if (this.unsent.length >= 5) this.flush(false);
   }
@@ -152,6 +164,13 @@ export class RealtimeStt {
   /** Ends the utterance and resolves with its transcript. `fallback: false` skips the batch retry. */
   async commit({ fallback = true }: { readonly fallback?: boolean } = {}): Promise<string> {
     const utterance = this.utterance;
+    if (this.adapter) {
+      this.utterance = [];
+      this.warm();
+      const session = await this.session!;
+      for (const chunk of utterance) session.send(chunk);
+      return (await session.commit()).trim();
+    }
     const engine = this.engine;
     const commit = new Promise<string>((resolve, reject) => {
       this.pending.push({ resolve, reject });

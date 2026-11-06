@@ -1228,3 +1228,35 @@
     animation: none !important;
   }
 }
+
+/* lalala.talk's model download (VoiceBar's `downloads`): over the room's left end, the ASCII line
+   filling green behind it (asciiline.js uFill). A name column and a size column, a line per model. */
+[data-lalala-presence] [data-lalala-downloads] {
+  position: absolute;
+  z-index: 4;
+  left: calc(1px + var(--fr-strip) + 8px);
+  top: calc(var(--bar-h) / 2);
+  transform: translateY(-50%);
+  display: grid;
+  grid-template-columns: auto auto;
+  column-gap: 14px;
+  row-gap: 2px;
+  margin: 0;
+  padding: 4px 8px;
+  list-style: none;
+  pointer-events: none;
+  background: color-mix(in srgb, var(--color-surface) 55%, transparent);
+  color: #f5eee2;
+  font: 400 calc(var(--tab-fs) - 1px) / 1.2 var(--font-mono);
+  white-space: nowrap;
+}
+[data-lalala-presence] [data-lalala-downloads] li {
+  display: contents;
+}
+[data-lalala-presence] [data-lalala-downloads] li > span:last-child {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+[data-lalala-presence] [data-lalala-downloads] li[data-done] > span {
+  color: rgba(245, 238, 226, 0.6);
+}

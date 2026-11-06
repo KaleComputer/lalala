@@ -25,9 +25,11 @@ uniform vec3 uLine;     // x0, x1, y: backing px, y from the top
 uniform float uDpr;     // backing px per CSS px
 uniform float uK;       // glow scale: 1 on a wide line, smaller on a short one or in the bar
 uniform vec4 uState;    // time (s), idle breath, opacity over the room, the cell grid's vertical offset (backing px)
+uniform float uFill;    // a model download's edge (backing px): glyphs left of it light green; < 0, no download
 
 const vec3 WHITE = vec3(1.0, 0.955, 0.90);
 const vec3 WARM = vec3(1.0, 0.56, 0.24);
+const vec3 HUD = vec3(0.239, 1.0, 0.561);
 const vec3 BG = vec3(0.003035, 0.002732, 0.002428);
 
 float sq(float x) { return x * x; }
@@ -94,7 +96,18 @@ void main() {
   vec3 tint = cc / max(1e-3, max(cc.r, max(cc.g, cc.b)));
   // Over the room at the line's opacity (about 60% while lost): premultiplied, so the frame shows through.
   float a = on * uState.z;
-  gl_FragColor = vec4(tint * min(1.0, 0.35 + gray) * a, a);
+  vec3 col = tint * min(1.0, 0.35 + gray);
+  // A download fills the line green from the left (Tim, 6 Nov: design A's glyphs, D's green fill).
+  if (uFill >= 0.0) {
+    if (cx <= uFill) {
+      col = HUD * min(1.0, 0.55 + gray);
+      a = on * min(1.0, uState.z + 0.3);
+    } else {
+      col *= 0.6;
+      a *= 0.55;
+    }
+  }
+  gl_FragColor = vec4(col * a, a);
 }`;
 
 /** The character cell, CSS px (KAL-1485). */
@@ -108,11 +121,11 @@ export const ASCII_END = 0.1;
 /** The line sits this far (CSS px) above a cell row's edge, as it fell on the old page: a dense row over a lighter one, a dotted row each side. */
 export const ASCII_ROW = 0.75;
 const DEFINES = [`#define CELL ${ASCII_CELL.toFixed(1)}`, `#define END ${ASCII_END.toFixed(3)}`, ...GLYPHS.map((n, i) => `#define GLYPH${i} ${Math.floor(n / 4096).toFixed(1)}, ${(n % 4096).toFixed(1)}`)].join("\n");
-const UNIFORMS = ["uRes", "uLine", "uDpr", "uK", "uState"];
+const UNIFORMS = ["uRes", "uLine", "uDpr", "uK", "uState", "uFill"];
 
 /**
- * The ASCII line on a detached canvas: `draw({ width, height, dpr, x0, x1, y, time, breath, glow })` (CSS
- * px) renders it and returns the canvas to copy, or null when WebGL is unavailable or lost.
+ * The ASCII line on a detached canvas: `draw({ width, height, dpr, x0, x1, y, time, breath, glow, fill })` (CSS
+ * px; `fill` a download's 0..1 or null) renders it and returns the canvas to copy, or null when WebGL is unavailable or lost.
  */
 export function createAsciiLine({ force } = {}) {
   if (typeof document === "undefined") return null;
@@ -167,12 +180,12 @@ export function createAsciiLine({ force } = {}) {
     } catch {}
   });
 
-  function draw({ width, height, dpr = 1, x0 = 0, x1 = width, y = height / 2, time = 0, breath = 0.5, glow = 0.8 }) {
+  function draw({ width, height, dpr = 1, x0 = 0, x1 = width, y = height / 2, time = 0, breath = 0.5, glow = 0.8, fill = null }) {
     if (lost || gl.isContextLost()) return null;
     const W = Math.max(1, Math.round(width * dpr));
     const H = Math.max(1, Math.round(height * dpr));
     // The glyphs change ten times a second: between steps the last frame stands.
-    const key = `${W}x${H}|${x0}|${x1}|${y}|${Math.floor(time * 10)}`;
+    const key = `${W}x${H}|${x0}|${x1}|${y}|${Math.floor(time * 10)}|${fill === null ? "" : fill.toFixed(3)}`;
     if (key === last) return canvas;
     last = key;
     if (canvas.width !== W) canvas.width = W;
@@ -186,6 +199,7 @@ export function createAsciiLine({ force } = {}) {
     gl.uniform3f(loc.uLine, x0 * dpr, x1 * dpr, yb);
     gl.uniform1f(loc.uDpr, dpr);
     gl.uniform1f(loc.uK, Math.min(1, Math.max(0.55, (x1 - x0) / 860)) * glow);
+    gl.uniform1f(loc.uFill, fill === null ? -1 : (x0 + Math.min(1, Math.max(0, fill)) * (x1 - x0)) * dpr);
     gl.uniform4f(loc.uState, time, breath, ASCII_OPACITY, ((((y + ASCII_ROW) * dpr) % cs) + cs) % cs);
     gl.drawArrays(gl.TRIANGLES, 0, 3);
     return canvas;

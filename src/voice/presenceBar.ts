@@ -93,6 +93,8 @@ export function mountPresenceBar(
     readonly onPress: () => void;
     readonly analysis: () => VoiceBarAnalysis | null;
     readonly hearing: () => boolean;
+    /** A model download's progress (0..1) for the connecting line, or null. */
+    readonly fill?: () => number | null;
   },
 ): { readonly frame: PresenceFrame; readonly hosts: PresenceBarHosts; readonly dispose: () => void } | null {
   root.innerHTML = BAR_HTML;
@@ -139,6 +141,7 @@ export function mountPresenceBar(
   const tick = () => {
     if (stopped) return;
     const analysis = input.analysis();
+    light.setFill(input.fill?.() ?? null);
     light.frame(analysis?.levels ?? {}, analysis?.spectrum ?? null);
     const now = performance.now();
     const dt = Math.min(0.05, (now - voiceAt) / 1000);
