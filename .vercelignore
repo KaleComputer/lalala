@@ -1,5 +1,8 @@
 /*
 !/site
+!/src
+/src/*
+!/src/voice
 /site/node_modules
 /site/.next
 /site/out

@@ -4,7 +4,7 @@ import type { ReactNode } from "react";
 import "./globals.css";
 
 const description =
-  "lalala is a voice-first canvas for coding agents. You talk, an agent brain answers out loud, hands real work to coding agents and builds what you need on an endless canvas. Speech stays on your Mac.";
+  "lalala is a voice-first canvas for coding agents. You talk, an agent brain answers out loud and hands real work to coding agents.";
 
 export const metadata: Metadata = {
   metadataBase: new URL("https://lalala.talk"),
@@ -29,10 +29,6 @@ export const viewport: Viewport = {
 export default function RootLayout({ children }: { children: ReactNode }) {
   return (
     <html lang="en">
-      <head>
-        <link rel="preload" href="/fonts/oxanium-var-latin.woff2" as="font" type="font/woff2" crossOrigin="" />
-        <link rel="preload" href="/fonts/geist-400-latin.woff2" as="font" type="font/woff2" crossOrigin="" />
-      </head>
       <body>{children}</body>
     </html>
   );
