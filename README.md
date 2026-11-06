@@ -1,6 +1,6 @@
 # lalala
 
-Talk to your agent. [lalala.talk](https://lalala.talk)
+talk to all your agents [lalala.talk](https://lalala.talk)
 
 lalala is a voice-first canvas on top of
 [T3 Code](https://github.com/pingdotgg/t3code): you speak, a "brain" thread in T3 Code listens,
