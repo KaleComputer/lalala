@@ -33,3 +33,10 @@
   letter-spacing: -0.02em;
   text-wrap: balance;
 }
+
+/* The settings' Connect link, drawn as the settings' buttons are. */
+a[data-landing-link] {
+  display: inline-flex;
+  align-items: center;
+  text-decoration: none;
+}

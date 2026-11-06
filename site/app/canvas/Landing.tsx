@@ -78,10 +78,16 @@ export default function Landing() {
           canvasMenuAlways
           settings={
             <>
-              <Section
-                title="Connection"
-                note="Pair this page with the T3 Code on your computer to talk to your own agents."
-              />
+              <Section title="Connection">
+                <Row
+                  title="T3 Code"
+                  description="Pair this page with the T3 Code on your computer to talk to your own agents."
+                >
+                  <a href="/connect" data-lalala-settings-button="" data-landing-link="">
+                    Connect
+                  </a>
+                </Row>
+              </Section>
               <SoundSection />
               <CanvasRows />
               {hidden.length > 0 ? (
