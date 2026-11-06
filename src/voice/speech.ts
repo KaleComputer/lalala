@@ -17,6 +17,7 @@ import {
   stripEcho,
 } from "./speechText";
 import { VoiceComb } from "./voiceComb";
+import { micDeviceId } from "./settingsStore";
 import { voiceLog } from "./voiceLog";
 import { VoiceSounds } from "./voiceSounds";
 
@@ -331,7 +332,19 @@ export class VoiceSession {
       autoGainControl: false,
       voiceIsolation: true,
     };
-    this.stream = await navigator.mediaDevices.getUserMedia({ audio: constraints });
+    // The mic picked in the settings (per device); gone or refused, the system's default.
+    const deviceId = micDeviceId();
+    this.stream = await navigator.mediaDevices
+      .getUserMedia({
+        audio: deviceId === null ? constraints : { ...constraints, deviceId: { exact: deviceId } },
+      })
+      .catch((cause: unknown) => {
+        if (deviceId === null || (cause as { name?: string }).name === "NotAllowedError") {
+          throw cause;
+        }
+        voiceLog("system", "error", { where: "mic.device", message: String(cause) });
+        return navigator.mediaDevices.getUserMedia({ audio: constraints });
+      });
     const moduleUrl = URL.createObjectURL(
       new Blob([CAPTURE_WORKLET], { type: "application/javascript" }),
     );

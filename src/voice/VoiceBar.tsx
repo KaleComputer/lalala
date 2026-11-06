@@ -6,6 +6,7 @@ import { createFrame, type PresenceFrame } from "./presence/frame";
 import { CanvasTabs } from "./CanvasSwitcher";
 import { useUpdateReady } from "./phoneUpdate";
 import { VoiceInput, type VoiceInputSubmit } from "./VoiceInput";
+import { VoiceSettings } from "./VoiceSettings";
 import { voiceLog } from "./voiceLog";
 import { showSweep, startSweepClock } from "./voiceSounds";
 import { BAR_HTML } from "./presence/markup";
@@ -70,11 +71,14 @@ function makeStatusTab(frameEl: HTMLElement) {
   // The mic mute tab, left of "+".
   const mic = document.createElement("span");
   mic.className = "t3voice-mic-slot";
-  // The canvas's name and Follow, left of the mic; like the rest, only in a call.
+  // The canvas's name, left of the mic; like the rest, an empty slot out of a call.
   const canvas = document.createElement("span");
   canvas.className = "t3voice-canvas-slot";
-  row.append(canvas, mic, input, tab);
-  // The row's slot: it clips the row at the frame's top edge, so it slides in and out behind the bar.
+  // The settings gear between them, the one tab live out of a call.
+  const settings = document.createElement("span");
+  settings.className = "t3voice-settings-slot";
+  row.append(canvas, settings, mic, input, tab);
+  // The row's slot: it clips the row at the frame's top edge, so revealed content rises out of it.
   const clip = document.createElement("div");
   clip.className = "t3voice-tabs-clip";
   clip.append(row);
@@ -100,7 +104,7 @@ export function VoiceBar(props: {
   readonly stoppedAt?: number;
   /** Typed text and pictures for the voice thread (the "› INPUT" tab); none, no tab. */
   readonly onSubmit?: VoiceInputSubmit;
-  /** A call is on: only then is INPUT there (out of a call it is tucked away). */
+  /** A call is on: the row's call tabs are live (out of a call they are empty, inert slots). */
   readonly live?: boolean;
   /** The user's mic is muted; the mic tab left of "+" shows it and `onMute` flips it. */
   readonly muted?: boolean;
@@ -117,6 +121,7 @@ export function VoiceBar(props: {
     readonly bar: HTMLElement;
   } | null>(null);
   const [canvasHost, setCanvasHost] = useState<HTMLElement | null>(null);
+  const [settingsHost, setSettingsHost] = useState<HTMLElement | null>(null);
   const updateReady = useUpdateReady();
 
   const press = useEffectEvent(() => props.onPress());
@@ -159,6 +164,7 @@ export function VoiceBar(props: {
     (frameEl.querySelector(".fr-in") ?? frameEl).append(map);
     setMicHost(root.querySelector<HTMLElement>(".t3voice-mic-slot"));
     setCanvasHost(root.querySelector<HTMLElement>(".t3voice-canvas-slot"));
+    setSettingsHost(root.querySelector<HTMLElement>(".t3voice-settings-slot"));
     document.dispatchEvent(new Event("t3voice:bar"));
 
     const wash = root.querySelector<HTMLElement>("[data-wash]");
@@ -257,11 +263,13 @@ export function VoiceBar(props: {
           live={props.live ?? false}
         />
       ) : null}
-      {micHost !== null && props.onMute && props.live
+      {micHost !== null && props.onMute
         ? createPortal(
             <button
               type="button"
               data-t3voice-mic=""
+              aria-hidden={!props.live}
+              tabIndex={props.live ? undefined : -1}
               data-muted={props.muted ? "" : undefined}
               aria-pressed={props.muted ?? false}
               aria-label={props.muted ? "Unmute microphone" : "Mute microphone"}
@@ -276,6 +284,7 @@ export function VoiceBar(props: {
             micHost,
           )
         : null}
+      {settingsHost !== null ? <VoiceSettings tabHost={settingsHost} /> : null}
       {lead !== null && updateReady
         ? createPortal(
             // An update waits; during a call it applies only on this tap. It fills the lead

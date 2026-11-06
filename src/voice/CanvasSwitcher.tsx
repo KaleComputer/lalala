@@ -3,7 +3,6 @@ import { type CSSProperties, useEffect, useRef, useState, useSyncExternalStore }
 import { createPortal } from "react-dom";
 
 import { ensureLocalApi } from "../localApi";
-import { isFollowing, setFollowing, subscribeFollow } from "./follow";
 import { liftOverKeyboard } from "./keyboardLift";
 
 // canvasStore lives in the separately built extras bundle; it announces changes with this event.
@@ -14,9 +13,9 @@ const subscribe = (listener: () => void) => {
 const snapshot = () => globalThis.__t3voiceCanvases?.snapshot() ?? null;
 
 /**
- * The canvas's tabs in the device bar's row: its name, which raises its list
- * over the bar (switch, New, Rename, Tidy, Delete), and Follow. On /canvas; out of a call they sit
- * tucked away with the rest of the row, out of reach.
+ * The canvas's tab in the device bar's row: its name, which raises its list over the bar (switch,
+ * New, Rename, Tidy, Delete). On /canvas; out of a call it is an empty, inert slot in the same spot,
+ * like the rest of the row's call tabs. Follow lives in the settings.
  */
 export function CanvasTabs(props: {
   readonly tabHost: HTMLElement;
@@ -26,7 +25,6 @@ export function CanvasTabs(props: {
 }) {
   const onCanvas = useLocation({ select: (location) => location.pathname === "/canvas" });
   const canvases = useSyncExternalStore(subscribe, snapshot, () => null);
-  const following = useSyncExternalStore(subscribeFollow, isFollowing, () => false);
   // Open: the list's right edge, px in from the frame's, so it rises over the name tab.
   const [openAt, setOpenAt] = useState<number | null>(null);
   const [renaming, setRenaming] = useState(false);
@@ -92,26 +90,6 @@ export function CanvasTabs(props: {
         <span>{current?.name ?? "No canvas"}</span>
         <svg viewBox="0 0 8 8" aria-hidden="true">
           <path d="M1 2.5h6L4 6.5z" />
-        </svg>
-      </button>
-      <button
-        type="button"
-        data-t3voice-follow=""
-        aria-hidden={!props.live}
-        tabIndex={props.live ? undefined : -1}
-        data-on={following ? "" : undefined}
-        aria-pressed={following}
-        aria-label={
-          following
-            ? "Following: the canvas moves to cards the voice talks about. Stop following"
-            : "Follow the voice"
-        }
-        onClick={() => setFollowing(!following)}
-      >
-        <svg viewBox="0 0 24 24" aria-hidden="true">
-          <circle cx="12" cy="12" r="7" />
-          <circle cx="12" cy="12" r="1.6" data-dot="" />
-          <path d="M12 2v5M12 17v5M2 12h5M17 12h5" />
         </svg>
       </button>
     </span>

@@ -169,26 +169,49 @@
     0 100%
   );
 }
-/* Out of a call (frame.js hides the timer) INPUT and the time box sit down in their slot, out of sight
-   behind the frame's top edge. A call going live extends them out of the seam: the seam
-   under them lights for a moment and they rise with a small overshoot and settle; ending it lowers them
-   fast. Transform and opacity only, on start and end; nothing moves in between. */
-[data-t3voice-presence] .t3voice-tabs:has(.fr-tmr[hidden]) {
-  transform: translateY(100%);
-  transition: transform 150ms cubic-bezier(0.5, 0, 0.9, 0.4);
+/* Gear design D: the row always stands in one layout, so the gear never moves. Out of a call
+   (frame.js hides the timer) the call tabs keep their solid edges and corners, just empty and inert, only
+   the gear live (no dashed slots). A call going live fills them: the seam under the row
+   lights and the content rises out of it; ending fades it out. Nothing moves in between. */
+[data-t3voice-presence] .t3voice-tabs:has(.fr-tmr[hidden]) [data-t3voice-mic][data-muted]::after {
+  background: var(--t3voice-fill);
 }
-[data-t3voice-presence] .t3voice-tabs:has(.fr-tmr:not([hidden])) {
-  animation: t3voice-tabs-extend 240ms cubic-bezier(0.2, 0.9, 0.3, 1);
+[data-t3voice-presence]
+  .t3voice-tabs:has(.fr-tmr[hidden])
+  :is([data-t3voice-canvas-name], [data-t3voice-mic], [data-t3voice-input-tab]) {
+  cursor: default;
+  pointer-events: none;
 }
-@keyframes t3voice-tabs-extend {
+[data-t3voice-presence]
+  :is([data-t3voice-canvas-name] > *, [data-t3voice-mic] svg, [data-t3voice-input-tab] svg) {
+  transition: opacity 200ms ease-out;
+}
+[data-t3voice-presence]
+  .t3voice-tabs:has(.fr-tmr[hidden])
+  :is([data-t3voice-canvas-name] > *, [data-t3voice-mic] svg, [data-t3voice-input-tab] svg) {
+  opacity: 0;
+}
+[data-t3voice-presence]
+  .t3voice-tabs:has(.fr-tmr:not([hidden]))
+  :is([data-t3voice-canvas-name] > *, [data-t3voice-mic] svg, [data-t3voice-input-tab] svg) {
+  animation: t3voice-content-rise 240ms cubic-bezier(0.2, 0.9, 0.3, 1);
+}
+@keyframes t3voice-content-rise {
   0% {
-    transform: translateY(100%);
+    transform: translateY(var(--tab-h));
   }
   70% {
     transform: translateY(-2px);
   }
   100% {
     transform: none;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  [data-t3voice-presence]
+    .t3voice-tabs:has(.fr-tmr:not([hidden]))
+    :is([data-t3voice-canvas-name] > *, [data-t3voice-mic] svg, [data-t3voice-input-tab] svg) {
+    animation: none;
   }
 }
 [data-t3voice-presence] .t3voice-tabs-clip::after {
@@ -462,20 +485,21 @@
     linear-gradient(rgba(255, 176, 46, 0.2), rgba(255, 176, 46, 0.2)), var(--t3voice-fill);
 }
 
-/* The canvas's tabs (CanvasTabs; the user, 6 Nov, design A): its name and Follow, left of the mic, built like
-   it; only in a call, like the rest of the row. The mic gives up its cut corner to them. */
+/* The canvas's name tab (CanvasTabs), left of the gear, built like the mic; only in a call, like the rest
+   of the row. */
 [data-t3voice-presence] .t3voice-canvas-slot {
   display: flex;
 }
 [data-t3voice-presence] .t3voice-canvas-slot:empty {
   display: none;
 }
+/* The gear before the mic takes its cut corner. */
 [data-t3voice-presence]
-  .t3voice-canvas-slot:not(:empty)
+  .t3voice-settings-slot:not(:empty)
   + .t3voice-mic-slot
   [data-t3voice-mic]::before,
 [data-t3voice-presence]
-  .t3voice-canvas-slot:not(:empty)
+  .t3voice-settings-slot:not(:empty)
   + .t3voice-mic-slot
   [data-t3voice-mic]::after {
   clip-path: none;
@@ -483,7 +507,7 @@
 [data-t3voice-presence] [data-t3voice-canvas-tabs] {
   display: flex;
 }
-[data-t3voice-presence] :is([data-t3voice-canvas-name], [data-t3voice-follow]) {
+[data-t3voice-presence] [data-t3voice-canvas-name] {
   position: relative;
   isolation: isolate;
   display: flex;
@@ -498,17 +522,17 @@
   touch-action: manipulation;
   -webkit-tap-highlight-color: transparent;
 }
-[data-t3voice-presence] :is([data-t3voice-canvas-name], [data-t3voice-follow])::before,
-[data-t3voice-presence] :is([data-t3voice-canvas-name], [data-t3voice-follow])::after {
+[data-t3voice-presence] [data-t3voice-canvas-name]::before,
+[data-t3voice-presence] [data-t3voice-canvas-name]::after {
   content: "";
   position: absolute;
   z-index: -1;
 }
-[data-t3voice-presence] :is([data-t3voice-canvas-name], [data-t3voice-follow])::before {
+[data-t3voice-presence] [data-t3voice-canvas-name]::before {
   inset: 0;
   background: var(--fe);
 }
-[data-t3voice-presence] :is([data-t3voice-canvas-name], [data-t3voice-follow])::after {
+[data-t3voice-presence] [data-t3voice-canvas-name]::after {
   inset: 1px 0 1px 1px;
   background: var(--t3voice-fill);
 }
@@ -539,39 +563,18 @@
   fill: currentColor;
   opacity: 0.75;
 }
-[data-t3voice-presence] [data-t3voice-follow] {
-  width: var(--t3voice-input-tab-w);
-}
-[data-t3voice-presence] [data-t3voice-follow] svg {
-  width: 12px;
-  fill: none;
-  stroke: currentColor;
-  stroke-width: 1.5;
-  stroke-linecap: round;
-  opacity: 0.75;
-}
-[data-t3voice-presence] [data-t3voice-follow] [data-dot] {
-  fill: currentColor;
-  stroke: none;
-}
-[data-t3voice-presence] :is([data-t3voice-canvas-name], [data-t3voice-follow]):focus-visible {
+[data-t3voice-presence] [data-t3voice-canvas-name]:focus-visible {
   outline: 0;
 }
-[data-t3voice-presence]
-  :is([data-t3voice-canvas-name], [data-t3voice-follow]):is(:hover, :focus-visible)::after {
+[data-t3voice-presence] [data-t3voice-canvas-name]:is(:hover, :focus-visible)::after {
   background:
     linear-gradient(rgba(61, 255, 143, 0.14), rgba(61, 255, 143, 0.14)), var(--t3voice-fill);
 }
-[data-t3voice-presence] [data-t3voice-follow]:is(:hover, :focus-visible) svg,
-[data-t3voice-presence] [data-t3voice-follow][data-on] svg {
-  opacity: 1;
-}
-/* Lit like "+" while its field is open: the name while the list is up, Follow while on. */
-[data-t3voice-presence] :is([data-t3voice-canvas-name][data-open], [data-t3voice-follow][data-on]) {
+/* Lit like "+" while its list is up. */
+[data-t3voice-presence] [data-t3voice-canvas-name][data-open] {
   color: var(--hud-ink);
 }
-[data-t3voice-presence]
-  :is([data-t3voice-canvas-name][data-open], [data-t3voice-follow][data-on])::after {
+[data-t3voice-presence] [data-t3voice-canvas-name][data-open]::after {
   background: var(--hud);
 }
 /* The list, risen over the name tab, built like the frame: the edge 1px around, the canvases (the open
@@ -710,6 +713,80 @@
 [data-t3voice-presence] [data-t3voice-update]:focus-visible {
   outline: 0;
   color: var(--hud-ink);
+  background: var(--hud);
+}
+/* The settings gear (VoiceSettings): between the canvas's name and the mic, built like the
+   mic, in the same spot in and out of a call (design D). Lit while the settings are open. */
+[data-t3voice-presence] .t3voice-settings-slot {
+  display: flex;
+}
+[data-t3voice-presence] .t3voice-settings-slot:empty {
+  display: none;
+}
+[data-t3voice-presence] [data-t3voice-settings-tab] {
+  position: relative;
+  isolation: isolate;
+  display: grid;
+  place-items: center;
+  width: var(--t3voice-input-tab-w);
+  border: 0;
+  padding: 0;
+  color: var(--hud);
+  background: none;
+  cursor: pointer;
+  pointer-events: auto;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+}
+[data-t3voice-presence] [data-t3voice-settings-tab]::before,
+[data-t3voice-presence] [data-t3voice-settings-tab]::after {
+  content: "";
+  position: absolute;
+  z-index: -1;
+}
+[data-t3voice-presence] [data-t3voice-settings-tab]::before {
+  inset: 0;
+  background: var(--fe);
+}
+[data-t3voice-presence] [data-t3voice-settings-tab]::after {
+  inset: 1px 0 1px 1px;
+  background: var(--t3voice-fill);
+}
+/* First in the row (no canvas name): the row's cut corner. */
+[data-t3voice-presence]
+  .t3voice-canvas-slot:empty
+  + .t3voice-settings-slot
+  [data-t3voice-settings-tab]::before {
+  clip-path: polygon(4px 0, 100% 0, 100% 100%, 0 100%, 0 4px);
+}
+[data-t3voice-presence]
+  .t3voice-canvas-slot:empty
+  + .t3voice-settings-slot
+  [data-t3voice-settings-tab]::after {
+  clip-path: polygon(3.4px 0, 100% 0, 100% 100%, 0 100%, 0 3.4px);
+}
+[data-t3voice-presence] [data-t3voice-settings-tab] svg {
+  width: 12px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.5;
+  stroke-linecap: round;
+  opacity: 0.75;
+}
+[data-t3voice-presence] [data-t3voice-settings-tab]:focus-visible {
+  outline: 0;
+}
+[data-t3voice-presence] [data-t3voice-settings-tab]:is(:hover, :focus-visible)::after {
+  background:
+    linear-gradient(rgba(61, 255, 143, 0.14), rgba(61, 255, 143, 0.14)), var(--t3voice-fill);
+}
+[data-t3voice-presence] [data-t3voice-settings-tab]:is(:hover, :focus-visible, [data-open]) svg {
+  opacity: 1;
+}
+[data-t3voice-presence] [data-t3voice-settings-tab][data-open] {
+  color: var(--hud-ink);
+}
+[data-t3voice-presence] [data-t3voice-settings-tab][data-open]::after {
   background: var(--hud);
 }
 

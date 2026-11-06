@@ -83,6 +83,11 @@ browser (mic, canvas) ──▶ t3voice server :5780 ──▶ T3 Code server   
    itself a week before it expires. You can see and revoke it in T3 Code under Settings →
    Connections, listed as "t3voice".
 
+   The settings (gear in the bar) show the connection too: state, server, session and a Test
+   button, plus pairing by a T3 pairing link (made in T3 Code under Settings → Connections) or with
+   this machine's T3 Code, and Disconnect. A link pairing does not renew itself; pair again before
+   it ends.
+
 5. **Make the brain thread**
 
    Add this folder as a T3 Code project and start the brain thread in it:
@@ -160,7 +165,7 @@ both, so "undo that" is a `git revert`:
 - `at` is only a wish: a new card lands in the nearest free space next to the others.
 - `canvas="…"` puts a card on a named canvas; without it, it lives on Main.
 - Cards import only React and files in `extras/`, and style with a plain CSS file next to them.
-- **Follow**: when on, a reply about a card moves your view to it. "Show me the timer" does that
+- **Follow** (in the settings, or say "follow"): when on, a reply about a card moves your view to it. "Show me the timer" does that
   once. "Tidy up" repacks the open canvas with even gaps.
 
 You can write cards by hand too; the brain picks them up like its own.

@@ -31,16 +31,26 @@ function t3Command() {
 }
 const ORCHESTRATION_PROTOCOL = 2;
 
-/** The running T3 server's origin, from its runtime file (read only). */
-export function t3Origin() {
+const RUNTIME_FILE = NodePath.join(T3_HOME, "userdata/server-runtime.json");
+
+/** This machine's running T3 server's origin, from its runtime file (read only). */
+function localOrigin() {
   if (process.env.T3VOICE_T3_ORIGIN) return process.env.T3VOICE_T3_ORIGIN.replace(/\/$/, "");
-  const file = NodePath.join(T3_HOME, "userdata/server-runtime.json");
   try {
-    return JSON.parse(NodeFS.readFileSync(file, "utf8")).origin;
+    return JSON.parse(NodeFS.readFileSync(RUNTIME_FILE, "utf8")).origin;
   } catch {
-    throw new Error(`T3 Code is not running (no ${file}); start it, or set T3VOICE_T3_ORIGIN`);
+    throw new Error(`T3 Code is not running (no ${RUNTIME_FILE}); start it, or set T3VOICE_T3_ORIGIN`);
   }
 }
+
+/** The paired server: the one a pairing link named, else this machine's. */
+export function t3Origin() {
+  return readSession()?.origin ?? localOrigin();
+}
+
+/** Whether a T3 runs here for `t3 pair`, so the settings can offer pairing with this machine. */
+export const canPairLocal = () =>
+  Boolean(process.env.T3VOICE_T3_ORIGIN) || NodeFS.existsSync(RUNTIME_FILE);
 
 function readSession() {
   try {
@@ -48,6 +58,72 @@ function readSession() {
   } catch {
     return null;
   }
+}
+
+async function exchange(origin, token, source) {
+  const body = new URLSearchParams({
+    grant_type: "urn:ietf:params:oauth:grant-type:token-exchange",
+    subject_token: token,
+    subject_token_type: "urn:t3:params:oauth:token-type:environment-bootstrap",
+    requested_token_type: "urn:ietf:params:oauth:token-type:access_token",
+    client_label: LABEL,
+    client_device_type: "desktop",
+  });
+  const response = await fetch(`${origin}/oauth/token`, {
+    method: "POST",
+    headers: { "content-type": "application/x-www-form-urlencoded" },
+    body,
+  });
+  const result = await response.json().catch(() => ({}));
+  if (!response.ok || typeof result.access_token !== "string") {
+    throw new Error(`token exchange answered ${response.status}: ${result.error ?? result.code ?? ""}`);
+  }
+  NodeFS.mkdirSync(STATE_DIR, { recursive: true, mode: 0o700 });
+  const session = {
+    accessToken: result.access_token,
+    scope: result.scope,
+    expiresAt: Date.now() + Number(result.expires_in) * 1000,
+    source,
+    // A local pairing follows this machine's T3 wherever its port moves.
+    ...(source === "link" ? { origin } : {}),
+  };
+  NodeFS.writeFileSync(SESSION_FILE, JSON.stringify(session), { mode: 0o600 });
+  return { scope: session.scope, expiresAt: new Date(session.expiresAt).toISOString() };
+}
+
+/** Pairs with the server a T3 pairing link (`https://host/pair#token=…`) names. */
+export function pairWithLink(link) {
+  let url;
+  try {
+    url = new URL(String(link).trim());
+  } catch {
+    throw new Error("That is not a link");
+  }
+  if (url.protocol !== "https:" && url.protocol !== "http:") throw new Error("Not an http(s) link");
+  const token =
+    new URLSearchParams(url.hash.replace(/^#/, "")).get("token") ?? url.searchParams.get("token");
+  if (!token) throw new Error("The link has no pairing token");
+  return exchange(url.origin, token, "link");
+}
+
+/** Forgets the stored session; T3 Code's Connections settings can revoke it on the server. */
+export function forgetSession() {
+  NodeFS.rmSync(SESSION_FILE, { force: true });
+}
+
+/** What the settings show about the pairing; never the token. */
+export function sessionInfo() {
+  const session = readSession();
+  if (!session) return null;
+  let origin = null;
+  try {
+    origin = t3Origin();
+  } catch {}
+  return {
+    origin,
+    expiresAt: session.expiresAt,
+    renews: session.source !== "link",
+  };
 }
 
 /**
@@ -76,31 +152,7 @@ export async function pair() {
   );
   const token = /token=([^\s&#]+)/.exec(out)?.[1];
   if (!token) throw new Error("could not read a pairing token from `t3 pair`");
-  const body = new URLSearchParams({
-    grant_type: "urn:ietf:params:oauth:grant-type:token-exchange",
-    subject_token: decodeURIComponent(token),
-    subject_token_type: "urn:t3:params:oauth:token-type:environment-bootstrap",
-    requested_token_type: "urn:ietf:params:oauth:token-type:access_token",
-    client_label: LABEL,
-    client_device_type: "desktop",
-  });
-  const response = await fetch(`${t3Origin()}/oauth/token`, {
-    method: "POST",
-    headers: { "content-type": "application/x-www-form-urlencoded" },
-    body,
-  });
-  const result = await response.json().catch(() => ({}));
-  if (!response.ok || typeof result.access_token !== "string") {
-    throw new Error(`token exchange answered ${response.status}: ${result.error ?? result.code ?? ""}`);
-  }
-  NodeFS.mkdirSync(STATE_DIR, { recursive: true, mode: 0o700 });
-  const session = {
-    accessToken: result.access_token,
-    scope: result.scope,
-    expiresAt: Date.now() + Number(result.expires_in) * 1000,
-  };
-  NodeFS.writeFileSync(SESSION_FILE, JSON.stringify(session), { mode: 0o600 });
-  return { scope: session.scope, expiresAt: new Date(session.expiresAt).toISOString() };
+  return exchange(localOrigin(), decodeURIComponent(token), "local");
 }
 
 // T3 has no refresh grant for environment sessions, so renewal is a fresh local pair a week
@@ -110,7 +162,10 @@ let renewing = null;
 
 export function renewSessionIfDue() {
   const session = readSession();
-  if (!session || session.expiresAt - Date.now() > RENEW_BEFORE_MS) return Promise.resolve(null);
+  // Only a local pairing can mint its own successor; a linked one is paired again by hand.
+  if (!session || session.source === "link" || session.expiresAt - Date.now() > RENEW_BEFORE_MS) {
+    return Promise.resolve(null);
+  }
   renewing ??= pair()
     .then((result) => {
       console.log(`t3 session renewed, valid until ${result.expiresAt}`);
@@ -134,8 +189,8 @@ export function keepSessionFresh() {
 
 function bearer() {
   const session = readSession();
-  if (!session) throw new Error("not paired yet: run `npm run pair`");
-  if (session.expiresAt < Date.now()) throw new Error("T3 session expired: run `npm run pair`");
+  if (!session) throw new Error("Not paired yet");
+  if (session.expiresAt < Date.now()) throw new Error("The T3 session expired; pair again");
   void renewSessionIfDue();
   return { authorization: `Bearer ${session.accessToken}` };
 }

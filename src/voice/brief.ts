@@ -3,6 +3,7 @@ import * as DateTime from "effect/DateTime";
 
 import brainBrief from "./brain.md?raw";
 import { isFollowing } from "./follow";
+import { delegatesTag } from "./settingsStore";
 
 /**
  * The brain's instructions travel in the voice thread itself, so they must come back whenever the
@@ -22,12 +23,16 @@ export function withBrief(text: string): string {
   return `${brainBrief}\n---\n\nThe user says: ${text}`;
 }
 
-/** The open canvas and follow mode, for the brain: `[canvas: Ideas (id c1x) · follow on]`. */
+/**
+ * The open canvas, follow mode and the settings for new threads, for the brain:
+ * `[canvas: Ideas (id c1x) · follow on · delegates: default effort=high fastMode=false]`.
+ */
 export function withCanvas(text: string): string {
   const canvases = globalThis.__t3voiceCanvases?.snapshot();
   const open = canvases?.list.find((canvas) => canvas.id === canvases.active);
   const follow = isFollowing() ? "on" : "off";
-  return `${text}\n\n[canvas: ${open ? `${open.name} (id ${open.id})` : "none"} · follow ${follow}]`;
+  const canvas = open ? `${open.name} (id ${open.id})` : "none";
+  return `${text}\n\n[canvas: ${canvas} · follow ${follow} · delegates: ${delegatesTag()}]`;
 }
 
 export function needsBrief(

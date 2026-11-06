@@ -1,0 +1,332 @@
+/* The voice settings (VoiceSettings): one page, a header with close, then sections of grouped rows with
+   the control at the right, in the bar's look: the dark surface, a 1px green edge all around, mono
+   labels. On a phone it fills the screen. It opens with a short plain fade. */
+[data-t3voice-settings] {
+  --s-surface: #121110;
+  --s-raise: #181715;
+  --s-edge: color-mix(in srgb, #3dff8f 32%, #121110);
+  --s-hair: rgba(245, 238, 226, 0.09);
+  --s-ink: rgb(245, 238, 226);
+  --s-ink-2: rgba(245, 238, 226, 0.62);
+  --s-ink-3: rgba(245, 238, 226, 0.42);
+  --s-hud: #3dff8f;
+  --s-hud-ink: #04170c;
+  --s-mono: "Geist Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
+  --s-sans: "Geist", ui-sans-serif, system-ui, -apple-system, "Helvetica Neue", sans-serif;
+  position: fixed;
+  z-index: 60;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+  background: rgba(5, 5, 4, 0.62);
+  color-scheme: dark;
+  color: var(--s-ink);
+  font: 400 13px / 1.45 var(--s-sans);
+}
+[data-t3voice-settings-panel] {
+  display: flex;
+  flex-direction: column;
+  width: min(600px, 100%);
+  max-height: min(720px, calc(100dvh - 48px));
+  border: 1px solid var(--s-edge);
+  background: var(--s-surface);
+  outline: 0;
+  animation: t3voice-settings-in 120ms ease-out;
+}
+@keyframes t3voice-settings-in {
+  from {
+    opacity: 0;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  [data-t3voice-settings-panel] {
+    animation: none;
+  }
+}
+
+[data-t3voice-settings-panel] > header {
+  flex: none;
+  height: 48px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 0 8px 0 20px;
+  border-bottom: 1px solid var(--s-hair);
+}
+[data-t3voice-settings-panel] > header > h1 {
+  min-width: 0;
+  margin: 0;
+  overflow: hidden;
+  color: var(--s-hud);
+  font: 400 10px / 1 var(--s-mono);
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+[data-t3voice-settings-panel] > header > button {
+  display: grid;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  margin-left: auto;
+  border: 0;
+  padding: 0;
+  color: var(--s-ink-2);
+  background: none;
+  cursor: pointer;
+}
+[data-t3voice-settings-panel] > header > button:is(:hover, :focus-visible) {
+  outline: 0;
+  color: var(--s-ink);
+  background: var(--s-hair);
+}
+[data-t3voice-settings-panel] > header svg {
+  width: 14px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.6;
+  stroke-linecap: round;
+}
+[data-t3voice-settings-body] {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding: 20px 20px 28px;
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+}
+
+/* A section: its title, a line on what it is, then its rows in one bordered group. */
+[data-t3voice-settings-section] > h2 {
+  margin: 0 0 4px;
+  padding: 0 4px;
+  font: 600 15px / 1.3 var(--s-sans);
+}
+[data-t3voice-settings-note] {
+  margin: 0 0 10px;
+  padding: 0 4px;
+  color: var(--s-ink-2);
+  font-size: 12px;
+}
+[data-t3voice-settings-section] > h2 + [data-t3voice-settings-group] {
+  margin-top: 10px;
+}
+[data-t3voice-settings-group] {
+  container-type: inline-size;
+  border: 1px solid var(--s-edge);
+  background: rgba(245, 238, 226, 0.02);
+}
+[data-t3voice-settings-group] > * + * {
+  border-top: 1px solid var(--s-hair);
+}
+[data-t3voice-settings-row] {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 12px 14px;
+}
+@container (min-width: 30rem) {
+  [data-t3voice-settings-row] {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    align-items: center;
+    gap: 24px;
+  }
+}
+/* A switch, a state or a plain value stays beside its title, however narrow. */
+[data-t3voice-settings-row]:has(
+  > [data-t3voice-settings-control]
+    > :is(
+      [data-t3voice-settings-switch],
+      [data-t3voice-settings-status],
+      [data-t3voice-settings-value]
+    )
+) {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 16px;
+}
+[data-t3voice-settings-row] h3 {
+  margin: 0;
+  font: 500 13px / 20px var(--s-sans);
+}
+[data-t3voice-settings-row] h3 + p {
+  margin: 2px 0 0;
+  max-width: 42ch;
+  color: var(--s-ink-2);
+  font-size: 12px;
+}
+[data-t3voice-settings-control] {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+[data-t3voice-settings-error] {
+  margin: 0;
+  padding: 10px 14px;
+  color: #ffb02e;
+  font-size: 12px;
+}
+[data-t3voice-settings-value] {
+  min-width: 0;
+  max-width: 55cqw;
+  overflow: hidden;
+  color: var(--s-ink-2);
+  font: 400 12px / 1.3 var(--s-mono);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+/* The harness's state: green when it answers, amber when not. */
+[data-t3voice-settings-status] {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: #ffb02e;
+  font: 400 10px / 1 var(--s-mono);
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+[data-t3voice-settings-status]::before {
+  content: "";
+  width: 6px;
+  height: 6px;
+  background: currentColor;
+}
+[data-t3voice-settings-status][data-ok] {
+  color: var(--s-hud);
+}
+
+/* Controls: a native select (the phone's own picker), a field, a button and a switch, all on the edge
+   colour. */
+[data-t3voice-settings-control] input {
+  min-width: 0;
+  width: 100%;
+  height: 32px;
+  padding: 0 10px;
+  border: 1px solid var(--s-edge);
+  border-radius: 0;
+  color: var(--s-ink);
+  background: var(--s-raise);
+  font: 400 12px / 1 var(--s-mono);
+}
+[data-t3voice-settings-control] input::placeholder {
+  color: var(--s-ink-3);
+}
+[data-t3voice-settings-control] select {
+  min-width: 0;
+  width: 100%;
+  height: 32px;
+  padding: 0 28px 0 10px;
+  border: 1px solid var(--s-edge);
+  border-radius: 0;
+  color: var(--s-ink);
+  background:
+    linear-gradient(45deg, transparent 50%, var(--s-hud) 50%) right 13px center / 5px 5px no-repeat,
+    linear-gradient(-45deg, transparent 50%, var(--s-hud) 50%) right 8px center / 5px 5px no-repeat,
+    var(--s-raise);
+  background-size:
+    5px 5px,
+    5px 5px,
+    auto;
+  font: 400 13px / 1 var(--s-sans);
+  appearance: none;
+  cursor: pointer;
+}
+@container (min-width: 30rem) {
+  [data-t3voice-settings-control] select {
+    width: auto;
+    min-width: 180px;
+  }
+  [data-t3voice-settings-control] input {
+    width: 220px;
+  }
+}
+[data-t3voice-settings-control] :is(select, input):focus-visible,
+[data-t3voice-settings-button]:focus-visible,
+[data-t3voice-settings-switch]:focus-visible {
+  outline: 1px solid var(--s-hud);
+  outline-offset: 1px;
+}
+[data-t3voice-settings-control] :disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+[data-t3voice-settings-button] {
+  flex: none;
+  height: 32px;
+  padding: 0 12px;
+  border: 1px solid var(--s-edge);
+  color: var(--s-hud);
+  background: var(--s-raise);
+  font: 400 10px / 1 var(--s-mono);
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  cursor: pointer;
+}
+[data-t3voice-settings-button]:hover:not(:disabled) {
+  background: rgba(61, 255, 143, 0.1);
+}
+[data-t3voice-settings-button][data-danger] {
+  color: #ffb02e;
+}
+[data-t3voice-settings-switch] {
+  position: relative;
+  flex: none;
+  width: 38px;
+  height: 20px;
+  border: 1px solid var(--s-edge);
+  padding: 0;
+  background: var(--s-raise);
+  cursor: pointer;
+}
+[data-t3voice-settings-switch] > span {
+  position: absolute;
+  top: 3px;
+  left: 3px;
+  width: 12px;
+  height: 12px;
+  background: var(--s-ink-3);
+  transition: transform 120ms ease-out;
+}
+[data-t3voice-settings-switch][aria-checked="true"] {
+  border-color: var(--s-hud);
+  background: rgba(61, 255, 143, 0.16);
+}
+[data-t3voice-settings-switch][aria-checked="true"] > span {
+  background: var(--s-hud);
+  transform: translateX(18px);
+}
+
+/* A phone: the whole screen. */
+@media (max-width: 640px) {
+  [data-t3voice-settings] {
+    padding: 0;
+    place-items: stretch;
+  }
+  [data-t3voice-settings-panel] {
+    width: 100%;
+    height: 100dvh;
+    max-height: none;
+    padding: env(safe-area-inset-top) 0 0;
+    border: 0;
+  }
+  [data-t3voice-settings-panel] > header {
+    padding-left: 16px;
+  }
+  [data-t3voice-settings-body] {
+    padding: 16px 12px calc(28px + env(safe-area-inset-bottom));
+  }
+  /* 16px type in fields: iOS zooms the page into anything smaller. */
+  [data-t3voice-settings-control] :is(select, input) {
+    height: 38px;
+    font-size: 16px;
+  }
+}
