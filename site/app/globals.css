@@ -233,12 +233,6 @@ a:hover {
   text-decoration: none;
   clip-path: polygon(10px 0, 100% 0, 100% calc(100% - 10px), calc(100% - 10px) 100%, 0 100%, 0 10px);
 }
-.btn-soon {
-  background: var(--hud-4);
-  color: var(--hud);
-  box-shadow: inset 0 0 0 1px var(--hud-3);
-  cursor: default;
-}
 
 /* ------------------------------------------------------------------ sections */
 .panel {

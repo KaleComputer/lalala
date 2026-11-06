@@ -24,11 +24,11 @@ const steps = [
   { name: "Canvas", body: "Anything worth looking at shows up as a card on the canvas next to you." },
 ];
 
-function Soon() {
+function GitHub() {
   return (
-    <span className="btn btn-soon" aria-disabled="true">
-      GitHub · coming soon
-    </span>
+    <a className="btn" href="https://github.com/KaleComputer/lalala">
+      GitHub
+    </a>
   );
 }
 
@@ -82,8 +82,7 @@ export default function Home() {
           </p>
           <VoiceBar />
           <div className="cta">
-            <Soon />
-            <span className="tag tag-dim">Repository opens soon</span>
+            <GitHub />
           </div>
         </section>
 
@@ -131,8 +130,8 @@ export default function Home() {
         </section>
 
         <section className="panel end">
-          <p className="big">Open source, Mac first. The repository goes public soon.</p>
-          <Soon />
+          <p className="big">Open source, Mac first.</p>
+          <GitHub />
         </section>
       </main>
 
