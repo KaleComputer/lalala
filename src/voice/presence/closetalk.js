@@ -2,33 +2,33 @@
 // The close-talk gate: only the user talking straight into the phone counts (21 Oct 2026). Walking the
 // dog, a shout down the street, people talking a few metres away or a TV next door are speech too,
 // and ElevenLabs took them for turns: they cut Presence off mid-sentence and, on the page, flipped
-// thinking back to listening. The user's own voice, a hand's width from the microphone, is far louder
+// thinking back to listening. the user's own voice, a hand's width from the microphone, is far louder
 // than all of that, so the gate is a level gate against two references it measures as it goes:
 //
 //   floor  the ambient level (the quiet between sounds), tracked down fast and up slowly, frozen
 //          while the gate is open or Presence speaks (her echo is not the street);
-//   voice  the user's close voice: how loud their turns are, learned from each turn the user takes (clamped, so
+//   voice  the user's close voice: how loud his turns are, learned from each turn he takes (clamped, so
 //          noise that slips through cannot drag it down far).
 //
 // Speech counts when it is MARGIN dB over the floor, within VOICE_RANGE dB of the user's voice and over
 // ABS_MIN, for ATTACK_MS. However loud the floor, the bar stays HEADROOM dB under the user's own voice:
-// the user is never locked out by wind or a road (22 Oct). While Presence speaks the bar is BARGE dB higher and must hold for
+// he is never locked out by wind or a road (22 Oct). While Presence speaks the bar is BARGE dB higher and must hold for
 // BARGE_MS (about 300 ms of clearly-the user); while she thinks (a tool runs, a reply is on its way) it
 // is higher again and longer: no barge-in at all unless the user says "stop" or "wait" loudly and close.
-// Once open, the user keeps the floor through their pauses (KEEP dB of hysteresis, HOLD_MS after their last
+// Once open, the user keeps the floor through his pauses (KEEP dB of hysteresis, HOLD_MS after his last
 // loud sound). `sensitivity` (-2..2, the user's "be less/more sensitive", prefs.mjs) moves every bar by
 // STEP dB.
 //
-// The user's sentence goes on after Presence took the turn: ElevenLabs ended their turn in a pause and
-// thinks, but the user is not done. Within CONTINUE_MS of their last close sound the thinking bar is the
-// listening bar, so the rest of their sentence reaches ElevenLabs (and stops her reply) instead of
+// the user's sentence goes on after Presence took the turn: ElevenLabs ended his turn in a pause and
+// thinks, but he is not done. Within CONTINUE_MS of his last close sound the thinking bar is the
+// listening bar, so the rest of his sentence reaches ElevenLabs (and stops her reply) instead of
 // being cut as noise.
 //
 // `voiced` is the page's own word on someone talking close to the phone (turns.mjs: nothing Presence
 // starts by herself goes in while it is true): the listening bar (the speaking one while she talks,
 // her echo is not the user), ATTACK_MS to start, HOLD_MS of quiet to end, and no stage can say no to it.
-// So the user talking while the gate is held shut (learning their voice, the speaker check not yet sure, a
-// thinking bar the user does not reach) is still the user talking.
+// So the user talking while the gate is held shut (learning his voice, the speaker check not yet sure, a
+// thinking bar he does not reach) is still the user talking.
 //
 // Stages: a later check (on-device VAD, the user's enrolled voice) plugs in with `stage(name, verdict)`.
 // false holds the gate shut, true or null leave it to the levels; the gate opens only when the
@@ -36,8 +36,8 @@
 // gate's life can hold it shut for UNPROVEN_MS of someone talking close (SPEAKER_UNPROVEN_MS for
 // the speaker check the user turned on: another voice talking first stays out), then it no longer counts
 // until it says true once (22 Oct: the user's iPhone, a stage said no to every word and three calls sent
-// ElevenLabs nothing but silence; a check that never hears them is broken, not proof). `enroll` is
-// deliberate (Presence must not answer while the user teaches her their voice) and always counts. The decision is `step()`, one function, pure: the audio
+// ElevenLabs nothing but silence; a check that never hears him is broken, not proof). `enroll` is
+// deliberate (Presence must not answer while he teaches her his voice) and always counts. The decision is `step()`, one function, pure: the audio
 // worklet (closetalk-worklet.js) runs it on the user's microphone and tests run it on synthetic traces.
 
 export const GATE = Object.freeze({
@@ -48,7 +48,7 @@ export const GATE = Object.freeze({
   FLOOR_RISE_MS: 4000, // and a louder one slowly (a passing shout is not the ambient)
   FLOOR_RISE_SPAN: 20, // only sounds within this of the floor raise it
   MARGIN: 15, // dB over the floor
-  VOICE_START: -28, // The user's close voice (dBFS, the mean 10 ms level of their turn's loud part) before the user spoke
+  VOICE_START: -28, // the user's close voice (dBFS, the mean 10 ms level of his turn's loud part) before he spoke
   VOICE_MIN: -34,
   VOICE_MAX: -20,
   VOICE_RANGE: 10, // speech this far under the user's voice is somebody else, or the user turned away
@@ -60,9 +60,9 @@ export const GATE = Object.freeze({
   BARGE_MS: 300,
   THINK_MS: 350,
   KEEP: 6, // once open, the user's quieter syllables keep it open down to this far under the listening bar
-  HOLD_MS: 700, // and their pauses this long
-  FAR_MS: 1200, // open this long with nothing near their voice (HEADROOM under it): noise holds it (wind), it closes
-  CONTINUE_MS: 2000, // after their last close sound, their sentence going on opens at the listening bar while she thinks
+  HOLD_MS: 700, // and his pauses this long
+  FAR_MS: 1200, // open this long with nothing near his voice (HEADROOM under it): noise holds it (wind), it closes
+  CONTINUE_MS: 2000, // after his last close sound, his sentence going on opens at the listening bar while she thinks
   STEP: 4, // dB per sensitivity step
   LEARN_MIN_MS: 400, // a turn this long teaches the gate the user's voice
   SMOOTH_MS: 25, // the level the gate reads: energy averaged this long (one loud 10 ms frame is not speech)
@@ -118,7 +118,7 @@ export function createCloseTalk({ sensitivity = 0, ...over } = {}) {
   /** The bar for a mode: the loudest of the three references, the barge-in extra on top, moved by sensitivity. */
   function barFor(mode) {
     // The floor's part stops HEADROOM under the user's voice: in wind the floor climbed to -30 and the bar
-    // over their own voice, and nothing the user said reached ElevenLabs (22 Oct, three calls of silence).
+    // over his own voice, and nothing he said reached ElevenLabs (22 Oct, three calls of silence).
     const base = Math.max(Math.min(floor + g.MARGIN, voice - g.HEADROOM), voice - g.VOICE_RANGE, g.ABS_MIN) - sens * g.STEP;
     return base + (mode === "speak" ? g.BARGE : mode === "think" ? g.BARGE + g.THINK : 0);
   }
@@ -148,7 +148,7 @@ export function createCloseTalk({ sensitivity = 0, ...over } = {}) {
     const db = dbOf(energy);
     out.level = db;
     const listenBar = barFor("listen");
-    // Their sentence going on while she thinks: the listening bar, as if she had not taken the turn.
+    // His sentence going on while she thinks: the listening bar, as if she had not taken the turn.
     const goesOn = mode === "think" && sinceVoice < g.CONTINUE_MS;
     const bar = goesOn ? listenBar : barFor(mode);
     const keepBar = Math.max(listenBar - g.KEEP, floor + g.MARGIN - g.KEEP);
@@ -172,9 +172,9 @@ export function createCloseTalk({ sensitivity = 0, ...over } = {}) {
       if (db >= listenBar) (turnSum += db), (turnN += 1);
       // A loud frame wins back three quiet ones: speech is dense, a click or a far bang is sparse.
       quietFor = db >= keepBar ? Math.max(0, quietFor - 3 * dt) : quietFor + dt;
-      // Their syllables reach near their own voice several times a second; wind and breath holding the gate
-      // open sit under it (22 Oct: a gust opened it, the wind kept it open and their turn never ended).
-      // Near: HEADROOM under their voice (moved by sensitivity), never over a little above the listening bar.
+      // His syllables reach near his own voice several times a second; wind and breath holding the gate
+      // open sit under it (22 Oct: a gust opened it, the wind kept it open and his turn never ended).
+      // Near: HEADROOM under his voice (moved by sensitivity), never over a little above the listening bar.
       farFor = db >= Math.min(voice - g.HEADROOM - sens * g.STEP, listenBar + 2) ? 0 : farFor + dt;
       if (vetoed()) close(false), (out.closed = true); // a stage said it is not the user: nothing to learn
       else if (quietFor >= g.HOLD_MS) close(), (out.closed = true);

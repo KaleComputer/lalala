@@ -1,12 +1,12 @@
-/* From Presence's call-frame bar (ions.css, bar.css):
+/* Copied from Presence (agent-dashboard/public/presence/ions.css, bar.css) by scripts/lalala-presence-sync.mjs:
    red recoloured green, scoped to [data-lalala-presence]. Do not edit here. */
 @font-face { font-family: "Oxanium"; font-style: normal; font-weight: 200 800; font-display: swap; src: url("./fonts/oxanium-var-latin.woff2") format("woff2"); }
 @font-face { font-family: "Rajdhani"; font-style: normal; font-weight: 700; font-display: swap; src: url("./fonts/rajdhani-700-latin.woff2") format("woff2"); }
 @font-face { font-family: "Geist"; font-style: normal; font-weight: 400; font-display: swap; src: url("./fonts/geist-400-latin.woff2") format("woff2"); }
 @font-face { font-family: "Geist"; font-style: normal; font-weight: 600; font-display: swap; src: url("./fonts/geist-600-latin.woff2") format("woff2"); }
 @font-face { font-family: "Geist Mono"; font-style: normal; font-weight: 400; font-display: swap; src: url("./fonts/geist-mono-400-latin.woff2") format("woff2"); }
-/* Presence ions: the same values as ions.mjs, which is the catalog; test/p2-parts.test.mjs
-   keeps them equal. Straight edges everywhere but the bar (--radius-bar, ). */
+/* Presence ions (KAL-1699): the same values as ions.mjs, which is the catalog; test/p2-parts.test.mjs
+   keeps them equal. Straight edges everywhere but the bar (--radius-bar, KAL-1742). */
 
 [data-lalala-presence] {
   color-scheme: dark;
@@ -59,23 +59,23 @@
    everything integrated into the bottom bar"). The stage is the whole screen with the board on it
    (parts.css); the frame is the whole ui and nothing floats around it but one quiet line of what is
    being said, only while someone talks. The concept is media/presence/cyberpunk-call (README, mockups/call.html).
-   - The frame: cut corners top-left and bottom-right, a 1px edge in the HUD's red (no
+   - The frame: cut corners top-left and bottom-right, a 1px edge in the HUD's red (the user, 22 Oct: no
      cyan left end any more), a tab at the left end, a tick rail along the
      bottom inside edge and brackets just outside both ends. Its main room is the wave's (callwave.mjs,
      one canvas in the frame): every line runs the room edge to edge, from the strip to the key's divider,
-     drawn only inside the room's shape ("fill it from left to right, so they touch the box");
+     drawn only inside the room's shape (the user, 22 Oct: "fill it from left to right, so they touch the box");
      only her voice wave glows past the top and bottom edges. Listening is the dim wash inside it.
    - Thinking is the tab's four sweeping cells and the beads in the room; nothing runs along the bottom
-     edge any more (the red run on the outline was "confusing because we're already thinking inside").
+     edge any more (the user, 22 Oct: the red run on the outline was "confusing because we're already thinking inside").
    - The state is a tab on the top edge: a glyph, and a word only for LISTENING, NO SIGNAL and
      LEARNING VOICE. The call's timer is a small tab over the key, its left edge on the key's divider.
-   - Out of a call the room is START CALL: hatched like a panel on standby, a solid
+   - Out of a call the room is START CALL (the user, 23 Oct, variant 5): hatched like a panel on standby, a solid
      cut plate in the middle with the power mark; a tap connects, and the plate fades into connecting's ASCII line.
-   - Under the frame runs the rail: a thin line dropped from the frame's left end, and on
+   - Under the frame runs the rail (the user, 23 Oct, design A): a thin line dropped from the frame's left end, and on
      it, cut out of it, first the questions the user still waits on (red squares), then what waits to be told (a
      thread's reply, an agent's question: cyan squares), each with a few words. The hold (turns.hold()) is the
      scan fill along the top edge.
-   - The key is the frame's own right end, behind a straight divider ("make that line straight, not angled"). Typing opens the frame itself
+   - The key is the frame's own right end, behind a straight divider (the user, 23 Oct: "make that line straight, not angled"). Typing opens the frame itself
      upward into the field, with T3's controls (model, reasoning, access) inside it and the key filled
      red, holding attach and send. Menus open upward over the frame.
    - No signal tears the frame; reading in parts turns the rail into the parts. Values from ions.css. */
@@ -111,8 +111,8 @@
 
 /* ------------------------------------------------------------------ the bar: the frame and what sits on it */
 .bar {
-  /* Centered without a transform. It lifts over a phone's keyboard while the user types (--kb, main.mjs). 20px lower than the
-     page's edge ("at the real bottom of the page"): the frame 16px over the bottom, the rail in the box's padding under it;
+  /* Centered without a transform (the user, 19 Oct). It lifts over a phone's keyboard while the user types (--kb, main.mjs). 20px lower than the
+     page's edge (the user, 23 Oct: "at the real bottom of the page"): the frame 16px over the bottom, the rail in the box's padding under it;
      on an iPhone the safe area still holds the frame over the home indicator. */
   position: fixed; z-index: 5; left: 0; right: 0; margin-inline: auto;
   bottom: calc(max(var(--grid-edge), env(safe-area-inset-bottom)) - 20px + var(--kb, 0px));
@@ -153,7 +153,7 @@
   background: repeating-linear-gradient(90deg, rgba(61, 255, 143, .22) 0 1px, transparent 1px 8px) 0 100% / 100% 3px no-repeat,
               repeating-linear-gradient(90deg, rgba(61, 255, 143, .4) 0 1px, transparent 1px 64px) 0 100% / 100% 6px no-repeat; }
 .fr[data-look~="off"] .fr-rail { opacity: .5; }
-/* A bright run along the rail: only no signal sweeps it, once per retry. Thinking has none: the beads in the room show it. */
+/* A bright run along the rail: only no signal sweeps it, once per retry. Thinking has none (the user, 22 Oct): the beads in the room show it. */
 .fr-rsw { position: absolute; bottom: 0; left: -70px; height: 3px; width: 70px; pointer-events: none; opacity: 0; background: linear-gradient(90deg, rgba(61, 255, 143, 0), var(--hud)); box-shadow: 0 0 8px rgba(61, 255, 143, .6); }
 .fr[data-state="nosignal"] .fr-rsw { animation: fr-run 1s linear infinite, fr-fade 1s linear infinite; }
 @keyframes fr-run { from { transform: translateX(0); } to { transform: translateX(calc(var(--fw, 760px) + 30px)); } }
@@ -172,7 +172,7 @@
 .fr[data-open] .bar-line { top: auto; height: var(--bar-row); }
 .fr[data-open] .bar-wash { opacity: 0 !important; }
 .fr[data-state="nosignal"] .fr-tmr { display: none; }
-/* Listening's dim wash: callwave.mjs sets its opacity, breathing with the user's voice; the room clips it. */
+/* Listening's dim wash (KAL-1751): callwave.mjs sets its opacity, breathing with the user's voice; the room clips it. */
 .bar-wash {
   position: absolute; inset: 0; opacity: 0; pointer-events: none; transform-origin: 50% 50%;
   background: radial-gradient(farthest-side at 55% 55%, rgba(86, 214, 140, .26), rgba(86, 214, 140, .14) 55%, rgba(86, 214, 140, .05));
@@ -180,7 +180,7 @@
 .bar-talk { position: absolute; inset: 0; z-index: 2; touch-action: manipulation; }
 .bar-talk, .bar-talk:focus, .bar-talk:focus-visible { outline: 0; border: 0; }
 .bar-talk:focus-visible { box-shadow: inset 0 0 0 1px var(--hud-2); }
-/* Out of a call: the room hatched like a panel on standby, a solid cut plate in the middle
+/* Out of a call (the user, 23 Oct, variant 5 "START CALL"): the room hatched like a panel on standby, a solid cut plate in the middle
    with the power mark; the whole room stays the tap target (.bar-talk). Leaving idle it fades out under connecting's ASCII line. */
 .fr-idle { position: absolute; inset: 0 0 0 var(--fr-strip); z-index: 1; display: flex; align-items: center; justify-content: center; pointer-events: none;
   opacity: 0; visibility: hidden; transition: opacity 180ms ease-out, visibility 0s linear 180ms; }
@@ -231,7 +231,7 @@
 .fr-tab[data-hot], .fr[data-look~="off"] .fr-tab[data-hot] { background: var(--hud); box-shadow: 0 0 16px rgba(61, 255, 143, .4); opacity: 1; }
 .fr-tab[data-hot]::before { display: none; }
 .fr-tab[data-hot] .fr-word { color: var(--hud-ink); font-weight: 700; }
-/* Learning their voice: the tag itself is the filled scanning tag. */
+/* Learning his voice: the tag itself is the filled scanning tag. */
 .fr-tab[data-learn] { background: var(--hud); gap: 16px; padding: 1px 18px 0 10px; }
 .fr-tab[data-learn]::before { display: none; }
 .fr-tab[data-learn] .fr-word { color: var(--hud-ink); font-weight: 700; }
@@ -266,8 +266,8 @@
 @keyframes g-retry4 { 0% { opacity: 1; } 25% { opacity: .22; } }
 
 /* The call's timer: a small tab on the top edge, over the key, starting on the key's divider so the two read as one column
-   ("the time component should start where the separator is"): its straight left edge continues the divider up.
-   Its bottom row stays open, so the frame's top edge runs on under it, between the timer and the key (they read as one). */
+   (the user, 23 Oct: "the time component should start where the separator is"): its straight left edge continues the divider up.
+   Its bottom row stays open, so the frame's top edge runs on under it, between the timer and the key (the user, 23 Oct: they read as one). */
 .fr-tmr {
   position: absolute; z-index: 4; right: 0; width: calc(var(--key-w) + 1px); bottom: calc(100% - 1px); height: var(--tab-h); display: flex; align-items: center; justify-content: flex-end; padding: 1px 9px 0 0;
   background: linear-gradient(var(--hud-3) calc(100% - 1px), transparent 0); font: 400 calc(var(--tab-fs) - .5px)/1 var(--font-mono); letter-spacing: .08em; color: var(--hud-2); font-variant-numeric: tabular-nums; pointer-events: none;
@@ -275,7 +275,7 @@
 .fr-tmr::before { content: ""; position: absolute; inset: 1px 1px 1px 1.5px; background: var(--color-surface); }
 .fr-tmr span { position: relative; }
 
-/* The rail under the frame: a thin line dropped from the frame's left end, the groups sitting on it,
+/* The rail under the frame (the user, 23 Oct, design A "Rail"): a thin line dropped from the frame's left end, the groups sitting on it,
    cut out of it. First the questions the user still waits on (pending.mjs), then what waits to be told (squares.mjs), a skewed cut
    between them; each group its squares and a few words (how many, from whom) that cut off with an ellipsis before they crowd. */
 .fr-rl { position: absolute; z-index: 6; left: 0; right: 0; top: calc(100% + 3px); height: 15px; display: flex; align-items: center; padding: 0 calc(var(--rl-end) + 4px) 0 16px; pointer-events: none;
@@ -314,7 +314,7 @@
 .rl-in .rl-t [data-state="cut"] { color: var(--hud); text-shadow: none; }
 .rl-in .rl-t [data-state="said"] { color: var(--color-ink-3); text-shadow: none; }
 
-/* The hold before the next one, and learning their voice: the reference's scanning bar filling the top edge. */
+/* The hold before the next one, and learning his voice: the reference's scanning bar filling the top edge. */
 .bar-hold { position: absolute; z-index: 4; left: var(--cut); right: var(--hold-right, 0px); top: 0; height: 3px; background: var(--hud-4); pointer-events: none; }
 .bar-hold i { position: absolute; left: 0; top: 0; bottom: 0; width: var(--p, 0%); background: var(--hud); box-shadow: 0 0 8px rgba(61, 255, 143, .7); clip-path: polygon(0 0, 100% 0, calc(100% - 3px) 100%, 0 100%); }
 .bar-hold:not([data-learn]) i { animation: bar-hold-fill var(--hold-ms, 1s) linear var(--hold-delay, 0s) forwards; }
@@ -332,7 +332,7 @@
 .fr[data-look~="off"] .fr-bk { opacity: .5; }
 .fr[data-open] .fr-bk { top: 10px; bottom: 10px; }
 /* The line lost (no signal), the one error the bar shows: a colour split and a jolt for a few frames (motion only).
-   Nothing else shakes the bar ("it should only shake for an error, and for no other state"). */
+   Nothing else shakes the bar (the user, 22 Oct: "it should only shake for an error, and for no other state"). */
 .bar[data-glitch] { animation: fr-glitch 480ms steps(6) 1; }
 @keyframes fr-glitch {
   0% { filter: drop-shadow(3px 0 rgba(61, 255, 143, .55)) drop-shadow(-3px 0 rgba(78, 240, 238, .55)); translate: 2px 0; }

@@ -1,4 +1,4 @@
-// Types for callwave.js, Presence's call wave.
+// Types for callwave.js, Presence's call wave (copied by scripts/lalala-presence-sync.mjs).
 export interface CallWaveLevels {
   input?: number;
   output?: number;

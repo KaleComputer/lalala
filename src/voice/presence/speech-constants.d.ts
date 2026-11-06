@@ -1,4 +1,4 @@
-// Types for speech-constants.js, Presence's voiced-sound check.
+// Types for speech-constants.js, Presence's voiced-sound check (copied by scripts/lalala-presence-sync.mjs).
 export const VOICE_TOP: number;
 export function harmonicity(data: Uint8Array): number;
 export interface SpeechGate {

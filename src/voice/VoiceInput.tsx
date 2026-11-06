@@ -1,32 +1,65 @@
-import { PROVIDER_SEND_TURN_MAX_IMAGE_BYTES } from "@t3tools/contracts";
-import { useEffect, useEffectEvent, useRef, useState } from "react";
+import {
+  PROVIDER_SEND_TURN_MAX_FILE_BYTES,
+  PROVIDER_SEND_TURN_MAX_IMAGE_BYTES,
+} from "@t3tools/contracts";
+import { type CSSProperties, useEffect, useEffectEvent, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 
 import { prepareImageForAttachment } from "~/lib/imageCompression";
 import { randomUUID } from "~/lib/utils";
 
-type Picked = { readonly id: string; readonly file: File; readonly url: string };
+/** A file T3 already holds as a pending upload; the send claims it for the voice thread. */
+export type VoiceFileRef = {
+  readonly type: "file";
+  readonly id: string;
+  readonly name: string;
+  readonly mimeType: string;
+  readonly sizeBytes: number;
+};
 
-/** Typed text and pictures for the voice thread; resolves true once the thread has them. */
-export type VoiceInputSubmit = (text: string, images: ReadonlyArray<File>) => Promise<boolean>;
+/** Sends one file to T3 (its attachment upload), reporting progress; abort drops it. */
+export type VoiceFileUpload = (
+  file: File,
+  onProgress: (fraction: number) => void,
+) => { readonly done: Promise<VoiceFileRef>; readonly abort: () => void };
 
-const imagesOf = (files: Iterable<File>) =>
-  [...files].filter((file) => file.type.startsWith("image/") || /\.(heic|heif)$/i.test(file.name));
+type Picked =
+  | { readonly id: string; readonly kind: "image"; readonly file: File; readonly url: string }
+  | {
+      readonly id: string;
+      readonly kind: "file";
+      readonly name: string;
+      readonly progress: number;
+      readonly ref: VoiceFileRef | null;
+      readonly failed: boolean;
+    };
+
+/** Typed text, pictures and uploaded files for the voice thread; resolves true once the thread has them. */
+export type VoiceInputSubmit = (
+  text: string,
+  images: ReadonlyArray<File>,
+  files: ReadonlyArray<VoiceFileRef>,
+) => Promise<boolean>;
+
+const isImage = (file: File) => file.type.startsWith("image/") || /\.(heic|heif)$/i.test(file.name);
+const MAX_FILE_MB = PROVIDER_SEND_TURN_MAX_FILE_BYTES / 1024 / 1024;
 
 /**
- * Hand the voice thread typed text, a link or pictures: "› INPUT" in the
- * tab row left of the time opens one field docked over the bar; pictures sit on top of it as
- * equal tiles. Its emitter projects a hologram beam up and the field materializes on it (the user, 4 Nov,
- * design 9); Esc, the tab again, or a send plays it back. A drop on the bar opens it with the files.
+ * Text, links, pictures and files for the voice thread (the user, 3 Nov, design C; 6 Nov: one tab showing a
+ * keyboard and a paperclip, the field's own paperclip attaches). Files upload to T3 at once and sit over
+ * the field as tiles. The tab's beam projects the field (the user, 4 Nov, design 9); Esc, the tab again, or a
+ * send plays it back.
  */
 export function VoiceInput(props: {
   readonly tabHost: HTMLElement;
   readonly panelHost: HTMLElement;
   /** The bar: files dropped anywhere on it land here, and the phone keyboard lifts it. */
   readonly bar: HTMLElement;
-  /** A call is on; out of a call the tab is tucked away and an open field closes. */
+  /** A call is on; out of a call the tab is an empty, inert slot and an open field closes. */
   readonly live: boolean;
   readonly onSubmit: VoiceInputSubmit;
+  /** T3's attachment upload; none, pictures only. */
+  readonly upload?: VoiceFileUpload | undefined;
 }) {
   // "closing" plays the hologram back (field, then beam) before the field unmounts.
   const [phase, setPhase] = useState<"closed" | "open" | "closing">("closed");
@@ -37,11 +70,46 @@ export function VoiceInput(props: {
   const [problem, setProblem] = useState<string | null>(null);
   const fieldRef = useRef<HTMLTextAreaElement>(null);
   const fileRef = useRef<HTMLInputElement>(null);
-  // Every tile's object URL, freed when its tile goes or the bar does.
+  // Every tile's object URL and running upload, freed when its tile goes or the bar does.
   const [urls] = useState(() => new Set<string>());
-  const free = (url: string) => {
-    URL.revokeObjectURL(url);
-    urls.delete(url);
+  const [uploads] = useState(() => new Map<string, () => void>());
+  const free = (item: Picked) => {
+    if (item.kind === "image") {
+      URL.revokeObjectURL(item.url);
+      urls.delete(item.url);
+    } else {
+      uploads.get(item.id)?.();
+      uploads.delete(item.id);
+    }
+  };
+  const update = (id: string, change: (item: Picked & { kind: "file" }) => Picked) =>
+    setPicked((current) =>
+      current.map((item) => (item.id === id && item.kind === "file" ? change(item) : item)),
+    );
+
+  const startUpload = (upload: VoiceFileUpload, file: File): Picked => {
+    const id = randomUUID();
+    let step = -1;
+    const handle = upload(file, (fraction) => {
+      // Whole 5% steps, so a big file re-renders the bar twenty times, not per chunk.
+      const next = Math.floor(fraction * 20);
+      if (next === step) return;
+      step = next;
+      update(id, (item) => ({ ...item, progress: next / 20 }));
+    });
+    uploads.set(id, handle.abort);
+    handle.done.then(
+      (ref) => {
+        uploads.delete(id);
+        update(id, (item) => ({ ...item, ref, progress: 1 }));
+      },
+      () => {
+        if (!uploads.delete(id)) return;
+        setProblem("Upload failed");
+        update(id, (item) => ({ ...item, failed: true }));
+      },
+    );
+    return { id, kind: "file", name: file.name || "file", progress: 0, ref: null, failed: false };
   };
 
   const add = async (files: ReadonlyArray<File>) => {
@@ -50,6 +118,14 @@ export function VoiceInput(props: {
     setProblem(null);
     const next: Picked[] = [];
     for (const file of files) {
+      if (!isImage(file)) {
+        if (!props.upload) setProblem("Pictures only here");
+        else if (file.size === 0) setProblem("Empty file");
+        else if (file.size > PROVIDER_SEND_TURN_MAX_FILE_BYTES)
+          setProblem(`File too large (${MAX_FILE_MB} MB max)`);
+        else next.push(startUpload(props.upload, file));
+        continue;
+      }
       const result = await prepareImageForAttachment(
         file,
         PROVIDER_SEND_TURN_MAX_IMAGE_BYTES,
@@ -60,7 +136,7 @@ export function VoiceInput(props: {
       }
       const url = URL.createObjectURL(result.file);
       urls.add(url);
-      next.push({ id: randomUUID(), file: result.file, url });
+      next.push({ id: randomUUID(), kind: "image", file: result.file, url });
     }
     setPicked((current) => [...current, ...next]);
     fieldRef.current?.focus();
@@ -69,7 +145,7 @@ export function VoiceInput(props: {
 
   const remove = (id: string) => {
     const gone = picked.find((item) => item.id === id);
-    if (gone) free(gone.url);
+    if (gone) free(gone);
     setPicked((current) => current.filter((item) => item.id !== id));
   };
 
@@ -80,39 +156,47 @@ export function VoiceInput(props: {
   };
   const closeByKey = useEffectEvent(() => close());
 
-  // The call ending closes an open field (played back) before the tab tucks away.
+  // The call ending closes an open field (played back) before the tabs empty.
   const [wasLive, setWasLive] = useState(props.live);
   if (wasLive !== props.live) {
     setWasLive(props.live);
     if (!props.live && phase === "open") close();
   }
 
+  const files = picked.filter((item) => item.kind === "file");
+  const uploading = files.filter((item) => item.ref === null && !item.failed);
+  const failed = files.some((item) => item.failed);
+  const ready =
+    !busy && uploading.length === 0 && !failed && (text.trim() !== "" || picked.length > 0);
+
   const submit = async () => {
-    const message = text.trim();
-    if (busy || (message === "" && picked.length === 0)) return;
+    if (!ready) return;
     setBusy(true);
     setProblem(null);
     const ok = await props.onSubmit(
-      message,
-      picked.map((item) => item.file),
+      text.trim(),
+      picked.flatMap((item) => (item.kind === "image" ? [item.file] : [])),
+      files.flatMap((item) => (item.ref === null ? [] : [item.ref])),
     );
     setBusy(false);
     if (!ok) {
       setProblem("Not sent");
       return;
     }
-    for (const item of picked) free(item.url);
+    for (const item of picked) if (item.kind === "image") free(item);
     setPicked([]);
     setText("");
     close();
   };
 
-  // oxlint-disable-next-line t3code/no-unreasoned-state-sync -- frees the tiles' object URLs when the bar goes away
+  // oxlint-disable-next-line t3code/no-unreasoned-state-sync -- frees the tiles' object URLs and stops their uploads when the bar goes away
   useEffect(
     () => () => {
       for (const url of urls) URL.revokeObjectURL(url);
+      for (const abort of uploads.values()) abort();
+      uploads.clear();
     },
-    [urls],
+    [urls, uploads],
   );
 
   // oxlint-disable-next-line t3code/no-unreasoned-state-sync -- files dropped on the bar (Presence's DOM, outside React) open the field with them
@@ -127,7 +211,7 @@ export function VoiceInput(props: {
     const onDrop = (event: DragEvent) => {
       if (!hasFiles(event)) return;
       event.preventDefault();
-      addDropped(imagesOf(event.dataTransfer?.files ?? []));
+      addDropped([...(event.dataTransfer?.files ?? [])]);
     };
     bar.addEventListener("dragover", onOver);
     bar.addEventListener("drop", onDrop);
@@ -176,31 +260,69 @@ export function VoiceInput(props: {
     field.style.height = `${field.scrollHeight}px`;
   };
 
-  const tab = (
-    <button
-      type="button"
-      data-lalala-input-tab=""
-      data-open={open ? "" : undefined}
-      data-state={phase}
-      aria-expanded={open}
-      aria-hidden={!props.live}
-      tabIndex={props.live ? undefined : -1}
-      aria-label={open ? "Close input" : "Type or attach for the voice thread"}
-      onClick={() => (open ? close() : setPhase("open"))}
-    >
-      <i aria-hidden="true" />
-      <b
-        data-lalala-beam=""
-        aria-hidden="true"
-        onAnimationEnd={(event) => {
-          if (event.animationName === "lalala-beam-down")
-            setPhase((current) => (current === "closing" ? "closed" : current));
+  const uploadProgress =
+    uploading.length === 0
+      ? null
+      : uploading.reduce((sum, item) => sum + item.progress, 0) / uploading.length;
+
+  const tabs = (
+    <>
+      <button
+        type="button"
+        data-lalala-input-tab=""
+        data-open={open ? "" : undefined}
+        data-state={phase}
+        data-failed={failed ? "" : undefined}
+        style={
+          uploadProgress === null
+            ? undefined
+            : ({ "--lalala-upload": uploadProgress } as CSSProperties)
+        }
+        aria-expanded={open}
+        aria-hidden={!props.live}
+        tabIndex={props.live ? undefined : -1}
+        aria-label={
+          uploadProgress !== null
+            ? `Uploading, ${Math.round(uploadProgress * 100)}%`
+            : failed
+              ? "An upload failed"
+              : open
+                ? "Close input"
+                : "Type or attach for the voice thread"
+        }
+        onClick={() => (open ? close() : setPhase("open"))}
+      >
+        <i aria-hidden="true" />
+        <b
+          data-lalala-beam=""
+          aria-hidden="true"
+          onAnimationEnd={(event) => {
+            if (event.animationName === "lalala-beam-down")
+              setPhase((current) => (current === "closing" ? "closed" : current));
+          }}
+        />
+        <svg viewBox="0 0 24 24" aria-hidden="true">
+          <rect x="2.5" y="5.5" width="19" height="13" rx="1.5" />
+          <path d="M6.5 9.5h.01M10 9.5h.01M13.5 9.5h.01M17 9.5h.01M6.5 12.5h.01M17 12.5h.01M10 12.5h4M8 15.5h8" />
+        </svg>
+        <svg viewBox="0 0 24 24" aria-hidden="true">
+          <path d="M20 11.5 12.4 19a5 5 0 0 1-7.1-7.1l8-8a3.3 3.3 0 0 1 4.7 4.7l-8 8a1.7 1.7 0 0 1-2.4-2.4l7.3-7.3" />
+        </svg>
+        {uploadProgress !== null ? <s data-lalala-upload-bar="" aria-hidden="true" /> : null}
+      </button>
+      {/* Outside the field, so it stays mounted while the field plays back. */}
+      <input
+        ref={fileRef}
+        type="file"
+        accept={props.upload ? undefined : "image/*"}
+        multiple
+        hidden
+        onChange={(event) => {
+          void add([...(event.target.files ?? [])]);
+          event.target.value = "";
         }}
       />
-      <svg data-lalala-input-plus="" viewBox="0 0 12 12" aria-hidden="true">
-        <path d="M6 1.5v9M1.5 6h9" />
-      </svg>
-    </button>
+    </>
   );
 
   const panel =
@@ -209,9 +331,35 @@ export function VoiceInput(props: {
         {picked.length > 0 ? (
           <ul data-lalala-input-tiles="">
             {picked.map((item) => (
-              <li key={item.id}>
-                <img src={item.url} alt="" />
-                <button type="button" aria-label="Remove image" onClick={() => remove(item.id)}>
+              <li
+                key={item.id}
+                data-file={item.kind === "file" ? "" : undefined}
+                data-failed={item.kind === "file" && item.failed ? "" : undefined}
+                style={
+                  item.kind === "file" && item.ref === null && !item.failed
+                    ? ({ "--lalala-upload": item.progress } as CSSProperties)
+                    : undefined
+                }
+              >
+                {item.kind === "image" ? (
+                  <img src={item.url} alt="" />
+                ) : (
+                  <span>
+                    <span>{item.name}</span>
+                    <span>
+                      {item.failed
+                        ? "failed"
+                        : item.ref === null
+                          ? `${Math.round(item.progress * 100)}%`
+                          : "ready"}
+                    </span>
+                  </span>
+                )}
+                <button
+                  type="button"
+                  aria-label={item.kind === "image" ? "Remove image" : `Remove ${item.name}`}
+                  onClick={() => remove(item.id)}
+                >
                   <span aria-hidden="true">×</span>
                 </button>
               </li>
@@ -225,7 +373,9 @@ export function VoiceInput(props: {
               ref={fieldRef}
               rows={1}
               value={text}
-              placeholder="text, link or image"
+              placeholder={
+                files.length > 0 ? "a short note (optional)" : "text, link, image or file"
+              }
               aria-label="Message for the voice thread"
               enterKeyHint="send"
               onChange={(event) => {
@@ -233,10 +383,10 @@ export function VoiceInput(props: {
                 grow(event.target);
               }}
               onPaste={(event) => {
-                const images = imagesOf(event.clipboardData.files);
-                if (images.length === 0) return;
+                const pasted = [...event.clipboardData.files];
+                if (pasted.length === 0) return;
                 event.preventDefault();
-                void add(images);
+                void add(pasted);
               }}
               onKeyDown={(event) => {
                 if (event.key === "Enter" && !event.shiftKey && !event.nativeEvent.isComposing) {
@@ -248,7 +398,7 @@ export function VoiceInput(props: {
             <button
               type="button"
               data-lalala-input-cell=""
-              aria-label="Attach images"
+              aria-label={props.upload ? "Attach files" : "Attach images"}
               onClick={() => fileRef.current?.click()}
             >
               <svg viewBox="0 0 24 24" aria-hidden="true">
@@ -259,8 +409,8 @@ export function VoiceInput(props: {
               type="button"
               data-lalala-input-cell=""
               data-send=""
-              aria-label="Send to the voice thread"
-              disabled={busy || (text.trim() === "" && picked.length === 0)}
+              aria-label={uploading.length > 0 ? "Uploading…" : "Send to the voice thread"}
+              disabled={!ready}
               onClick={() => void submit()}
             >
               <svg viewBox="0 0 24 24" aria-hidden="true">
@@ -269,23 +419,12 @@ export function VoiceInput(props: {
             </button>
           </div>
         </div>
-        <input
-          ref={fileRef}
-          type="file"
-          accept="image/*"
-          multiple
-          hidden
-          onChange={(event) => {
-            void add(imagesOf(event.target.files ?? []));
-            event.target.value = "";
-          }}
-        />
       </div>
     );
 
   return (
     <>
-      {createPortal(tab, props.tabHost)}
+      {createPortal(tabs, props.tabHost)}
       {panel !== null ? createPortal(panel, props.panelHost) : null}
     </>
   );

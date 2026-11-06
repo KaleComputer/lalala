@@ -12,7 +12,7 @@
   right: 12px;
 }
 
-/* Solid edges: Presence's edge greens at the same strength over the frame's surface, never
+/* Solid edges (the user, 3 Nov): Presence's edge greens at the same strength over the frame's surface, never
    see-through, so an edge reads the same over the page as over the dark. */
 [data-lalala-presence] .fr {
   --fe: color-mix(in srgb, #3dff8f 50%, var(--color-surface));
@@ -23,7 +23,7 @@
 [data-lalala-presence] .fr[data-look~="hot"] {
   --fe: color-mix(in srgb, #3dff8f 85%, var(--color-surface));
 }
-/* Connecting: Presence's edge fill (an animated custom property, repainted on the main
+/* Connecting (the user, 5 Nov): Presence's edge fill (an animated custom property, repainted on the main
    thread) stuttered while the mic and the speech socket kept the page busy, then held until the call was
    live. Instead the dim edge carries two light sweeps, top and bottom, moved by transform alone so they
    stay smooth however busy the page is; they run only while connecting and vanish once it is live. */
@@ -151,7 +151,7 @@
   padding: 0;
   clip-path: polygon(0 0, calc(100% - var(--cut)) 0, 100% var(--cut), 100% 100%, 0 100%);
 }
-/* The frame's own edge: never filled or glowing. */
+/* The frame's own edge: never filled or glowing (the user, 3 Nov). */
 [data-lalala-presence] .fr .lalala-tabs > .fr-tab {
   background: var(--fe);
   box-shadow: none;
@@ -169,9 +169,9 @@
     0 100%
   );
 }
-/* Gear design D: the row always stands in one layout, so the gear never moves. Out of a call
+/* Gear design D (the user, 6 Nov): the row always stands in one layout, so the gear never moves. Out of a call
    (frame.js hides the timer) the call tabs keep their solid edges and corners, just empty and inert, only
-   the gear live (no dashed slots). A call going live fills them: the seam under the row
+   the gear live (the user, 6 Nov: no dashed slots). A call going live fills them: the seam under the row
    lights and the content rises out of it; ending fades it out. Nothing moves in between. */
 [data-lalala-presence] .lalala-tabs:has(.fr-tmr[hidden]) [data-lalala-mic][data-muted]::after {
   background: var(--lalala-fill);
@@ -320,21 +320,19 @@
 [data-lalala-presence] .fr-tab .fr-tmr::before {
   display: none;
 }
-/* No state glyph or word (the wave already shows the state); kept, hidden, for frame.js. */
+/* No state glyph or word (the user, 3 Nov: the wave already shows the state); kept, hidden, for frame.js. */
 [data-lalala-presence] .lalala-tabs .fr-glyph,
 [data-lalala-presence] .lalala-tabs .fr-word {
   display: none;
 }
-/* UPDATE: its own tab at the bar's left end, on the frame's top edge just past its cut,
-   in and out of a call alike, shown only when a build waits. INPUT's width (whole pixels, just room for
-   the word) with a small cut at both top corners. A sibling of the tab row, so the row's clip never
-   cuts it. */
+/* The lead tab at the bar's left end, on the frame's top edge just past its cut, in and out of a call
+   alike: UPDATE (the user, 5 Nov, B) when a build waits, INPUT's width (whole pixels, just room for the
+   word). A small cut at both top corners. A sibling of the tab row, so the row's clip never cuts it. */
 [data-lalala-presence] .lalala-lead {
   position: absolute;
   z-index: 4;
   left: calc(var(--cut) + 6px);
   bottom: calc(100% - 1px);
-  width: var(--lalala-update-w);
   height: var(--tab-h);
   display: flex;
   background: var(--fe);
@@ -360,7 +358,7 @@
   --lalala-map-w: calc(var(--key-w) + 1px);
 }
 
-/* No state strip on the frame's left edge ("that is so annoying"). */
+/* No state strip on the frame's left edge (the user, 3 Nov: "that is so annoying"). */
 [data-lalala-presence] .fr {
   --fr-strip: 0px;
 }
@@ -376,7 +374,7 @@
   width: var(--lalala-map-w);
   padding: 4px 4px 4px 5px;
   /* A fine grid under the map (R1), there before the map draws, inside the padding so no grid line
-     runs beside an edge (never two borders side by side). */
+     runs beside an edge (the user, 3 Nov: never two borders side by side). */
   background:
     linear-gradient(90deg, rgba(61, 255, 143, 0.07) 1px, transparent 0) 0 0 / 8px 8px content-box,
     linear-gradient(rgba(61, 255, 143, 0.07) 1px, transparent 0) 0 0 / 8px 8px content-box,
@@ -404,23 +402,31 @@
   right: calc(var(--lalala-map-w) + 12px);
 }
 
-/* The mic tab: left of "+", its twin in size and build, there during a call.
-   Muted it turns amber with a slashed mic, the same on desktop and phone. It takes "+"'s cut corner;
-   "+"'s left edge becomes the seam between them. */
+/* The mic tab (the user, 5 Nov, design A): right of the input tab, built like it, there during a call.
+   Muted it turns amber with a slashed mic, the same on desktop and phone. */
 [data-lalala-presence] .lalala-mic-slot {
   display: flex;
 }
 [data-lalala-presence] .lalala-mic-slot:empty {
   display: none;
 }
+/* Only the row's first tab keeps the cut corner; each one after it starts on the seam. */
 [data-lalala-presence]
-  .lalala-mic-slot:not(:empty)
+  .lalala-canvas-slot:not(:empty)
   + .lalala-input-slot
   [data-lalala-input-tab]::before,
 [data-lalala-presence]
-  .lalala-mic-slot:not(:empty)
+  .lalala-canvas-slot:not(:empty)
   + .lalala-input-slot
-  [data-lalala-input-tab]::after {
+  [data-lalala-input-tab]::after,
+[data-lalala-presence]
+  .lalala-input-slot:not(:empty)
+  + .lalala-mic-slot
+  [data-lalala-mic]::before,
+[data-lalala-presence]
+  .lalala-input-slot:not(:empty)
+  + .lalala-mic-slot
+  [data-lalala-mic]::after {
   clip-path: none;
 }
 [data-lalala-presence] [data-lalala-mic] {
@@ -485,24 +491,13 @@
     linear-gradient(rgba(255, 176, 46, 0.2), rgba(255, 176, 46, 0.2)), var(--lalala-fill);
 }
 
-/* The canvas's name tab (CanvasTabs), left of the gear, built like the mic; only in a call, like the rest
-   of the row. */
+/* The canvas's name tab (CanvasTabs; the user, 6 Nov, design A), first in the row, built like the mic; only in
+   a call, like the rest of the row. */
 [data-lalala-presence] .lalala-canvas-slot {
   display: flex;
 }
 [data-lalala-presence] .lalala-canvas-slot:empty {
   display: none;
-}
-/* The gear before the mic takes its cut corner. */
-[data-lalala-presence]
-  .lalala-settings-slot:not(:empty)
-  + .lalala-mic-slot
-  [data-lalala-mic]::before,
-[data-lalala-presence]
-  .lalala-settings-slot:not(:empty)
-  + .lalala-mic-slot
-  [data-lalala-mic]::after {
-  clip-path: none;
 }
 [data-lalala-presence] [data-lalala-canvas-tabs] {
   display: flex;
@@ -689,11 +684,12 @@
   color: #ffb02e;
 }
 
-/* An update is ready: a tap applies it (it never reloads by itself during a call). It fills
+/* A newer phone build is ready: a tap applies it (it never reloads by itself during a call). It fills
    the UPDATE tab: a lit dot and UPDATE, the whole tab the tap target. */
 [data-lalala-presence] [data-lalala-update] {
   position: relative;
-  flex: 1;
+  flex: none;
+  width: var(--lalala-update-w);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -715,8 +711,8 @@
   color: var(--hud-ink);
   background: var(--hud);
 }
-/* The settings gear (VoiceSettings): between the canvas's name and the mic, built like the
-   mic, in the same spot in and out of a call (design D). Lit while the settings are open. */
+/* The settings gear (VoiceSettings; the user, 6 Nov): between the mic and the time, built like the mic, in the
+   same spot in and out of a call (design D). Lit while the settings are open. */
 [data-lalala-presence] .lalala-settings-slot {
   display: flex;
 }
@@ -751,19 +747,6 @@
 [data-lalala-presence] [data-lalala-settings-tab]::after {
   inset: 1px 0 1px 1px;
   background: var(--lalala-fill);
-}
-/* First in the row (no canvas name): the row's cut corner. */
-[data-lalala-presence]
-  .lalala-canvas-slot:empty
-  + .lalala-settings-slot
-  [data-lalala-settings-tab]::before {
-  clip-path: polygon(4px 0, 100% 0, 100% 100%, 0 100%, 0 4px);
-}
-[data-lalala-presence]
-  .lalala-canvas-slot:empty
-  + .lalala-settings-slot
-  [data-lalala-settings-tab]::after {
-  clip-path: polygon(3.4px 0, 100% 0, 100% 100%, 0 100%, 0 3.4px);
 }
 [data-lalala-presence] [data-lalala-settings-tab] svg {
   width: 12px;
@@ -823,8 +806,8 @@
   margin-inline: 0;
 }
 
-/* The user talking: the listening wash grows brighter and wider with their voice (VoiceBar writes
-   --lalala-voice, 0..1, only while it moves). Their microphone no longer moves the tab's bars. */
+/* the user talking: the listening wash grows brighter and wider with his voice (VoiceBar writes
+   --lalala-voice, 0..1, only while it moves). His microphone no longer moves the tab's bars. */
 [data-lalala-presence] .bar-wash::after {
   content: "";
   position: absolute;
@@ -851,23 +834,41 @@
    time box or UPDATE draws it; alone (no call, no update) it closes its own right edge. Lit while the
    field is open. */
 [data-lalala-presence] {
-  /* INPUT's plus with room either side, UPDATE's word with a small inset, in whole
-     pixels so the edges stay crisp. */
+  /* A one-icon tab (mic, gear) with room either side, the input's two icons, UPDATE's word with a small
+     inset (the user, 5 Nov), in whole pixels so the edges stay crisp. */
   --lalala-input-tab-w: 34px;
+  --lalala-input-w: calc(var(--lalala-input-tab-w) + 18px);
   --lalala-update-w: 48px;
 }
 /* The letter-spacing trails the last letter; cancel it so the word sits truly centred. */
 [data-lalala-presence] [data-lalala-update] > span {
   margin-right: -0.12em;
 }
-/* INPUT is a plus: the add mark, a little over the type's size. */
-[data-lalala-presence] [data-lalala-input-plus] {
-  display: block;
-  width: calc(1em + 2px);
-  height: calc(1em + 2px);
+/* A keyboard and a paperclip side by side in one tab (the user, 6 Nov), line icons like the mic's. */
+[data-lalala-presence] [data-lalala-input-tab] svg {
+  width: 13px;
   fill: none;
   stroke: currentColor;
   stroke-width: 1.5;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+[data-lalala-presence] [data-lalala-input-tab]:not([data-open], :hover, :focus-visible) svg {
+  opacity: 0.75;
+}
+/* Uploads running: a bar along the tab's bottom edge fills with them; one failed, it turns amber
+   like a muted mic until its tile is removed. */
+[data-lalala-presence] [data-lalala-upload-bar] {
+  position: absolute;
+  left: 1px;
+  bottom: 1px;
+  width: calc((100% - 1px) * var(--lalala-upload, 0));
+  height: 2px;
+  background: var(--hud);
+  pointer-events: none;
+}
+[data-lalala-presence] [data-lalala-input-tab][data-failed] {
+  color: #ffb02e;
 }
 [data-lalala-presence] .lalala-input-slot {
   display: flex;
@@ -881,14 +882,14 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: 5px;
+  gap: 6px;
   /* Whole pixels, so its left edge never lands between two. */
-  width: var(--lalala-input-tab-w);
+  width: var(--lalala-input-w);
   padding: 0;
   border: 0;
   color: var(--hud);
   background: none;
-  /* The time's own type and size, on its line: side by side they read as one row. */
+  /* The time's own type and size, on its line (the user, 5 Nov): side by side they read as one row. */
   font: 400 calc(var(--tab-fs) - 1px) / 1 var(--font-mono);
   letter-spacing: 0.12em;
   text-transform: uppercase;
@@ -913,7 +914,7 @@
   background: var(--lalala-fill);
   clip-path: polygon(3.4px 0, 100% 0, 100% 100%, 0 100%, 0 3.4px);
 }
-/* The projector: while the field is open (or closing), a lit emitter strip on
+/* The projector (the user, 4 Nov, design 9): while the field is open (or closing), a lit emitter strip on
    the tab's top edge and a hologram cone from it up to the field's bottom edge (the panel floats 22px
    over the tab), a smooth gradient in the HUD green, faint at the tab and brightest at the field. It
    rises on open and sinks fast on close; nothing moves in between, and closed none of it is there. */
@@ -991,8 +992,11 @@
   flex-direction: column;
   gap: 4px;
   --lalala-cell-w: var(--lalala-map-w);
-  /* The beam's top, from the frame's right edge: the time box, then half the INPUT tab. */
-  --lalala-beam-o: calc(var(--lalala-map-w) + 1px + var(--lalala-input-tab-w) / 2);
+  /* The beam's top, from the frame's right edge: the time box, the gear and the mic, then half the
+     input tab. */
+  --lalala-beam-o: calc(
+    var(--lalala-map-w) + 1px + var(--lalala-input-tab-w) * 2 + var(--lalala-input-w) / 2
+  );
 }
 /* It materializes on the beam's top, outward from there, after the beam is up; closing runs it back
    first, then the beam sinks (VoiceInput unmounts it when the beam is down). */
@@ -1051,6 +1055,44 @@
   object-fit: cover;
   background: var(--color-surface);
   clip-path: polygon(6px 0, 100% 0, 100% 100%, 0 100%, 0 6px);
+}
+/* A file's tile: its name and upload state in the tab type, filling with its progress. */
+[data-lalala-presence] [data-lalala-input-tiles] > li[data-file] {
+  width: auto;
+  min-width: calc(var(--lalala-cell-w) + 1px);
+  max-width: 14em;
+}
+[data-lalala-presence] [data-lalala-input-tiles] > li[data-file] > span {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 3px;
+  height: 100%;
+  padding: 0 18px 0 8px;
+  color: var(--hud);
+  background:
+    linear-gradient(
+        to right,
+        color-mix(in srgb, var(--hud) 16%, transparent) calc(var(--lalala-upload, 0) * 100%),
+        transparent 0
+      )
+      no-repeat,
+    var(--color-surface);
+  font: 400 calc(var(--tab-fs) - 1px) / 1 var(--font-mono);
+  clip-path: polygon(6px 0, 100% 0, 100% 100%, 0 100%, 0 6px);
+}
+[data-lalala-presence] [data-lalala-input-tiles] > li[data-file] > span > span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+[data-lalala-presence] [data-lalala-input-tiles] > li[data-file] > span > span + span {
+  color: var(--hud-2);
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+[data-lalala-presence] [data-lalala-input-tiles] > li[data-failed] > span > span + span {
+  color: #ffb02e;
 }
 [data-lalala-presence] [data-lalala-input-tiles] button {
   position: absolute;

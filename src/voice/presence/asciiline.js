@@ -1,6 +1,7 @@
 // From Presence's call-frame bar, recoloured green.
-// The connecting line as ASCII, restored ("bring back the ASCII shader for the connecting
-// state, the one we had before"). This is the shader from cd87111, which drew the lost line until #168 put the call frame's 2D
+// The connecting line as ASCII, restored (the user, 23 Oct: "bring back the ASCII shader for the connecting
+// state, the one we had before"). This is the shader from cd87111 (KAL-1485, public/shared/line-gl.mjs,
+// after movAX13h's "ASCII Art" on Shadertoy), which drew the lost line until #168 put the call frame's 2D
 // glyph static (callwave.mjs) in its place. Only its connecting path is kept: the resting line (a crisp
 // warm-white core, a tight halo, a warm glow) is lit per pixel, then per 9 px cell the line's brightness
 // where it crosses the cell's column picks a 5x5 glyph by density (. : * o & 8 @ #), drawn in the line's
@@ -96,9 +97,9 @@ void main() {
   gl_FragColor = vec4(tint * min(1.0, 0.35 + gray) * a, a);
 }`;
 
-/** The character cell, CSS px. */
+/** The character cell, CSS px (KAL-1485). */
 export const ASCII_CELL = 9;
-/** The lost line's opacity over the room (: connecting at about 60%). */
+/** The lost line's opacity over the room (KAL-1485: connecting at about 60%). */
 export const ASCII_OPACITY = 0.6;
 // movAX13h's glyphs (25 bits each: . : * o & 8 @ #) as "high, low" halves of 13 and 12 bits.
 const GLYPHS = [4096, 65600, 332772, 15255086, 23385164, 15252014, 13199452, 11512810];

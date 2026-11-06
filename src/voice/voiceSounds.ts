@@ -36,10 +36,10 @@ function currentPass(nowMs: number): { readonly index: number; readonly startMs:
 
 // The pulse is built this far ahead of its pass, more than a Bluetooth headset's output latency.
 const PULSE_AHEAD_MS = 700;
-// After the user's close voice the pulse waits this long, so it never lands in their pause. Their turn ends
+// After the user's close voice the pulse waits this long, so it never lands in his pause. His turn ends
 // only after more quiet than this, so thinking's first pulse is never held back by it.
 const PULSE_AFTER_VOICE_MS = 1_500;
-// The user, 3 Nov: "very subtle, very in the background, smooth ... a good loading state". One low pure
+// the user, 3 Nov: "very subtle, very in the background, smooth ... a good loading state". One low pure
 // sine (no noise, no harmonics) about 45 dB under full scale, swelling and fading on a raised cosine.
 const PULSE_TONE_HZ = 220;
 const PULSE_PEAK = 0.0055;

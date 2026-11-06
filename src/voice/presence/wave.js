@@ -1,5 +1,5 @@
 // From Presence's call-frame bar, recoloured green.
-// Presence's voice wave: one pipeline for both voices, the user's (listening) and the
+// Presence's voice wave (KAL-1472, A18): one pipeline for both voices, the user's (listening) and the
 // agent's (speaking). An analyser's byte spectrum (fftSize 2048, 1024 bins, smoothing 0.8, as the
 // ElevenLabs SDK sets up its own) goes into 64 log-spaced bands over the voice range only (to
 // VOICE_TOP), each band its loudest bin, eased in time (fast up, a little slower down), blended with
@@ -74,7 +74,7 @@ export function waveAt(soft, u) {
 /** The scope: window length, the curve on each point's size, the RMS gate (below `floor` flat, full from `knee`). */
 export const SCOPE = Object.freeze({ ms: 24, curve: 0.7, floor: 0.0015, knee: 0.006 });
 /** Gains: the user's microphone runs quieter than her playback. */
-export const SCOPE_GAIN = Object.freeze({ user: 6, her: 4 });
+export const SCOPE_GAIN = Object.freeze({ tim: 6, her: 4 });
 /** One point's height (-1..1) from a sample `v`: gain, the curve, a soft clip; the sign kept. */
 export const scopeY = (v, gain, curve = SCOPE.curve) => (v < 0 ? -1 : 1) * Math.tanh(Math.pow(gain * Math.abs(v), curve));
 

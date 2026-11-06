@@ -11,7 +11,7 @@ import {
   type VoiceBarAnalysis,
   type VoiceBarState,
 } from "./presenceBar";
-import { VoiceInput, type VoiceInputSubmit } from "./VoiceInput";
+import { type VoiceFileUpload, VoiceInput, type VoiceInputSubmit } from "./VoiceInput";
 import { VoiceSettings } from "./VoiceSettings";
 import { voiceLog } from "./voiceLog";
 import "./presence/presence.css";
@@ -36,11 +36,13 @@ export function VoiceBar(props: {
   readonly analysis?: () => VoiceBarAnalysis | null;
   /** Bump to show Presence's "stopped" look (a reply cut off by the user). */
   readonly stoppedAt?: number;
-  /** Typed text and pictures for the voice thread (the "› INPUT" tab); none, no tab. */
+  /** Typed text, pictures and files for the voice thread (the input tab); none, no tab. */
   readonly onSubmit?: VoiceInputSubmit;
+  /** T3's attachment upload for files in the input; none, pictures only. */
+  readonly upload?: VoiceFileUpload | undefined;
   /** A call is on: the row's call tabs are live (out of a call they are empty, inert slots). */
   readonly live?: boolean;
-  /** The user's mic is muted; the mic tab left of "+" shows it and `onMute` flips it. */
+  /** The user's mic is muted; the mic tab shows it and `onMute` flips it. */
   readonly muted?: boolean;
   readonly onMute?: () => void;
 }) {
@@ -105,6 +107,7 @@ export function VoiceBar(props: {
           bar={inputHosts.bar}
           live={props.live ?? false}
           onSubmit={props.onSubmit}
+          upload={props.upload}
         />
       ) : null}
       {canvasHost !== null && inputHosts !== null ? (

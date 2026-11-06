@@ -43,10 +43,9 @@ const VOICE_FALL = 2.5;
 const VOICE_STEP = 0.01;
 
 /**
- * The tabs over the map: Presence's state tab holds only the timer (its
- * glyph stays inside, hidden, so frame.js still finds it), INPUT left of it, and apart from them the lead
- * tab at the bar's left end, which takes UPDATE when an update waits for the call to end. Moved before createFrame; frame.js still
- * finds each part by its selector.
+ * The tabs over the map: Presence's state tab holds only the timer (its glyph stays inside, hidden, so
+ * frame.js still finds it), and apart from them the lead tab at the bar's left end, which takes UPDATE
+ * when an update waits for the call to end. Moved before createFrame; frame.js finds each part by its selector.
  */
 function makeStatusTab(frameEl: HTMLElement) {
   const tab = frameEl.querySelector<HTMLElement>("[data-tab]");
@@ -55,21 +54,19 @@ function makeStatusTab(frameEl: HTMLElement) {
   tab.append(timer);
   const lead = document.createElement("span");
   lead.className = "lalala-lead";
-  // "› INPUT" (VoiceInput) leads the row, left of UPDATE and the time.
-  const input = document.createElement("span");
-  input.className = "lalala-input-slot";
-  const row = document.createElement("div");
-  row.className = "lalala-tabs";
-  // The mic mute tab, left of "+".
-  const mic = document.createElement("span");
-  mic.className = "lalala-mic-slot";
-  // The canvas's name, left of the mic; like the rest, an empty slot out of a call.
+  // Left to right: the canvas's name, the input (keyboard and paperclip in one tab, VoiceInput),
+  // the mic, the settings gear, then the time. Out of a call all but the gear are empty, inert slots.
   const canvas = document.createElement("span");
   canvas.className = "lalala-canvas-slot";
-  // The settings gear between them, the one tab live out of a call.
+  const input = document.createElement("span");
+  input.className = "lalala-input-slot";
+  const mic = document.createElement("span");
+  mic.className = "lalala-mic-slot";
   const settings = document.createElement("span");
   settings.className = "lalala-settings-slot";
-  row.append(canvas, settings, mic, input, tab);
+  const row = document.createElement("div");
+  row.className = "lalala-tabs";
+  row.append(canvas, input, mic, settings, tab);
   // The row's slot: it clips the row at the frame's top edge, so revealed content rises out of it.
   const clip = document.createElement("div");
   clip.className = "lalala-tabs-clip";

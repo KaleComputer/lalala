@@ -1,26 +1,26 @@
 // From Presence's call-frame bar, recoloured green.
 // The call frame's look (v3, 21 Oct; media/presence/cyberpunk-call): what the frame around the line shows
 // for what Presence is doing, in glyphs and light instead of words. The page (main.mjs) tells it the
-// line's state, the call's start, the hold, a reading's parts, learning their
+// line's state, the call's start, the hold, a reading's parts, learning his
 // voice and the call sounds as they play; bar.css draws it. DOM only, no state of Presence's own.
 //
 //   idle         a dim frame, a hollow square, the room START CALL  connecting  the edge draws itself on, three cells filling,
 //                (hatched, a cut plate; bar.css .fr-idle)                       the ASCII line (asciiline.mjs)
 //   listening    LISTENING with level bars, the call's timer, the warm wash: one steady look whether the user
-//                talks or not ("the listening state is steady with no layout shift"); their
+//                talks or not (the user, 22 Oct: "the listening state is steady with no layout shift"); his
 //                voice moves the bars and the line, never the tab
 //   working      (thinking) the tab's four cells, one sweeping across; the line's beads fill the room edge to
-//                edge (callwave.mjs); nothing runs along the bottom edge
+//                edge (callwave.mjs); nothing runs along the bottom edge (the user, 22 Oct)
 //   speaking     her amber bars
 //   stopped      a filled red tab with ■, a red tick cutting the line (a moment after the stop cue)
 //   no signal    NO SIGNAL, four cells emptying per retry, the frame torn, the retry sweep
-//   a thread     a cyan pip and her bars in the tab while she tells it (no cyan left end any more)
+//   a thread     a cyan pip and her bars in the tab while she tells it (the user, 22 Oct: no cyan left end any more)
 //   waiting      a thread's reply or an agent's question waits to be told: the frame stays as it is; the small
 //                cyan squares in the rail under it and their few words show it (main.mjs, squares.mjs)
 //   asked        a question the user asked a thread and still waits on: a small red square first in the rail, in
 //                every look, cyan for a moment when its answer comes, then gone (pending.mjs)
 //   learning     LEARNING VOICE . . . 60%, the scan fill along the top edge
-// Only no signal shakes the bar ("it should only shake for an error, and for no other
+// Only no signal shakes the bar (the user, 22 Oct: "it should only shake for an error, and for no other
 // state"); every other change is still. The tab's glyph has one fixed slot, so a word never moves.
 
 const STOPPED_MS = 1200;
@@ -179,7 +179,7 @@ export function createFrame({ bar, frame, reduced = false }) {
     cue(name) {
       if (name === "stop") stopped();
     },
-    /** Learning their voice: 0..1, or null when it ends. */
+    /** Learning his voice: 0..1, or null when it ends. */
     learning(p) {
       st.learning = p == null ? null : Math.max(0, Math.min(1, p));
       paint();
@@ -221,10 +221,10 @@ export function createFrame({ bar, frame, reduced = false }) {
     get look() {
       return st.look;
     },
-    /** Whose sound the line carries now: "her" while she speaks, "user" while it listens (their microphone), else "". */
+    /** Whose sound the line carries now: "her" while she speaks, "tim" while it listens (his microphone), else "". */
     get audio() {
       if (st.look === "nosignal" || st.look === "connecting" || st.look === "stopped" || st.look === "idle") return "";
-      return st.line === "speaking" ? "her" : st.line === "listening" ? "user" : "";
+      return st.line === "speaking" ? "her" : st.line === "listening" ? "tim" : "";
     },
   };
 }

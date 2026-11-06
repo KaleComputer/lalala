@@ -78,8 +78,12 @@ export function Bar() {
             <button type="button" data-lalala-input-tab="" data-state="closed" aria-hidden tabIndex={-1}>
               <i aria-hidden="true" />
               <b data-lalala-beam="" aria-hidden="true" />
-              <svg data-lalala-input-plus="" viewBox="0 0 12 12" aria-hidden="true">
-                <path d="M6 1.5v9M1.5 6h9" />
+              <svg viewBox="0 0 24 24" aria-hidden="true">
+                <rect x="2.5" y="5.5" width="19" height="13" rx="1.5" />
+                <path d="M6.5 9.5h.01M10 9.5h.01M13.5 9.5h.01M17 9.5h.01M6.5 12.5h.01M17 12.5h.01M10 12.5h4M8 15.5h8" />
+              </svg>
+              <svg viewBox="0 0 24 24" aria-hidden="true">
+                <path d="M20 11.5 12.4 19a5 5 0 0 1-7.1-7.1l8-8a3.3 3.3 0 0 1 4.7 4.7l-8 8a1.7 1.7 0 0 1-2.4-2.4l7.3-7.3" />
               </svg>
             </button>,
             hosts.input.tab,

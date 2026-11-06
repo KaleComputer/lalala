@@ -1,5 +1,5 @@
 // From Presence's call-frame bar, recoloured green.
-// Presence: only speech moves the listening wave. Taps, clicks and knocks on the table
+// Presence (KAL-1472): only speech moves the listening wave. Taps, clicks and knocks on the table
 // reach the microphone too; the line ignores them (what goes to ElevenLabs is untouched: this reads
 // the SDK's analyser, it never filters the stream). Two parts, both on the SDK's input spectrum
 // (1024 bins, 100 Hz to 8 kHz, linear, about 7.7 Hz a bin):

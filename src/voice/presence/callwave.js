@@ -3,22 +3,22 @@
 // line in the frame's main room at /, one 2D canvas inside the frame, as tall as the old wave
 // (--bar-wave) around the room's middle. Every line runs the room edge to edge, from the left end
 // (the red strip) to the key's straight divider, and is drawn only inside the room's shape (the cut
-// corner, the divider); only her voice wave glows past the top and bottom edges ("make
+// corner, the divider); only her voice wave glows past the top and bottom edges (the user, 22 Oct: "make
 // sure that the line and whatever we add are rendered in this box and fill it from left to right, so
 // they touch the box and are not floating inside it").
-// The user, 21 Oct: "why are the line animations not updated as in the cyberpunk design? i love those".
-// The user, 22 Oct: "The style is good, but it's not auto-reactive anymore; it just feels like something
+// the user, 21 Oct: "why are the line animations not updated as in the cyberpunk design? i love those".
+// the user, 22 Oct: "The style is good, but it's not auto-reactive anymore; it just feels like something
 // random ... change it back so the line reacts to my voice". So the voice lines move only with sound:
 // silence is a calm flat line, loud speech a clearly bigger one, as the old line did.
 // One kind per look of the frame (frame.mjs), `waveKind`:
 //   idle         nothing (the room is START CALL)      connecting  the line as ASCII, edge to edge (asciiline.mjs: cd87111's shader, back 23 Oct)
 //   working      (thinking) beads on a faint thread, edge to edge, a light sweeping along them and out through both ends
 //   speaking     the big amber voice wave: her playback
-//   quiet        listening: no line at all, only the warm wash; their microphone never moves it
+//   quiet        listening: no line at all, only the warm wash; his microphone never moves it (the user, 23 Oct)
 //   stopped      the wave cut by a red tick, its tail knocked loose
 //   no signal    the split glitch line: a cyan and a red copy apart, jumping (the one error look)
 //   reading      (a reading in parts) the voice wave, softer
-//   learning their voice: her voice while she speaks (frame.audio), else no line (quiet)
+//   learning his voice: her voice while she speaks (frame.audio), else no line (quiet)
 //   none         typing: the field takes the room
 // Real audio (23 Oct, the user: "it just triggers the same animation whenever speech plays ... use the actual
 // FFT or waveform values from the audio, live"): her voice line is the
@@ -29,8 +29,8 @@
 // line, a loud voice a clearly taller one. Her line reads what plays (playback.mjs; a waiting thread's
 // reply read aloud too, and the SDK's analysers while the page's context stalls), our analyser on the
 // stream already open (no second capture). The ghost is the same line a moment behind. Only she moves
-// the line (the user, 23 Oct correction: the wave moves only while Presence speaks to them, flat while the user
-// talks; later that day: "not flat, not drawn at all"): listening draws no line, only the wash, and their microphone moves neither (its RMS is
+// the line (the user, 23 Oct correction: the wave moves only while Presence speaks to him, flat while he
+// talks; later that day: "not flat, not drawn at all"): listening draws no line, only the wash, and his microphone moves neither (its RMS is
 // still read, for the checks). The tab's level bars are the spectrum's 64 bands in four groups.
 // Reduced motion: every kind still, drawn only when it changes; the
 // bars and the wash hold still. One canvas, sized only when its box changes (ResizeObserver), no layout
@@ -56,7 +56,7 @@ const LINE_EASE = 40;
 const GHOST_EASE = 9;
 // Her live line's stroke, built once: the mockup's.
 const HER_STYLE = Object.freeze({ width: 1.9, blur: 16, stroke: `rgba(${AMB},0.95)`, ghost: `rgba(${AMB},0.25)` });
-// The user's bands: up within a frame or two, down more slowly so syllables read as one movement.
+// the user's bands: up within a frame or two, down more slowly so syllables read as one movement.
 const LISTEN_EASE = Object.freeze({ ...WAVE_EASE, up: 110, down: 12 });
 
 /** Which wave the frame's look draws: `look` and `audio` (whose sound is on the line) from frame.mjs, a reading in parts, the frame open to type. */
@@ -72,7 +72,7 @@ export function waveKind({ look, audio = "", reading = false, open = false }) {
     case "thread": return voice;
     case "stopped": return "cut";
     case "nosignal": return "glitch";
-    // Listening: no line at all, only the warm wash; the line is there only while she talks.
+    // Listening: no line at all, only the warm wash; the line is there only while she talks (the user, 23 Oct).
     case "listening": return "quiet";
     // A motion moment over the call: her line while she speaks, else no line.
     case "learning": return audio === "her" ? voice : "quiet";
@@ -111,7 +111,7 @@ export function createCallWave(canvas, { reduced = false, wash = null, state = (
   const outSoft = new Float32Array(WAVE_N);
   const inBands = new Float32Array(WAVE_N);
   const inSoft = new Float32Array(WAVE_N);
-  // Her live line (N+1 points, -1..1): this frame's scope, the eased line drawn, its ghost. The user's scope is
+  // Her live line (N+1 points, -1..1): this frame's scope, the eased line drawn, its ghost. the user's scope is
   // read only for its RMS (checks); it is never drawn.
   const herScope = new Float32Array(N + 1);
   const herLine = new Float32Array(N + 1);
@@ -126,15 +126,15 @@ export function createCallWave(canvas, { reduced = false, wash = null, state = (
   let drawn = ""; // reduced motion: what the canvas holds (kind and size)
   let cleared = false;
   let out = 0; // her voice, eased 0..1
-  let inp = 0; // The user's microphone, eased 0..1
+  let inp = 0; // the user's microphone, eased 0..1
   let spec = 0; // 0..1: how much her live spectrum shapes her wave along the line
   let specIn = 0; // the same for the user's
-  const rms = { her: 0, user: 0 }; // the waveforms' RMS this frame (checks)
+  const rms = { her: 0, tim: 0 }; // the waveforms' RMS this frame (checks)
   let drawnAmp = 0; // the highest point of the voice line drawn last (CSS px from the middle; checks)
   let span = null; // where the line drawn last starts and ends along the room (CSS px; checks)
   // The frame's room in the canvas's CSS px (bar.css .fr-wv): the canvas starts at the room's left end and
   // ends on the key's divider; the room is --bar-row tall around the canvas's middle, its top-left corner
-  // cut by --cut less the strip, its right end the divider, straight.
+  // cut by --cut less the strip, its right end the divider, straight (the user, 23 Oct).
   let room = { top: 0, bottom: 0, cut: 0 };
   let washNow = 0;
   let washSet = "";
@@ -249,12 +249,12 @@ export function createCallWave(canvas, { reduced = false, wash = null, state = (
   function paint(k, t, lt) {
     // The line's ends: the room's left end and the divider, so it touches the frame on both sides.
     const a = 0, b = W, L = b - a, cy = H / 2, mid = (a + b) / 2;
-    // Out of a call the room is START CALL (bar.css .fr-idle); listening is the
-    // wash alone (the line is not drawn at all while she listens). No line over either.
+    // Out of a call the room is START CALL (the user, 23 Oct, variant 5: bar.css .fr-idle); listening is the
+    // wash alone (the user, 23 Oct: the line is not drawn at all while she listens). No line over either.
     if (k === "idle" || k === "quiet") return;
     span = [a, b];
     if (k === "ascii") {
-      // The old ASCII shader ("the one we had before"), copied into the room's clip.
+      // The old ASCII shader (the user, 23 Oct: "the one we had before"), copied into the room's clip.
       if (asciiGl === undefined) asciiGl = createAsciiLine();
       const img = asciiGl?.draw({ width: W, height: H, dpr, x0: a, x1: b, y: cy, time: t, breath: 0.5 + 0.5 * Math.sin((t * Math.PI * 2) / 7) });
       if (img) {
@@ -367,7 +367,7 @@ export function createCallWave(canvas, { reduced = false, wash = null, state = (
     for (let i = 0; i < el.children.length; i++) el.children[i].style.transform = `scaleY(${s[i + 1]})`;
   }
 
-  /** The wash: its share for the look, still (their voice does not move it); written only on change. */
+  /** The wash: its share for the look, still (his voice does not move it); written only on change. */
   function paintWash(st, t, dt) {
     if (!wash) return;
     const to = washOf(st);
@@ -407,10 +407,10 @@ export function createCallWave(canvas, { reduced = false, wash = null, state = (
     const inT = reduced ? 0 : shaped(levels.input ?? 0);
     out += (outT - out) * ease(outT > out ? 7 : 2.2, dt);
     inp += (inT - inp) * ease(inT > inp ? 9 : 2.6, dt);
-    // Her line: her voice's own waveform this frame (null, nothing plays: flat), lightly eased. The user's
+    // Her line: her voice's own waveform this frame (null, nothing plays: flat), lightly eased. the user's
     // microphone is read only for its RMS (checks): it never moves the line.
     rms.her = scopeFrom(reduced ? null : spectrum?.outputWave ?? null, spectrum?.outputRate ?? spectrum?.rate ?? 48000, herScope, SCOPE_GAIN.her);
-    rms.user = scopeFrom(reduced ? null : spectrum?.inputWave ?? null, spectrum?.inputRate ?? spectrum?.rate ?? 48000, timScope, SCOPE_GAIN.user);
+    rms.tim = scopeFrom(reduced ? null : spectrum?.inputWave ?? null, spectrum?.inputRate ?? spectrum?.rate ?? 48000, timScope, SCOPE_GAIN.tim);
     const le = ease(LINE_EASE, dt), ge = ease(GHOST_EASE, dt);
     moving = false;
     for (let i = 0; i <= N; i++) {
@@ -459,7 +459,7 @@ export function createCallWave(canvas, { reduced = false, wash = null, state = (
     },
     /** The live line drawn now (her points, -1..1, before the taper; the user's always flat; checks). */
     line(who = "her") {
-      return who === "user" ? flat : herLine;
+      return who === "tim" ? flat : herLine;
     },
     get drawn() {
       return drawnAmp;

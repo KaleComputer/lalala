@@ -1,5 +1,6 @@
 // Standalone stand-in for @t3tools/contracts: only what the copied voice code uses.
 export const PROVIDER_SEND_TURN_MAX_IMAGE_BYTES = 10 * 1024 * 1024;
+export const PROVIDER_SEND_TURN_MAX_FILE_BYTES = 50 * 1024 * 1024;
 export type ThreadId = string;
 export type ConfirmDialogVariant = "default" | "destructive";
 export interface ConfirmDialogOptions {

@@ -1,4 +1,4 @@
-// Types for closetalk.js, Presence's close-talk gate.
+// Types for closetalk.js, Presence's close-talk gate (copied by scripts/lalala-presence-sync.mjs).
 export type CloseTalkMode = "listen" | "speak" | "think";
 export interface CloseTalkDecision {
   readonly open: boolean;

@@ -1,4 +1,4 @@
-// Types for frame.js, Presence's call frame.
+// Types for frame.js, Presence's call frame (copied by scripts/lalala-presence-sync.mjs).
 export interface PresenceFrame {
   state(input: { line: string; voice: string }): void;
   thread(on: boolean): void;
