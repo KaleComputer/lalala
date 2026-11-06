@@ -1,7 +1,6 @@
 import type { ReactNode } from "react";
 import { CanvasMap } from "./CanvasMap";
 import { CanvasSurface } from "./CanvasSurface";
-import { StreamerToggle } from "./StreamerToggle";
 import { VoiceClock } from "./VoiceClock";
 
 /**
@@ -16,7 +15,6 @@ export function VoiceExtras(props: { readonly children?: ReactNode }) {
     <>
       <CanvasSurface>{props.children}</CanvasSurface>
       <div data-lalala-corner="">
-        <StreamerToggle />
         <VoiceClock />
       </div>
       <CanvasMap />

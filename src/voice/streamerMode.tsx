@@ -1,7 +1,7 @@
 import { useSyncExternalStore } from "react";
 import "./streamerMode.css";
 
-// Shared by name with extras/StreamerToggle.tsx, which turns it on and off but may not import app code.
+// Shared by name with extras/streamer.tsx, which may not import app code; the settings switch turns it on and off.
 const STORE = "lalala:streamer";
 const EVENT = "lalala:streamer";
 

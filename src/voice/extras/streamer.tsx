@@ -24,11 +24,6 @@ function subscribe(onChange: () => void) {
 
 export const useStreamer = () => useSyncExternalStore(subscribe, read, () => false);
 
-export function setStreamer(on: boolean) {
-  localStorage.setItem(STORE, on ? "on" : "off");
-  window.dispatchEvent(new Event(EVENT));
-}
-
 const GLYPHS = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
 const SALT = Math.floor(Math.random() * 0x7fffffff);
 

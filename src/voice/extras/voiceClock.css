@@ -1,4 +1,4 @@
-/* The top right corner, fixed over the canvas surface: the streamer toggle, the clock. */
+/* The top right corner, fixed over the canvas surface: the clock. */
 [data-lalala-corner] {
   position: absolute;
   z-index: 1;
@@ -7,8 +7,7 @@
   display: flex;
   gap: 6px;
 }
-[data-lalala-clock],
-[data-lalala-streamer] {
+[data-lalala-clock] {
   padding: 1px 6px 0;
   border: 1px solid rgba(61, 255, 143, 0.34);
   color: #3dff8f;
@@ -22,28 +21,4 @@
 [data-lalala-clock] {
   font-variant-numeric: tabular-nums;
   pointer-events: none;
-}
-/* An on-air sign: the same box either way, dim when off and lit red while streamer mode is on. */
-[data-lalala-streamer] {
-  display: inline-flex;
-  align-items: center;
-  gap: 5px;
-  color: rgba(61, 255, 143, 0.45);
-  text-transform: uppercase;
-  cursor: pointer;
-  pointer-events: auto;
-}
-[data-lalala-streamer] > span {
-  width: 7px;
-  height: 7px;
-  border-radius: 50%;
-  background: currentColor;
-}
-[data-lalala-streamer][aria-pressed="true"] {
-  color: #fff;
-  background: #e5484d;
-  border-color: #e5484d;
-}
-[data-lalala-streamer][aria-pressed="true"] > span {
-  box-shadow: 0 0 5px #fff;
 }
