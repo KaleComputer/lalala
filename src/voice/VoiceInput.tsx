@@ -45,8 +45,8 @@ const isImage = (file: File) => file.type.startsWith("image/") || /\.(heic|heif)
 const MAX_FILE_MB = PROVIDER_SEND_TURN_MAX_FILE_BYTES / 1024 / 1024;
 
 /**
- * Text, links, pictures and files for the voice thread (the user, 3 Nov, design C; 6 Nov: one tab showing a
- * keyboard and a paperclip, the field's own paperclip attaches). Files upload to T3 at once and sit over
+ * Text, links, pictures and files for the voice thread (the user, 3 Nov, design C; 6 Nov: one slim tab showing
+ * only a keyboard, the field's own paperclip attaches). Files upload to T3 at once and sit over
  * the field as tiles. The tab's beam projects the field (the user, 4 Nov, design 9); Esc, the tab again, or a
  * send plays it back.
  */
@@ -304,9 +304,6 @@ export function VoiceInput(props: {
         <svg viewBox="0 0 24 24" aria-hidden="true">
           <rect x="2.5" y="5.5" width="19" height="13" rx="1.5" />
           <path d="M6.5 9.5h.01M10 9.5h.01M13.5 9.5h.01M17 9.5h.01M6.5 12.5h.01M17 12.5h.01M10 12.5h4M8 15.5h8" />
-        </svg>
-        <svg viewBox="0 0 24 24" aria-hidden="true">
-          <path d="M20 11.5 12.4 19a5 5 0 0 1-7.1-7.1l8-8a3.3 3.3 0 0 1 4.7 4.7l-8 8a1.7 1.7 0 0 1-2.4-2.4l7.3-7.3" />
         </svg>
         {uploadProgress !== null ? <s data-lalala-upload-bar="" aria-hidden="true" /> : null}
       </button>

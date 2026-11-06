@@ -827,17 +827,16 @@
    time box or UPDATE draws it; alone (no call, no update) it closes its own right edge. Lit while the
    field is open. */
 [data-lalala-presence] {
-  /* A one-icon tab (mic, gear) with room either side, the input's two icons, UPDATE's word with a small
+  /* A one-icon tab (input, mic, gear) with room either side, UPDATE's word with a small
      inset (the user, 5 Nov), in whole pixels so the edges stay crisp. */
   --lalala-input-tab-w: 34px;
-  --lalala-input-w: calc(var(--lalala-input-tab-w) + 18px);
   --lalala-update-w: 48px;
 }
 /* The letter-spacing trails the last letter; cancel it so the word sits truly centred. */
 [data-lalala-presence] [data-lalala-update] > span {
   margin-right: -0.12em;
 }
-/* A keyboard and a paperclip side by side in one tab (the user, 6 Nov), line icons like the mic's. */
+/* Only a keyboard in the input tab, the field has the paperclip (the user, 6 Nov), line icons like the mic's. */
 [data-lalala-presence] [data-lalala-input-tab] svg {
   width: 13px;
   fill: none;
@@ -877,7 +876,7 @@
   justify-content: center;
   gap: 6px;
   /* Whole pixels, so its left edge never lands between two. */
-  width: var(--lalala-input-w);
+  width: var(--lalala-input-tab-w);
   padding: 0;
   border: 0;
   color: var(--hud);
@@ -987,9 +986,7 @@
   --lalala-cell-w: var(--lalala-map-w);
   /* The beam's top, from the frame's right edge: the time box, the gear and the mic, then half the
      input tab. */
-  --lalala-beam-o: calc(
-    var(--lalala-map-w) + 1px + var(--lalala-input-tab-w) * 2 + var(--lalala-input-w) / 2
-  );
+  --lalala-beam-o: calc(var(--lalala-map-w) + 1px + var(--lalala-input-tab-w) * 2.5);
 }
 /* It materializes on the beam's top, outward from there, after the beam is up; closing runs it back
    first, then the beam sinks (VoiceInput unmounts it when the beam is down). */
