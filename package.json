@@ -1,0 +1,31 @@
+{
+  "name": "t3voice",
+  "private": true,
+  "type": "module",
+  "description": "A voice-first canvas for T3 Code: talk to a brain thread, hear it answer, watch it build cards.",
+  "license": "MIT",
+  "engines": {
+    "node": ">=22.12"
+  },
+  "scripts": {
+    "start": "node server.mjs",
+    "pair": "node server.mjs pair",
+    "speech": "scripts/speech.sh"
+  },
+  "dependencies": {
+    "@base-ui/react": "1.9.0",
+    "@fontsource-variable/inter": "5.3.0",
+    "class-variance-authority": "^0.7.1",
+    "heic-to": "^1.5.2",
+    "lucide-react": "0.564.0",
+    "react": "19.3.0",
+    "react-dom": "19.3.0",
+    "tailwind-merge": "^3.4.0"
+  },
+  "devDependencies": {
+    "@tailwindcss/vite": "4.3.3",
+    "@vitejs/plugin-react": "^6.1.2",
+    "tailwindcss": "4.3.3",
+    "vite": "^8.0.0"
+  }
+}

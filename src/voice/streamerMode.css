@@ -1,0 +1,39 @@
+/* Streamer mode: scrambled text, drawn through the mosaic in StreamerFilter. Chrome drops an SVG
+   filter on a plain inline box, so inline text becomes an inline-block that still truncates. */
+[data-streamer-text] {
+  display: inline-block;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  vertical-align: bottom;
+  filter: url(#t3-streamer-pixelate);
+}
+[data-streamer-text="block"] {
+  display: block;
+  white-space: pre-wrap;
+}
+
+/* Word-locked scrambling: each fake word is laid over its real word, which keeps the space but is
+   never drawn, so text wraps exactly as before; only the fake words go through the mosaic. */
+[data-streamer-word] {
+  position: relative;
+  display: inline-block;
+}
+[data-streamer-ghost] {
+  visibility: hidden;
+}
+[data-streamer-mask] {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  filter: url(#t3-streamer-pixelate);
+}
+
+/* iOS Safari draws nothing through the SVG mosaic, so there the scrambled text is blurred instead. */
+@supports (-webkit-touch-callout: none) {
+  [data-streamer-text],
+  [data-streamer-mask] {
+    filter: blur(2.5px);
+  }
+}

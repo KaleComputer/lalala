@@ -1,0 +1,23 @@
+/* Word-locked scrambling: each fake word is laid over its real word, which keeps the space but is
+   never drawn, so text wraps exactly as before; only the fake words go through the mosaic. */
+[data-streamer-word] {
+  position: relative;
+  display: inline-block;
+}
+[data-streamer-ghost] {
+  visibility: hidden;
+}
+[data-streamer-mask] {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  filter: url(#t3-streamer-pixelate);
+}
+
+/* iOS Safari draws nothing through the SVG mosaic, so there the scrambled text is blurred instead. */
+@supports (-webkit-touch-callout: none) {
+  [data-streamer-mask] {
+    filter: blur(2.5px);
+  }
+}

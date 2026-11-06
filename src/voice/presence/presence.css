@@ -1,0 +1,476 @@
+/* From Presence's call-frame bar (ions.css, bar.css):
+   red recoloured green, scoped to [data-t3voice-presence]. Do not edit here. */
+@font-face { font-family: "Oxanium"; font-style: normal; font-weight: 200 800; font-display: swap; src: url("./fonts/oxanium-var-latin.woff2") format("woff2"); }
+@font-face { font-family: "Rajdhani"; font-style: normal; font-weight: 700; font-display: swap; src: url("./fonts/rajdhani-700-latin.woff2") format("woff2"); }
+@font-face { font-family: "Geist"; font-style: normal; font-weight: 400; font-display: swap; src: url("./fonts/geist-400-latin.woff2") format("woff2"); }
+@font-face { font-family: "Geist"; font-style: normal; font-weight: 600; font-display: swap; src: url("./fonts/geist-600-latin.woff2") format("woff2"); }
+@font-face { font-family: "Geist Mono"; font-style: normal; font-weight: 400; font-display: swap; src: url("./fonts/geist-mono-400-latin.woff2") format("woff2"); }
+/* Presence ions: the same values as ions.mjs, which is the catalog; test/p2-parts.test.mjs
+   keeps them equal. Straight edges everywhere but the bar (--radius-bar, ). */
+
+[data-t3voice-presence] {
+  color-scheme: dark;
+  --color-bg: #0a0908;
+  --color-surface: #121110;
+  --color-raise: rgba(245, 238, 226, .06);
+  --color-ink: rgb(245, 238, 226);
+  --color-ink-2: rgba(245, 238, 226, .62);
+  --color-ink-3: rgba(245, 238, 226, .42);
+  --color-hair: rgba(245, 238, 226, .12);
+  --color-edge: rgba(255, 255, 255, .2);
+  --color-ember: #ff8a4c;
+  --color-send: rgb(52, 107, 241);
+  --color-red: #ff3b30;
+  --color-green: #39ff14;
+  --font-sans: "Geist", ui-sans-serif, system-ui, -apple-system, "Helvetica Neue", sans-serif;
+  --font-mono: "Geist Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
+  --text-xs: 11px;
+  --text-sm: 13px;
+  --text-md: 15px;
+  --text-lg: 20px;
+  --text-xl: 28px;
+  --text-2xl: 44px;
+  --weight-light: 300;
+  --weight-regular: 400;
+  --weight-strong: 600;
+  --leading-tight: 1.2;
+  --leading-body: 1.55;
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 24px;
+  --space-6: 32px;
+  --space-7: 48px;
+  --border-width: 1px;
+  --border-hair: 1px solid rgba(245, 238, 226, .12);
+  --border-edge: 1px solid rgba(255, 255, 255, .2);
+  --radius-bar: 16px;
+  --motion-fast: 120ms;
+  --motion-base: 200ms;
+  --motion-slow: 400ms;
+  --motion-ease: cubic-bezier(.16, 1, .3, 1);
+  --grid-unit: 16px;
+  --grid-dot: rgba(245, 238, 226, .16);
+  --grid-edge: 16px;
+}
+
+/* Presence's page and its one global ui: the call frame (v3, 21 Oct; the user: "fewer words, more visual,
+   everything integrated into the bottom bar"). The stage is the whole screen with the board on it
+   (parts.css); the frame is the whole ui and nothing floats around it but one quiet line of what is
+   being said, only while someone talks. The concept is media/presence/cyberpunk-call (README, mockups/call.html).
+   - The frame: cut corners top-left and bottom-right, a 1px edge in the HUD's red (no
+     cyan left end any more), a tab at the left end, a tick rail along the
+     bottom inside edge and brackets just outside both ends. Its main room is the wave's (callwave.mjs,
+     one canvas in the frame): every line runs the room edge to edge, from the strip to the key's divider,
+     drawn only inside the room's shape ("fill it from left to right, so they touch the box");
+     only her voice wave glows past the top and bottom edges. Listening is the dim wash inside it.
+   - Thinking is the tab's four sweeping cells and the beads in the room; nothing runs along the bottom
+     edge any more (the red run on the outline was "confusing because we're already thinking inside").
+   - The state is a tab on the top edge: a glyph, and a word only for LISTENING, NO SIGNAL and
+     LEARNING VOICE. The call's timer is a small tab over the key, its left edge on the key's divider.
+   - Out of a call the room is START CALL: hatched like a panel on standby, a solid
+     cut plate in the middle with the power mark; a tap connects, and the plate fades into connecting's ASCII line.
+   - Under the frame runs the rail: a thin line dropped from the frame's left end, and on
+     it, cut out of it, first the questions the user still waits on (red squares), then what waits to be told (a
+     thread's reply, an agent's question: cyan squares), each with a few words. The hold (turns.hold()) is the
+     scan fill along the top edge.
+   - The key is the frame's own right end, behind a straight divider ("make that line straight, not angled"). Typing opens the frame itself
+     upward into the field, with T3's controls (model, reasoning, access) inside it and the key filled
+     red, holding attach and send. Menus open upward over the frame.
+   - No signal tears the frame; reading in parts turns the rail into the parts. Values from ions.css. */
+
+[data-t3voice-presence], [data-t3voice-presence] *, [data-t3voice-presence] *::before, [data-t3voice-presence] *::after { box-sizing: border-box; }
+
+[data-t3voice-presence] { color: var(--color-ink); font: var(--weight-regular) var(--text-md)/var(--leading-body) var(--font-sans); -webkit-font-smoothing: antialiased; }
+:where([data-t3voice-presence]) button { font: inherit; color: inherit; background: none; border: 0; padding: 0; cursor: pointer; }
+[data-t3voice-presence] [hidden] { display: none !important; }
+
+/* The whole screen, the same edge on every side (more where a phone's safe area is). */
+.p2-stage {
+  position: fixed; inset: 0; overflow: hidden auto; scrollbar-width: none;
+  padding: max(var(--grid-edge), env(safe-area-inset-top)) max(var(--grid-edge), env(safe-area-inset-right)) max(var(--grid-edge), env(safe-area-inset-bottom)) max(var(--grid-edge), env(safe-area-inset-left));
+}
+.p2-stage::-webkit-scrollbar { display: none; }
+/* The cards in the call's look: the board's straight blocks with the frame's edge (the mockup's board). Their data and parts are unchanged. */
+.p2-block { border: var(--border-edge); }
+
+/* ------------------------------------------------------------------ the call's colours and measures */
+[data-t3voice-presence] {
+  /* red/salmon is the HUD itself, cyan a thread, amber Presence's voice (the line's warm light) */
+  --hud: #3dff8f; --hud-2: rgba(61, 255, 143, .66); --hud-3: rgba(61, 255, 143, .34); --hud-4: rgba(61, 255, 143, .13); --hud-ink: #04170c;
+  --cyan: #4ef0ee; --cyan-2: rgba(78, 240, 238, .62); --cyan-3: rgba(78, 240, 238, .3);
+  --bar-amber: rgb(150, 255, 190);
+  --font-tag: "Oxanium", var(--font-mono);
+  --font-hud: "Rajdhani", var(--font-sans);
+  /* the frame closed (its row: --bar-row inside the 1px edge), the wave's own height around its middle, the cut, the strip at the
+     left end, the key, the tabs (callwave.mjs reads the row, the cut and the strip) */
+  --bar-row: 44px; --bar-h: calc(var(--bar-row) + 2px); --bar-wave: 88px; --cut: 10px; --fr-strip: 5px; --key-w: 54px; --tab-h: 18px; --tab-big: 26px; --tab-fs: 10px;
+  --bar-type: var(--key-w); --bar-open: 132px; --rail-h: 20px; --rl-pip: 6px; --rl-fs: 9.5px; --rl-ls: .16em; --rl-end: calc(var(--key-w) - 6px); --plate-h: 26px; --plate-fs: 11px;
+}
+
+/* ------------------------------------------------------------------ the bar: the frame and what sits on it */
+.bar {
+  /* Centered without a transform. It lifts over a phone's keyboard while the user types (--kb, main.mjs). 20px lower than the
+     page's edge ("at the real bottom of the page"): the frame 16px over the bottom, the rail in the box's padding under it;
+     on an iPhone the safe area still holds the frame over the home indicator. */
+  position: fixed; z-index: 5; left: 0; right: 0; margin-inline: auto;
+  bottom: calc(max(var(--grid-edge), env(safe-area-inset-bottom)) - 20px + var(--kb, 0px));
+  /* Its box holds the frame's tabs, the brackets outside its ends and the rail under it (always, so nothing moves when it shows),
+     so the board keeps clear of all of it. */
+  width: min(780px, calc(100vw - 2 * var(--grid-edge))); padding: var(--tab-big) 10px var(--rail-h);
+}
+
+/* What is being said, one quiet line over the frame (only while someone talks), and a typed reply that fades. */
+.bar-incoming { position: absolute; left: 0; right: 0; bottom: calc(100% + 4px); margin: 0; padding: 0; list-style: none; display: grid; justify-items: center; gap: 2px; pointer-events: none; text-align: center; }
+.bar-incoming li { max-width: 92%; color: var(--color-ink-3); font: var(--weight-regular) var(--text-sm)/1.5 var(--font-sans); text-shadow: 0 0 12px var(--color-bg), 0 0 4px var(--color-bg); text-wrap: balance; overflow: hidden; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
+.bar-incoming li[data-say] { pointer-events: auto; cursor: pointer; }
+
+/* A write that waits for the user's yes, or the links the browser blocked: a cut-corner panel over the frame. */
+.bar-up {
+  margin-bottom: 30px; padding: var(--space-4); max-height: 50vh; overflow-y: auto; background: var(--color-surface);
+  box-shadow: inset 0 0 0 1px var(--hud-3); clip-path: polygon(var(--cut) 0, 100% 0, 100% calc(100% - var(--cut)), calc(100% - var(--cut)) 100%, 0 100%, 0 var(--cut));
+}
+.bar-up .o { gap: var(--space-3); }
+
+/* The frame. Cut corners top-left and bottom-right; its 1px edge is an outer layer in the edge colour and the room 1px in. */
+.fr { position: relative; height: var(--bar-h); --fe: rgba(61, 255, 143, .5); --tx: 33%; transition: height 320ms cubic-bezier(.16, 1, .3, 1); }
+.fr[data-look~="off"] { --fe: rgba(61, 255, 143, .24); }
+.fr[data-look~="hot"] { --fe: rgba(61, 255, 143, .85); }
+.fr[data-look~="draw"] { --fe: linear-gradient(90deg, rgba(61, 255, 143, .6) var(--d, 0%), rgba(61, 255, 143, .1) var(--d, 0%)); animation: fr-draw 1.3s cubic-bezier(.16, 1, .3, 1) forwards; }
+@property --d { syntax: "<percentage>"; inherits: true; initial-value: 0%; }
+@keyframes fr-draw { from { --d: 0%; } to { --d: 100%; } }
+.fr-body { position: absolute; inset: 0; z-index: 1; padding: 1px; background: var(--fe); --c: var(--cut); }
+.fr-body, .fr-in { clip-path: polygon(var(--c) 0, 100% 0, 100% calc(100% - var(--c)), calc(100% - var(--c)) 100%, 0 100%, 0 var(--c)); }
+.fr-in { position: relative; height: 100%; overflow: hidden; background: linear-gradient(90deg, rgba(61, 255, 143, .07), rgba(61, 255, 143, 0) 38%), var(--color-surface); }
+.fr-in::after { content: ""; position: absolute; inset: 0; z-index: 1; pointer-events: none; background: repeating-linear-gradient(to bottom, rgba(255, 255, 255, .025) 0 1px, transparent 1px 3px); }
+/* The tab at the left end: red, cyan for a thread, a wider red block when the line is lost. */
+.fr-strip { position: absolute; left: 0; top: 0; bottom: 0; width: var(--fr-strip); background: var(--hud); opacity: .85; pointer-events: none; }
+.fr[data-look~="off"] .fr-strip { opacity: .3; }
+.fr[data-look~="broken"] .fr-strip { width: 9px; opacity: 1; }
+/* The tick rail along the bottom inside edge. */
+.fr-rail { position: absolute; left: 16px; right: calc(var(--key-w) + 12px); bottom: 0; height: 6px; pointer-events: none;
+  background: repeating-linear-gradient(90deg, rgba(61, 255, 143, .22) 0 1px, transparent 1px 8px) 0 100% / 100% 3px no-repeat,
+              repeating-linear-gradient(90deg, rgba(61, 255, 143, .4) 0 1px, transparent 1px 64px) 0 100% / 100% 6px no-repeat; }
+.fr[data-look~="off"] .fr-rail { opacity: .5; }
+/* A bright run along the rail: only no signal sweeps it, once per retry. Thinking has none: the beads in the room show it. */
+.fr-rsw { position: absolute; bottom: 0; left: -70px; height: 3px; width: 70px; pointer-events: none; opacity: 0; background: linear-gradient(90deg, rgba(61, 255, 143, 0), var(--hud)); box-shadow: 0 0 8px rgba(61, 255, 143, .6); }
+.fr[data-state="nosignal"] .fr-rsw { animation: fr-run 1s linear infinite, fr-fade 1s linear infinite; }
+@keyframes fr-run { from { transform: translateX(0); } to { transform: translateX(calc(var(--fw, 760px) + 30px)); } }
+@keyframes fr-fade { from { opacity: 1; } to { opacity: 0; } }
+/* Reading in parts: the rail becomes the parts, the current one filling as she reads it. */
+.fr-segs { position: absolute; left: 16px; right: calc(var(--key-w) + 12px); bottom: 4px; height: 3px; display: flex; gap: 6px; pointer-events: none; }
+.fr-segs:not([hidden]) ~ .fr-rail, .fr:has(.fr-segs:not([hidden])) .fr-rail { visibility: hidden; }
+.fr-segs i { flex: 1; background: var(--hud-4); }
+.fr-segs i.done { background: var(--cyan-2); }
+.fr-segs i.cur { background: linear-gradient(90deg, var(--cyan) var(--p, 0%), var(--hud-4) var(--p, 0%)); box-shadow: 0 0 6px rgba(78, 240, 238, .5); animation: fr-seg var(--seg-ms, 6s) linear forwards; }
+@property --p { syntax: "<percentage>"; inherits: false; initial-value: 0%; }
+@keyframes fr-seg { from { --p: 0%; } to { --p: 100%; } }
+
+/* The line's room: the frame's main room left of the key. The canvas lies over it from outside the bar (main.mjs placeLight). */
+.bar-line { position: absolute; left: 0; top: 0; bottom: 0; right: var(--key-w); min-width: 0; overflow: hidden; }
+.fr[data-open] .bar-line { top: auto; height: var(--bar-row); }
+.fr[data-open] .bar-wash { opacity: 0 !important; }
+.fr[data-state="nosignal"] .fr-tmr { display: none; }
+/* Listening's dim wash: callwave.mjs sets its opacity, breathing with the user's voice; the room clips it. */
+.bar-wash {
+  position: absolute; inset: 0; opacity: 0; pointer-events: none; transform-origin: 50% 50%;
+  background: radial-gradient(farthest-side at 55% 55%, rgba(86, 214, 140, .26), rgba(86, 214, 140, .14) 55%, rgba(86, 214, 140, .05));
+}
+.bar-talk { position: absolute; inset: 0; z-index: 2; touch-action: manipulation; }
+.bar-talk, .bar-talk:focus, .bar-talk:focus-visible { outline: 0; border: 0; }
+.bar-talk:focus-visible { box-shadow: inset 0 0 0 1px var(--hud-2); }
+/* Out of a call: the room hatched like a panel on standby, a solid cut plate in the middle
+   with the power mark; the whole room stays the tap target (.bar-talk). Leaving idle it fades out under connecting's ASCII line. */
+.fr-idle { position: absolute; inset: 0 0 0 var(--fr-strip); z-index: 1; display: flex; align-items: center; justify-content: center; pointer-events: none;
+  opacity: 0; visibility: hidden; transition: opacity 180ms ease-out, visibility 0s linear 180ms; }
+.fr[data-state="idle"] .fr-idle { opacity: 1; visibility: visible; transition: opacity 180ms ease-out; }
+.fr-hatch { position: absolute; inset: 0; background: repeating-linear-gradient(-45deg, rgba(61, 255, 143, .09) 0 1px, transparent 1px 7px); background-size: 200% 100%; animation: fr-hatch 14s linear infinite; }
+@keyframes fr-hatch { from { background-position: 0 0; } to { background-position: -99px 0; } }
+.fr-plate { position: relative; display: inline-flex; align-items: center; gap: 8px; height: var(--plate-h); padding: 0 16px 0 13px; background: var(--color-surface); color: var(--hud);
+  font: 600 var(--plate-fs)/1 var(--font-tag); letter-spacing: .2em; text-transform: uppercase; white-space: nowrap; text-shadow: 0 0 10px rgba(61, 255, 143, .45);
+  box-shadow: inset 0 0 0 1px var(--hud-2), 0 0 0 4px var(--color-surface); clip-path: polygon(8px 0, 100% 0, 100% calc(100% - 8px), calc(100% - 8px) 100%, 0 100%, 0 8px); }
+.fr-plate::before, .fr-plate::after { content: ""; position: absolute; width: 11px; height: 1px; background: var(--hud-2); transform: rotate(-45deg); }
+.fr-plate::before { left: -.5px; top: 8px; transform-origin: 0 0; }
+.fr-plate::after { right: -.5px; bottom: 8px; transform-origin: 100% 100%; }
+.fr-plate svg { width: 13px; height: 13px; flex: none; }
+/* The wave (callwave.mjs; the mockup's .wv): the wave's own height around the frame's middle, from the strip at the left end to
+   the key's divider, so a line touches both; callwave.mjs clips it to the room's shape. Typing: the field takes the room. */
+.fr-wv { position: absolute; z-index: 3; left: calc(1px + var(--fr-strip)); right: calc(var(--key-w) + 1px); top: calc(var(--bar-h) / 2); height: var(--bar-wave); transform: translateY(-50%); pointer-events: none; transition: opacity 200ms; }
+.fr-wv canvas { display: block; width: 100%; height: 100%; }
+.fr[data-open] .fr-wv { opacity: 0; }
+
+/* The key: a segment at the right end of the same frame, behind a straight divider; the only way to type. */
+.bar-type {
+  position: absolute; z-index: 3; right: 0; top: 0; bottom: 0; width: var(--key-w); display: grid; place-items: center;
+  color: var(--hud-2); background: rgba(61, 255, 143, .06); touch-action: manipulation;
+  transition: color var(--motion-fast) var(--motion-ease), background-color var(--motion-fast) var(--motion-ease);
+}
+.bar-type::before { content: ""; position: absolute; left: 0; top: 0; bottom: 0; width: 1.5px; background: var(--hud-3); }
+.bar-type .a-icon { width: 20px; height: 20px; margin-left: 4px; stroke-width: 1.6; }
+.bar-type:hover { color: var(--hud); background: rgba(61, 255, 143, .12); }
+.bar-type:focus-visible { outline: 0; color: var(--hud); box-shadow: inset 0 0 0 1px var(--hud-2); }
+.fr[data-look~="off"] .bar-type { color: var(--hud-3); }
+/* Typing: the key fills red and holds attach and send (the composer's own buttons, laid over it). */
+.fr[data-open] .bar-type { background: var(--hud); color: var(--hud-ink); place-items: start center; padding-top: 12px; }
+.fr[data-open] .bar-type::before { display: none; }
+
+/* The state tab: on the top edge at the left, open into the frame; a glyph, and a word only where it is clear. */
+.fr-tab {
+  position: absolute; z-index: 4; left: calc(var(--cut) + 6px); bottom: calc(100% - 1px); height: var(--tab-h); display: flex; align-items: center; gap: 7px; padding: 1px 17px 0 9px;
+  background: var(--hud-2); --rw: 100%; clip-path: polygon(0 0, calc(var(--rw) - 11px) 0, var(--rw) 100%, 0 100%); white-space: nowrap; pointer-events: none;
+}
+.fr-tab::before { content: ""; position: absolute; inset: 1px 1.2px -1px 1px; background: var(--color-surface); clip-path: polygon(0 0, calc(var(--rw) - 11.5px) 0, var(--rw) 100%, 0 100%); }
+.fr-tab > * { position: relative; }
+/* One fixed slot for the glyph (as wide as the widest, the retry cells; as tall as the bars), so a word never moves when the glyph changes. */
+.fr-glyph { display: inline-flex; align-items: center; justify-content: center; gap: 2px; min-width: 18px; height: 9px; }
+.fr-glyph:empty { display: none; }
+.fr-word { font: 600 var(--tab-fs)/1 var(--font-tag); letter-spacing: .18em; text-transform: uppercase; color: var(--hud); padding-top: 1px; }
+.fr-word:empty { display: none; }
+.fr[data-look~="off"] .fr-tab { background: var(--hud-3); opacity: .8; }
+.fr-tab[data-hot], .fr[data-look~="off"] .fr-tab[data-hot] { background: var(--hud); box-shadow: 0 0 16px rgba(61, 255, 143, .4); opacity: 1; }
+.fr-tab[data-hot]::before { display: none; }
+.fr-tab[data-hot] .fr-word { color: var(--hud-ink); font-weight: 700; }
+/* Learning their voice: the tag itself is the filled scanning tag. */
+.fr-tab[data-learn] { background: var(--hud); gap: 16px; padding: 1px 18px 0 10px; }
+.fr-tab[data-learn]::before { display: none; }
+.fr-tab[data-learn] .fr-word { color: var(--hud-ink); font-weight: 700; }
+.fr-tab[data-learn] .fr-glyph { order: 2; min-width: 0; height: auto; font: 700 var(--tab-fs)/1 var(--font-tag); letter-spacing: .06em; color: var(--hud-ink); padding-top: 1px; }
+/* The glyphs (frame.mjs): standby, stop, a thread's pip, level bars, her amber bars, cells. */
+.g-hollow { width: 7px; height: 7px; box-shadow: inset 0 0 0 1.2px var(--hud-2); }
+.g-stop { width: 7px; height: 7px; background: var(--hud-ink); }
+.g-pip { width: 7px; height: 7px; background: var(--cyan); box-shadow: 0 0 8px var(--cyan); margin-right: 5px; }
+.g-bars { display: inline-flex; align-items: center; gap: 2px; height: 9px; }
+.g-bars i { width: 2px; height: 50%; background: var(--hud); animation: g-bar 0.62s ease-in-out infinite alternate; }
+.g-bars i:nth-child(2) { animation-delay: -.21s; } .g-bars i:nth-child(3) { animation-delay: -.43s; } .g-bars i:nth-child(4) { animation-delay: -.11s; }
+.g-bars.amb i { background: var(--bar-amber); box-shadow: 0 0 4px rgba(80, 255, 150, .7); animation-duration: .5s; }
+@keyframes g-bar { from { height: 25%; } to { height: 100%; } }
+/* Driven by the real audio (callwave.mjs): the user's microphone, her voice for the amber ones; a transform, no layout. */
+.g-bars[data-live] i { height: 100%; animation: none; transform: scaleY(.25); }
+.g-cells { display: inline-flex; gap: 2px; }
+.g-cells i { width: 3px; height: 8px; background: var(--hud); }
+.fr-tab[data-hot] .g-cells i { background: var(--hud-ink); }
+.g-cells.fill i { animation: g-fill 1.54s steps(1) infinite; }
+.g-cells.fill i:nth-child(2) { animation-name: g-fill2; } .g-cells.fill i:nth-child(3) { animation-name: g-fill3; }
+@keyframes g-fill { 0% { opacity: .2; } 25% { opacity: 1; } }
+@keyframes g-fill2 { 0% { opacity: .2; } 50% { opacity: 1; } }
+@keyframes g-fill3 { 0% { opacity: .2; } 75% { opacity: 1; } }
+.g-cells.work i { opacity: .2; animation: g-work .66s steps(1) infinite; }
+.g-cells.work i:nth-child(2) { animation-delay: .165s; } .g-cells.work i:nth-child(3) { animation-delay: .33s; } .g-cells.work i:nth-child(4) { animation-delay: .495s; }
+@keyframes g-work { 0% { opacity: 1; } 25% { opacity: .2; } }
+.g-cells.retry i { animation: g-retry 4s steps(1) infinite; }
+.g-cells.retry i:nth-child(1) { animation-name: g-retry1; } .g-cells.retry i:nth-child(2) { animation-name: g-retry2; } .g-cells.retry i:nth-child(3) { animation-name: g-retry3; } .g-cells.retry i:nth-child(4) { animation-name: g-retry4; }
+@keyframes g-retry1 { 0% { opacity: 1; } }
+@keyframes g-retry2 { 0% { opacity: 1; } 75% { opacity: .22; } }
+@keyframes g-retry3 { 0% { opacity: 1; } 50% { opacity: .22; } }
+@keyframes g-retry4 { 0% { opacity: 1; } 25% { opacity: .22; } }
+
+/* The call's timer: a small tab on the top edge, over the key, starting on the key's divider so the two read as one column
+   ("the time component should start where the separator is"): its straight left edge continues the divider up.
+   Its bottom row stays open, so the frame's top edge runs on under it, between the timer and the key (they read as one). */
+.fr-tmr {
+  position: absolute; z-index: 4; right: 0; width: calc(var(--key-w) + 1px); bottom: calc(100% - 1px); height: var(--tab-h); display: flex; align-items: center; justify-content: flex-end; padding: 1px 9px 0 0;
+  background: linear-gradient(var(--hud-3) calc(100% - 1px), transparent 0); font: 400 calc(var(--tab-fs) - .5px)/1 var(--font-mono); letter-spacing: .08em; color: var(--hud-2); font-variant-numeric: tabular-nums; pointer-events: none;
+}
+.fr-tmr::before { content: ""; position: absolute; inset: 1px 1px 1px 1.5px; background: var(--color-surface); }
+.fr-tmr span { position: relative; }
+
+/* The rail under the frame: a thin line dropped from the frame's left end, the groups sitting on it,
+   cut out of it. First the questions the user still waits on (pending.mjs), then what waits to be told (squares.mjs), a skewed cut
+   between them; each group its squares and a few words (how many, from whom) that cut off with an ellipsis before they crowd. */
+.fr-rl { position: absolute; z-index: 6; left: 0; right: 0; top: calc(100% + 3px); height: 15px; display: flex; align-items: center; padding: 0 calc(var(--rl-end) + 4px) 0 16px; pointer-events: none;
+  font: 600 var(--rl-fs)/1 var(--font-tag); letter-spacing: var(--rl-ls); text-transform: uppercase; white-space: nowrap; }
+.rl-line { position: absolute; left: 3px; right: var(--rl-end); top: 50%; height: 1px; background: var(--hud-3); }
+.rl-line::before { content: ""; position: absolute; left: 0; bottom: 0; width: 1px; height: 11px; background: var(--hud-3); }
+.rl-line::after { content: ""; position: absolute; right: -4px; top: -2px; width: 4px; height: 5px; border: 1px solid var(--hud-3); border-left: 0; }
+.rl-g { position: relative; display: inline-flex; align-items: center; gap: 6px; min-width: 0; padding: 0 6px 0 5px; background: var(--color-bg); }
+.rl-ask, .rl-in { flex: 0 1 auto; }
+.rl-t { min-width: 0; overflow: hidden; text-overflow: ellipsis; padding-top: 1px; }
+.rl-div { position: relative; flex: none; width: 9px; height: 9px; margin: 0 2px; background: var(--color-bg); }
+.rl-div::before { content: ""; position: absolute; left: 4px; top: -1px; width: 1px; height: 11px; background: var(--hud-3); transform: skewX(-24deg); }
+.rl-sq { display: inline-flex; align-items: center; gap: 3px; flex: none; margin: 0; padding: 0; list-style: none; }
+.rl-sq > * { display: block; width: var(--rl-pip); height: var(--rl-pip); transition: background-color 300ms, box-shadow 300ms, transform 300ms, opacity 300ms; }
+/* A question the user asked and still waits on: a hollow square in the HUD's red, its fill breathing; solid cyan for a moment when its
+   answer comes (the replies' own squares take it on), solid red when the run stopped before it answered. */
+.rl-ask .rl-sq i { box-shadow: inset 0 0 0 1.3px var(--hud); animation: rl-wait 2.4s ease-in-out infinite; }
+@keyframes rl-wait { 0%, 100% { background: transparent; } 50% { background: var(--hud-3); } }
+.rl-ask .rl-sq i[data-state="arrived"] { animation: none; background: var(--cyan); box-shadow: 0 0 6px var(--cyan); }
+.rl-ask .rl-sq i[data-state="failed"] { animation: none; background: var(--hud); }
+.rl-ask .rl-t { color: var(--hud-2); }
+.rl-ask .rl-t[data-state="arrived"] { color: var(--cyan); text-shadow: 0 0 6px rgba(78, 240, 238, .35); }
+/* A reply that waits to be told: the thread's cyan, an outline with its glow; a diamond is an agent's question; solid cyan the one
+   up now; a red outline one cut off; small and dim one just told. The next one fills with the hold (turns.hold()). */
+.rl-in .rl-sq li { box-shadow: inset 0 0 0 1.3px var(--cyan), 0 0 5px rgba(78, 240, 238, .5); }
+.rl-in .rl-sq [data-shape="q"] { transform: rotate(45deg) scale(.86); }
+.rl-in .rl-sq [data-state="said"] { background: var(--hud-3); box-shadow: none; transform: scale(.55); }
+.rl-in .rl-sq [data-shape="q"][data-state="said"] { transform: rotate(45deg) scale(.5); }
+.rl-in .rl-sq [data-state="cut"] { box-shadow: inset 0 0 0 1.3px var(--hud); }
+.rl-in .rl-sq [data-next][data-filling] { animation: pip-fill var(--hold-ms, 1s) linear var(--hold-delay, 0s) forwards; }
+@keyframes pip-fill { to { background: rgba(78, 240, 238, .85); box-shadow: inset 0 0 0 1.3px var(--cyan), 0 0 8px rgba(78, 240, 238, .55); } }
+.rl-in .rl-sq [data-state="saying"] { background: var(--cyan); box-shadow: 0 0 7px var(--cyan); animation: pip-pop 300ms cubic-bezier(.16, 1, .3, 1); }
+@keyframes pip-pop { from { scale: 2.6; opacity: 0; } 25% { opacity: 1; } to { scale: 1; } }
+.rl-in .rl-t { display: inline-flex; gap: 10px; color: var(--cyan); text-shadow: 0 0 6px rgba(78, 240, 238, .35); }
+.rl-in .rl-t span { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.rl-in .rl-t [data-state="cut"] { color: var(--hud); text-shadow: none; }
+.rl-in .rl-t [data-state="said"] { color: var(--color-ink-3); text-shadow: none; }
+
+/* The hold before the next one, and learning their voice: the reference's scanning bar filling the top edge. */
+.bar-hold { position: absolute; z-index: 4; left: var(--cut); right: var(--hold-right, 0px); top: 0; height: 3px; background: var(--hud-4); pointer-events: none; }
+.bar-hold i { position: absolute; left: 0; top: 0; bottom: 0; width: var(--p, 0%); background: var(--hud); box-shadow: 0 0 8px rgba(61, 255, 143, .7); clip-path: polygon(0 0, 100% 0, calc(100% - 3px) 100%, 0 100%); }
+.bar-hold:not([data-learn]) i { animation: bar-hold-fill var(--hold-ms, 1s) linear var(--hold-delay, 0s) forwards; }
+@keyframes bar-hold-fill { from { width: 0%; } to { width: 100%; } }
+/* A sweep of light along the top edge: a thread's answer arriving. */
+/* No signal: the frame torn, a piece of edge knocked loose. */
+.fr-tear, .fr-frag { display: none; }
+.fr[data-look~="broken"] .fr-tear { display: block; position: absolute; z-index: 2; left: var(--tx); top: -4px; bottom: -4px; width: 13px; background: var(--color-bg); pointer-events: none; clip-path: polygon(35% 0, 100% 0, 72% 36%, 100% 58%, 62% 100%, 0 100%, 34% 62%, 0 38%); }
+.fr[data-look~="broken"] .fr-frag { display: block; position: absolute; z-index: 2; height: 2px; background: var(--hud); box-shadow: 0 0 6px rgba(61, 255, 143, .6); pointer-events: none; }
+.fr-frag-a { left: calc(var(--tx) + 17px); top: -5px; width: 34px; }
+.fr-frag-b { left: calc(var(--tx) - 30px); bottom: -4px; width: 22px; opacity: .6; }
+/* Brackets just outside the frame's ends. */
+.fr-bk { position: absolute; top: 7px; bottom: 7px; width: 5px; border: 1px solid var(--hud-3); pointer-events: none; }
+.fr-bk-l { left: -9px; border-right: 0; } .fr-bk-r { right: -9px; border-left: 0; }
+.fr[data-look~="off"] .fr-bk { opacity: .5; }
+.fr[data-open] .fr-bk { top: 10px; bottom: 10px; }
+/* The line lost (no signal), the one error the bar shows: a colour split and a jolt for a few frames (motion only).
+   Nothing else shakes the bar ("it should only shake for an error, and for no other state"). */
+.bar[data-glitch] { animation: fr-glitch 480ms steps(6) 1; }
+@keyframes fr-glitch {
+  0% { filter: drop-shadow(3px 0 rgba(61, 255, 143, .55)) drop-shadow(-3px 0 rgba(78, 240, 238, .55)); translate: 2px 0; }
+  33% { filter: drop-shadow(-2px 0 rgba(61, 255, 143, .55)) drop-shadow(2px 0 rgba(78, 240, 238, .55)); translate: -2px 0; }
+  66% { filter: drop-shadow(1px 0 rgba(61, 255, 143, .45)) drop-shadow(-1px 0 rgba(78, 240, 238, .45)); translate: 1px 0; }
+  100% { filter: none; translate: 0 0; }
+}
+
+/* The board itself (the grid, the dots, the blocks) is in parts.css, so /parts shows the same. */
+
+/* ------------------------------------------------------------------ typing: the frame opens into the field (composer.mjs) */
+.fr[data-open] { height: var(--bar-open); }
+.bar-prompt { position: absolute; z-index: 4; inset: 0 var(--key-w) 0 0; pointer-events: none; }
+.cmp { position: absolute; inset: 0; pointer-events: auto; display: flex; flex-direction: column; }
+.cmp-body { flex: 1; min-height: 0; padding: 13px 16px 0 20px; display: flex; flex-direction: column; gap: 6px; }
+.cmp-input {
+  display: block; width: 100%; flex: 1; min-height: 24px; margin: 0; padding: 0; resize: none; overflow-y: auto; scrollbar-width: thin;
+  background: transparent; border: 0; outline: 0; color: #f5f5f5; caret-color: #f5f5f5;
+  font: 400 15px/1.55 var(--font-sans); white-space: pre-wrap; overflow-wrap: break-word;
+}
+.cmp-input::placeholder { color: rgba(245, 238, 226, .3); }
+.cmp-files { display: flex; flex-wrap: nowrap; gap: 6px; overflow-x: auto; scrollbar-width: none; flex: none; }
+.cmp-file { display: inline-flex; align-items: center; gap: 6px; height: 24px; padding: 0 8px 0 4px; flex: none; color: var(--color-ink-2); background: rgba(61, 255, 143, .08); box-shadow: inset 0 0 0 1px var(--hud-3); font: 400 12px/1 var(--font-sans); clip-path: polygon(5px 0, 100% 0, 100% calc(100% - 5px), calc(100% - 5px) 100%, 0 100%, 0 5px); }
+.cmp-file img { width: 18px; height: 18px; object-fit: cover; }
+.cmp-file .cmp-file-name { max-width: 160px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.cmp-file[data-state="up"] { color: var(--color-ink-3); }
+.cmp-file[data-state="up"] .cmp-file-name::after { content: " …"; }
+.cmp-file[data-state="failed"] { box-shadow: inset 0 0 0 1px var(--hud); color: var(--hud); }
+.cmp-file:hover { color: var(--color-ink); }
+.cmp-file-x { color: var(--hud-2); }
+/* T3's controls, inside the frame above the rail: model, reasoning, access. */
+.cmp-foot { flex: none; display: flex; align-items: center; gap: 2px; padding: 0 10px 11px 12px; min-width: 0; overflow-x: auto; scrollbar-width: none; }
+.cmp-foot::-webkit-scrollbar { display: none; }
+.cmp-ctl {
+  display: inline-flex; align-items: center; gap: 6px; height: 24px; padding: 0 8px; flex: none; max-width: 100%;
+  color: var(--hud-2); font: 600 10.5px/1 var(--font-tag); letter-spacing: .12em; text-transform: uppercase; white-space: nowrap;
+  transition: background var(--motion-fast), color var(--motion-fast);
+}
+.cmp-ctl:hover, .cmp-ctl[aria-expanded="true"] { color: var(--hud); background: rgba(61, 255, 143, .1); }
+.cmp-ctl[aria-expanded="true"] { box-shadow: inset 0 -2px var(--hud); }
+.cmp-ctl:focus-visible { outline: 1px solid var(--hud-2); outline-offset: -1px; }
+.cmp-ctl-label { overflow: hidden; text-overflow: ellipsis; }
+.cmp-ctl-icon { display: inline-flex; }
+.cmp-ctl-icon .a-icon { width: 13px; height: 13px; }
+.cmp-ctl-icon .a-icon[data-icon="claude"], .cmp-ctl-icon .a-icon[data-icon="openai"] { filter: saturate(.85); }
+.cmp-ctl > .a-icon[data-icon="chevron-down"] { width: 12px; height: 12px; margin: 0 -2px; stroke-width: 2.25; opacity: .8; }
+.cmp-sep { flex: none; width: 1px; height: 12px; margin: 0 2px; background: var(--hud-3); transform: skewX(-20deg); }
+.cmp-fast { color: var(--cyan); }
+/* attach and send: laid over the red key, under its keyboard (which closes). */
+.cmp-actions { position: absolute; right: calc(-1 * var(--key-w)); bottom: 10px; width: var(--key-w); display: grid; justify-items: center; gap: 8px; padding-left: 4px; pointer-events: auto; }
+.cmp-attach, .cmp-send { display: grid; place-items: center; width: 30px; height: 30px; color: var(--hud-ink); transition: transform 120ms, background 120ms; }
+.cmp-attach .a-icon { width: 17px; height: 17px; }
+.cmp-attach:hover { background: rgba(27, 8, 6, .12); }
+.cmp-send { border: 1.5px solid var(--hud-ink); }
+.cmp-send .a-icon { width: 14px; height: 14px; stroke-width: 2.2; }
+.cmp-send:hover:not(:disabled) { background: rgba(27, 8, 6, .12); }
+.cmp-send:active:not(:disabled) { transform: scale(.94); }
+.cmp-send:disabled { opacity: .45; cursor: default; }
+.cmp-attach:focus-visible, .cmp-send:focus-visible { outline: 1px solid var(--hud-ink); outline-offset: 2px; }
+
+/* Menus: open upward over the frame, the frame's cut corners and red edge, T3's content and behaviour. */
+.cmp-menu {
+  position: absolute; bottom: calc(100% + 4px); z-index: 7; left: 0; min-width: 200px; max-width: min(420px, 100%); max-height: min(420px, 60vh); overflow: hidden auto; padding: 4px;
+  background: rgba(18, 17, 16, .96); -webkit-backdrop-filter: blur(16px); backdrop-filter: blur(16px); box-shadow: inset 0 0 0 1px var(--hud-3), 0 18px 44px -18px rgba(0, 0, 0, .8);
+  clip-path: polygon(var(--cut) 0, 100% 0, 100% calc(100% - var(--cut)), calc(100% - var(--cut)) 100%, 0 100%, 0 var(--cut)); scrollbar-width: thin;
+}
+.cmp-menu::before { content: ""; position: absolute; left: 0; top: var(--cut); bottom: 0; width: 3px; background: var(--hud); opacity: .7; }
+.cmp-menu-label { padding: 8px 10px 4px 12px; color: var(--hud-2); font: 600 10px/1 var(--font-tag); letter-spacing: .16em; text-transform: uppercase; }
+.cmp-menu-thread { padding: 6px 10px 6px 12px; color: var(--color-ink-3); font: 400 11px/1.3 var(--font-mono); letter-spacing: .04em; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; border-bottom: 1px solid var(--hud-4); margin-bottom: 4px; }
+.cmp-menu-empty { padding: 10px 12px; color: var(--color-ink-3); font: 400 13px/1.4 var(--font-sans); max-width: 260px; }
+.cmp-menu-rule { height: 1px; margin: 4px 8px; background: var(--hud-4); }
+.cmp-item { position: relative; display: grid; gap: 2px; width: 100%; min-height: 30px; padding: 5px 10px 5px 12px; text-align: left; color: var(--color-ink); font: 400 14px/20px var(--font-sans); }
+.cmp-item:hover, .cmp-item:focus-visible, .cmp-item[data-active] { background: rgba(61, 255, 143, .08); outline: 0; }
+.cmp-item[aria-checked="true"] { background: rgba(61, 255, 143, .14); }
+.cmp-item[aria-checked="true"]::before { content: ""; position: absolute; left: 4px; top: 9px; width: 4px; height: 4px; background: var(--hud); box-shadow: 0 0 6px var(--hud); }
+.cmp-item-line { display: flex; align-items: center; gap: 8px; min-width: 0; }
+.cmp-item-line > .a-icon { width: 14px; height: 14px; color: var(--hud-2); flex: none; }
+.cmp-item-label { font-weight: 400; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.cmp-item-note { color: var(--color-ink-3); font: 400 12px/16px var(--font-sans); max-width: 300px; }
+.cmp-badge { padding: 1px 5px 0; box-shadow: inset 0 0 0 1px var(--hud-3); color: var(--hud-2); font: 600 9.5px/15px var(--font-tag); letter-spacing: .12em; text-transform: uppercase; }
+.cmp-badge[data-new] { color: var(--cyan); box-shadow: inset 0 0 0 1px var(--cyan-3); }
+.cmp-menu[data-for="access"] { min-width: 300px; }
+.cmp-menu[data-for="effort"] { min-width: 220px; }
+/* The model picker (T3's ModelPicker): a provider rail, a search field, the list, favourites, legacy models. */
+.cmp-menu[data-for="model"] { display: grid; grid-template-columns: 48px 1fr; width: min(420px, 100%); max-width: none; padding: 0; overflow: hidden; height: min(400px, 60vh); }
+.cmp-menu[data-for="model"]::before { display: none; }
+.mp-rail { display: grid; align-content: start; justify-items: center; gap: 6px; padding: 10px 0; border-right: 1px solid var(--hud-4); overflow-y: auto; scrollbar-width: none; }
+.mp-rail button { position: relative; display: grid; place-items: center; width: 36px; height: 36px; color: var(--hud-2); }
+.mp-rail button:hover { background: rgba(61, 255, 143, .08); }
+.mp-rail button[aria-pressed="true"]::after { content: ""; position: absolute; right: -6px; top: 7px; bottom: 7px; width: 2px; background: var(--hud); box-shadow: 0 0 6px var(--hud); }
+.mp-rail .a-icon { width: 20px; height: 20px; }
+.mp-rail .mp-tag { position: absolute; right: 1px; bottom: 2px; padding: 0 2px; font: 700 7.5px/9px var(--font-tag); letter-spacing: .04em; color: var(--hud-ink); background: var(--hud); }
+.mp-rail .mp-tag[data-quiet] { color: var(--color-ink-2); background: transparent; }
+.mp-rail hr { width: 24px; margin: 2px 0; border: 0; border-top: 1px solid var(--hud-4); }
+.mp-main { display: flex; flex-direction: column; min-width: 0; min-height: 0; }
+.mp-search { display: flex; align-items: center; gap: 8px; margin: 10px 10px 4px; padding: 0 2px 7px; border-bottom: 1px solid var(--hud-2); color: var(--hud-2); }
+.mp-search .a-icon { width: 15px; height: 15px; flex: none; }
+.mp-search input { flex: 1; min-width: 0; background: transparent; border: 0; outline: 0; color: var(--color-ink); font: 400 14px/1.4 var(--font-sans); padding: 0; }
+.mp-search input::placeholder { color: var(--color-ink-3); }
+.mp-list { flex: 1; overflow-y: auto; padding: 4px; scrollbar-width: thin; }
+.mp-row { display: flex; align-items: center; gap: 8px; }
+.mp-row .cmp-item { flex: 1; min-width: 0; }
+.mp-sub { display: flex; align-items: center; gap: 6px; color: var(--color-ink-3); font: 400 12px/16px var(--font-sans); }
+.mp-sub .a-icon { width: 12px; height: 12px; }
+.mp-key { flex: none; padding: 2px 5px; color: var(--color-ink-3); background: rgba(255, 255, 255, .04); font: 400 11px/14px var(--font-mono); }
+.mp-star { flex: none; display: grid; place-items: center; width: 26px; height: 26px; color: var(--color-ink-3); }
+.mp-star:hover { color: var(--hud); }
+.mp-star[aria-pressed="true"] { color: var(--hud); }
+.mp-star[aria-pressed="true"] .a-icon { fill: currentColor; }
+.mp-star .a-icon { width: 15px; height: 15px; }
+.mp-legacy .cmp-item-line { justify-content: space-between; }
+.mp-legacy .a-icon[data-icon="chevron-right"] { width: 14px; height: 14px; color: var(--color-ink-3); }
+.mp-back { display: flex; align-items: center; gap: 6px; padding: 6px 10px; color: var(--hud-2); font: 600 10px/1 var(--font-tag); letter-spacing: .14em; text-transform: uppercase; }
+.mp-back .a-icon { width: 12px; height: 12px; transform: rotate(180deg); }
+
+/* ------------------------------------------------------------------ a phone (T3: under 640 px) */
+@media (max-width: 639px) {
+  [data-t3voice-presence] { --bar-row: 52px; --bar-wave: 104px; --key-w: 58px; --tab-h: 21px; --tab-big: 29px; --tab-fs: 11.5px; --bar-open: 168px; --rail-h: 22px; --rl-pip: 7px; --rl-fs: 10px; --rl-ls: .08em; --rl-end: 8px; --plate-h: 30px; --plate-fs: 12.5px; }
+  .bar { width: calc(100vw - 2 * var(--grid-edge)); }
+  .fr { --tx: 58%; }
+  .cmp-body { padding: 14px 12px 0 18px; }
+  .cmp-input { font-size: 16px; }
+  .cmp-foot { padding: 0 6px 12px 10px; gap: 0; }
+  .cmp-ctl { padding: 0 6px; font-size: 11px; letter-spacing: .08em; }
+  /* Labels fold first (T3's footer): reasoning and access as icons, the model keeps its name. */
+  .cmp-ctl:is([data-menu="effort"], [data-menu="access"]) .cmp-ctl-label { display: none; }
+  .cmp-ctl[data-menu="model"] .cmp-ctl-label { max-width: 30vw; }
+  .cmp-sep { display: none; }
+  .cmp-attach, .cmp-send { width: 34px; height: 34px; }
+  .cmp-item { font-size: 16px; min-height: 36px; }
+  .cmp-menu, .cmp-menu[data-for="model"] { left: 0 !important; right: 0; width: auto; max-width: none; }
+  .cmp-menu[data-for="model"] { height: min(440px, 52vh); }
+  .mp-key { display: none; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .fr, .bar-type, .cmp-ctl, .cmp-send, .cmp-attach, .fr-wv { transition: none; }
+  .bar[data-glitch], .fr-rsw, .g-bars i, .g-cells i, .rl-sq > *, .fr-hatch { animation: none !important; }
+  .fr-idle { transition: none; }
+  .fr[data-look~="draw"] { animation: none; --d: 100%; }
+}
+
