@@ -1,0 +1,140 @@
+.connect {
+  width: min(680px, 100%);
+  color: rgb(245, 238, 226);
+  font: 400 15px / 1.5 ui-sans-serif, system-ui, sans-serif;
+}
+
+.connect h2 {
+  margin: 0 0 16px;
+  font: 600 28px / 1.1 "Oxanium", ui-monospace, monospace;
+}
+
+.connect-step {
+  display: grid;
+  gap: 12px;
+}
+
+.connect p {
+  margin: 0;
+}
+
+.connect-hint {
+  color: rgba(245, 238, 226, 0.6);
+  font-size: 13px;
+  min-height: 1.5em;
+}
+
+.connect-error {
+  color: #ff8a7a;
+}
+
+.connect-command {
+  display: block;
+  padding: 10px 12px;
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.06);
+  font: 13px / 1.4 ui-monospace, monospace;
+  overflow-x: auto;
+  white-space: nowrap;
+  user-select: all;
+}
+
+.connect form {
+  display: flex;
+  gap: 8px;
+}
+
+.connect input,
+.connect select,
+.connect button {
+  font: inherit;
+  color: inherit;
+  border-radius: 8px;
+  border: 1px solid rgba(245, 238, 226, 0.18);
+  background: rgba(255, 255, 255, 0.04);
+  padding: 8px 12px;
+}
+
+.connect input {
+  flex: 1;
+  min-width: 0;
+}
+
+.connect button {
+  cursor: pointer;
+  background: rgba(245, 238, 226, 0.12);
+}
+
+.connect button:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+.connect-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+}
+
+.connect-threads {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: grid;
+  gap: 4px;
+}
+
+.connect-threads button {
+  width: 100%;
+  text-align: left;
+  background: transparent;
+}
+
+.connect .connect-link {
+  border: 0;
+  background: transparent;
+  padding: 0;
+  color: rgba(245, 238, 226, 0.6);
+  text-decoration: underline;
+  justify-self: start;
+}
+
+.connect-title {
+  flex: 1;
+}
+
+.connect-log {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: grid;
+  gap: 8px;
+  max-height: 50dvh;
+  overflow-y: auto;
+}
+
+.connect-log li {
+  padding: 8px 12px;
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.05);
+  white-space: pre-wrap;
+}
+
+.connect-log li[data-who="you"] {
+  justify-self: end;
+  background: rgba(245, 238, 226, 0.14);
+}
+
+.connect .connect-call {
+  padding: 12px 20px;
+  font-weight: 600;
+}
+
+.connect .connect-call[data-on="true"] {
+  background: #c2412d;
+}
+
+.connect-type {
+  flex: 1;
+}
