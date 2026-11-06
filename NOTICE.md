@@ -49,6 +49,12 @@ Python packages installed into the speech service's own environment: `mlx-audio`
 Uvicorn (BSD-3-Clause), websockets (BSD-3-Clause). `misaki` can fall back to espeak-ng (GPL-3.0)
 for unknown words if it is installed on the system; lalala does not bundle or install it.
 
+## Sounds
+
+The topic sounds in `src/voice/extras/topicSounds-*.mp3` were generated with ElevenLabs (sound
+effects, and text to speech for the spoken ones) on a paid plan with a commercial license, and are
+released with this repository under its MIT License.
+
 ## Fonts
 
 Bundled in `src/voice/presence/fonts`: Geist and Geist Mono (Vercel, SIL Open Font License 1.1),

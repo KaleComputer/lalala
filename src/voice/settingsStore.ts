@@ -16,7 +16,7 @@ export type Delegates = {
 
 export type SyncedSettings = {
   readonly delegates: Delegates;
-  /** A sound in extras/topicSounds-<name>.mp3, or "none". */
+  /** A sound in extras/topicSounds-<name>.mp3, the built-in "chime", or "none". */
   readonly topicSound: string;
   readonly at: number;
 };
@@ -28,6 +28,8 @@ const DEFAULT_DELEGATES: Delegates = {
   options: { effort: "high", fastMode: false },
 };
 export const DEFAULT_TOPIC_SOUND = "soft-ping";
+/** The topic sound the player renders itself instead of loading a file. */
+export const BUILT_IN_TOPIC_SOUND = "chime";
 const DEFAULTS: SyncedSettings = {
   delegates: DEFAULT_DELEGATES,
   topicSound: DEFAULT_TOPIC_SOUND,
@@ -163,9 +165,9 @@ export function delegatesTag(delegates = current().delegates): string {
   return [model, ...options].join(" ");
 }
 
-/** The chosen topic sound's file, null for none. The page build lists every extras sound (extrasImages.ts). */
+/** The chosen topic sound's file, null for none or the built-in chime. The page build lists every extras sound (extrasImages.ts). */
 export function topicSoundUrl(name = current().topicSound): string | null {
-  if (name === "none") return null;
+  if (name === "none" || name === BUILT_IN_TOPIC_SOUND) return null;
   return (
     globalThis.__lalalaImages?.[`./extras/topicSounds-${name}.mp3`] ??
     globalThis.__lalalaImages?.[`./extras/topicSounds-${DEFAULT_TOPIC_SOUND}.mp3`] ??

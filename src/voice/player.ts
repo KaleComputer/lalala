@@ -5,12 +5,18 @@
  * logged with its cause.
  */
 import type { SpeechEngine } from "./engine";
+import {
+  BUILT_IN_TOPIC_SOUND,
+  subscribeSettings,
+  syncedSettings,
+  topicSoundUrl,
+} from "./settingsStore";
 import { voiceLog } from "./voiceLog";
 
 const TTS_SAMPLE_RATE = 24_000;
 
 /** The `[new topic]` sound: a soft two-note chime, rendered once at the player's sample rate. */
-function topicChime(rate: number): Float32Array<ArrayBuffer> {
+export function topicChime(rate: number): Float32Array<ArrayBuffer> {
   const notes = [
     { f: 880, at: 0, gain: 0.16 },
     { f: 1318.5, at: 0.09, gain: 0.13 },
@@ -96,6 +102,8 @@ export class SpeechPlayer {
   private recent: Array<{ readonly text: string; until: number }> = [];
   /** The topic sound at the speech's rate, through the same path, so hold, replay and echo cover it. */
   private topicSound: Float32Array<ArrayBuffer> | null = null;
+  private topicSoundName: string | null = null;
+  private readonly stopFollowingSettings: () => void;
   /** The label of the last reply ("Chat", a thread title); a new player is a new call. */
   private lastTopic: string | null = null;
 
@@ -113,7 +121,31 @@ export class SpeechPlayer {
     this.output.connect(context.destination);
     this.frame = new Float32Array(this.output.fftSize);
     context.addEventListener("statechange", this.onContextState);
-    this.topicSound = topicChime(TTS_SAMPLE_RATE);
+    this.loadTopicSound();
+    // The topic sound picked in the settings applies in the call already running.
+    this.stopFollowingSettings = subscribeSettings(() => this.loadTopicSound());
+  }
+
+  private loadTopicSound(): void {
+    const name = syncedSettings().topicSound;
+    if (name === this.topicSoundName) return;
+    this.topicSoundName = name;
+    this.topicSound = null;
+    if (name === "none") return;
+    const url = topicSoundUrl(name);
+    if (name === BUILT_IN_TOPIC_SOUND || url === null) {
+      this.topicSound = topicChime(TTS_SAMPLE_RATE);
+      return;
+    }
+    void fetch(url)
+      .then((response) => response.arrayBuffer())
+      .then((bytes) => new OfflineAudioContext(1, 1, TTS_SAMPLE_RATE).decodeAudioData(bytes))
+      .then((decoded) => {
+        if (this.topicSoundName === name) this.topicSound = decoded.getChannelData(0).slice();
+      })
+      .catch((error: unknown) =>
+        voiceLog("system", "error", { where: "topic-sound", message: String(error) }),
+      );
   }
 
   /** Stops watching the context (the call ended). */
@@ -121,6 +153,7 @@ export class SpeechPlayer {
     this.context.removeEventListener("statechange", this.onContextState);
     if (this.resumeTimer !== null) window.clearTimeout(this.resumeTimer);
     this.resumeTimer = null;
+    this.stopFollowingSettings();
   }
 
   private readonly onContextState = (): void => {

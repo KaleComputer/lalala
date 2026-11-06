@@ -3,11 +3,16 @@ import { createPortal } from "react-dom";
 
 import { isFollowing, setFollowing, subscribeFollow } from "./follow";
 import { useStreamerMode } from "./streamerMode";
+import { topicChime } from "./player";
 import {
+  BUILT_IN_TOPIC_SOUND,
   type Delegates,
+  DEFAULT_TOPIC_SOUND,
   type OptionValue,
   pullSynced,
   setMicDeviceId,
+  topicSoundNames,
+  topicSoundUrl,
   updateSynced,
   useMicDeviceId,
   useSyncedSettings,
@@ -703,7 +708,25 @@ function ThreadsSection(props: { readonly brain: Brain | null }) {
   );
 }
 
+function playTopicSound(name: string): void {
+  const url = topicSoundUrl(name);
+  if (url !== null) {
+    void new Audio(url).play().catch(() => undefined);
+    return;
+  }
+  const context = new AudioContext();
+  const samples = topicChime(context.sampleRate);
+  const buffer = context.createBuffer(1, samples.length, context.sampleRate);
+  buffer.copyToChannel(samples, 0);
+  const source = context.createBufferSource();
+  source.buffer = buffer;
+  source.connect(context.destination);
+  source.addEventListener("ended", () => void context.close());
+  source.start();
+}
+
 function SoundSection() {
+  const { topicSound } = useSyncedSettings();
   const mic = useMicDeviceId();
   const [mics, setMics] = useState<ReadonlyArray<MediaDeviceInfo> | null>(null);
 
@@ -725,8 +748,35 @@ function SoundSection() {
   }, []);
 
   const named = (mics ?? []).filter((device) => device.deviceId !== "" && device.label !== "");
+  const names = topicSoundNames();
   return (
-    <Section title="Mic">
+    <Section title="Sound & mic">
+      <Row
+        title="Topic sound"
+        description="Plays before the voice turns to something new, like a thread's result."
+      >
+        <select
+          aria-label="Topic sound"
+          value={topicSound}
+          onChange={(event) => updateSynced({ topicSound: event.currentTarget.value })}
+        >
+          <option value="none">None</option>
+          <option value={BUILT_IN_TOPIC_SOUND}>Chime (built in)</option>
+          {(names.length > 0 ? names : [DEFAULT_TOPIC_SOUND]).map((name) => (
+            <option key={name} value={name}>
+              {name.replaceAll("-", " ")}
+            </option>
+          ))}
+        </select>
+        <button
+          type="button"
+          data-lalala-settings-button=""
+          disabled={topicSound === "none"}
+          onClick={() => playTopicSound(topicSound)}
+        >
+          Play
+        </button>
+      </Row>
       <Row
         title="Microphone"
         description={
