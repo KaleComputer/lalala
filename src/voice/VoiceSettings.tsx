@@ -1,4 +1,12 @@
-import { type ReactNode, useEffect, useRef, useState, useSyncExternalStore } from "react";
+import {
+  type KeyboardEvent as ReactKeyboardEvent,
+  type ReactNode,
+  useEffect,
+  useId,
+  useRef,
+  useState,
+  useSyncExternalStore,
+} from "react";
 import { createPortal } from "react-dom";
 
 import { isFollowing, setFollowing, subscribeFollow } from "./follow";
@@ -6,8 +14,8 @@ import { useStreamerMode } from "./streamerMode";
 import { topicChime } from "./player";
 import {
   BUILT_IN_TOPIC_SOUND,
-  type Delegates,
   DEFAULT_TOPIC_SOUND,
+  type Delegates,
   type OptionValue,
   pullSynced,
   setMicDeviceId,
@@ -187,7 +195,7 @@ function SettingsSheet(props: { readonly onClose: () => void }) {
     });
     panelRef.current?.focus();
     const onKey = (event: KeyboardEvent) => {
-      if (event.key === "Escape") onClose();
+      if (event.key === "Escape" && !event.defaultPrevented) onClose();
     };
     document.addEventListener("keydown", onKey);
     return () => {
@@ -269,6 +277,7 @@ function Row(props: {
   readonly title: string;
   readonly description?: ReactNode;
   readonly children: ReactNode;
+  readonly below?: ReactNode;
 }) {
   return (
     <div data-lalala-settings-row="">
@@ -277,6 +286,7 @@ function Row(props: {
         {props.description ? <p>{props.description}</p> : null}
       </div>
       <div data-lalala-settings-control="">{props.children}</div>
+      {props.below}
     </div>
   );
 }
@@ -302,32 +312,208 @@ function Toggle(props: {
   );
 }
 
-function ModelSelect(props: {
-  readonly label: string;
-  readonly providers: ReadonlyArray<Provider>;
+type PickOption = {
   readonly value: string;
+  readonly label: string;
+  /** The row gets a play button (onPlay). */
+  readonly playable?: boolean;
+};
+type PickGroup = { readonly label?: string; readonly options: ReadonlyArray<PickOption> };
+
+const modelGroups = (providers: ReadonlyArray<Provider>): PickGroup[] =>
+  providers.map((provider) => ({
+    label: provider.name,
+    options: provider.models.map((model) => ({
+      value: modelKey(provider.instanceId, model.slug),
+      label: model.name,
+    })),
+  }));
+
+let previewAudio: HTMLAudioElement | null = null;
+function playTopicSound(name: string): void {
+  previewAudio?.pause();
+  previewAudio = null;
+  const url = topicSoundUrl(name);
+  if (url !== null) {
+    previewAudio = new Audio(url);
+    void previewAudio.play().catch(() => undefined);
+    return;
+  }
+  if (name !== BUILT_IN_TOPIC_SOUND) return;
+  const context = new AudioContext();
+  const samples = topicChime(context.sampleRate);
+  const buffer = context.createBuffer(1, samples.length, context.sampleRate);
+  buffer.copyToChannel(samples, 0);
+  const source = context.createBufferSource();
+  source.buffer = buffer;
+  source.connect(context.destination);
+  source.addEventListener("ended", () => void context.close());
+  source.start();
+}
+
+/**
+ * A row whose control picks one of a list, in the panel's own look instead of the browser's select:
+ * the button shows the choice, the list opens inline under the row (no popover to clip, no iOS wheel).
+ * Arrows, Home/End, Enter and Esc work like a listbox.
+ */
+function PickRow(props: {
+  readonly title: string;
+  readonly description?: ReactNode;
+  readonly label: string;
+  readonly value: string;
+  readonly groups: ReadonlyArray<PickGroup>;
   readonly disabled?: boolean | undefined;
-  readonly leading?: ReactNode;
-  readonly onChange: (key: string) => void;
+  /** Plays a playable option: from its button, and as the keyboard moves onto it. */
+  readonly onPlay?: (value: string) => void;
+  readonly onChange: (value: string) => void;
 }) {
+  const id = useId();
+  const [open, setOpen] = useState(false);
+  const [active, setActive] = useState(0);
+  const triggerRef = useRef<HTMLButtonElement>(null);
+  const options = props.groups.flatMap((group) => group.options);
+  const selected = options.findIndex((option) => option.value === props.value);
+  const optionId = (index: number) => `${id}o${index}`;
+
+  const listEl = useRef<HTMLDivElement | null>(null);
+  // Once per opening: without the React Compiler (the standalone) a new callback reruns every render.
+  const listRef = (node: HTMLDivElement | null) => {
+    if (node === null || node === listEl.current) return;
+    listEl.current = node;
+    node.focus({ preventScroll: true });
+    node.scrollIntoView({ block: "nearest" });
+    node.querySelector('[aria-selected="true"]')?.scrollIntoView({ block: "nearest" });
+  };
+
+  const show = () => {
+    setActive(Math.max(selected, 0));
+    setOpen(true);
+  };
+  const close = () => {
+    setOpen(false);
+    triggerRef.current?.focus({ preventScroll: true });
+  };
+  const pick = (index: number) => {
+    const option = options[index];
+    if (option && option.value !== props.value) props.onChange(option.value);
+    close();
+  };
+  const move = (index: number) => {
+    const next = Math.min(Math.max(index, 0), options.length - 1);
+    const option = options[next];
+    if (option === undefined) return;
+    setActive(next);
+    if (option.playable) props.onPlay?.(option.value);
+    document.getElementById(optionId(next))?.scrollIntoView({ block: "nearest" });
+  };
+  const onListKey = (event: ReactKeyboardEvent) => {
+    const step: Record<string, number> = {
+      ArrowDown: active + 1,
+      ArrowUp: active - 1,
+      Home: 0,
+      End: options.length - 1,
+      PageDown: active + 8,
+      PageUp: active - 8,
+    };
+    if (event.key in step) move(step[event.key]!);
+    else if (event.key === "Enter" || event.key === " ") pick(active);
+    else if (event.key === "Escape") close();
+    else if (event.key === "Tab") return setOpen(false);
+    else return;
+    event.preventDefault();
+  };
+
+  let index = 0;
   return (
-    <select
-      aria-label={props.label}
-      value={props.value}
-      disabled={props.disabled}
-      onChange={(event) => props.onChange(event.currentTarget.value)}
+    <Row
+      title={props.title}
+      description={props.description}
+      below={
+        open ? (
+          <div
+            ref={listRef}
+            role="listbox"
+            id={`${id}l`}
+            aria-label={props.label}
+            aria-activedescendant={optionId(active)}
+            tabIndex={-1}
+            data-lalala-settings-list=""
+            onKeyDown={onListKey}
+            onBlur={(event) => {
+              const to = event.relatedTarget;
+              if (to !== triggerRef.current && !event.currentTarget.contains(to)) setOpen(false);
+            }}
+          >
+            {props.groups.map((group, groupIndex) => (
+              <div key={group.label ?? groupIndex} role="group" aria-label={group.label}>
+                {group.label ? <div aria-hidden="true">{group.label}</div> : null}
+                {group.options.map((option) => {
+                  const at = index++;
+                  return (
+                    <div
+                      key={option.value}
+                      id={optionId(at)}
+                      role="option"
+                      aria-selected={at === selected}
+                      data-active={at === active ? "" : undefined}
+                      onMouseDown={(event) => event.preventDefault()}
+                      onMouseMove={() => at !== active && setActive(at)}
+                      onClick={() => pick(at)}
+                    >
+                      {props.onPlay ? (
+                        <button
+                          type="button"
+                          tabIndex={-1}
+                          aria-label={`Play ${option.label}`}
+                          disabled={!option.playable}
+                          onClick={(event) => {
+                            event.stopPropagation();
+                            setActive(at);
+                            props.onPlay?.(option.value);
+                          }}
+                        >
+                          <svg viewBox="0 0 10 10" aria-hidden="true">
+                            <path d="M2.5 1.5v7l6-3.5z" />
+                          </svg>
+                        </button>
+                      ) : null}
+                      <span>{option.label}</span>
+                      {at === selected ? (
+                        <svg viewBox="0 0 12 12" aria-hidden="true">
+                          <path d="M2 6.5l2.5 2.5L10 3.5" />
+                        </svg>
+                      ) : null}
+                    </div>
+                  );
+                })}
+              </div>
+            ))}
+          </div>
+        ) : null
+      }
     >
-      {props.leading}
-      {props.providers.map((provider) => (
-        <optgroup key={provider.instanceId} label={provider.name}>
-          {provider.models.map((model) => (
-            <option key={model.slug} value={modelKey(provider.instanceId, model.slug)}>
-              {model.name}
-            </option>
-          ))}
-        </optgroup>
-      ))}
-    </select>
+      <button
+        ref={triggerRef}
+        type="button"
+        aria-haspopup="listbox"
+        aria-expanded={open}
+        aria-controls={open ? `${id}l` : undefined}
+        aria-label={`${props.label}: ${options[selected]?.label ?? "none"}`}
+        disabled={props.disabled}
+        data-lalala-settings-pick=""
+        data-open={open ? "" : undefined}
+        // Safari never focuses a clicked button: the list would blur shut and the click reopen it.
+        onMouseDown={(event) => open && event.preventDefault()}
+        onClick={() => (open ? setOpen(false) : show())}
+        onKeyDown={(event) => {
+          if (open || (event.key !== "ArrowDown" && event.key !== "ArrowUp")) return;
+          event.preventDefault();
+          show();
+        }}
+      >
+        <span>{options[selected]?.label ?? "None"}</span>
+      </button>
+    </Row>
   );
 }
 
@@ -338,31 +524,31 @@ function OptionRows(props: {
   readonly disabled?: boolean | undefined;
   readonly onChange: (id: string, value: OptionValue) => void;
 }) {
-  return (props.model?.options ?? []).map((d) => (
-    <Row key={d.id} title={d.label} description={d.description}>
-      {d.type === "boolean" ? (
+  return (props.model?.options ?? []).map((d) =>
+    d.type === "boolean" ? (
+      <Row key={d.id} title={d.label} description={d.description}>
         <Toggle
           on={valueOf(d, props.values[d.id]) === true}
           label={d.label}
           disabled={props.disabled}
           onChange={(on) => props.onChange(d.id, on)}
         />
-      ) : (
-        <select
-          aria-label={d.label}
-          value={String(valueOf(d, props.values[d.id]))}
-          disabled={props.disabled}
-          onChange={(event) => props.onChange(d.id, event.currentTarget.value)}
-        >
-          {d.options.map((choice) => (
-            <option key={choice.id} value={choice.id}>
-              {choice.label}
-            </option>
-          ))}
-        </select>
-      )}
-    </Row>
-  ));
+      </Row>
+    ) : (
+      <PickRow
+        key={d.id}
+        title={d.label}
+        description={d.description}
+        label={d.label}
+        value={String(valueOf(d, props.values[d.id]))}
+        groups={[
+          { options: d.options.map((choice) => ({ value: choice.id, label: choice.label })) },
+        ]}
+        disabled={props.disabled}
+        onChange={(value) => props.onChange(d.id, value)}
+      />
+    ),
+  );
 }
 
 const sendConnection = (path: string, body?: object) =>
@@ -591,24 +777,23 @@ function BrainSection(props: {
       note="The thread you talk to. Changes apply from its next turn, on every device."
     >
       {error ? <p data-lalala-settings-error="">{error}</p> : null}
-      <Row title="Model">
-        <ModelSelect
-          label="Voice brain model"
-          providers={brain.providers}
-          value={selection ? modelKey(selection.instanceId, selection.model) : ""}
-          disabled={saving}
-          onChange={(key) => {
-            const { instanceId, slug } = splitKey(key);
-            const next = findModel(brain, instanceId, slug);
-            const options = carryOptions(next, values);
-            props.onConfigure({
-              instanceId,
-              model: slug,
-              options: Object.entries(options).map(([id, value]) => ({ id, value })),
-            });
-          }}
-        />
-      </Row>
+      <PickRow
+        title="Model"
+        label="Voice brain model"
+        groups={modelGroups(brain.providers)}
+        value={selection ? modelKey(selection.instanceId, selection.model) : ""}
+        disabled={saving}
+        onChange={(key) => {
+          const { instanceId, slug } = splitKey(key);
+          const next = findModel(brain, instanceId, slug);
+          const options = carryOptions(next, values);
+          props.onConfigure({
+            instanceId,
+            model: slug,
+            options: Object.entries(options).map(([id, value]) => ({ id, value })),
+          });
+        }}
+      />
       <OptionRows
         model={model}
         values={values}
@@ -649,39 +834,47 @@ function ThreadsSection(props: { readonly brain: Brain | null }) {
       title="New threads"
       note="What the brain gives the threads it delegates to. Sent with each message, on every device."
     >
-      <Row title="Model">
-        {brain ? (
-          <ModelSelect
-            label="Model for new threads"
-            providers={brain.providers}
-            value={
-              delegates.model === null || delegates.instanceId === null
-                ? ""
-                : modelKey(delegates.instanceId, delegates.model)
-            }
-            leading={
-              <option value="">Same as the brain{brainModel ? ` (${brainModel.name})` : ""}</option>
-            }
-            onChange={(key) => {
-              if (key === "") {
-                return set({
-                  instanceId: null,
-                  model: null,
-                  options: carryOptions(brainModel, delegates.options),
-                });
-              }
-              const { instanceId, slug } = splitKey(key);
-              set({
-                instanceId,
-                model: slug,
-                options: carryOptions(findModel(brain, instanceId, slug), delegates.options),
+      {brain ? (
+        <PickRow
+          title="Model"
+          label="Model for new threads"
+          groups={[
+            {
+              options: [
+                {
+                  value: "",
+                  label: `Same as the brain${brainModel ? ` (${brainModel.name})` : ""}`,
+                },
+              ],
+            },
+            ...modelGroups(brain.providers),
+          ]}
+          value={
+            delegates.model === null || delegates.instanceId === null
+              ? ""
+              : modelKey(delegates.instanceId, delegates.model)
+          }
+          onChange={(key) => {
+            if (key === "") {
+              return set({
+                instanceId: null,
+                model: null,
+                options: carryOptions(brainModel, delegates.options),
               });
-            }}
-          />
-        ) : (
+            }
+            const { instanceId, slug } = splitKey(key);
+            set({
+              instanceId,
+              model: slug,
+              options: carryOptions(findModel(brain, instanceId, slug), delegates.options),
+            });
+          }}
+        />
+      ) : (
+        <Row title="Model">
           <span data-lalala-settings-value="">{delegates.model ?? "Same as the brain"}</span>
-        )}
-      </Row>
+        </Row>
+      )}
       {model ? (
         <OptionRows
           model={model}
@@ -708,27 +901,11 @@ function ThreadsSection(props: { readonly brain: Brain | null }) {
   );
 }
 
-function playTopicSound(name: string): void {
-  const url = topicSoundUrl(name);
-  if (url !== null) {
-    void new Audio(url).play().catch(() => undefined);
-    return;
-  }
-  const context = new AudioContext();
-  const samples = topicChime(context.sampleRate);
-  const buffer = context.createBuffer(1, samples.length, context.sampleRate);
-  buffer.copyToChannel(samples, 0);
-  const source = context.createBufferSource();
-  source.buffer = buffer;
-  source.connect(context.destination);
-  source.addEventListener("ended", () => void context.close());
-  source.start();
-}
-
 function SoundSection() {
   const { topicSound } = useSyncedSettings();
   const mic = useMicDeviceId();
   const [mics, setMics] = useState<ReadonlyArray<MediaDeviceInfo> | null>(null);
+  const names = topicSoundNames();
 
   // oxlint-disable-next-line t3code/no-unreasoned-state-sync -- lists the microphones and follows them being plugged in or out
   useEffect(() => {
@@ -748,56 +925,54 @@ function SoundSection() {
   }, []);
 
   const named = (mics ?? []).filter((device) => device.deviceId !== "" && device.label !== "");
-  const names = topicSoundNames();
   return (
     <Section title="Sound & mic">
-      <Row
+      <PickRow
         title="Topic sound"
         description="Plays before the voice turns to something new, like a thread's result."
-      >
-        <select
-          aria-label="Topic sound"
-          value={topicSound}
-          onChange={(event) => updateSynced({ topicSound: event.currentTarget.value })}
-        >
-          <option value="none">None</option>
-          <option value={BUILT_IN_TOPIC_SOUND}>Chime (built in)</option>
-          {(names.length > 0 ? names : [DEFAULT_TOPIC_SOUND]).map((name) => (
-            <option key={name} value={name}>
-              {name.replaceAll("-", " ")}
-            </option>
-          ))}
-        </select>
-        <button
-          type="button"
-          data-lalala-settings-button=""
-          disabled={topicSound === "none"}
-          onClick={() => playTopicSound(topicSound)}
-        >
-          Play
-        </button>
-      </Row>
-      <Row
+        label="Topic sound"
+        value={topicSound}
+        groups={[
+          {
+            options: [
+              { value: "none", label: "None" },
+              { value: BUILT_IN_TOPIC_SOUND, label: "Chime (built in)", playable: true },
+              {
+                value: DEFAULT_TOPIC_SOUND,
+                label: `${DEFAULT_TOPIC_SOUND.replaceAll("-", " ")} (default)`,
+                playable: true,
+              },
+              ...names
+                .filter((name) => name !== DEFAULT_TOPIC_SOUND)
+                .map((name) => ({ value: name, label: name.replaceAll("-", " "), playable: true })),
+            ],
+          },
+        ]}
+        onPlay={playTopicSound}
+        onChange={(name) => {
+          updateSynced({ topicSound: name });
+          playTopicSound(name);
+        }}
+      />
+      <PickRow
         title="Microphone"
         description={
           named.length === 0 && mics !== null
             ? "Start a call once to let the page name this device's microphones."
             : "Used from the next call."
         }
-      >
-        <select
-          aria-label="Microphone"
-          value={mic !== null && named.some((device) => device.deviceId === mic) ? mic : ""}
-          onChange={(event) => setMicDeviceId(event.currentTarget.value || null)}
-        >
-          <option value="">System default</option>
-          {named.map((device) => (
-            <option key={device.deviceId} value={device.deviceId}>
-              {device.label}
-            </option>
-          ))}
-        </select>
-      </Row>
+        label="Microphone"
+        value={mic !== null && named.some((device) => device.deviceId === mic) ? mic : ""}
+        groups={[
+          {
+            options: [
+              { value: "", label: "System default" },
+              ...named.map((device) => ({ value: device.deviceId, label: device.label })),
+            ],
+          },
+        ]}
+        onChange={(id) => setMicDeviceId(id || null)}
+      />
     </Section>
   );
 }

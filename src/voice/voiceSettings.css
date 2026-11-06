@@ -134,7 +134,7 @@
     display: grid;
     grid-template-columns: minmax(0, 1fr) auto;
     align-items: center;
-    gap: 24px;
+    gap: 10px 24px;
   }
 }
 /* A switch, a state or a plain value stays beside its title, however narrow. */
@@ -204,8 +204,7 @@
   color: var(--s-hud);
 }
 
-/* Controls: a native select (the phone's own picker), a field, a button and a switch, all on the edge
-   colour. */
+/* Controls: a pick button, a field, a button and a switch, all on the edge colour. */
 [data-lalala-settings-control] input {
   min-width: 0;
   width: 100%;
@@ -220,36 +219,137 @@
 [data-lalala-settings-control] input::placeholder {
   color: var(--s-ink-3);
 }
-[data-lalala-settings-control] select {
+[data-lalala-settings-pick] {
+  display: flex;
+  align-items: center;
+  gap: 10px;
   min-width: 0;
   width: 100%;
   height: 32px;
-  padding: 0 28px 0 10px;
+  padding: 0 10px;
   border: 1px solid var(--s-edge);
-  border-radius: 0;
   color: var(--s-ink);
-  background:
-    linear-gradient(45deg, transparent 50%, var(--s-hud) 50%) right 13px center / 5px 5px no-repeat,
-    linear-gradient(-45deg, transparent 50%, var(--s-hud) 50%) right 8px center / 5px 5px no-repeat,
-    var(--s-raise);
-  background-size:
-    5px 5px,
-    5px 5px,
-    auto;
+  background: var(--s-raise);
   font: 400 13px / 1 var(--s-sans);
-  appearance: none;
+  text-align: left;
   cursor: pointer;
 }
+[data-lalala-settings-pick] > span {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+/* The chevron: two 1px strokes, flipped while the list is open. */
+[data-lalala-settings-pick]::after {
+  content: "";
+  flex: none;
+  width: 5px;
+  height: 5px;
+  margin: -3px 2px 0 0;
+  border: solid var(--s-hud);
+  border-width: 0 1px 1px 0;
+  transform: rotate(45deg);
+}
+[data-lalala-settings-pick][data-open]::after {
+  margin-top: 3px;
+  transform: rotate(-135deg);
+}
+[data-lalala-settings-pick]:hover:not(:disabled),
+[data-lalala-settings-pick][data-open] {
+  border-color: var(--s-hud);
+}
+
+/* The open list: inline under its row, the full row wide, scrolling inside past ten or so. */
+[data-lalala-settings-list] {
+  grid-column: 1 / -1;
+  max-height: 288px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  border: 1px solid var(--s-edge);
+  background: var(--s-raise);
+  outline: 0;
+}
+[data-lalala-settings-list]:focus-visible {
+  border-color: var(--s-hud);
+}
+[data-lalala-settings-list] [role="group"] + [role="group"] {
+  border-top: 1px solid var(--s-hair);
+}
+[data-lalala-settings-list] [role="group"] > div[aria-hidden] {
+  padding: 10px 12px 4px;
+  color: var(--s-ink-3);
+  font: 400 10px / 1 var(--s-mono);
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+}
+[data-lalala-settings-list] [role="option"] {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 34px;
+  padding: 0 12px;
+  color: var(--s-ink-2);
+  cursor: pointer;
+}
+[data-lalala-settings-list] [role="option"][data-active] {
+  color: var(--s-ink);
+  background: rgba(245, 238, 226, 0.06);
+}
+[data-lalala-settings-list]:focus-visible [role="option"][data-active] {
+  box-shadow: inset 1px 0 0 var(--s-hud);
+}
+[data-lalala-settings-list] [role="option"][aria-selected="true"] {
+  color: var(--s-hud);
+}
+[data-lalala-settings-list] [role="option"] > span {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+[data-lalala-settings-list] [role="option"] > svg {
+  flex: none;
+  width: 12px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.5;
+}
+[data-lalala-settings-list] [role="option"] > button {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 24px;
+  height: 24px;
+  margin-left: -4px;
+  padding: 0;
+  border: 1px solid var(--s-edge);
+  color: var(--s-hud);
+  background: var(--s-surface);
+  cursor: pointer;
+}
+[data-lalala-settings-list] [role="option"] > button:hover:not(:disabled) {
+  border-color: var(--s-hud);
+  background: rgba(61, 255, 143, 0.1);
+}
+[data-lalala-settings-list] [role="option"] > button:disabled {
+  visibility: hidden;
+}
+[data-lalala-settings-list] [role="option"] > button > svg {
+  width: 9px;
+  fill: currentColor;
+}
 @container (min-width: 30rem) {
-  [data-lalala-settings-control] select {
-    width: auto;
-    min-width: 180px;
+  [data-lalala-settings-pick] {
+    width: 220px;
   }
   [data-lalala-settings-control] input {
     width: 220px;
   }
 }
-[data-lalala-settings-control] :is(select, input):focus-visible,
+[data-lalala-settings-control] :is(input, [data-lalala-settings-pick]):focus-visible,
 [data-lalala-settings-button]:focus-visible,
 [data-lalala-settings-switch]:focus-visible {
   outline: 1px solid var(--s-hud);
@@ -324,9 +424,20 @@
   [data-lalala-settings-body] {
     padding: 16px 12px calc(28px + env(safe-area-inset-bottom));
   }
-  /* 16px type in fields: iOS zooms the page into anything smaller. */
-  [data-lalala-settings-control] :is(select, input) {
+  /* 16px type in fields: iOS zooms the page into anything smaller. Taller rows for fingers. */
+  [data-lalala-settings-control] :is(input, [data-lalala-settings-pick]) {
     height: 38px;
     font-size: 16px;
+  }
+  [data-lalala-settings-list] {
+    max-height: 50dvh;
+  }
+  [data-lalala-settings-list] [role="option"] {
+    min-height: 44px;
+    font-size: 15px;
+  }
+  [data-lalala-settings-list] [role="option"] > button {
+    width: 30px;
+    height: 30px;
   }
 }
