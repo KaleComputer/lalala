@@ -48,17 +48,33 @@ export function readBrainThread(origin: string): string | null {
 export const saveBrainThread = (origin: string, threadId: string) =>
   localStorage.setItem(THREAD_KEY, JSON.stringify({ origin, threadId }));
 
-/** Trades a T3 pairing link (`http://127.0.0.1:3773/pair#token=…`) for a bearer session. */
-export async function pairWithLink(link: string): Promise<Session> {
+const DEFAULT_ORIGIN = "http://127.0.0.1:3773";
+
+/**
+ * Reads what T3 hands out: a pairing link (`http://127.0.0.1:3773/pair#token=…`), its hosted or
+ * `t3code://pair` forms, or the bare code a loopback-only T3 offers (Settings → Sharing & access).
+ */
+function readPairing(input: string): { origin: string; token: string } {
+  const value = input.trim();
+  if (/^[A-Za-z0-9_-]{6,}$/.test(value)) return { origin: DEFAULT_ORIGIN, token: value };
   let url: URL;
   try {
-    url = new URL(link.trim());
+    url = new URL(value);
   } catch {
-    throw new Error("That is not a link.");
+    throw new Error("That is neither a pairing code nor a link.");
   }
+  const appLink = /^t3code(-[a-z]+)?:$/.test(url.protocol) ? url.searchParams.get("pairingUrl") : null;
+  if (appLink) return readPairing(appLink);
   const token =
     new URLSearchParams(url.hash.replace(/^#/, "")).get("token") ?? url.searchParams.get("token");
   if (!token) throw new Error("That link has no pairing token.");
+  const host = url.searchParams.get("host");
+  return { origin: host ? new URL(host).origin : url.origin, token };
+}
+
+/** Trades a T3 pairing code or link for a bearer session. */
+export async function pairWithLink(input: string): Promise<Session> {
+  const { origin, token } = readPairing(input);
   const body = new URLSearchParams({
     grant_type: "urn:ietf:params:oauth:grant-type:token-exchange",
     subject_token: token,
@@ -69,22 +85,22 @@ export async function pairWithLink(link: string): Promise<Session> {
   });
   let response: Response;
   try {
-    response = await localFetch(`${url.origin}/oauth/token`, { method: "POST", body });
+    response = await localFetch(`${origin}/oauth/token`, { method: "POST", body });
   } catch {
     throw new Error(
-      `Could not reach ${url.origin}. Is T3 Code running, and did the browser allow local network access?`,
+      `Could not reach ${origin}. Is T3 Code running, and did the browser allow local network access?`,
     );
   }
   const result = await response.json().catch(() => ({}));
   if (!response.ok || typeof result.access_token !== "string") {
     throw new Error(
       result.error === "invalid_grant"
-        ? "That pairing link was already used or expired. Make a new one."
+        ? "That pairing code was already used or expired. Make a new one."
         : `T3 answered ${response.status} ${result.error ?? ""}.`,
     );
   }
   const session = {
-    origin: url.origin,
+    origin,
     accessToken: result.access_token as string,
     expiresAt: Date.now() + Number(result.expires_in) * 1000,
   };

@@ -29,6 +29,11 @@ const canReachLocal = () =>
 const modelValue = (selection: { instanceId: string; model: string } | null | undefined) =>
   selection ? `${selection.instanceId}${SEP}${selection.model}` : "";
 
+/** A cropped screenshot of T3 Code's own UI, showing where to click. */
+const Shot = (props: { src: string; width: number; height: number; alt: string }) => (
+  <img data-lalala-settings-shot="" {...props} loading="lazy" decoding="async" />
+);
+
 /**
  * Pairs lalala.talk with the visitor's own T3 Code, straight from this tab, and picks the thread
  * the call talks to (its brain thread). Starting the call closes the settings onto the bar.
@@ -39,6 +44,7 @@ export function ConnectSection() {
   const [problem, setProblem] = useState<string | null>(null);
   const [link, setLink] = useState("");
   const [copied, setCopied] = useState(false);
+  const [way, setWay] = useState<"app" | "terminal">("app");
   const [projectId, setProjectId] = useState("");
   const [threadId, setThreadId] = useState(NEW_THREAD);
   const [model, setModel] = useState("");
@@ -80,6 +86,32 @@ export function ConnectSection() {
     });
   }
 
+  const pasteRow = (title: string, description: string, placeholder: string, label: string) => (
+    <Row title={title} description={description}>
+      <input
+        type="text"
+        aria-label={label}
+        placeholder={placeholder}
+        autoComplete="off"
+        spellCheck={false}
+        value={link}
+        disabled={busy}
+        onChange={(event) => setLink(event.currentTarget.value)}
+        onKeyDown={(event) => {
+          if (event.key === "Enter" && link.trim() !== "") pair();
+        }}
+      />
+      <button
+        type="button"
+        data-lalala-settings-button=""
+        disabled={busy || link.trim() === ""}
+        onClick={pair}
+      >
+        {busy ? "Connecting" : "Connect"}
+      </button>
+    </Row>
+  );
+
   const title = "Connection";
   const note =
     "lalala.talk talks from this tab straight to T3 Code on your computer. Speech stays in the browser; only your words, as text, reach your T3.";
@@ -94,44 +126,66 @@ export function ConnectSection() {
             website reach it yet.
           </p>
         )}
-        <Row
-          title="1 · Make a pairing link"
-          description="Run this on the computer with T3 Code."
-          below={<code data-lalala-settings-code="">{PAIR_COMMAND}</code>}
-        >
-          <button
-            type="button"
-            data-lalala-settings-button=""
-            onClick={() => void navigator.clipboard.writeText(PAIR_COMMAND).then(() => setCopied(true))}
-          >
-            {copied ? "Copied" : "Copy"}
-          </button>
+        <Row title="Pair" description="Make the pairing in T3 Code's settings, or with one terminal command.">
+          <div role="radiogroup" aria-label="How to pair" data-lalala-settings-segments="">
+            {(["app", "terminal"] as const).map((option) => (
+              <button
+                key={option}
+                type="button"
+                role="radio"
+                aria-checked={way === option}
+                onClick={() => setWay(option)}
+              >
+                {option === "app" ? "From T3 Code" : "With the terminal"}
+              </button>
+            ))}
+          </div>
         </Row>
-        <Row title="2 · Paste the link" description="The link the command printed.">
-          <input
-            type="url"
-            aria-label="Pairing link"
-            placeholder="http://127.0.0.1:3773/pair#token=…"
-            autoComplete="off"
-            spellCheck={false}
-            value={link}
-            disabled={busy}
-            onChange={(event) => setLink(event.currentTarget.value)}
-            onKeyDown={(event) => {
-              if (event.key === "Enter" && link.trim() !== "") pair();
-            }}
-          />
-          <button
-            type="button"
-            data-lalala-settings-button=""
-            disabled={busy || link.trim() === ""}
-            onClick={pair}
-          >
-            {busy ? "Connecting" : "Connect"}
-          </button>
-        </Row>
+        {way === "app" ? (
+          <>
+            <Row
+              title="1 · Open Sharing & access"
+              description="In T3 Code, open Settings, then Sharing & access."
+              below={<Shot src="/connect/step1.png" width={241} height={98} alt="T3 Code's settings sidebar with Sharing & access selected" />}
+            >
+              {null}
+            </Row>
+            <Row
+              title="2 · Create a link"
+              description="Click Create link. Name it lalala.talk and keep only View environment and Operate tasks ticked."
+              below={<Shot src="/connect/step2.png" width={360} height={178} alt="T3 Code's Create pairing link dialog: label lalala.talk, View environment and Operate tasks ticked" />}
+            >
+              {null}
+            </Row>
+            <Row
+              title="3 · Copy the code"
+              description="Click Create link in the dialog, then Copy code on the new lalala.talk row."
+              below={<Shot src="/connect/step3.png" width={235} height={130} alt="The new pairing in T3 Code with its Copy code button" />}
+            >
+              {null}
+            </Row>
+            {pasteRow("4 · Paste the code", "The code T3 Code copied, or a pairing link.", "Pairing code or link", "Pairing code")}
+          </>
+        ) : (
+          <>
+            <Row
+              title="1 · Make a pairing link"
+              description="Run this on the computer with T3 Code."
+              below={<code data-lalala-settings-code="">{PAIR_COMMAND}</code>}
+            >
+              <button
+                type="button"
+                data-lalala-settings-button=""
+                onClick={() => void navigator.clipboard.writeText(PAIR_COMMAND).then(() => setCopied(true))}
+              >
+                {copied ? "Copied" : "Copy"}
+              </button>
+            </Row>
+            {pasteRow("2 · Paste the link", "The link the command printed.", "http://127.0.0.1:3773/pair#token=…", "Pairing link")}
+          </>
+        )}
         <Row
-          title="3 · Allow the local network"
+          title={`${way === "app" ? 5 : 3} · Allow the local network`}
           description="Chrome then asks to let lalala.talk reach your local network. Allow it, or the tab cannot reach your T3 Code."
         >
           {null}
