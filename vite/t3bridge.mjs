@@ -1,4 +1,4 @@
-// t3voice's stand-in for T3's client state: one socket to T3's public API that follows the
+// lalala's stand-in for T3's client state: one socket to T3's public API that follows the
 // brain thread (bounded snapshot, then its events) and sends the user's turns the way the web composer
 // does (`message.dispatch`, attachments persisted first). The page gets it over SSE.
 import * as NodeFS from "node:fs";
@@ -15,7 +15,7 @@ import {
   uuid,
 } from "./t3client.mjs";
 
-const PREFIX = "/__t3voice/t3";
+const PREFIX = "/__lalala/t3";
 const ACTIVE_RUN = new Set(["preparing", "queued", "starting", "running", "waiting"]);
 const MAX_ROWS = 400;
 // The page only reads these fields (VoiceHost, brief.ts); everything else stays on the server.
@@ -48,7 +48,7 @@ const slimProviders = (providers) =>
 
 // The voice settings every device shares (the page's voiceSettings.ts); the newest write wins.
 const settingsFile = () =>
-  process.env.T3VOICE_SETTINGS_FILE?.trim() || NodePath.join(stateDir(), "settings.json");
+  process.env.LALALA_SETTINGS_FILE?.trim() || NodePath.join(stateDir(), "settings.json");
 const readSettings = () => {
   try {
     return JSON.parse(NodeFS.readFileSync(settingsFile(), "utf8"));
@@ -340,7 +340,7 @@ export function t3BridgePlugin({ threadId: configuredThreadId, workspaceRoot }) 
   };
 
   return {
-    name: "t3voice:t3-bridge",
+    name: "lalala:t3-bridge",
     configureServer(server) {
       void connect();
       server.middlewares.use((req, res, next) => {

@@ -332,7 +332,7 @@ export class SpeechPlayer {
       wake?.();
     };
     try {
-      const response = await fetch(`/__t3voice/tts?engine=${this.engine()}`, {
+      const response = await fetch(`/__lalala/tts?engine=${this.engine()}`, {
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({ text: sentence.text, format: "pcm" }),

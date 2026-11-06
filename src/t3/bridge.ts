@@ -32,7 +32,7 @@ const set = (next: BridgeState) => {
 };
 
 function start() {
-  const source = new EventSource("/__t3voice/t3/events");
+  const source = new EventSource("/__lalala/t3/events");
   source.onmessage = (message) => {
     const event = JSON.parse(message.data);
     if (event.type === "hello") {

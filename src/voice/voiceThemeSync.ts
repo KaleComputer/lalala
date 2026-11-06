@@ -18,9 +18,9 @@ import { type VoiceTheme, voiceTheme } from "./voiceTheme";
  * picked in Settings like any custom theme and survives reloads and the theme editor. A change to
  * the file selects it; setting it to null removes it and restores the theme picked before.
  */
-const VOICE_THEME_ID = "t3-voice";
-const PREVIOUS_THEME_KEY = "t3voice:theme-before";
-const APPLIED_THEME_KEY = "t3voice:theme-applied";
+const VOICE_THEME_ID = "lalala";
+const PREVIOUS_THEME_KEY = "lalala:theme-before";
+const APPLIED_THEME_KEY = "lalala:theme-applied";
 
 function definitionOf(theme: VoiceTheme): ThemeDefinition {
   const base = theme.appearance === "dark" ? T3_CODE_DARK_THEME_COLORS : T3_CODE_LIGHT_THEME_COLORS;

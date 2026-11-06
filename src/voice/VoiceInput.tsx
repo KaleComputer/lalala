@@ -179,7 +179,7 @@ export function VoiceInput(props: {
   const tab = (
     <button
       type="button"
-      data-t3voice-input-tab=""
+      data-lalala-input-tab=""
       data-open={open ? "" : undefined}
       data-state={phase}
       aria-expanded={open}
@@ -190,14 +190,14 @@ export function VoiceInput(props: {
     >
       <i aria-hidden="true" />
       <b
-        data-t3voice-beam=""
+        data-lalala-beam=""
         aria-hidden="true"
         onAnimationEnd={(event) => {
-          if (event.animationName === "t3voice-beam-down")
+          if (event.animationName === "lalala-beam-down")
             setPhase((current) => (current === "closing" ? "closed" : current));
         }}
       />
-      <svg data-t3voice-input-plus="" viewBox="0 0 12 12" aria-hidden="true">
+      <svg data-lalala-input-plus="" viewBox="0 0 12 12" aria-hidden="true">
         <path d="M6 1.5v9M1.5 6h9" />
       </svg>
     </button>
@@ -205,9 +205,9 @@ export function VoiceInput(props: {
 
   const panel =
     phase === "closed" ? null : (
-      <div data-t3voice-input-panel="" data-state={phase}>
+      <div data-lalala-input-panel="" data-state={phase}>
         {picked.length > 0 ? (
-          <ul data-t3voice-input-tiles="">
+          <ul data-lalala-input-tiles="">
             {picked.map((item) => (
               <li key={item.id}>
                 <img src={item.url} alt="" />
@@ -218,8 +218,8 @@ export function VoiceInput(props: {
             ))}
           </ul>
         ) : null}
-        {problem !== null ? <p data-t3voice-input-problem="">{problem}</p> : null}
-        <div data-t3voice-input-field="">
+        {problem !== null ? <p data-lalala-input-problem="">{problem}</p> : null}
+        <div data-lalala-input-field="">
           <div>
             <textarea
               ref={fieldRef}
@@ -247,7 +247,7 @@ export function VoiceInput(props: {
             />
             <button
               type="button"
-              data-t3voice-input-cell=""
+              data-lalala-input-cell=""
               aria-label="Attach images"
               onClick={() => fileRef.current?.click()}
             >
@@ -257,7 +257,7 @@ export function VoiceInput(props: {
             </button>
             <button
               type="button"
-              data-t3voice-input-cell=""
+              data-lalala-input-cell=""
               data-send=""
               aria-label="Send to the voice thread"
               disabled={busy || (text.trim() === "" && picked.length === 0)}

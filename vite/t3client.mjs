@@ -11,7 +11,7 @@ import { stateDir } from "./stateDir.mjs";
 const T3_HOME = process.env.T3CODE_HOME?.trim() || NodePath.join(NodeOS.homedir(), ".t3");
 const STATE_DIR = stateDir();
 const SESSION_FILE = NodePath.join(STATE_DIR, "session.json");
-const LABEL = "t3voice";
+const LABEL = "lalala";
 
 /**
  * The `t3` CLI that mints the pairing token: T3CODE_CLI_PATH, else the launcher the desktop app
@@ -35,11 +35,11 @@ const RUNTIME_FILE = NodePath.join(T3_HOME, "userdata/server-runtime.json");
 
 /** This machine's running T3 server's origin, from its runtime file (read only). */
 function localOrigin() {
-  if (process.env.T3VOICE_T3_ORIGIN) return process.env.T3VOICE_T3_ORIGIN.replace(/\/$/, "");
+  if (process.env.LALALA_T3_ORIGIN) return process.env.LALALA_T3_ORIGIN.replace(/\/$/, "");
   try {
     return JSON.parse(NodeFS.readFileSync(RUNTIME_FILE, "utf8")).origin;
   } catch {
-    throw new Error(`T3 Code is not running (no ${RUNTIME_FILE}); start it, or set T3VOICE_T3_ORIGIN`);
+    throw new Error(`T3 Code is not running (no ${RUNTIME_FILE}); start it, or set LALALA_T3_ORIGIN`);
   }
 }
 
@@ -50,7 +50,7 @@ export function t3Origin() {
 
 /** Whether a T3 runs here for `t3 pair`, so the settings can offer pairing with this machine. */
 export const canPairLocal = () =>
-  Boolean(process.env.T3VOICE_T3_ORIGIN) || NodeFS.existsSync(RUNTIME_FILE);
+  Boolean(process.env.LALALA_T3_ORIGIN) || NodeFS.existsSync(RUNTIME_FILE);
 
 function readSession() {
   try {

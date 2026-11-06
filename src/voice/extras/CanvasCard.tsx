@@ -61,7 +61,7 @@ export function CanvasCard(props: {
     if (!shown) return;
     const unmount = mountCard(key, firstPlace(at));
     // A swap remounts every card: its list opens where it was scrolled to, before paint.
-    const body = ref.current?.querySelector<HTMLElement>("[data-t3voice-card-body]");
+    const body = ref.current?.querySelector<HTMLElement>("[data-lalala-card-body]");
     if (body && scrollTops[key]) body.scrollTop = scrollTops[key];
     let last: Rect | undefined;
     const apply = () => {
@@ -80,15 +80,15 @@ export function CanvasCard(props: {
 
   if (!shown) return null;
   return (
-    <section ref={ref} data-t3voice-card={key} style={style(getCards()[key])}>
-      <header data-t3voice-card-grip="">{title}</header>
+    <section ref={ref} data-lalala-card={key} style={style(getCards()[key])}>
+      <header data-lalala-card-grip="">{title}</header>
       <div
-        data-t3voice-card-body=""
+        data-lalala-card-body=""
         onScroll={(event) => (scrollTops[key] = event.currentTarget.scrollTop)}
       >
         {props.children}
       </div>
-      <span data-t3voice-card-resize="" aria-hidden />
+      <span data-lalala-card-resize="" aria-hidden />
     </section>
   );
 }

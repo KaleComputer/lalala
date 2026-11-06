@@ -1,5 +1,5 @@
 /**
- * Hands-free speech for t3voice: open mic, Presence's close-talk gate, realtime speech-to-text and
+ * Hands-free speech for lalala: open mic, Presence's close-talk gate, realtime speech-to-text and
  * replies spoken sentence by sentence. Only the user talking close to the mic starts a turn or cuts a reply
  * (presence/closetalk.js); a reply stops only when the gate hears them and the transcript has their words.
  */
@@ -113,7 +113,7 @@ const BACKCHANNEL = new Set([
 
 // Captures the microphone as 16 kHz mono PCM in 20 ms frames, with each frame's level.
 const CAPTURE_WORKLET = `
-class T3VoiceCapture extends AudioWorkletProcessor {
+class LalalaCapture extends AudioWorkletProcessor {
   constructor() {
     super();
     this.step = sampleRate / ${STT_SAMPLE_RATE};
@@ -141,7 +141,7 @@ class T3VoiceCapture extends AudioWorkletProcessor {
     return true;
   }
 }
-registerProcessor("t3voice-capture", T3VoiceCapture);
+registerProcessor("lalala-capture", LalalaCapture);
 `;
 
 // Scribe sometimes writes full-width punctuation ("is，um..." / "is。").
@@ -350,7 +350,7 @@ export class VoiceSession {
     );
     await context.audioWorklet.addModule(moduleUrl);
     URL.revokeObjectURL(moduleUrl);
-    const capture = new AudioWorkletNode(context, "t3voice-capture");
+    const capture = new AudioWorkletNode(context, "lalala-capture");
     capture.port.onmessage = (event: MessageEvent<{ pcm: Int16Array; level: number }>) =>
       this.onFrame(event.data.pcm, event.data.level);
     const microphone = context.createMediaStreamSource(this.stream);

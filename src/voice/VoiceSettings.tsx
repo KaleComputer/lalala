@@ -14,7 +14,7 @@ import {
 } from "./settingsStore";
 import "./voiceSettings.css";
 
-// What the dev server's T3 bridge serves (t3voice's vite/t3bridge.mjs): the brain thread's model and
+// What the dev server's T3 bridge serves (lalala's vite/t3bridge.mjs): the brain thread's model and
 // T3's providers with each model's own options (T3's ProviderOptionDescriptor).
 type Choice = { readonly id: string; readonly label: string; readonly isDefault?: boolean };
 type Descriptor =
@@ -51,7 +51,7 @@ type BrainState =
   | { readonly kind: "error"; readonly message: string; readonly brain: Brain | null }
   | { readonly kind: "ready"; readonly brain: Brain; readonly saving: boolean };
 
-// What the standalone's bridge says about its link to the harness (t3voice's vite/t3bridge.mjs).
+// What the standalone's bridge says about its link to the harness (lalala's vite/t3bridge.mjs).
 type Connection = {
   readonly harness: string;
   readonly paired: boolean;
@@ -68,9 +68,9 @@ type ConnectionState =
   | { readonly kind: "inside" }
   | { readonly kind: "ready"; readonly connection: Connection };
 
-const BRAIN_ROUTE = "/__t3voice/t3/brain";
-const CONNECTION_ROUTE = "/__t3voice/t3/connection";
-const STREAMER_KEY = "t3voice:streamer";
+const BRAIN_ROUTE = "/__lalala/t3/brain";
+const CONNECTION_ROUTE = "/__lalala/t3/connection";
+const STREAMER_KEY = "lalala:streamer";
 
 const isReasoning = (d: Descriptor) =>
   d.type === "select" &&
@@ -135,7 +135,7 @@ export function VoiceSettings(props: { readonly tabHost: HTMLElement }) {
       {createPortal(
         <button
           type="button"
-          data-t3voice-settings-tab=""
+          data-lalala-settings-tab=""
           data-open={open ? "" : undefined}
           aria-expanded={open}
           aria-label="Voice settings"
@@ -216,14 +216,14 @@ function SettingsSheet(props: { readonly onClose: () => void }) {
   const known = brain.kind === "ready" ? brain.brain : brain.kind === "error" ? brain.brain : null;
 
   return (
-    <div data-t3voice-settings="" onClick={onClose}>
+    <div data-lalala-settings="" onClick={onClose}>
       <div
         ref={panelRef}
         role="dialog"
         aria-modal="true"
         aria-label="Voice settings"
         tabIndex={-1}
-        data-t3voice-settings-panel=""
+        data-lalala-settings-panel=""
         onClick={(event) => event.stopPropagation()}
       >
         <header>
@@ -234,7 +234,7 @@ function SettingsSheet(props: { readonly onClose: () => void }) {
             </svg>
           </button>
         </header>
-        <div data-t3voice-settings-body="">
+        <div data-lalala-settings-body="">
           <ConnectionSection onChange={() => void fetchBrain().then(setBrain)} />
           <BrainSection state={brain} onConfigure={configureBrain} />
           <ThreadsSection brain={known} />
@@ -252,10 +252,10 @@ function Section(props: {
   readonly children?: ReactNode;
 }) {
   return (
-    <section data-t3voice-settings-section="" aria-label={props.title ?? "Canvas"}>
+    <section data-lalala-settings-section="" aria-label={props.title ?? "Canvas"}>
       {props.title ? <h2>{props.title}</h2> : null}
-      {props.note ? <p data-t3voice-settings-note="">{props.note}</p> : null}
-      {props.children ? <div data-t3voice-settings-group="">{props.children}</div> : null}
+      {props.note ? <p data-lalala-settings-note="">{props.note}</p> : null}
+      {props.children ? <div data-lalala-settings-group="">{props.children}</div> : null}
     </section>
   );
 }
@@ -266,12 +266,12 @@ function Row(props: {
   readonly children: ReactNode;
 }) {
   return (
-    <div data-t3voice-settings-row="">
+    <div data-lalala-settings-row="">
       <div>
         <h3>{props.title}</h3>
         {props.description ? <p>{props.description}</p> : null}
       </div>
-      <div data-t3voice-settings-control="">{props.children}</div>
+      <div data-lalala-settings-control="">{props.children}</div>
     </div>
   );
 }
@@ -289,7 +289,7 @@ function Toggle(props: {
       aria-checked={props.on}
       aria-label={props.label}
       disabled={props.disabled}
-      data-t3voice-settings-switch=""
+      data-lalala-settings-switch=""
       onClick={() => props.onChange(!props.on)}
     >
       <span />
@@ -455,7 +455,7 @@ function ConnectionSection(props: { readonly onChange: () => void }) {
 
   return (
     <Section title={title} note="The coding harness the voice works through.">
-      {problem ? <p data-t3voice-settings-error="">{problem}</p> : null}
+      {problem ? <p data-lalala-settings-error="">{problem}</p> : null}
       <Row
         title={c.harness}
         description={
@@ -464,13 +464,13 @@ function ConnectionSection(props: { readonly onChange: () => void }) {
             : (error ?? (c.paired ? where : "Not paired yet."))
         }
       >
-        <span data-t3voice-settings-status="" data-ok={c.connected ? "" : undefined}>
+        <span data-lalala-settings-status="" data-ok={c.connected ? "" : undefined}>
           {c.connected ? "Connected" : "Not connected"}
         </span>
         {c.paired ? (
           <button
             type="button"
-            data-t3voice-settings-button=""
+            data-lalala-settings-button=""
             disabled={busy}
             onClick={() => act("/test")}
           >
@@ -480,7 +480,7 @@ function ConnectionSection(props: { readonly onChange: () => void }) {
       </Row>
       {c.paired && c.brainThread ? (
         <Row title="Brain thread">
-          <span data-t3voice-settings-value="">{c.brainThread.title ?? c.brainThread.id}</span>
+          <span data-lalala-settings-value="">{c.brainThread.title ?? c.brainThread.id}</span>
         </Row>
       ) : null}
       {c.paired && c.session ? (
@@ -490,7 +490,7 @@ function ConnectionSection(props: { readonly onChange: () => void }) {
             c.session.renews ? "Renews itself a week before it ends." : "Pair again before it ends."
           }
         >
-          <span data-t3voice-settings-value="">Until {untilDate(c.session.expiresAt)}</span>
+          <span data-lalala-settings-value="">Until {untilDate(c.session.expiresAt)}</span>
         </Row>
       ) : null}
       {c.paired ? (
@@ -500,7 +500,7 @@ function ConnectionSection(props: { readonly onChange: () => void }) {
         >
           <button
             type="button"
-            data-t3voice-settings-button=""
+            data-lalala-settings-button=""
             data-danger=""
             disabled={busy}
             onClick={() => {
@@ -532,7 +532,7 @@ function ConnectionSection(props: { readonly onChange: () => void }) {
             />
             <button
               type="button"
-              data-t3voice-settings-button=""
+              data-lalala-settings-button=""
               disabled={busy || link.trim() === ""}
               onClick={() => act("/pair", { link: link.trim() })}
             >
@@ -543,7 +543,7 @@ function ConnectionSection(props: { readonly onChange: () => void }) {
             <Row title="This computer" description="Pair with the T3 Code running here.">
               <button
                 type="button"
-                data-t3voice-settings-button=""
+                data-lalala-settings-button=""
                 disabled={busy}
                 onClick={() => act("/pair", { local: true })}
               >
@@ -585,7 +585,7 @@ function BrainSection(props: {
       title={title}
       note="The thread you talk to. Changes apply from its next turn, on every device."
     >
-      {error ? <p data-t3voice-settings-error="">{error}</p> : null}
+      {error ? <p data-lalala-settings-error="">{error}</p> : null}
       <Row title="Model">
         <ModelSelect
           label="Voice brain model"
@@ -674,7 +674,7 @@ function ThreadsSection(props: { readonly brain: Brain | null }) {
             }}
           />
         ) : (
-          <span data-t3voice-settings-value="">{delegates.model ?? "Same as the brain"}</span>
+          <span data-lalala-settings-value="">{delegates.model ?? "Same as the brain"}</span>
         )}
       </Row>
       {model ? (
@@ -695,7 +695,7 @@ function ThreadsSection(props: { readonly brain: Brain | null }) {
             key={id}
             title={id === "fastMode" ? "Fast mode" : id === "effort" ? "Reasoning" : id}
           >
-            <span data-t3voice-settings-value="">{String(value)}</span>
+            <span data-lalala-settings-value="">{String(value)}</span>
           </Row>
         ))
       )}

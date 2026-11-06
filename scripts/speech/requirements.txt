@@ -1,4 +1,4 @@
-# Local speech for t3voice (scripts/speech.sh). Apple Silicon only (MLX).
+# Local speech for lalala (scripts/speech.sh). Apple Silicon only (MLX).
 # en-core-web-sm: the English model misaki (Kokoro's phonemizer) would otherwise download at runtime.
 mlx-audio==0.6.3
 misaki[en]==0.9.4

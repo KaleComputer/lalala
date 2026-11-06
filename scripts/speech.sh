@@ -1,20 +1,20 @@
 #!/bin/bash
-# Local speech for t3voice: Parakeet (speech-to-text) and Kokoro (text-to-speech) on MLX, on
-# 127.0.0.1:${T3VOICE_LOCAL_PORT:-5797}. The t3voice server forwards /__t3voice/local/* to it, so the
+# Local speech for lalala: Parakeet (speech-to-text) and Kokoro (text-to-speech) on MLX, on
+# 127.0.0.1:${LALALA_LOCAL_PORT:-5797}. The lalala server forwards /__lalala/local/* to it, so the
 # browser never talks to this port.
 #
 #   scripts/speech.sh          run in the foreground (npm run speech)
 #   scripts/speech.sh start    start in the background unless it already answers
 #   scripts/speech.sh stop     stop the one started in the background
 #
-# The venv and the models (~2.6 GB, downloaded once) live in $T3VOICE_SPEECH_HOME
-# (default ~/.cache/t3voice), and so do the background log and PID file.
+# The venv and the models (~2.6 GB, downloaded once) live in $LALALA_SPEECH_HOME
+# (default ~/.cache/lalala), and so do the background log and PID file.
 set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 [ -f "$ROOT/.env" ] && set -a && . "$ROOT/.env" && set +a
 HERE="$ROOT/scripts/speech"
-HOME_DIR="${T3VOICE_SPEECH_HOME:-$HOME/.cache/t3voice}"
-PORT="${T3VOICE_LOCAL_PORT:-5797}"
+HOME_DIR="${LALALA_SPEECH_HOME:-$HOME/.cache/lalala}"
+PORT="${LALALA_LOCAL_PORT:-5797}"
 PID_FILE="$HOME_DIR/speech-$PORT.pid"
 LOG_FILE="$HOME_DIR/speech-$PORT.log"
 mkdir -p "$HOME_DIR"
@@ -44,7 +44,7 @@ command -v uv >/dev/null || { echo "Local speech needs uv (https://docs.astral.s
 
 # The venv is rebuilt whenever requirements.txt changes.
 VENV="$HOME_DIR/venv"
-STAMP="$VENV/.t3voice-requirements"
+STAMP="$VENV/.lalala-requirements"
 if ! cmp -s "$HERE/requirements.txt" "$STAMP" 2>/dev/null; then
   echo "Preparing the local speech venv in $VENV ..."
   rm -rf "$VENV"
@@ -53,5 +53,5 @@ if ! cmp -s "$HERE/requirements.txt" "$STAMP" 2>/dev/null; then
   cp "$HERE/requirements.txt" "$STAMP"
 fi
 
-export HF_HUB_CACHE="$HOME_DIR/hf" HF_XET_CACHE="$HOME_DIR/xet" HF_HUB_DISABLE_TELEMETRY=1 T3VOICE_LOCAL_PORT="$PORT"
+export HF_HUB_CACHE="$HOME_DIR/hf" HF_XET_CACHE="$HOME_DIR/xet" HF_HUB_DISABLE_TELEMETRY=1 LALALA_LOCAL_PORT="$PORT"
 exec "$VENV/bin/python" -I "$HERE/server.py"

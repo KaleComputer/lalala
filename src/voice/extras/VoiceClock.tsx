@@ -18,7 +18,7 @@ export function VoiceClock() {
     return () => window.clearTimeout(id);
   }, []);
   return (
-    <time data-t3voice-clock="" dateTime={now.toISOString()}>
+    <time data-lalala-clock="" dateTime={now.toISOString()}>
       {formatTime(now)}
     </time>
   );

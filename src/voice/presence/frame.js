@@ -54,7 +54,7 @@ const GLYPH = {
 /** `createFrame({ bar, frame, reduced })`: `bar` the footer, `frame` its [data-frame]. */
 export function createFrame({ bar, frame, reduced = false }) {
   const tab = frame.querySelector("[data-tab]");
-  // t3voice moves the glyph out of the tab (VoiceBar makeStatusTab), so find it in the frame.
+  // lalala moves the glyph out of the tab (VoiceBar makeStatusTab), so find it in the frame.
   const glyph = frame.querySelector("[data-glyph]");
   const word = tab.querySelector("[data-word]");
   const timer = frame.querySelector("[data-timer]");

@@ -31,11 +31,11 @@ const MAIN = "main";
 export const boxKey = (canvas: string, card: string) =>
   canvas === MAIN ? card : `${canvas}/${card}`;
 
-const STORE = "t3voice:canvas";
-const CANVASES = "t3voice:canvases";
+const STORE = "lalala:canvas";
+const CANVASES = "lalala:canvases";
 /** Per device: which canvas is open, and each other canvas's camera (Main's stays in STORE). */
-const ACTIVE = "t3voice:canvas-active";
-const CAMERAS = "t3voice:canvas-cameras";
+const ACTIVE = "lalala:canvas-active";
+const CAMERAS = "lalala:canvas-cameras";
 const HOME: Camera = { x: 0, y: 0, z: 1 };
 const MIN_ZOOM = 0.2;
 const MAX_ZOOM = 4;
@@ -193,11 +193,11 @@ type Live = {
   canvases: Canvases;
 };
 declare global {
-  var __t3voiceCanvas: Live | undefined;
+  var __lalalaCanvas: Live | undefined;
 }
 // One live layout for every extras build: a swapped-in bundle starts exactly where the last one
 // was, not from localStorage, whose save may still be pending.
-const live: Live = (globalThis.__t3voiceCanvas ??= fresh());
+const live: Live = (globalThis.__lalalaCanvas ??= fresh());
 // A layout kept by a build from before there were canvases.
 live.canvases ??= readCanvases();
 live.canvas ??= MAIN;
@@ -344,7 +344,7 @@ export function holdCard(id: string | null) {
  * device sends the cards it changed, the newest write wins, and the others pick it up within
  * POLL_MS. The camera stays per device, in localStorage only.
  */
-const SHARED = "/__t3voice/canvas";
+const SHARED = "/__lalala/canvas";
 const POLL_MS = 3_000;
 type Shared = {
   readonly cards: Readonly<Record<string, Rect>>;
@@ -474,7 +474,7 @@ const sync = () => {
 
 /** Canvases changed here that the shared layout doesn't have yet. */
 const unsentCanvases = new Set<string>();
-const CANVASES_EVENT = "t3voice:canvases";
+const CANVASES_EVENT = "lalala:canvases";
 
 function snapshotOf(): CanvasesSnapshot {
   return { active: live.canvas, list: listOf(live.canvases) };
@@ -661,7 +661,7 @@ const api = {
 };
 export type CanvasesApi = typeof api;
 declare global {
-  var __t3voiceCanvases: CanvasesApi | undefined;
+  var __lalalaCanvases: CanvasesApi | undefined;
 }
 
 /** Cards waiting for a box, placed together once the whole canvas has mounted. */
@@ -753,7 +753,7 @@ const leave = () => {
 const firstPull = typeof window === "undefined" ? Promise.resolve() : pull(true);
 
 if (typeof window !== "undefined") {
-  globalThis.__t3voiceCanvases = api;
+  globalThis.__lalalaCanvases = api;
   canvasesChanged();
   const poll = window.setInterval(sync, POLL_MS);
   window.addEventListener("pagehide", leave);

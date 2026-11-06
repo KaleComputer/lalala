@@ -38,15 +38,15 @@ function OpenVoiceDock() {
   const lift = Math.max(0, place.clearance - 18);
   if (lift > 0) style["--kb"] = `${lift}px`;
   if (place.column !== null) {
-    style["--t3voice-col-left"] = `${place.column.left}px`;
-    style["--t3voice-col-width"] = `${place.column.width}px`;
+    style["--lalala-col-left"] = `${place.column.left}px`;
+    style["--lalala-col-width"] = `${place.column.width}px`;
   }
   return (
     <div
-      data-t3voice-dock=""
-      data-t3voice-column={place.column === null ? undefined : ""}
+      data-lalala-dock=""
+      data-lalala-column={place.column === null ? undefined : ""}
       // The bar's map square is the canvas's: reserved from the first paint, before the extras load.
-      data-t3voice-canvas={pathname === "/canvas" ? "" : undefined}
+      data-lalala-canvas={pathname === "/canvas" ? "" : undefined}
       style={style as CSSProperties}
     >
       {/* Each view mounts its own composer, or none. */}

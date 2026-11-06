@@ -103,11 +103,11 @@ export function CanvasSurface({ children }: { readonly children: ReactNode }) {
       const at = pointers.get(pointerId);
       const target = starts.get(pointerId)?.target ?? null;
       if (at === undefined) return false;
-      const card = target?.closest<HTMLElement>("[data-t3voice-card]");
-      const id = card?.dataset.t3voiceCard;
+      const card = target?.closest<HTMLElement>("[data-lalala-card]");
+      const id = card?.dataset.lalalaCard;
       if (card && id) {
-        const grip = target?.closest("[data-t3voice-card-grip]");
-        const corner = target?.closest("[data-t3voice-card-resize]");
+        const grip = target?.closest("[data-lalala-card-grip]");
+        const corner = target?.closest("[data-lalala-card-resize]");
         const rect = getCards()[id];
         // Anywhere else in a card: its own taps and scrolling.
         if (!(grip || corner) || !rect) return false;
@@ -165,7 +165,7 @@ export function CanvasSurface({ children }: { readonly children: ReactNode }) {
       lastPointerType = event.pointerType;
       if (event.pointerType === "mouse" && event.button !== 0) return;
       const target = event.target instanceof Element ? event.target : null;
-      const card = target?.closest<HTMLElement>("[data-t3voice-card]");
+      const card = target?.closest<HTMLElement>("[data-lalala-card]");
       // A mouse has one pointer: anything still held from before is stale.
       if (event.pointerType === "mouse") clear();
       pointers.set(event.pointerId, local(event));
@@ -247,7 +247,7 @@ export function CanvasSurface({ children }: { readonly children: ReactNode }) {
       // A finger landing on the screen's edge outside a card would start Safari's back swipe.
       const touch = event.changedTouches[0];
       const outsideCards =
-        event.target instanceof Element && !event.target.closest("[data-t3voice-card]");
+        event.target instanceof Element && !event.target.closest("[data-lalala-card]");
       const edge =
         touch !== undefined && (touch.clientX < 16 || touch.clientX > window.innerWidth - 16);
       if (edge && outsideCards && event.cancelable) event.preventDefault();
@@ -265,7 +265,7 @@ export function CanvasSurface({ children }: { readonly children: ReactNode }) {
 
     const wheel = (event: WheelEvent) => {
       const inBody =
-        event.target instanceof Element && event.target.closest("[data-t3voice-card-body]");
+        event.target instanceof Element && event.target.closest("[data-lalala-card-body]");
       if (event.ctrlKey) {
         // A trackpad pinch (or ctrl + mouse wheel); never the page's zoom.
         event.preventDefault();
@@ -349,8 +349,8 @@ export function CanvasSurface({ children }: { readonly children: ReactNode }) {
   }, []);
 
   return (
-    <div ref={surfaceRef} data-t3voice-surface="">
-      <div ref={worldRef} data-t3voice-world="">
+    <div ref={surfaceRef} data-lalala-surface="">
+      <div ref={worldRef} data-lalala-world="">
         {children}
       </div>
     </div>

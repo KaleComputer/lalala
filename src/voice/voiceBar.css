@@ -1,38 +1,38 @@
-/* t3voice's additions to Presence's bar (presence/presence.css stays a verbatim copy). */
+/* lalala's additions to Presence's bar (presence/presence.css stays a verbatim copy). */
 
 /* No key at the right end (the sync drops it): the room, its wave and its tick rail take the width. */
-[data-t3voice-presence] .bar-line {
+[data-lalala-presence] .bar-line {
   right: 0;
 }
-[data-t3voice-presence] .fr-wv {
+[data-lalala-presence] .fr-wv {
   right: 1px;
 }
-[data-t3voice-presence] .fr-rail,
-[data-t3voice-presence] .fr-segs {
+[data-lalala-presence] .fr-rail,
+[data-lalala-presence] .fr-segs {
   right: 12px;
 }
 
 /* Solid edges: Presence's edge greens at the same strength over the frame's surface, never
    see-through, so an edge reads the same over the page as over the dark. */
-[data-t3voice-presence] .fr {
+[data-lalala-presence] .fr {
   --fe: color-mix(in srgb, #3dff8f 50%, var(--color-surface));
 }
-[data-t3voice-presence] .fr[data-look~="off"] {
+[data-lalala-presence] .fr[data-look~="off"] {
   --fe: color-mix(in srgb, #3dff8f 24%, var(--color-surface));
 }
-[data-t3voice-presence] .fr[data-look~="hot"] {
+[data-lalala-presence] .fr[data-look~="hot"] {
   --fe: color-mix(in srgb, #3dff8f 85%, var(--color-surface));
 }
 /* Connecting: Presence's edge fill (an animated custom property, repainted on the main
    thread) stuttered while the mic and the speech socket kept the page busy, then held until the call was
    live. Instead the dim edge carries two light sweeps, top and bottom, moved by transform alone so they
    stay smooth however busy the page is; they run only while connecting and vanish once it is live. */
-[data-t3voice-presence] .fr[data-look~="draw"] {
+[data-lalala-presence] .fr[data-look~="draw"] {
   --fe: color-mix(in srgb, #3dff8f 24%, var(--color-surface));
   animation: none;
 }
-[data-t3voice-presence] .fr[data-look~="draw"] .fr-body::before,
-[data-t3voice-presence] .fr[data-look~="draw"] .fr-body::after {
+[data-lalala-presence] .fr[data-look~="draw"] .fr-body::before,
+[data-lalala-presence] .fr[data-look~="draw"] .fr-body::after {
   content: "";
   position: absolute;
   z-index: 2;
@@ -43,16 +43,16 @@
   box-shadow: 0 0 4px color-mix(in srgb, var(--hud) 60%, transparent);
   pointer-events: none;
   will-change: transform;
-  animation: t3voice-edge-sweep 1.1s linear infinite;
+  animation: lalala-edge-sweep 1.1s linear infinite;
 }
-[data-t3voice-presence] .fr[data-look~="draw"] .fr-body::before {
+[data-lalala-presence] .fr[data-look~="draw"] .fr-body::before {
   top: 0;
 }
-[data-t3voice-presence] .fr[data-look~="draw"] .fr-body::after {
+[data-lalala-presence] .fr[data-look~="draw"] .fr-body::after {
   bottom: 0;
   animation-direction: reverse;
 }
-@keyframes t3voice-edge-sweep {
+@keyframes lalala-edge-sweep {
   from {
     transform: translateX(-100%);
   }
@@ -61,29 +61,29 @@
   }
 }
 @media (prefers-reduced-motion: reduce) {
-  [data-t3voice-presence] .fr[data-look~="draw"] .fr-body::before,
-  [data-t3voice-presence] .fr[data-look~="draw"] .fr-body::after {
+  [data-lalala-presence] .fr[data-look~="draw"] .fr-body::before,
+  [data-lalala-presence] .fr[data-look~="draw"] .fr-body::after {
     animation: none;
     display: none;
   }
 }
-[data-t3voice-presence] .fr-bk {
+[data-lalala-presence] .fr-bk {
   border-color: color-mix(in srgb, #3dff8f 34%, var(--color-surface));
 }
-[data-t3voice-presence] .fr[data-look~="off"] .fr-bk {
+[data-lalala-presence] .fr[data-look~="off"] .fr-bk {
   border-color: color-mix(in srgb, #3dff8f 17%, var(--color-surface));
   opacity: 1;
 }
 
 /* Above T3's own layers. */
-[data-t3voice-presence] .bar {
+[data-lalala-presence] .bar {
   z-index: 50;
 }
 
 /* The slot for small controls (the update chip): a tab on the top edge at the left, where Presence's
    state tab was, in the timer tab's look (bar.css .fr-tmr). Nothing else sits there, so it showing or
    going shifts nothing. Its content reads the frame's --hud colours. */
-[data-t3voice-presence] .fr-slot {
+[data-lalala-presence] .fr-slot {
   position: absolute;
   z-index: 4;
   left: calc(var(--cut) + 6px);
@@ -96,17 +96,17 @@
   clip-path: polygon(6px 0, 100% 0, 100% 100%, 0 100%);
   --surface: var(--color-surface);
 }
-[data-t3voice-presence] .fr-slot:empty {
+[data-lalala-presence] .fr-slot:empty {
   display: none;
 }
-[data-t3voice-presence] .fr-slot::before {
+[data-lalala-presence] .fr-slot::before {
   content: "";
   position: absolute;
   inset: 1px;
   background: var(--color-surface);
   clip-path: polygon(5.7px 0, 100% 0, 100% 100%, 0 100%);
 }
-[data-t3voice-presence] .fr-slot > * {
+[data-lalala-presence] .fr-slot > * {
   position: relative;
 }
 
@@ -118,7 +118,7 @@
 /* The row's slot on the frame's top edge (VoiceBar makeStatusTab): its bottom is the frame's top line and
    it hides what goes below, so the row slides into and out of the bar, never over it. Room above for the
    input's beam. */
-[data-t3voice-presence] .t3voice-tabs-clip {
+[data-lalala-presence] .lalala-tabs-clip {
   position: absolute;
   z-index: 4;
   right: 0;
@@ -129,38 +129,38 @@
   overflow: hidden;
   pointer-events: none;
 }
-[data-t3voice-presence] .t3voice-tabs {
+[data-lalala-presence] .lalala-tabs {
   position: relative;
   height: var(--tab-h);
   display: flex;
   align-items: stretch;
   pointer-events: none;
 }
-[data-t3voice-presence] {
-  --t3voice-fill:
+[data-lalala-presence] {
+  --lalala-fill:
     repeating-linear-gradient(to bottom, rgba(255, 255, 255, 0.03) 0 1px, transparent 1px 3px),
     var(--color-surface);
 }
-[data-t3voice-presence] .t3voice-tabs > .fr-tab {
+[data-lalala-presence] .lalala-tabs > .fr-tab {
   position: relative;
   left: auto;
   bottom: auto;
-  width: calc(var(--t3voice-map-w) + 1px);
+  width: calc(var(--lalala-map-w) + 1px);
   justify-content: center;
   gap: 0;
   padding: 0;
   clip-path: polygon(0 0, calc(100% - var(--cut)) 0, 100% var(--cut), 100% 100%, 0 100%);
 }
 /* The frame's own edge: never filled or glowing. */
-[data-t3voice-presence] .fr .t3voice-tabs > .fr-tab {
+[data-lalala-presence] .fr .lalala-tabs > .fr-tab {
   background: var(--fe);
   box-shadow: none;
   opacity: 1;
 }
-[data-t3voice-presence] .t3voice-tabs > .fr-tab::before {
+[data-lalala-presence] .lalala-tabs > .fr-tab::before {
   display: block;
   inset: 1px;
-  background: var(--t3voice-fill);
+  background: var(--lalala-fill);
   clip-path: polygon(
     0 0,
     calc(100% - var(--cut) + 0.6px) 0,
@@ -173,30 +173,30 @@
    (frame.js hides the timer) the call tabs keep their solid edges and corners, just empty and inert, only
    the gear live (no dashed slots). A call going live fills them: the seam under the row
    lights and the content rises out of it; ending fades it out. Nothing moves in between. */
-[data-t3voice-presence] .t3voice-tabs:has(.fr-tmr[hidden]) [data-t3voice-mic][data-muted]::after {
-  background: var(--t3voice-fill);
+[data-lalala-presence] .lalala-tabs:has(.fr-tmr[hidden]) [data-lalala-mic][data-muted]::after {
+  background: var(--lalala-fill);
 }
-[data-t3voice-presence]
-  .t3voice-tabs:has(.fr-tmr[hidden])
-  :is([data-t3voice-canvas-name], [data-t3voice-mic], [data-t3voice-input-tab]) {
+[data-lalala-presence]
+  .lalala-tabs:has(.fr-tmr[hidden])
+  :is([data-lalala-canvas-name], [data-lalala-mic], [data-lalala-input-tab]) {
   cursor: default;
   pointer-events: none;
 }
-[data-t3voice-presence]
-  :is([data-t3voice-canvas-name] > *, [data-t3voice-mic] svg, [data-t3voice-input-tab] svg) {
+[data-lalala-presence]
+  :is([data-lalala-canvas-name] > *, [data-lalala-mic] svg, [data-lalala-input-tab] svg) {
   transition: opacity 200ms ease-out;
 }
-[data-t3voice-presence]
-  .t3voice-tabs:has(.fr-tmr[hidden])
-  :is([data-t3voice-canvas-name] > *, [data-t3voice-mic] svg, [data-t3voice-input-tab] svg) {
+[data-lalala-presence]
+  .lalala-tabs:has(.fr-tmr[hidden])
+  :is([data-lalala-canvas-name] > *, [data-lalala-mic] svg, [data-lalala-input-tab] svg) {
   opacity: 0;
 }
-[data-t3voice-presence]
-  .t3voice-tabs:has(.fr-tmr:not([hidden]))
-  :is([data-t3voice-canvas-name] > *, [data-t3voice-mic] svg, [data-t3voice-input-tab] svg) {
-  animation: t3voice-content-rise 240ms cubic-bezier(0.2, 0.9, 0.3, 1);
+[data-lalala-presence]
+  .lalala-tabs:has(.fr-tmr:not([hidden]))
+  :is([data-lalala-canvas-name] > *, [data-lalala-mic] svg, [data-lalala-input-tab] svg) {
+  animation: lalala-content-rise 240ms cubic-bezier(0.2, 0.9, 0.3, 1);
 }
-@keyframes t3voice-content-rise {
+@keyframes lalala-content-rise {
   0% {
     transform: translateY(var(--tab-h));
   }
@@ -208,13 +208,13 @@
   }
 }
 @media (prefers-reduced-motion: reduce) {
-  [data-t3voice-presence]
-    .t3voice-tabs:has(.fr-tmr:not([hidden]))
-    :is([data-t3voice-canvas-name] > *, [data-t3voice-mic] svg, [data-t3voice-input-tab] svg) {
+  [data-lalala-presence]
+    .lalala-tabs:has(.fr-tmr:not([hidden]))
+    :is([data-lalala-canvas-name] > *, [data-lalala-mic] svg, [data-lalala-input-tab] svg) {
     animation: none;
   }
 }
-[data-t3voice-presence] .t3voice-tabs-clip::after {
+[data-lalala-presence] .lalala-tabs-clip::after {
   content: "";
   position: absolute;
   left: 0;
@@ -226,10 +226,10 @@
   opacity: 0;
   pointer-events: none;
 }
-[data-t3voice-presence] .t3voice-tabs-clip:has(.fr-tmr:not([hidden]))::after {
-  animation: t3voice-seam-open 260ms ease-out;
+[data-lalala-presence] .lalala-tabs-clip:has(.fr-tmr:not([hidden]))::after {
+  animation: lalala-seam-open 260ms ease-out;
 }
-@keyframes t3voice-seam-open {
+@keyframes lalala-seam-open {
   15% {
     opacity: 1;
   }
@@ -237,14 +237,14 @@
     opacity: 0;
   }
 }
-[data-t3voice-presence] .fr-tab .fr-tmr[hidden] {
+[data-lalala-presence] .fr-tab .fr-tmr[hidden] {
   visibility: hidden;
 }
-[data-t3voice-presence] .t3voice-tabs > .fr-tab:has(> .fr-tmr:not([hidden])) > .fr-tmr {
-  animation: t3voice-glitch-slice 300ms steps(1, end);
+[data-lalala-presence] .lalala-tabs > .fr-tab:has(> .fr-tmr:not([hidden])) > .fr-tmr {
+  animation: lalala-glitch-slice 300ms steps(1, end);
 }
 /* Only fully on or off: a half-see-through edge reads pale over the page. */
-@keyframes t3voice-glitch-in {
+@keyframes lalala-glitch-in {
   0% {
     opacity: 0;
     transform: translateX(3px);
@@ -267,7 +267,7 @@
     transform: none;
   }
 }
-@keyframes t3voice-glitch-slice {
+@keyframes lalala-glitch-slice {
   0% {
     clip-path: inset(0 0 55% 0);
     transform: translateX(-3px);
@@ -286,23 +286,23 @@
     transform: none;
   }
 }
-@keyframes t3voice-fade-in {
+@keyframes lalala-fade-in {
   from {
     opacity: 0;
   }
 }
 @media (prefers-reduced-motion: reduce) {
-  [data-t3voice-presence] .t3voice-tabs > .fr-tab:has(> .fr-tmr:not([hidden])) > .fr-tmr {
-    animation: t3voice-fade-in 200ms ease-out;
+  [data-lalala-presence] .lalala-tabs > .fr-tab:has(> .fr-tmr:not([hidden])) > .fr-tmr {
+    animation: lalala-fade-in 200ms ease-out;
   }
 }
 /* The time shows even through a reconnect (Presence hides it under no signal). */
-[data-t3voice-presence] .fr-tab .fr-tmr,
-[data-t3voice-presence] .fr-tab .fr-tmr[hidden],
-[data-t3voice-presence] .fr[data-state="nosignal"] .fr-tab .fr-tmr {
+[data-lalala-presence] .fr-tab .fr-tmr,
+[data-lalala-presence] .fr-tab .fr-tmr[hidden],
+[data-lalala-presence] .fr[data-state="nosignal"] .fr-tab .fr-tmr {
   display: flex !important;
 }
-[data-t3voice-presence] .fr-tab .fr-tmr {
+[data-lalala-presence] .fr-tab .fr-tmr {
   position: relative;
   right: auto;
   bottom: auto;
@@ -317,63 +317,63 @@
   /* The letter-spacing trails the last digit; cancel it so the time sits truly centred. */
   margin-right: -0.08em;
 }
-[data-t3voice-presence] .fr-tab .fr-tmr::before {
+[data-lalala-presence] .fr-tab .fr-tmr::before {
   display: none;
 }
 /* No state glyph or word (the wave already shows the state); kept, hidden, for frame.js. */
-[data-t3voice-presence] .t3voice-tabs .fr-glyph,
-[data-t3voice-presence] .t3voice-tabs .fr-word {
+[data-lalala-presence] .lalala-tabs .fr-glyph,
+[data-lalala-presence] .lalala-tabs .fr-word {
   display: none;
 }
 /* UPDATE: its own tab at the bar's left end, on the frame's top edge just past its cut,
    in and out of a call alike, shown only when a build waits. INPUT's width (whole pixels, just room for
    the word) with a small cut at both top corners. A sibling of the tab row, so the row's clip never
    cuts it. */
-[data-t3voice-presence] .t3voice-lead {
+[data-lalala-presence] .lalala-lead {
   position: absolute;
   z-index: 4;
   left: calc(var(--cut) + 6px);
   bottom: calc(100% - 1px);
-  width: var(--t3voice-update-w);
+  width: var(--lalala-update-w);
   height: var(--tab-h);
   display: flex;
   background: var(--fe);
   clip-path: polygon(4px 0, calc(100% - 4px) 0, 100% 4px, 100% 100%, 0 100%, 0 4px);
 }
-[data-t3voice-presence] .t3voice-lead:empty {
+[data-lalala-presence] .lalala-lead:empty {
   display: none;
 }
-[data-t3voice-presence] .t3voice-lead::before {
+[data-lalala-presence] .lalala-lead::before {
   content: "";
   position: absolute;
   inset: 1px;
-  background: var(--t3voice-fill);
+  background: var(--lalala-fill);
   clip-path: polygon(3.4px 0, calc(100% - 3.4px) 0, 100% 3.4px, 100% 100%, 0 100%, 0 3.4px);
 }
 
 /* The map square (the canvas's mini-map, extras/CanvasMap) at the right end of the frame's body,
    where Presence's key was, behind the same divider; the body's clip gives it the cut corner. The
    room, its wave and its rail end at its divider. Shown on /canvas only, decided by the route (VoiceDock
-   data-t3voice-canvas) from the first paint, never by its content arriving, so nothing shifts. */
-[data-t3voice-presence] {
+   data-lalala-canvas) from the first paint, never by its content arriving, so nothing shifts. */
+[data-lalala-presence] {
   /* As wide as Presence's key. */
-  --t3voice-map-w: calc(var(--key-w) + 1px);
+  --lalala-map-w: calc(var(--key-w) + 1px);
 }
 
 /* No state strip on the frame's left edge ("that is so annoying"). */
-[data-t3voice-presence] .fr {
+[data-lalala-presence] .fr {
   --fr-strip: 0px;
 }
-[data-t3voice-presence] .fr-strip {
+[data-lalala-presence] .fr-strip {
   display: none;
 }
-[data-t3voice-presence] .fr-map {
+[data-lalala-presence] .fr-map {
   position: absolute;
   z-index: 3;
   right: 0;
   top: 0;
   bottom: 0;
-  width: var(--t3voice-map-w);
+  width: var(--lalala-map-w);
   padding: 4px 4px 4px 5px;
   /* A fine grid under the map (R1), there before the map draws, inside the padding so no grid line
      runs beside an edge (never two borders side by side). */
@@ -382,7 +382,7 @@
     linear-gradient(rgba(61, 255, 143, 0.07) 1px, transparent 0) 0 0 / 8px 8px content-box,
     rgba(61, 255, 143, 0.06);
 }
-[data-t3voice-presence] .fr-map::before {
+[data-lalala-presence] .fr-map::before {
   content: "";
   position: absolute;
   left: 0;
@@ -391,44 +391,44 @@
   width: 1px;
   background: var(--fe);
 }
-[data-t3voice-dock]:not([data-t3voice-canvas]) .fr-map {
+[data-lalala-dock]:not([data-lalala-canvas]) .fr-map {
   display: none;
 }
-[data-t3voice-canvas] [data-t3voice-presence] .bar-line {
-  right: var(--t3voice-map-w);
+[data-lalala-canvas] [data-lalala-presence] .bar-line {
+  right: var(--lalala-map-w);
 }
-[data-t3voice-canvas] [data-t3voice-presence] .fr-wv {
-  right: calc(var(--t3voice-map-w) + 1px);
+[data-lalala-canvas] [data-lalala-presence] .fr-wv {
+  right: calc(var(--lalala-map-w) + 1px);
 }
-[data-t3voice-canvas] [data-t3voice-presence] :is(.fr-rail, .fr-segs) {
-  right: calc(var(--t3voice-map-w) + 12px);
+[data-lalala-canvas] [data-lalala-presence] :is(.fr-rail, .fr-segs) {
+  right: calc(var(--lalala-map-w) + 12px);
 }
 
 /* The mic tab: left of "+", its twin in size and build, there during a call.
    Muted it turns amber with a slashed mic, the same on desktop and phone. It takes "+"'s cut corner;
    "+"'s left edge becomes the seam between them. */
-[data-t3voice-presence] .t3voice-mic-slot {
+[data-lalala-presence] .lalala-mic-slot {
   display: flex;
 }
-[data-t3voice-presence] .t3voice-mic-slot:empty {
+[data-lalala-presence] .lalala-mic-slot:empty {
   display: none;
 }
-[data-t3voice-presence]
-  .t3voice-mic-slot:not(:empty)
-  + .t3voice-input-slot
-  [data-t3voice-input-tab]::before,
-[data-t3voice-presence]
-  .t3voice-mic-slot:not(:empty)
-  + .t3voice-input-slot
-  [data-t3voice-input-tab]::after {
+[data-lalala-presence]
+  .lalala-mic-slot:not(:empty)
+  + .lalala-input-slot
+  [data-lalala-input-tab]::before,
+[data-lalala-presence]
+  .lalala-mic-slot:not(:empty)
+  + .lalala-input-slot
+  [data-lalala-input-tab]::after {
   clip-path: none;
 }
-[data-t3voice-presence] [data-t3voice-mic] {
+[data-lalala-presence] [data-lalala-mic] {
   position: relative;
   isolation: isolate;
   display: grid;
   place-items: center;
-  width: var(--t3voice-input-tab-w);
+  width: var(--lalala-input-tab-w);
   border: 0;
   padding: 0;
   color: var(--hud);
@@ -438,23 +438,23 @@
   touch-action: manipulation;
   -webkit-tap-highlight-color: transparent;
 }
-[data-t3voice-presence] [data-t3voice-mic]::before,
-[data-t3voice-presence] [data-t3voice-mic]::after {
+[data-lalala-presence] [data-lalala-mic]::before,
+[data-lalala-presence] [data-lalala-mic]::after {
   content: "";
   position: absolute;
   z-index: -1;
 }
-[data-t3voice-presence] [data-t3voice-mic]::before {
+[data-lalala-presence] [data-lalala-mic]::before {
   inset: 0;
   background: var(--fe);
   clip-path: polygon(4px 0, 100% 0, 100% 100%, 0 100%, 0 4px);
 }
-[data-t3voice-presence] [data-t3voice-mic]::after {
+[data-lalala-presence] [data-lalala-mic]::after {
   inset: 1px 0 1px 1px;
-  background: var(--t3voice-fill);
+  background: var(--lalala-fill);
   clip-path: polygon(3.4px 0, 100% 0, 100% 100%, 0 100%, 0 3.4px);
 }
-[data-t3voice-presence] [data-t3voice-mic] svg {
+[data-lalala-presence] [data-lalala-mic] svg {
   width: 12px;
   fill: none;
   stroke: currentColor;
@@ -462,52 +462,52 @@
   stroke-linecap: round;
   opacity: 0.75;
 }
-[data-t3voice-presence] [data-t3voice-mic]:focus-visible {
+[data-lalala-presence] [data-lalala-mic]:focus-visible {
   outline: 0;
 }
-[data-t3voice-presence] [data-t3voice-mic]:is(:hover, :focus-visible)::after {
+[data-lalala-presence] [data-lalala-mic]:is(:hover, :focus-visible)::after {
   background:
-    linear-gradient(rgba(61, 255, 143, 0.14), rgba(61, 255, 143, 0.14)), var(--t3voice-fill);
+    linear-gradient(rgba(61, 255, 143, 0.14), rgba(61, 255, 143, 0.14)), var(--lalala-fill);
 }
-[data-t3voice-presence] [data-t3voice-mic]:is(:hover, :focus-visible) svg,
-[data-t3voice-presence] [data-t3voice-mic][data-muted] svg {
+[data-lalala-presence] [data-lalala-mic]:is(:hover, :focus-visible) svg,
+[data-lalala-presence] [data-lalala-mic][data-muted] svg {
   opacity: 1;
 }
-[data-t3voice-presence] [data-t3voice-mic][data-muted] {
+[data-lalala-presence] [data-lalala-mic][data-muted] {
   color: #ffb02e;
 }
-[data-t3voice-presence] [data-t3voice-mic][data-muted]::after {
+[data-lalala-presence] [data-lalala-mic][data-muted]::after {
   background:
-    linear-gradient(rgba(255, 176, 46, 0.12), rgba(255, 176, 46, 0.12)), var(--t3voice-fill);
+    linear-gradient(rgba(255, 176, 46, 0.12), rgba(255, 176, 46, 0.12)), var(--lalala-fill);
 }
-[data-t3voice-presence] [data-t3voice-mic][data-muted]:is(:hover, :focus-visible)::after {
+[data-lalala-presence] [data-lalala-mic][data-muted]:is(:hover, :focus-visible)::after {
   background:
-    linear-gradient(rgba(255, 176, 46, 0.2), rgba(255, 176, 46, 0.2)), var(--t3voice-fill);
+    linear-gradient(rgba(255, 176, 46, 0.2), rgba(255, 176, 46, 0.2)), var(--lalala-fill);
 }
 
 /* The canvas's name tab (CanvasTabs), left of the gear, built like the mic; only in a call, like the rest
    of the row. */
-[data-t3voice-presence] .t3voice-canvas-slot {
+[data-lalala-presence] .lalala-canvas-slot {
   display: flex;
 }
-[data-t3voice-presence] .t3voice-canvas-slot:empty {
+[data-lalala-presence] .lalala-canvas-slot:empty {
   display: none;
 }
 /* The gear before the mic takes its cut corner. */
-[data-t3voice-presence]
-  .t3voice-settings-slot:not(:empty)
-  + .t3voice-mic-slot
-  [data-t3voice-mic]::before,
-[data-t3voice-presence]
-  .t3voice-settings-slot:not(:empty)
-  + .t3voice-mic-slot
-  [data-t3voice-mic]::after {
+[data-lalala-presence]
+  .lalala-settings-slot:not(:empty)
+  + .lalala-mic-slot
+  [data-lalala-mic]::before,
+[data-lalala-presence]
+  .lalala-settings-slot:not(:empty)
+  + .lalala-mic-slot
+  [data-lalala-mic]::after {
   clip-path: none;
 }
-[data-t3voice-presence] [data-t3voice-canvas-tabs] {
+[data-lalala-presence] [data-lalala-canvas-tabs] {
   display: flex;
 }
-[data-t3voice-presence] [data-t3voice-canvas-name] {
+[data-lalala-presence] [data-lalala-canvas-name] {
   position: relative;
   isolation: isolate;
   display: flex;
@@ -522,28 +522,28 @@
   touch-action: manipulation;
   -webkit-tap-highlight-color: transparent;
 }
-[data-t3voice-presence] [data-t3voice-canvas-name]::before,
-[data-t3voice-presence] [data-t3voice-canvas-name]::after {
+[data-lalala-presence] [data-lalala-canvas-name]::before,
+[data-lalala-presence] [data-lalala-canvas-name]::after {
   content: "";
   position: absolute;
   z-index: -1;
 }
-[data-t3voice-presence] [data-t3voice-canvas-name]::before {
+[data-lalala-presence] [data-lalala-canvas-name]::before {
   inset: 0;
   background: var(--fe);
 }
-[data-t3voice-presence] [data-t3voice-canvas-name]::after {
+[data-lalala-presence] [data-lalala-canvas-name]::after {
   inset: 1px 0 1px 1px;
-  background: var(--t3voice-fill);
+  background: var(--lalala-fill);
 }
-[data-t3voice-presence] [data-t3voice-canvas-name]::before {
+[data-lalala-presence] [data-lalala-canvas-name]::before {
   clip-path: polygon(4px 0, 100% 0, 100% 100%, 0 100%, 0 4px);
 }
-[data-t3voice-presence] [data-t3voice-canvas-name]::after {
+[data-lalala-presence] [data-lalala-canvas-name]::after {
   clip-path: polygon(3.4px 0, 100% 0, 100% 100%, 0 100%, 0 3.4px);
 }
 /* The time's type, like "+": side by side they read as one row. */
-[data-t3voice-presence] [data-t3voice-canvas-name] {
+[data-lalala-presence] [data-lalala-canvas-name] {
   gap: 5px;
   max-width: 112px;
   padding: 0 8px 0 9px;
@@ -552,37 +552,37 @@
   text-transform: uppercase;
   white-space: nowrap;
 }
-[data-t3voice-presence] [data-t3voice-canvas-name] > span {
+[data-lalala-presence] [data-lalala-canvas-name] > span {
   min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
 }
-[data-t3voice-presence] [data-t3voice-canvas-name] > svg {
+[data-lalala-presence] [data-lalala-canvas-name] > svg {
   flex: none;
   width: 7px;
   fill: currentColor;
   opacity: 0.75;
 }
-[data-t3voice-presence] [data-t3voice-canvas-name]:focus-visible {
+[data-lalala-presence] [data-lalala-canvas-name]:focus-visible {
   outline: 0;
 }
-[data-t3voice-presence] [data-t3voice-canvas-name]:is(:hover, :focus-visible)::after {
+[data-lalala-presence] [data-lalala-canvas-name]:is(:hover, :focus-visible)::after {
   background:
-    linear-gradient(rgba(61, 255, 143, 0.14), rgba(61, 255, 143, 0.14)), var(--t3voice-fill);
+    linear-gradient(rgba(61, 255, 143, 0.14), rgba(61, 255, 143, 0.14)), var(--lalala-fill);
 }
 /* Lit like "+" while its list is up. */
-[data-t3voice-presence] [data-t3voice-canvas-name][data-open] {
+[data-lalala-presence] [data-lalala-canvas-name][data-open] {
   color: var(--hud-ink);
 }
-[data-t3voice-presence] [data-t3voice-canvas-name][data-open]::after {
+[data-lalala-presence] [data-lalala-canvas-name][data-open]::after {
   background: var(--hud);
 }
 /* The list, risen over the name tab, built like the frame: the edge 1px around, the canvases (the open
    one's square lit), then New, Rename, Tidy and Delete as one row of cells. It glitches in once. */
-[data-t3voice-presence] [data-t3voice-canvas-panel] {
+[data-lalala-presence] [data-lalala-canvas-panel] {
   position: absolute;
   z-index: 6;
-  right: max(0px, min(var(--t3voice-canvas-at), calc(100% - 200px)));
+  right: max(0px, min(var(--lalala-canvas-at), calc(100% - 200px)));
   bottom: calc(100% + var(--tab-h) + 6px);
   width: min(200px, 100%);
   display: flex;
@@ -591,23 +591,23 @@
   padding: 1px;
   background: var(--fe);
   clip-path: polygon(6px 0, calc(100% - 6px) 0, 100% 6px, 100% 100%, 0 100%, 0 6px);
-  animation: t3voice-glitch-in 180ms steps(1, end);
+  animation: lalala-glitch-in 180ms steps(1, end);
 }
 @media (prefers-reduced-motion: reduce) {
-  [data-t3voice-presence] [data-t3voice-canvas-panel] {
+  [data-lalala-presence] [data-lalala-canvas-panel] {
     animation: none;
   }
 }
-[data-t3voice-presence] [data-t3voice-canvas-panel] > ul {
+[data-lalala-presence] [data-lalala-canvas-panel] > ul {
   max-height: 40vh;
   margin: 0;
   padding: 4px 0;
   overflow-y: auto;
   list-style: none;
-  background: var(--t3voice-fill);
+  background: var(--lalala-fill);
   clip-path: polygon(5.4px 0, calc(100% - 5.4px) 0, 100% 5.4px, 100% 100%, 0 100%, 0 5.4px);
 }
-[data-t3voice-presence] [data-t3voice-canvas-panel] li > button {
+[data-lalala-presence] [data-lalala-canvas-panel] li > button {
   display: flex;
   align-items: center;
   gap: 8px;
@@ -623,31 +623,31 @@
   cursor: pointer;
   -webkit-tap-highlight-color: transparent;
 }
-[data-t3voice-presence] [data-t3voice-canvas-panel] li > button::before {
+[data-lalala-presence] [data-lalala-canvas-panel] li > button::before {
   content: "";
   flex: none;
   width: 7px;
   height: 7px;
   background: var(--hud-3);
 }
-[data-t3voice-presence] [data-t3voice-canvas-panel] li > button > span {
+[data-lalala-presence] [data-lalala-canvas-panel] li > button > span {
   min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
-[data-t3voice-presence] [data-t3voice-canvas-panel] li[data-active] > button {
+[data-lalala-presence] [data-lalala-canvas-panel] li[data-active] > button {
   color: var(--hud);
 }
-[data-t3voice-presence] [data-t3voice-canvas-panel] li[data-active] > button::before {
+[data-lalala-presence] [data-lalala-canvas-panel] li[data-active] > button::before {
   background: var(--hud);
 }
-[data-t3voice-presence] [data-t3voice-canvas-panel] li > button:is(:hover, :focus-visible) {
+[data-lalala-presence] [data-lalala-canvas-panel] li > button:is(:hover, :focus-visible) {
   outline: 0;
   color: var(--hud);
   background: var(--hud-4);
 }
-[data-t3voice-presence] [data-t3voice-canvas-panel] li > input {
+[data-lalala-presence] [data-lalala-canvas-panel] li > input {
   display: block;
   width: calc(100% - 20px);
   height: 20px;
@@ -661,18 +661,18 @@
   font: 400 var(--tab-fs) / 1 var(--font-mono);
   letter-spacing: 0.06em;
 }
-[data-t3voice-presence] [data-t3voice-canvas-actions] {
+[data-lalala-presence] [data-lalala-canvas-actions] {
   display: grid;
   grid-auto-columns: 1fr;
   grid-auto-flow: column;
   gap: 1px;
 }
-[data-t3voice-presence] [data-t3voice-canvas-actions] > button {
+[data-lalala-presence] [data-lalala-canvas-actions] > button {
   height: 22px;
   padding: 0 4px;
   border: 0;
   color: var(--hud);
-  background: var(--t3voice-fill);
+  background: var(--lalala-fill);
   font: 400 calc(var(--tab-fs) - 1px) / 1 var(--font-mono);
   letter-spacing: 0.12em;
   text-transform: uppercase;
@@ -680,18 +680,18 @@
   touch-action: manipulation;
   -webkit-tap-highlight-color: transparent;
 }
-[data-t3voice-presence] [data-t3voice-canvas-actions] > button:is(:hover, :focus-visible) {
+[data-lalala-presence] [data-lalala-canvas-actions] > button:is(:hover, :focus-visible) {
   outline: 0;
   background:
-    linear-gradient(rgba(61, 255, 143, 0.14), rgba(61, 255, 143, 0.14)), var(--t3voice-fill);
+    linear-gradient(rgba(61, 255, 143, 0.14), rgba(61, 255, 143, 0.14)), var(--lalala-fill);
 }
-[data-t3voice-presence] [data-t3voice-canvas-actions] > [data-danger] {
+[data-lalala-presence] [data-lalala-canvas-actions] > [data-danger] {
   color: #ffb02e;
 }
 
 /* An update is ready: a tap applies it (it never reloads by itself during a call). It fills
    the UPDATE tab: a lit dot and UPDATE, the whole tab the tap target. */
-[data-t3voice-presence] [data-t3voice-update] {
+[data-lalala-presence] [data-lalala-update] {
   position: relative;
   flex: 1;
   display: flex;
@@ -710,25 +710,25 @@
   pointer-events: auto;
   -webkit-tap-highlight-color: transparent;
 }
-[data-t3voice-presence] [data-t3voice-update]:focus-visible {
+[data-lalala-presence] [data-lalala-update]:focus-visible {
   outline: 0;
   color: var(--hud-ink);
   background: var(--hud);
 }
 /* The settings gear (VoiceSettings): between the canvas's name and the mic, built like the
    mic, in the same spot in and out of a call (design D). Lit while the settings are open. */
-[data-t3voice-presence] .t3voice-settings-slot {
+[data-lalala-presence] .lalala-settings-slot {
   display: flex;
 }
-[data-t3voice-presence] .t3voice-settings-slot:empty {
+[data-lalala-presence] .lalala-settings-slot:empty {
   display: none;
 }
-[data-t3voice-presence] [data-t3voice-settings-tab] {
+[data-lalala-presence] [data-lalala-settings-tab] {
   position: relative;
   isolation: isolate;
   display: grid;
   place-items: center;
-  width: var(--t3voice-input-tab-w);
+  width: var(--lalala-input-tab-w);
   border: 0;
   padding: 0;
   color: var(--hud);
@@ -738,34 +738,34 @@
   touch-action: manipulation;
   -webkit-tap-highlight-color: transparent;
 }
-[data-t3voice-presence] [data-t3voice-settings-tab]::before,
-[data-t3voice-presence] [data-t3voice-settings-tab]::after {
+[data-lalala-presence] [data-lalala-settings-tab]::before,
+[data-lalala-presence] [data-lalala-settings-tab]::after {
   content: "";
   position: absolute;
   z-index: -1;
 }
-[data-t3voice-presence] [data-t3voice-settings-tab]::before {
+[data-lalala-presence] [data-lalala-settings-tab]::before {
   inset: 0;
   background: var(--fe);
 }
-[data-t3voice-presence] [data-t3voice-settings-tab]::after {
+[data-lalala-presence] [data-lalala-settings-tab]::after {
   inset: 1px 0 1px 1px;
-  background: var(--t3voice-fill);
+  background: var(--lalala-fill);
 }
 /* First in the row (no canvas name): the row's cut corner. */
-[data-t3voice-presence]
-  .t3voice-canvas-slot:empty
-  + .t3voice-settings-slot
-  [data-t3voice-settings-tab]::before {
+[data-lalala-presence]
+  .lalala-canvas-slot:empty
+  + .lalala-settings-slot
+  [data-lalala-settings-tab]::before {
   clip-path: polygon(4px 0, 100% 0, 100% 100%, 0 100%, 0 4px);
 }
-[data-t3voice-presence]
-  .t3voice-canvas-slot:empty
-  + .t3voice-settings-slot
-  [data-t3voice-settings-tab]::after {
+[data-lalala-presence]
+  .lalala-canvas-slot:empty
+  + .lalala-settings-slot
+  [data-lalala-settings-tab]::after {
   clip-path: polygon(3.4px 0, 100% 0, 100% 100%, 0 100%, 0 3.4px);
 }
-[data-t3voice-presence] [data-t3voice-settings-tab] svg {
+[data-lalala-presence] [data-lalala-settings-tab] svg {
   width: 12px;
   fill: none;
   stroke: currentColor;
@@ -773,26 +773,26 @@
   stroke-linecap: round;
   opacity: 0.75;
 }
-[data-t3voice-presence] [data-t3voice-settings-tab]:focus-visible {
+[data-lalala-presence] [data-lalala-settings-tab]:focus-visible {
   outline: 0;
 }
-[data-t3voice-presence] [data-t3voice-settings-tab]:is(:hover, :focus-visible)::after {
+[data-lalala-presence] [data-lalala-settings-tab]:is(:hover, :focus-visible)::after {
   background:
-    linear-gradient(rgba(61, 255, 143, 0.14), rgba(61, 255, 143, 0.14)), var(--t3voice-fill);
+    linear-gradient(rgba(61, 255, 143, 0.14), rgba(61, 255, 143, 0.14)), var(--lalala-fill);
 }
-[data-t3voice-presence] [data-t3voice-settings-tab]:is(:hover, :focus-visible, [data-open]) svg {
+[data-lalala-presence] [data-lalala-settings-tab]:is(:hover, :focus-visible, [data-open]) svg {
   opacity: 1;
 }
-[data-t3voice-presence] [data-t3voice-settings-tab][data-open] {
+[data-lalala-presence] [data-lalala-settings-tab][data-open] {
   color: var(--hud-ink);
 }
-[data-t3voice-presence] [data-t3voice-settings-tab][data-open]::after {
+[data-lalala-presence] [data-lalala-settings-tab][data-open]::after {
   background: var(--hud);
 }
 
 /* The dock (VoiceDock): the bottom edge of the main content, beside an open desktop sidebar, never
    over it. Below sheets (the phone's sidebar), dialogs and popovers. */
-[data-t3voice-dock] {
+[data-lalala-dock] {
   position: fixed;
   z-index: 40;
   left: 0;
@@ -801,11 +801,11 @@
   height: 0;
 }
 @media (min-width: 768px) {
-  [data-sidebar-state="expanded"] [data-t3voice-dock] {
+  [data-sidebar-state="expanded"] [data-lalala-dock] {
     left: var(--sidebar-width);
   }
 }
-[data-t3voice-dock] [data-t3voice-presence] .bar {
+[data-lalala-dock] [data-lalala-presence] .bar {
   position: absolute;
   width: min(440px, calc(100% - 2 * var(--grid-edge)));
 }
@@ -813,19 +813,19 @@
 /* On a view with a composer the bar takes its column (VoiceDock measures it), not the dock's centre
    and 440px: centred over the column and at most 440px wide, so the frame sits inside it. Without a
    composer (the canvas) the dock's centring above stays. */
-[data-t3voice-dock][data-t3voice-column] [data-t3voice-presence] .bar {
+[data-lalala-dock][data-lalala-column] [data-lalala-presence] .bar {
   position: fixed;
   left: calc(
-    var(--t3voice-col-left) + (var(--t3voice-col-width) - min(440px, var(--t3voice-col-width))) / 2
+    var(--lalala-col-left) + (var(--lalala-col-width) - min(440px, var(--lalala-col-width))) / 2
   );
   right: auto;
-  width: min(440px, var(--t3voice-col-width));
+  width: min(440px, var(--lalala-col-width));
   margin-inline: 0;
 }
 
 /* The user talking: the listening wash grows brighter and wider with their voice (VoiceBar writes
-   --t3voice-voice, 0..1, only while it moves). Their microphone no longer moves the tab's bars. */
-[data-t3voice-presence] .bar-wash::after {
+   --lalala-voice, 0..1, only while it moves). Their microphone no longer moves the tab's bars. */
+[data-lalala-presence] .bar-wash::after {
   content: "";
   position: absolute;
   inset: 0;
@@ -835,13 +835,13 @@
     rgba(86, 214, 140, 0.3) 45%,
     rgba(86, 214, 140, 0)
   );
-  opacity: var(--t3voice-voice, 0);
+  opacity: var(--lalala-voice, 0);
   transform: scale(
-    calc(0.45 + 0.7 * var(--t3voice-voice, 0)),
-    calc(0.75 + 0.4 * var(--t3voice-voice, 0))
+    calc(0.45 + 0.7 * var(--lalala-voice, 0)),
+    calc(0.75 + 0.4 * var(--lalala-voice, 0))
   );
 }
-[data-t3voice-presence] .g-bars:not(.amb)[data-live] i {
+[data-lalala-presence] .g-bars:not(.amb)[data-live] i {
   transform: scaleY(0.5) !important;
 }
 
@@ -850,18 +850,18 @@
    (::after) 1px in, and a projector on its top edge (below). One 1px seam between neighbours: the
    time box or UPDATE draws it; alone (no call, no update) it closes its own right edge. Lit while the
    field is open. */
-[data-t3voice-presence] {
+[data-lalala-presence] {
   /* INPUT's plus with room either side, UPDATE's word with a small inset, in whole
      pixels so the edges stay crisp. */
-  --t3voice-input-tab-w: 34px;
-  --t3voice-update-w: 48px;
+  --lalala-input-tab-w: 34px;
+  --lalala-update-w: 48px;
 }
 /* The letter-spacing trails the last letter; cancel it so the word sits truly centred. */
-[data-t3voice-presence] [data-t3voice-update] > span {
+[data-lalala-presence] [data-lalala-update] > span {
   margin-right: -0.12em;
 }
 /* INPUT is a plus: the add mark, a little over the type's size. */
-[data-t3voice-presence] [data-t3voice-input-plus] {
+[data-lalala-presence] [data-lalala-input-plus] {
   display: block;
   width: calc(1em + 2px);
   height: calc(1em + 2px);
@@ -869,13 +869,13 @@
   stroke: currentColor;
   stroke-width: 1.5;
 }
-[data-t3voice-presence] .t3voice-input-slot {
+[data-lalala-presence] .lalala-input-slot {
   display: flex;
 }
-[data-t3voice-presence] .t3voice-input-slot:empty {
+[data-lalala-presence] .lalala-input-slot:empty {
   display: none;
 }
-[data-t3voice-presence] [data-t3voice-input-tab] {
+[data-lalala-presence] [data-lalala-input-tab] {
   position: relative;
   isolation: isolate;
   display: flex;
@@ -883,7 +883,7 @@
   justify-content: center;
   gap: 5px;
   /* Whole pixels, so its left edge never lands between two. */
-  width: var(--t3voice-input-tab-w);
+  width: var(--lalala-input-tab-w);
   padding: 0;
   border: 0;
   color: var(--hud);
@@ -897,27 +897,27 @@
   pointer-events: auto;
   -webkit-tap-highlight-color: transparent;
 }
-[data-t3voice-presence] [data-t3voice-input-tab]::before,
-[data-t3voice-presence] [data-t3voice-input-tab]::after {
+[data-lalala-presence] [data-lalala-input-tab]::before,
+[data-lalala-presence] [data-lalala-input-tab]::after {
   content: "";
   position: absolute;
   z-index: -1;
 }
-[data-t3voice-presence] [data-t3voice-input-tab]::before {
+[data-lalala-presence] [data-lalala-input-tab]::before {
   inset: 0;
   background: var(--fe);
   clip-path: polygon(4px 0, 100% 0, 100% 100%, 0 100%, 0 4px);
 }
-[data-t3voice-presence] [data-t3voice-input-tab]::after {
+[data-lalala-presence] [data-lalala-input-tab]::after {
   inset: 1px 0 1px 1px;
-  background: var(--t3voice-fill);
+  background: var(--lalala-fill);
   clip-path: polygon(3.4px 0, 100% 0, 100% 100%, 0 100%, 0 3.4px);
 }
 /* The projector: while the field is open (or closing), a lit emitter strip on
    the tab's top edge and a hologram cone from it up to the field's bottom edge (the panel floats 22px
    over the tab), a smooth gradient in the HUD green, faint at the tab and brightest at the field. It
    rises on open and sinks fast on close; nothing moves in between, and closed none of it is there. */
-[data-t3voice-presence] [data-t3voice-input-tab] > i {
+[data-lalala-presence] [data-lalala-input-tab] > i {
   position: absolute;
   left: calc(50% - 12px);
   bottom: calc(100% - 1px);
@@ -927,7 +927,7 @@
   box-shadow: 0 0 4px color-mix(in srgb, var(--hud) 70%, transparent);
   pointer-events: none;
 }
-[data-t3voice-presence] [data-t3voice-beam] {
+[data-lalala-presence] [data-lalala-beam] {
   position: absolute;
   left: calc(50% - 23px);
   bottom: calc(100% + 1px);
@@ -942,38 +942,38 @@
   transform-origin: 50% 100%;
   pointer-events: none;
 }
-[data-t3voice-presence]
-  [data-t3voice-input-tab][data-state="closed"]
-  > :is(i, [data-t3voice-beam]) {
+[data-lalala-presence]
+  [data-lalala-input-tab][data-state="closed"]
+  > :is(i, [data-lalala-beam]) {
   display: none;
 }
-[data-t3voice-presence] [data-t3voice-input-tab][data-state="open"] > [data-t3voice-beam] {
-  animation: t3voice-beam-up 160ms cubic-bezier(0.2, 0.8, 0.2, 1) both;
+[data-lalala-presence] [data-lalala-input-tab][data-state="open"] > [data-lalala-beam] {
+  animation: lalala-beam-up 160ms cubic-bezier(0.2, 0.8, 0.2, 1) both;
 }
-[data-t3voice-presence] [data-t3voice-input-tab][data-state="closing"] > [data-t3voice-beam] {
-  animation: t3voice-beam-down 70ms ease-in 60ms both;
+[data-lalala-presence] [data-lalala-input-tab][data-state="closing"] > [data-lalala-beam] {
+  animation: lalala-beam-down 70ms ease-in 60ms both;
 }
-@keyframes t3voice-beam-up {
+@keyframes lalala-beam-up {
   from {
     transform: scaleY(0);
   }
 }
-@keyframes t3voice-beam-down {
+@keyframes lalala-beam-down {
   to {
     transform: scaleY(0);
   }
 }
-[data-t3voice-presence] [data-t3voice-input-tab]:is(:hover, :focus-visible)::after {
+[data-lalala-presence] [data-lalala-input-tab]:is(:hover, :focus-visible)::after {
   background:
-    linear-gradient(rgba(61, 255, 143, 0.14), rgba(61, 255, 143, 0.14)), var(--t3voice-fill);
+    linear-gradient(rgba(61, 255, 143, 0.14), rgba(61, 255, 143, 0.14)), var(--lalala-fill);
 }
-[data-t3voice-presence] [data-t3voice-input-tab]:focus-visible {
+[data-lalala-presence] [data-lalala-input-tab]:focus-visible {
   outline: 0;
 }
-[data-t3voice-presence] [data-t3voice-input-tab][data-open] {
+[data-lalala-presence] [data-lalala-input-tab][data-open] {
   color: var(--hud-ink);
 }
-[data-t3voice-presence] [data-t3voice-input-tab][data-open]::after {
+[data-lalala-presence] [data-lalala-input-tab][data-open]::after {
   background: var(--hud);
 }
 
@@ -981,7 +981,7 @@
    box's width), then one cut-corner field built like the frame (edge layer, room 1px in). Its send cell
    is the map's width, so its seam continues the map's divider and the time box's edge. It glitches in
    once on open; nothing moves after. */
-[data-t3voice-presence] [data-t3voice-input-panel] {
+[data-lalala-presence] [data-lalala-input-panel] {
   position: absolute;
   z-index: 6;
   left: 0;
@@ -990,24 +990,24 @@
   display: flex;
   flex-direction: column;
   gap: 4px;
-  --t3voice-cell-w: var(--t3voice-map-w);
+  --lalala-cell-w: var(--lalala-map-w);
   /* The beam's top, from the frame's right edge: the time box, then half the INPUT tab. */
-  --t3voice-beam-o: calc(var(--t3voice-map-w) + 1px + var(--t3voice-input-tab-w) / 2);
+  --lalala-beam-o: calc(var(--lalala-map-w) + 1px + var(--lalala-input-tab-w) / 2);
 }
 /* It materializes on the beam's top, outward from there, after the beam is up; closing runs it back
    first, then the beam sinks (VoiceInput unmounts it when the beam is down). */
-[data-t3voice-presence] [data-t3voice-input-panel][data-state="open"] {
-  animation: t3voice-materialize 260ms cubic-bezier(0.2, 0.8, 0.2, 1) 120ms both;
+[data-lalala-presence] [data-lalala-input-panel][data-state="open"] {
+  animation: lalala-materialize 260ms cubic-bezier(0.2, 0.8, 0.2, 1) 120ms both;
 }
-[data-t3voice-presence] [data-t3voice-input-panel][data-state="closing"] {
+[data-lalala-presence] [data-lalala-input-panel][data-state="closing"] {
   pointer-events: none;
-  animation: t3voice-materialize 70ms ease-in reverse both;
+  animation: lalala-materialize 70ms ease-in reverse both;
 }
-@keyframes t3voice-materialize {
+@keyframes lalala-materialize {
   0% {
     opacity: 0;
     clip-path: inset(
-      0 calc(var(--t3voice-beam-o) - 23px) 0 calc(100% - var(--t3voice-beam-o) - 23px)
+      0 calc(var(--lalala-beam-o) - 23px) 0 calc(100% - var(--lalala-beam-o) - 23px)
     );
   }
   25% {
@@ -1024,10 +1024,10 @@
     clip-path: inset(0);
   }
 }
-[data-t3voice-presence] .bar:has([data-t3voice-input-panel]) .bar-incoming {
+[data-lalala-presence] .bar:has([data-lalala-input-panel]) .bar-incoming {
   display: none;
 }
-[data-t3voice-presence] [data-t3voice-input-tiles] {
+[data-lalala-presence] [data-lalala-input-tiles] {
   display: flex;
   flex-wrap: wrap;
   gap: 6px;
@@ -1035,16 +1035,16 @@
   padding: 0;
   list-style: none;
 }
-[data-t3voice-presence] [data-t3voice-input-tiles] > li {
+[data-lalala-presence] [data-lalala-input-tiles] > li {
   position: relative;
   /* As wide as the time box, but low, so the open input stays well under the bar's height. */
-  width: calc(var(--t3voice-cell-w) + 1px);
+  width: calc(var(--lalala-cell-w) + 1px);
   height: 34px;
   padding: 1px;
   background: var(--fe);
   clip-path: polygon(6px 0, 100% 0, 100% 100%, 0 100%, 0 6px);
 }
-[data-t3voice-presence] [data-t3voice-input-tiles] img {
+[data-lalala-presence] [data-lalala-input-tiles] img {
   display: block;
   width: 100%;
   height: 100%;
@@ -1052,7 +1052,7 @@
   background: var(--color-surface);
   clip-path: polygon(6px 0, 100% 0, 100% 100%, 0 100%, 0 6px);
 }
-[data-t3voice-presence] [data-t3voice-input-tiles] button {
+[data-lalala-presence] [data-lalala-input-tiles] button {
   position: absolute;
   isolation: isolate;
   top: 0;
@@ -1068,22 +1068,22 @@
   font: 600 10px / 1 var(--font-tag);
   cursor: pointer;
 }
-[data-t3voice-presence] [data-t3voice-input-tiles] button::before {
+[data-lalala-presence] [data-lalala-input-tiles] button::before {
   content: "";
   position: absolute;
   z-index: -1;
   inset: 1px;
   background: var(--color-surface);
 }
-[data-t3voice-presence] [data-t3voice-input-problem] {
+[data-lalala-presence] [data-lalala-input-problem] {
   margin: 0;
   color: var(--hud-2);
   font: 600 var(--tab-fs) / 1 var(--font-tag);
   letter-spacing: 0.16em;
   text-transform: uppercase;
 }
-[data-t3voice-presence] [data-t3voice-input-field],
-[data-t3voice-presence] [data-t3voice-input-field] > div {
+[data-lalala-presence] [data-lalala-input-field],
+[data-lalala-presence] [data-lalala-input-field] > div {
   clip-path: polygon(
     var(--cut) 0,
     100% 0,
@@ -1093,11 +1093,11 @@
     0 var(--cut)
   );
 }
-[data-t3voice-presence] [data-t3voice-input-field] {
+[data-lalala-presence] [data-lalala-input-field] {
   padding: 1px;
   background: var(--fe);
 }
-[data-t3voice-presence] [data-t3voice-input-field] > div {
+[data-lalala-presence] [data-lalala-input-field] > div {
   display: flex;
   align-items: stretch;
   min-height: 32px;
@@ -1105,7 +1105,7 @@
     repeating-linear-gradient(to bottom, rgba(255, 255, 255, 0.025) 0 1px, transparent 1px 3px),
     var(--color-surface);
 }
-[data-t3voice-presence] [data-t3voice-input-field] textarea {
+[data-lalala-presence] [data-lalala-input-field] textarea {
   flex: 1;
   min-width: 0;
   max-height: 128px;
@@ -1121,13 +1121,13 @@
   background: none;
   font: 400 calc(var(--tab-fs) - 1px) / 14px var(--font-mono);
 }
-[data-t3voice-presence] [data-t3voice-input-field] textarea::placeholder {
+[data-lalala-presence] [data-lalala-input-field] textarea::placeholder {
   color: var(--hud-3);
 }
-[data-t3voice-presence] [data-t3voice-input-cell] {
+[data-lalala-presence] [data-lalala-input-cell] {
   position: relative;
   flex: none;
-  width: var(--t3voice-cell-w);
+  width: var(--lalala-cell-w);
   display: grid;
   place-items: center;
   padding: 0;
@@ -1138,10 +1138,10 @@
   -webkit-tap-highlight-color: transparent;
 }
 /* Only the send cell keeps the map's width (its seam is the map's divider); attach needs just its icon. */
-[data-t3voice-presence] [data-t3voice-input-cell]:not([data-send]) {
+[data-lalala-presence] [data-lalala-input-cell]:not([data-send]) {
   width: 34px;
 }
-[data-t3voice-presence] [data-t3voice-input-cell]::before {
+[data-lalala-presence] [data-lalala-input-cell]::before {
   content: "";
   position: absolute;
   left: 0;
@@ -1150,7 +1150,7 @@
   width: 1px;
   background: var(--fe);
 }
-[data-t3voice-presence] [data-t3voice-input-cell] svg {
+[data-lalala-presence] [data-lalala-input-cell] svg {
   width: 16px;
   height: 16px;
   fill: none;
@@ -1159,40 +1159,40 @@
   stroke-linecap: round;
   stroke-linejoin: round;
 }
-[data-t3voice-presence] [data-t3voice-input-cell][data-send] svg {
+[data-lalala-presence] [data-lalala-input-cell][data-send] svg {
   fill: currentColor;
   stroke: none;
 }
-[data-t3voice-presence] [data-t3voice-input-cell]:is(:hover, :focus-visible):not(:disabled) {
+[data-lalala-presence] [data-lalala-input-cell]:is(:hover, :focus-visible):not(:disabled) {
   outline: 0;
   color: var(--hud);
   background: rgba(61, 255, 143, 0.1);
 }
-[data-t3voice-presence] [data-t3voice-input-cell][data-send]:not(:disabled) {
+[data-lalala-presence] [data-lalala-input-cell][data-send]:not(:disabled) {
   color: var(--hud);
 }
-[data-t3voice-presence] [data-t3voice-input-cell]:disabled {
+[data-lalala-presence] [data-lalala-input-cell]:disabled {
   color: var(--hud-3);
   cursor: default;
 }
 @media (max-width: 639px) {
-  [data-t3voice-presence] {
-    --t3voice-input-tab-w: 40px;
-    --t3voice-update-w: 56px;
+  [data-lalala-presence] {
+    --lalala-input-tab-w: 40px;
+    --lalala-update-w: 56px;
   }
-  [data-t3voice-presence] [data-t3voice-input-field] textarea {
+  [data-lalala-presence] [data-lalala-input-field] textarea {
     line-height: 16px;
   }
-  [data-t3voice-presence] [data-t3voice-input-field] > div {
+  [data-lalala-presence] [data-lalala-input-field] > div {
     min-height: 34px;
   }
-  [data-t3voice-presence] [data-t3voice-input-tiles] > li {
+  [data-lalala-presence] [data-lalala-input-tiles] > li {
     height: 38px;
   }
 }
 @media (prefers-reduced-motion: reduce) {
-  [data-t3voice-presence] [data-t3voice-input-panel][data-state],
-  [data-t3voice-presence] [data-t3voice-input-tab] > [data-t3voice-beam] {
+  [data-lalala-presence] [data-lalala-input-panel][data-state],
+  [data-lalala-presence] [data-lalala-input-tab] > [data-lalala-beam] {
     animation: none !important;
   }
 }

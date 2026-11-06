@@ -12,11 +12,11 @@ type Loaded = { readonly id: string; readonly module: ExtrasModule };
 // Dev imports the source, so Vite's HMR updates it. Not a literal: the phone's main build must not
 // bundle extras/, or every extras edit would rebuild and reload the whole app.
 const DEV_ENTRY = "/src/voice/extras/VoiceExtras.tsx";
-const BUILD = "/t3voice-extras/build.json";
+const BUILD = "/lalala-extras/build.json";
 const POLL_MS = 2_000;
 
 declare global {
-  var __t3voiceHost: Record<string, unknown> | undefined;
+  var __lalalaHost: Record<string, unknown> | undefined;
 }
 
 const importExtras = (url: string) => import(/* @vite-ignore */ url) as Promise<ExtrasModule>;
@@ -26,8 +26,8 @@ function loadStylesheet(id: string, css: boolean): Promise<HTMLLinkElement | nul
   if (!css) return Promise.resolve(null);
   const link = document.createElement("link");
   link.rel = "stylesheet";
-  link.href = `/t3voice-extras/extras.css?v=${id}`;
-  link.dataset.t3voiceExtras = "";
+  link.href = `/lalala-extras/extras.css?v=${id}`;
+  link.dataset.lalalaExtras = "";
   const applied = new Promise<HTMLLinkElement>((resolve) => {
     link.addEventListener("load", () => resolve(link), { once: true });
     link.addEventListener("error", () => resolve(link), { once: true });
@@ -38,14 +38,14 @@ function loadStylesheet(id: string, css: boolean): Promise<HTMLLinkElement | nul
 
 /** Keeps only `current` of the extras stylesheets. */
 function keepStylesheet(current: HTMLLinkElement | null) {
-  for (const link of document.querySelectorAll("link[data-t3voice-extras]")) {
+  for (const link of document.querySelectorAll("link[data-lalala-extras]")) {
     if (link !== current) link.remove();
   }
 }
 
 /** Loads each newly published extras build (the phone's production build); returns a stop. */
 function followPublishedExtras(onLoad: (loaded: Loaded) => void): () => void {
-  globalThis.__t3voiceHost = { react: React, "react/jsx-runtime": jsxRuntime };
+  globalThis.__lalalaHost = { react: React, "react/jsx-runtime": jsxRuntime };
   let stopped = false;
   let current: string | null = null;
   let failures = 0;
@@ -62,7 +62,7 @@ function followPublishedExtras(onLoad: (loaded: Loaded) => void): () => void {
       const sheet = loadStylesheet(id, build.css === true);
       // The browser keeps a failed module import for its URL, so a retry needs a new one.
       const retry = failures > 0 ? `&retry=${failures}` : "";
-      const module = await importExtras(`/t3voice-extras/extras.js?v=${id}${retry}`).catch(
+      const module = await importExtras(`/lalala-extras/extras.js?v=${id}${retry}`).catch(
         async (cause: unknown) => {
           failures += 1;
           (await sheet)?.remove();
@@ -114,7 +114,7 @@ export function VoiceExtrasSlot() {
   if (loaded === null) return null;
   const { VoiceExtras } = loaded.module;
   return (
-    <div data-t3voice-extras="">
+    <div data-lalala-extras="">
       <ExtrasBoundary key={loaded.id}>
         <VoiceExtras />
       </ExtrasBoundary>

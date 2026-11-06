@@ -8,7 +8,7 @@ const live = (path: string) => {
   return file.endsWith(".css") || LIVE.some((prefix) => file.startsWith(prefix));
 };
 const callActive = () =>
-  (document.querySelector<HTMLElement>("[data-t3voice-presence]")?.dataset.voiceState ?? "off") !==
+  (document.querySelector<HTMLElement>("[data-lalala-presence]")?.dataset.voiceState ?? "off") !==
   "off";
 
 if (import.meta.hot) {

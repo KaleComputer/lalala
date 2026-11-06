@@ -30,7 +30,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 ```
 
-t3voice is an independent project and is not affiliated with or endorsed by T3 Tools Inc.
+lalala is an independent project and is not affiliated with or endorsed by T3 Tools Inc.
 
 ## Speech models (downloaded at runtime, not included)
 
@@ -47,7 +47,7 @@ Speech-to-text uses NVIDIA's Parakeet TDT 0.6B v2, licensed under CC-BY-4.0.
 Python packages installed into the speech service's own environment: `mlx-audio` (MIT),
 `misaki` (Apache-2.0; Kokoro's phonemizer), spaCy `en_core_web_sm` (MIT), FastAPI (MIT),
 Uvicorn (BSD-3-Clause), websockets (BSD-3-Clause). `misaki` can fall back to espeak-ng (GPL-3.0)
-for unknown words if it is installed on the system; t3voice does not bundle or install it.
+for unknown words if it is installed on the system; lalala does not bundle or install it.
 
 ## Fonts
 

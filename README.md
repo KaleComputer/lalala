@@ -1,6 +1,8 @@
-# t3voice
+# lalala
 
-Talk to your coding agents. t3voice is a voice-first canvas on top of
+Talk to your computer. [lalala.talk](https://lalala.talk)
+
+lalala is a voice-first canvas on top of
 [T3 Code](https://github.com/pingdotgg/t3code): you speak, a "brain" thread in T3 Code listens,
 answers out loud in a sentence or two, and hands real work to other agent threads in the
 background. When something is worth looking at, the brain builds it as a card on an endless
@@ -12,21 +14,21 @@ Apple's MLX. No audio leaves the machine.
 ## How it works
 
 ```
-browser (mic, canvas) ──▶ t3voice server :5780 ──▶ T3 Code server   (pairing + /ws RPC, brain thread)
+browser (mic, canvas) ──▶ lalala server :5780 ──▶ T3 Code server   (pairing + /ws RPC, brain thread)
                                     └─────────────▶ local speech :5797 (Parakeet STT, Kokoro TTS, Silero VAD)
 ```
 
-- **t3voice server** (`npm start`): serves the canvas, keeps one connection to T3 Code that follows
+- **lalala server** (`npm start`): serves the canvas, keeps one connection to T3 Code that follows
   the brain thread, and forwards audio to the local speech service. The browser only talks to it.
 - **Brain thread**: an ordinary T3 Code thread in a project rooted at this folder. Its instructions
-  are `src/voice/brain.md`, which t3voice sends into the thread on the first turn, after compaction
+  are `src/voice/brain.md`, which lalala sends into the thread on the first turn, after compaction
   and whenever the file changes. The brain keeps replies short (they are read aloud) and delegates
   real work to other threads with T3 Code's own tools, so it stays free to listen.
 - **Local speech** (`npm run speech`): a small Python service on `127.0.0.1` that streams partial
   transcripts while you talk and speaks replies sentence by sentence.
 - **Canvas**: pan, pinch-zoom, several named canvases, cards you drag by the header and resize
   from the corner. It starts empty; the brain adds cards when you ask for them. The layout is
-  saved in `.t3voice/canvas.json`, so it survives restarts and is the same on every device.
+  saved in `.lalala/canvas.json`, so it survives restarts and is the same on every device.
 
 ## Requirements
 
@@ -37,10 +39,10 @@ browser (mic, canvas) ──▶ t3voice server :5780 ──▶ T3 Code server   
   service by itself.
 - **T3 Code** running on the same Mac (the desktop app, or `npx t3`), with at least one provider
   signed in (Claude Code, Codex, …).
-- **The `t3` command.** The desktop app installs it as `~/.t3/bin/t3` when it starts; t3voice finds
+- **The `t3` command.** The desktop app installs it as `~/.t3/bin/t3` when it starts; lalala finds
   it there. Add `~/.t3/bin` to your `PATH` to type `t3` yourself, or use `npx t3` instead of `t3`
   in the steps below (that also works if you run T3 Code with `npx t3`).
-- **Disk**: about 4 GB under `~/.cache/t3voice` (models and the Python environment), downloaded
+- **Disk**: about 4 GB under `~/.cache/lalala` (models and the Python environment), downloaded
   once.
 - **A microphone** and speakers or headphones. Headphones work best.
 - **Browser**: Chrome, Arc, Safari or Firefox. The mic only works on `localhost`/`127.0.0.1` or
@@ -51,8 +53,8 @@ browser (mic, canvas) ──▶ t3voice server :5780 ──▶ T3 Code server   
 1. **Clone and install**
 
    ```sh
-   git clone https://github.com/<owner>/t3voice.git
-   cd t3voice
+   git clone https://github.com/timpietrusky/lalala.git
+   cd lalala
    npm install
    cp .env.example .env
    ```
@@ -64,24 +66,24 @@ browser (mic, canvas) ──▶ t3voice server :5780 ──▶ T3 Code server   
    ```
 
    Wait until it prints `models ready`, then stop it with Ctrl-C. You can skip this
-   step: t3voice starts the service by itself when the page opens. Doing it once up front just
+   step: lalala starts the service by itself when the page opens. Doing it once up front just
    means your first call doesn't wait for the download.
 
-3. **Start T3 Code** (desktop app, or `npx t3`) and leave it running. t3voice finds it through
+3. **Start T3 Code** (desktop app, or `npx t3`) and leave it running. lalala finds it through
    T3 Code's runtime file in `~/.t3/userdata`. If yours lives elsewhere, set `T3CODE_HOME` in
-   `.env`, or `T3VOICE_T3_ORIGIN=http://127.0.0.1:<port>`.
+   `.env`, or `LALALA_T3_ORIGIN=http://127.0.0.1:<port>`.
 
-4. **Pair t3voice with T3 Code** (once)
+4. **Pair lalala with T3 Code** (once)
 
    ```sh
    npm run pair
    ```
 
-   This asks the `t3` command for a one-time pairing token with only the two scopes t3voice needs
+   This asks the `t3` command for a one-time pairing token with only the two scopes lalala needs
    (`orchestration:read`, `orchestration:operate`), exchanges it for a session and stores it in
-   `.t3voice/session.json` (mode 0600, gitignored). Nothing secret is printed. The session renews
+   `.lalala/session.json` (mode 0600, gitignored). Nothing secret is printed. The session renews
    itself a week before it expires. You can see and revoke it in T3 Code under Settings →
-   Connections, listed as "t3voice".
+   Connections, listed as "lalala".
 
    The settings (gear in the bar) show the connection too: state, server, session and a Test
    button, plus pairing by a T3 pairing link (made in T3 Code under Settings → Connections) or with
@@ -101,7 +103,7 @@ browser (mic, canvas) ──▶ t3voice server :5780 ──▶ T3 Code server   
    (all of it, including any prefix such as `mcp:`) in `.env`:
 
    ```sh
-   T3VOICE_THREAD_ID=<thread id>
+   LALALA_THREAD_ID=<thread id>
    ```
 
    The brain answers every time you speak, so give it a fast model: add
@@ -109,11 +111,11 @@ browser (mic, canvas) ──▶ t3voice server :5780 ──▶ T3 Code server   
    "mini" model), or change the thread's model in T3 Code afterwards. Delegated threads do the
    heavy work.
 
-   You don't paste `brain.md` anywhere; t3voice sends it into the thread before your first spoken
+   You don't paste `brain.md` anywhere; lalala sends it into the thread before your first spoken
    message. Because the project is this folder, the brain edits this repo's `src/voice/extras`
    when you ask for a card, and Vite shows it within seconds.
 
-6. **Start t3voice**
+6. **Start lalala**
 
    ```sh
    npm start
@@ -122,7 +124,7 @@ browser (mic, canvas) ──▶ t3voice server :5780 ──▶ T3 Code server   
 7. **Open http://127.0.0.1:5780**, allow the microphone, and press **Start call** in the bar at
    the bottom (or Ctrl+Option+V). Say "put a clock on the canvas" and watch it appear.
 
-   The first call can take a few seconds while local speech loads its models. t3voice starts the
+   The first call can take a few seconds while local speech loads its models. lalala starts the
    speech service in the background when needed and leaves it running after `npm start` stops;
    `scripts/speech.sh stop` stops it.
 
@@ -135,12 +137,12 @@ listen. Expose the local port under a URL only you can open:
   behind your NetBird SSO and only for the user groups you list:
 
   ```sh
-  netbird expose 5780 --with-name-prefix t3voice --with-user-groups <your-group>
+  netbird expose 5780 --with-name-prefix lalala --with-user-groups <your-group>
   ```
 
   Open the URL it prints on your phone and sign in with a NetBird user in that group. For a fixed
   URL, add `--with-custom-domain <domain>` (the domain must be set up in your NetBird account).
-  It stays up while the command runs. Never expose t3voice without `--with-user-groups` (or at
+  It stays up while the command runs. Never expose lalala without `--with-user-groups` (or at
   least `--with-password`).
 
 - **Tailscale**: `tailscale serve --bg 5780`, then open `https://<mac>.<tailnet>.ts.net` on the
@@ -176,15 +178,15 @@ Set in `.env` (see `.env.example`).
 
 | Variable | Default | What |
 | --- | --- | --- |
-| `T3VOICE_THREAD_ID` | (required) | The brain thread |
-| `T3VOICE_PORT` | `5780` | t3voice server port |
-| `T3VOICE_LOCAL_PORT` | `5797` | Local speech service port |
-| `T3VOICE_LOCAL_VOICE` | `af_heart` | Kokoro voice |
-| `T3VOICE_LOCAL_SPEED` | `1.0` | Speaking speed |
-| `T3VOICE_SPEECH_HOME` | `~/.cache/t3voice` | Models, Python environment, speech log |
-| `T3VOICE_STATE_DIR` | `.t3voice` in this folder | T3 session, canvas layout, call log |
+| `LALALA_THREAD_ID` | (required) | The brain thread |
+| `LALALA_PORT` | `5780` | lalala server port |
+| `LALALA_LOCAL_PORT` | `5797` | Local speech service port |
+| `LALALA_LOCAL_VOICE` | `af_heart` | Kokoro voice |
+| `LALALA_LOCAL_SPEED` | `1.0` | Speaking speed |
+| `LALALA_SPEECH_HOME` | `~/.cache/lalala` | Models, Python environment, speech log |
+| `LALALA_STATE_DIR` | `.lalala` in this folder | T3 session, canvas layout, call log |
 | `T3CODE_HOME` | `~/.t3` | Where T3 Code keeps its state |
-| `T3VOICE_T3_ORIGIN` | from T3 Code's runtime file | T3 Code server URL |
+| `LALALA_T3_ORIGIN` | from T3 Code's runtime file | T3 Code server URL |
 | `T3CODE_CLI_PATH` | `~/.t3/bin/t3`, then `t3`, then `npx t3` | The `t3` command used for pairing |
 
 ## Privacy
@@ -193,9 +195,9 @@ Set in `.env` (see `.env.example`).
   `127.0.0.1` only; models download once from Hugging Face (telemetry off).
 - What you say becomes a message in your brain thread, so it goes to whichever model provider that
   thread uses, exactly like typing it into T3 Code.
-- `.t3voice/logs` holds a log of your calls (transcripts and timings, never audio). Delete it
+- `.lalala/logs` holds a log of your calls (transcripts and timings, never audio). Delete it
   whenever you like.
-- t3voice's T3 Code session can read threads and start turns, nothing more. Revoke it in T3 Code.
+- lalala's T3 Code session can read threads and start turns, nothing more. Revoke it in T3 Code.
 
 ## Limits
 
@@ -209,7 +211,7 @@ Set in `.env` (see `.env.example`).
 
 ## License
 
-MIT, see [LICENSE](LICENSE). Parts are adapted from T3 Code (MIT, © T3 Tools Inc.); t3voice is not
+MIT, see [LICENSE](LICENSE). Parts are adapted from T3 Code (MIT, © T3 Tools Inc.); lalala is not
 affiliated with T3 Tools. Model, font and package credits are in [NOTICE.md](NOTICE.md).
 
 Speech-to-text uses [NVIDIA Parakeet TDT 0.6B v2](https://huggingface.co/nvidia/parakeet-tdt-0.6b-v2)

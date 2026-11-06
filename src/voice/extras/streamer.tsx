@@ -2,8 +2,8 @@ import { useSyncExternalStore } from "react";
 import "./streamer.css";
 
 // The app's side is ../streamerMode.tsx, which this folder may not import: same key, event and scramble.
-const STORE = "t3voice:streamer";
-const EVENT = "t3voice:streamer";
+const STORE = "lalala:streamer";
+const EVENT = "lalala:streamer";
 
 const read = () => {
   try {

@@ -11,8 +11,8 @@ import {
 } from "./canvasStore";
 
 /** The device bar's map square (VoiceBar); it announces itself with this event when it mounts or goes. */
-const SLOT = "[data-t3voice-map]";
-const BAR_EVENT = "t3voice:bar";
+const SLOT = "[data-lalala-map]";
+const BAR_EVENT = "lalala:bar";
 const PAD = 40;
 
 type Bounds = { x: number; y: number; w: number; h: number };

@@ -17,7 +17,7 @@ const briefVersion = (() => {
   return hash.toString(36);
 })();
 
-const storageKey = (threadId: ThreadId) => `t3voice:brief:${threadId}`;
+const storageKey = (threadId: ThreadId) => `lalala:brief:${threadId}`;
 
 export function withBrief(text: string): string {
   return `${brainBrief}\n---\n\nThe user says: ${text}`;
@@ -28,7 +28,7 @@ export function withBrief(text: string): string {
  * `[canvas: Ideas (id c1x) · follow on · delegates: default effort=high fastMode=false]`.
  */
 export function withCanvas(text: string): string {
-  const canvases = globalThis.__t3voiceCanvases?.snapshot();
+  const canvases = globalThis.__lalalaCanvases?.snapshot();
   const open = canvases?.list.find((canvas) => canvas.id === canvases.active);
   const follow = isFollowing() ? "on" : "off";
   const canvas = open ? `${open.name} (id ${open.id})` : "none";

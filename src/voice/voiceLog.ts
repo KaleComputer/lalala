@@ -1,5 +1,5 @@
 /**
- * t3voice's session log: events go to `/__t3voice/log` (vite/sessionLog.ts) within 250 ms, text
+ * lalala's session log: events go to `/__lalala/log` (vite/sessionLog.ts) within 250 ms, text
  * only. Each event is serialised alone, batches are plain fetches retried on failure (keepalive and
  * beacons only when the page hides: iOS sent nothing else), `who`: user, voice, brain, system.
  */
@@ -16,10 +16,10 @@ let failures = 0;
 
 function send(lines: string[], hidden: boolean): void {
   const body = `[${lines.join(",")}]`;
-  if (hidden && navigator.sendBeacon?.("/__t3voice/log", new Blob([body], { type: "text/plain" }))) {
+  if (hidden && navigator.sendBeacon?.("/__lalala/log", new Blob([body], { type: "text/plain" }))) {
     return;
   }
-  void fetch("/__t3voice/log", {
+  void fetch("/__lalala/log", {
     method: "POST",
     // text/plain: a simple request, nothing for the browser to preflight or refuse.
     headers: { "content-type": "text/plain" },

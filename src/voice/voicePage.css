@@ -1,9 +1,9 @@
 /* The canvas: voice-made UI lies over the whole page. */
 /* Its own stacking context: nothing on the page, however high its z-index, rises over the sidebar. */
-[data-t3voice-page] {
+[data-lalala-page] {
   isolation: isolate;
 }
-[data-t3voice-extras] {
+[data-lalala-extras] {
   position: absolute;
   inset: 0;
   pointer-events: none;

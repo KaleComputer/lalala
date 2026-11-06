@@ -2,7 +2,7 @@ import { voiceLog } from "./voiceLog";
 
 /** The call runs unless the bar is on standby ("off") or not mounted. */
 function callActive(): boolean {
-  const bar = document.querySelector<HTMLElement>("[data-t3voice-presence]");
+  const bar = document.querySelector<HTMLElement>("[data-lalala-presence]");
   return (bar?.dataset.voiceState ?? "off") !== "off";
 }
 
@@ -61,7 +61,7 @@ if (import.meta.hot) {
     if (!callActive()) return;
     hold(payload.path ?? "full reload");
     // The client reloads for an .html path only when it is this page's.
-    payload.path = "/__t3voice-held.html";
+    payload.path = "/__lalala-held.html";
   });
   // After a server restart the client pings until it is back, then reloads; that waits for idle too.
   import.meta.hot.on("vite:ws:disconnect", () => (callActive() ? whenIdle() : undefined));

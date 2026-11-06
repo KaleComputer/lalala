@@ -18,7 +18,7 @@ Their T3 Code
 
 The canvas
 
-- Your working directory is the t3voice app the user is talking to you from. Vite shows edits under `src/` within seconds without a reload.
+- Your working directory is the lalala app the user is talking to you from. Vite shows edits under `src/` within seconds without a reload.
 - You may edit only UI code under `src/voice/extras/` (and `src/voice/voiceTheme.ts` for colours). Never touch the server, `vite/`, `scripts/`, configs or anything else. Keep each change small enough to be obviously right.
 - The canvas is an endless surface the user pans and pinch-zooms, with cards they drag by the header and resize from the corner; it remembers where everything is. "Put this on the canvas" means: add a small component under `src/voice/extras/` and mount it as a card in `src/voice/extras/VoiceExtras.tsx` inside `<CanvasSurface>`, one line: `<CanvasCard id="..." title="..." at={{ x, y, w, h }}><YourThing /></CanvasCard>` (import `CanvasCard` from `./CanvasCard`). A new card lands by itself in the nearest free space beside the others, so `at` is only a preference.
 - Cards import only React and files in `src/voice/extras/`, and style with a plain CSS file beside the component, not Tailwind classes. Only the clock and the live toggle stay fixed in the top right corner. The device bar at the bottom is not part of the canvas.

@@ -22,7 +22,7 @@ import { VoiceBar, type VoiceBarState } from "./VoiceBar";
 import { endVoiceLogSession, startVoiceLogSession, voiceLog } from "./voiceLog";
 import { syncVoiceTheme } from "./voiceThemeSync";
 
-// A T3VOICE_MODEL test run gets its own thread, so it never becomes the user's voice thread.
+// A LALALA_MODEL test run gets its own thread, so it never becomes the user's voice thread.
 const voiceThreadTitle = (config: VoiceConfig | null) =>
   config?.model ? `voice test (${config.model})` : "voice";
 // Thinking shows only after the user has been quiet this long, so a pause never reads as done.
@@ -48,12 +48,12 @@ const TIDY_TAG = /\[tidy\]\s*/gi;
 
 type VoiceConfig = {
   readonly workspaceRoot: string;
-  /** T3VOICE_MODEL: a model for new voice threads instead of the default model's. */
+  /** LALALA_MODEL: a model for new voice threads instead of the default model's. */
   readonly model: string | null;
 };
 
 /**
- * t3voice: a hands-free conversation with the brain thread (T3VOICE_THREAD_ID). The user's
+ * lalala: a hands-free conversation with the brain thread (LALALA_THREAD_ID). The user's
  * words go to that thread as turns, its finished replies are spoken back, and the thread (a normal
  * agent with T3's tools) acts on the instance or edits this UI. Ctrl+Option+V toggles the mic.
  */
@@ -127,7 +127,7 @@ export function VoiceHost() {
   // oxlint-disable-next-line t3code/no-unreasoned-state-sync -- reads the dev server's voice config once
   useEffect(() => {
     let cancelled = false;
-    fetch("/__t3voice/config")
+    fetch("/__lalala/config")
       .then((response) => (response.ok ? (response.json() as Promise<VoiceConfig>) : null))
       .then((value) => {
         if (!cancelled) setConfig(value);
@@ -145,7 +145,7 @@ export function VoiceHost() {
     if (engine !== "local") return;
     let cancelled = false;
     const check = () =>
-      fetch("/__t3voice/local/health")
+      fetch("/__lalala/local/health")
         .then(async (response) => {
           const body = (await response.json().catch(() => ({}))) as { error?: string };
           if (!cancelled)
@@ -168,7 +168,7 @@ export function VoiceHost() {
   /** The user's words (spoken, or typed in the bar's input with its pictures) as a turn on the voice thread, made on first use. */
   const send = useEffectEvent(async (text: string, images: ReadonlyArray<File> = []) => {
     if (environmentId === null || project === undefined) {
-      setError("No brain thread yet: set T3VOICE_THREAD_ID in .env and restart.");
+      setError("No brain thread yet: set LALALA_THREAD_ID in .env and restart.");
       return false;
     }
     const defaultSelection = serverSettings.defaultModelSelection;
@@ -337,7 +337,7 @@ export function VoiceHost() {
       if (thisTurn && tidy && !tidiedRef.current.has(item.id)) {
         tidiedRef.current.add(item.id);
         voiceLog("brain", "tidy", {});
-        globalThis.__t3voiceCanvases?.tidy?.();
+        globalThis.__lalalaCanvases?.tidy?.();
       }
       const focused = focusedRef.current.get(item.id) ?? 0;
       if (thisTurn && cards.length > focused) {
@@ -345,7 +345,7 @@ export function VoiceHost() {
         const card = cards.at(-1);
         if (card && (isFollowing() || showMeRef.current)) {
           voiceLog("brain", "focus", { card });
-          globalThis.__t3voiceCanvases?.focus?.(card);
+          globalThis.__lalalaCanvases?.focus?.(card);
         }
       }
       if (finishedRef.current.has(item.id)) continue;

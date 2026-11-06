@@ -4,7 +4,7 @@ type Result = { readonly _tag: "Success" } | { readonly _tag: "Failure"; readonl
 export function useOrchestrationCommand(_command: unknown, _options?: unknown) {
   return async ({ input }: { readonly environmentId: string; readonly input: unknown }): Promise<Result> => {
     try {
-      const response = await fetch("/__t3voice/t3/send", {
+      const response = await fetch("/__lalala/t3/send", {
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify(input),

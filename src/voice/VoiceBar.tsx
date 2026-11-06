@@ -42,7 +42,7 @@ const PRESENCE_STATE: Record<VoiceBarState, { line: string; voice: string }> = {
 
 // Nothing moving out of a call: the wave polls instead of drawing every frame (Presence's REST_MS).
 const REST_MS = 100;
-// The user's voice fills the listening wash (voiceBar.css --t3voice-voice): their frame level in dB from the
+// The user's voice fills the listening wash (voiceBar.css --lalala-voice): their frame level in dB from the
 // room's quiet to a close voice, quick to rise, slow to fall, written only when it moves.
 const VOICE_QUIET_DB = -50;
 const VOICE_FULL_DB = -24;
@@ -62,31 +62,31 @@ function makeStatusTab(frameEl: HTMLElement) {
   if (tab === null || timer === null) return;
   tab.append(timer);
   const lead = document.createElement("span");
-  lead.className = "t3voice-lead";
+  lead.className = "lalala-lead";
   // "› INPUT" (VoiceInput) leads the row, left of UPDATE and the time.
   const input = document.createElement("span");
-  input.className = "t3voice-input-slot";
+  input.className = "lalala-input-slot";
   const row = document.createElement("div");
-  row.className = "t3voice-tabs";
+  row.className = "lalala-tabs";
   // The mic mute tab, left of "+".
   const mic = document.createElement("span");
-  mic.className = "t3voice-mic-slot";
+  mic.className = "lalala-mic-slot";
   // The canvas's name, left of the mic; like the rest, an empty slot out of a call.
   const canvas = document.createElement("span");
-  canvas.className = "t3voice-canvas-slot";
+  canvas.className = "lalala-canvas-slot";
   // The settings gear between them, the one tab live out of a call.
   const settings = document.createElement("span");
-  settings.className = "t3voice-settings-slot";
+  settings.className = "lalala-settings-slot";
   row.append(canvas, settings, mic, input, tab);
   // The row's slot: it clips the row at the frame's top edge, so revealed content rises out of it.
   const clip = document.createElement("div");
-  clip.className = "t3voice-tabs-clip";
+  clip.className = "lalala-tabs-clip";
   clip.append(row);
   frameEl.append(clip, lead);
 }
 
 /**
- * The voice control: Presence's call frame itself (presence/, green instead of red), driven by t3voice's state and audio.
+ * The voice control: Presence's call frame itself (presence/, green instead of red), driven by lalala's state and audio.
  * The room is the one tap target (no key: T3's composer is right there); `toggle` sits in a small
  * tab on the top edge at the left.
  */
@@ -154,18 +154,18 @@ export function VoiceBar(props: {
     const onTalk = () => press();
     talk?.addEventListener("click", onTalk);
     setSlot(root.querySelector<HTMLElement>("[data-slot]"));
-    setLead(root.querySelector<HTMLElement>(".t3voice-lead"));
-    const inputSlot = root.querySelector<HTMLElement>(".t3voice-input-slot");
+    setLead(root.querySelector<HTMLElement>(".lalala-lead"));
+    const inputSlot = root.querySelector<HTMLElement>(".lalala-input-slot");
     setInputHosts(inputSlot === null ? null : { tab: inputSlot, panel: frameEl, bar });
     // The map square at the body's right end, filled by the canvas (extras/CanvasMap), which this event wakes.
     const map = document.createElement("div");
     map.className = "fr-map";
-    map.dataset.t3voiceMap = "";
+    map.dataset.lalalaMap = "";
     (frameEl.querySelector(".fr-in") ?? frameEl).append(map);
-    setMicHost(root.querySelector<HTMLElement>(".t3voice-mic-slot"));
-    setCanvasHost(root.querySelector<HTMLElement>(".t3voice-canvas-slot"));
-    setSettingsHost(root.querySelector<HTMLElement>(".t3voice-settings-slot"));
-    document.dispatchEvent(new Event("t3voice:bar"));
+    setMicHost(root.querySelector<HTMLElement>(".lalala-mic-slot"));
+    setCanvasHost(root.querySelector<HTMLElement>(".lalala-canvas-slot"));
+    setSettingsHost(root.querySelector<HTMLElement>(".lalala-settings-slot"));
+    document.dispatchEvent(new Event("lalala:bar"));
 
     const wash = root.querySelector<HTMLElement>("[data-wash]");
     let voice = 0;
@@ -192,7 +192,7 @@ export function VoiceBar(props: {
         (Math.abs(shown - voiceSet) >= VOICE_STEP || (shown === 0) !== (voiceSet === 0))
       ) {
         voiceSet = shown;
-        wash.style.setProperty("--t3voice-voice", shown.toFixed(3));
+        wash.style.setProperty("--lalala-voice", shown.toFixed(3));
       }
       handle =
         analysis === null && light.resting
@@ -208,7 +208,7 @@ export function VoiceBar(props: {
       showSweep(false);
       frameRef.current = null;
       root.replaceChildren();
-      document.dispatchEvent(new Event("t3voice:bar"));
+      document.dispatchEvent(new Event("lalala:bar"));
     };
   }, []);
 
@@ -241,7 +241,7 @@ export function VoiceBar(props: {
     <>
       <div
         ref={rootRef}
-        data-t3voice-presence=""
+        data-lalala-presence=""
         // PhoneBuildReload reads this: no reload unless voice is off.
         data-voice-state={props.state}
       />
@@ -267,7 +267,7 @@ export function VoiceBar(props: {
         ? createPortal(
             <button
               type="button"
-              data-t3voice-mic=""
+              data-lalala-mic=""
               aria-hidden={!props.live}
               tabIndex={props.live ? undefined : -1}
               data-muted={props.muted ? "" : undefined}
@@ -291,7 +291,7 @@ export function VoiceBar(props: {
             // tab at the bar's left end, on desktop and phone alike (voiceBar.css).
             <button
               type="button"
-              data-t3voice-update=""
+              data-lalala-update=""
               onClick={() => {
                 voiceLog("system", "reload", { why: "update chip tapped" });
                 window.location.reload();

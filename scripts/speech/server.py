@@ -1,7 +1,7 @@
 """
-Local speech for t3voice: Parakeet TDT 0.6B v2 (speech-to-text) and Kokoro 82M (text-to-speech,
+Local speech for lalala: Parakeet TDT 0.6B v2 (speech-to-text) and Kokoro 82M (text-to-speech,
 American "af_heart" voice), both on MLX. Binds loopback only; the browser reaches it through the
-t3voice server (`/__t3voice/local/*`), never directly.
+lalala server (`/__lalala/local/*`), never directly.
 
   GET  /health       {"ready": bool, ...}
   POST /tts          {"text"} -> raw 16-bit 24 kHz mono PCM, streamed per sentence
@@ -33,12 +33,12 @@ import uvicorn
 from fastapi import FastAPI, Request, WebSocket, WebSocketDisconnect
 from fastapi.responses import JSONResponse, StreamingResponse
 
-STT_MODEL = os.environ.get("T3VOICE_LOCAL_STT", "mlx-community/parakeet-tdt-0.6b-v2")
-VAD_MODEL = os.environ.get("T3VOICE_LOCAL_VAD", "mlx-community/silero-vad")
-TTS_MODEL = os.environ.get("T3VOICE_LOCAL_TTS", "mlx-community/Kokoro-82M-bf16")
-VOICE = os.environ.get("T3VOICE_LOCAL_VOICE", "af_heart")
-SPEED = float(os.environ.get("T3VOICE_LOCAL_SPEED", "1.0"))
-PORT = int(os.environ.get("T3VOICE_LOCAL_PORT", "5797"))
+STT_MODEL = os.environ.get("LALALA_LOCAL_STT", "mlx-community/parakeet-tdt-0.6b-v2")
+VAD_MODEL = os.environ.get("LALALA_LOCAL_VAD", "mlx-community/silero-vad")
+TTS_MODEL = os.environ.get("LALALA_LOCAL_TTS", "mlx-community/Kokoro-82M-bf16")
+VOICE = os.environ.get("LALALA_LOCAL_VOICE", "af_heart")
+SPEED = float(os.environ.get("LALALA_LOCAL_SPEED", "1.0"))
+PORT = int(os.environ.get("LALALA_LOCAL_PORT", "5797"))
 STT_RATE = 16_000
 # An utterance is kept whole, no length limit (2 Nov: a 108 s turn lost its first 48 s to a 60 s
 # cap). Commits transcribe it in 30 s chunks, joined in order; partials only its last 20 s.

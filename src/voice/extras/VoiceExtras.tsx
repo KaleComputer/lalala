@@ -13,7 +13,7 @@ export function VoiceExtras() {
   return (
     <>
       <CanvasSurface>{null}</CanvasSurface>
-      <div data-t3voice-corner="">
+      <div data-lalala-corner="">
         <StreamerToggle />
         <VoiceClock />
       </div>

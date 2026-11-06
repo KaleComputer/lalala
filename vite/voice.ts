@@ -7,13 +7,13 @@ import { readCanvasLayout, saveCanvasCards } from "./canvasLayout";
 import { appendSessionEvents } from "./sessionLog";
 
 /**
- * Speech endpoints for t3voice: the browser only talks to `/__t3voice/*` on its own origin; these
+ * Speech endpoints for lalala: the browser only talks to `/__lalala/*` on its own origin; these
  * (incl. the realtime STT socket) go to the local speech service (`scripts/speech.sh`) on loopback.
  */
-const LOCAL_PORT = Number(process.env.T3VOICE_LOCAL_PORT?.trim() || 5797);
+const LOCAL_PORT = Number(process.env.LALALA_LOCAL_PORT?.trim() || 5797);
 const LOCAL = `http://127.0.0.1:${LOCAL_PORT}`;
 const LOCAL_DOWN = "Local speech down · run npm run speech";
-const PREFIX = "/__t3voice";
+const PREFIX = "/__lalala";
 // No length limit on what the user says: 1 GiB is ~9 h of 16 kHz speech.
 const MAX_AUDIO_BYTES = 1024 * 1024 * 1024;
 const MAX_TTS_CHARS = 1_200;
@@ -112,7 +112,7 @@ function proxyLocalSocket(
   socket.on("error", () => upstream.destroy());
 }
 
-export function t3VoicePlugin(): Plugin {
+export function lalalaPlugin(): Plugin {
   let serverPort = 0;
   const handle: Connect.NextHandleFunction = (req, res, next) => {
     const url = req.url ?? "";
@@ -152,7 +152,7 @@ export function t3VoicePlugin(): Plugin {
     if (route === "/config" && req.method === "GET") {
       sendJson(res, 200, {
         workspaceRoot,
-        model: process.env.T3VOICE_MODEL?.trim() || null,
+        model: process.env.LALALA_MODEL?.trim() || null,
       });
       return;
     }

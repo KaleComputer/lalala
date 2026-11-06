@@ -2,7 +2,7 @@ import { useSyncExternalStore } from "react";
 
 /**
  * The voice's own settings. `synced` is one value for every device (the dev server keeps it,
- * `/__t3voice/t3/settings`, newest write wins; without that route it stays on this device); the mic
+ * `/__lalala/t3/settings`, newest write wins; without that route it stays on this device); the mic
  * is per device. The brain's own model lives on its T3 thread, not here.
  */
 export type OptionValue = string | boolean;
@@ -34,10 +34,10 @@ const DEFAULTS: SyncedSettings = {
   at: 0,
 };
 
-const SYNCED_KEY = "t3voice:settings";
-const MIC_KEY = "t3voice:mic";
-const EVENT = "t3voice:settings";
-const ROUTE = "/__t3voice/t3/settings";
+const SYNCED_KEY = "lalala:settings";
+const MIC_KEY = "lalala:mic";
+const EVENT = "lalala:settings";
+const ROUTE = "/__lalala/t3/settings";
 
 const isRecord = (value: unknown): value is Record<string, unknown> =>
   typeof value === "object" && value !== null && !Array.isArray(value);
@@ -167,14 +167,14 @@ export function delegatesTag(delegates = current().delegates): string {
 export function topicSoundUrl(name = current().topicSound): string | null {
   if (name === "none") return null;
   return (
-    globalThis.__t3voiceImages?.[`./extras/topicSounds-${name}.mp3`] ??
-    globalThis.__t3voiceImages?.[`./extras/topicSounds-${DEFAULT_TOPIC_SOUND}.mp3`] ??
+    globalThis.__lalalaImages?.[`./extras/topicSounds-${name}.mp3`] ??
+    globalThis.__lalalaImages?.[`./extras/topicSounds-${DEFAULT_TOPIC_SOUND}.mp3`] ??
     null
   );
 }
 
 export const topicSoundNames = () =>
-  Object.keys(globalThis.__t3voiceImages ?? {})
+  Object.keys(globalThis.__lalalaImages ?? {})
     .map((path) => /^\.\/extras\/topicSounds-(.+)\.mp3$/.exec(path)?.[1])
     .filter((name): name is string => name !== undefined)
     .toSorted();

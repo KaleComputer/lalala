@@ -1,4 +1,4 @@
-// t3voice: the canvas (CanvasPage), its device bar (VoiceDock) and the canvas switcher. The bar is
+// lalala: the canvas (CanvasPage), its device bar (VoiceDock) and the canvas switcher. The bar is
 // always open: hiding it would leave an empty page with nothing to go back to.
 import "@fontsource-variable/inter";
 import "./index.css";

@@ -1,5 +1,5 @@
 /* From Presence's call-frame bar (ions.css, bar.css):
-   red recoloured green, scoped to [data-t3voice-presence]. Do not edit here. */
+   red recoloured green, scoped to [data-lalala-presence]. Do not edit here. */
 @font-face { font-family: "Oxanium"; font-style: normal; font-weight: 200 800; font-display: swap; src: url("./fonts/oxanium-var-latin.woff2") format("woff2"); }
 @font-face { font-family: "Rajdhani"; font-style: normal; font-weight: 700; font-display: swap; src: url("./fonts/rajdhani-700-latin.woff2") format("woff2"); }
 @font-face { font-family: "Geist"; font-style: normal; font-weight: 400; font-display: swap; src: url("./fonts/geist-400-latin.woff2") format("woff2"); }
@@ -8,7 +8,7 @@
 /* Presence ions: the same values as ions.mjs, which is the catalog; test/p2-parts.test.mjs
    keeps them equal. Straight edges everywhere but the bar (--radius-bar, ). */
 
-[data-t3voice-presence] {
+[data-lalala-presence] {
   color-scheme: dark;
   --color-bg: #0a0908;
   --color-surface: #121110;
@@ -80,11 +80,11 @@
      red, holding attach and send. Menus open upward over the frame.
    - No signal tears the frame; reading in parts turns the rail into the parts. Values from ions.css. */
 
-[data-t3voice-presence], [data-t3voice-presence] *, [data-t3voice-presence] *::before, [data-t3voice-presence] *::after { box-sizing: border-box; }
+[data-lalala-presence], [data-lalala-presence] *, [data-lalala-presence] *::before, [data-lalala-presence] *::after { box-sizing: border-box; }
 
-[data-t3voice-presence] { color: var(--color-ink); font: var(--weight-regular) var(--text-md)/var(--leading-body) var(--font-sans); -webkit-font-smoothing: antialiased; }
-:where([data-t3voice-presence]) button { font: inherit; color: inherit; background: none; border: 0; padding: 0; cursor: pointer; }
-[data-t3voice-presence] [hidden] { display: none !important; }
+[data-lalala-presence] { color: var(--color-ink); font: var(--weight-regular) var(--text-md)/var(--leading-body) var(--font-sans); -webkit-font-smoothing: antialiased; }
+:where([data-lalala-presence]) button { font: inherit; color: inherit; background: none; border: 0; padding: 0; cursor: pointer; }
+[data-lalala-presence] [hidden] { display: none !important; }
 
 /* The whole screen, the same edge on every side (more where a phone's safe area is). */
 .p2-stage {
@@ -96,7 +96,7 @@
 .p2-block { border: var(--border-edge); }
 
 /* ------------------------------------------------------------------ the call's colours and measures */
-[data-t3voice-presence] {
+[data-lalala-presence] {
   /* red/salmon is the HUD itself, cyan a thread, amber Presence's voice (the line's warm light) */
   --hud: #3dff8f; --hud-2: rgba(61, 255, 143, .66); --hud-3: rgba(61, 255, 143, .34); --hud-4: rgba(61, 255, 143, .13); --hud-ink: #04170c;
   --cyan: #4ef0ee; --cyan-2: rgba(78, 240, 238, .62); --cyan-3: rgba(78, 240, 238, .3);
@@ -450,7 +450,7 @@
 
 /* ------------------------------------------------------------------ a phone (T3: under 640 px) */
 @media (max-width: 639px) {
-  [data-t3voice-presence] { --bar-row: 52px; --bar-wave: 104px; --key-w: 58px; --tab-h: 21px; --tab-big: 29px; --tab-fs: 11.5px; --bar-open: 168px; --rail-h: 22px; --rl-pip: 7px; --rl-fs: 10px; --rl-ls: .08em; --rl-end: 8px; --plate-h: 30px; --plate-fs: 12.5px; }
+  [data-lalala-presence] { --bar-row: 52px; --bar-wave: 104px; --key-w: 58px; --tab-h: 21px; --tab-big: 29px; --tab-fs: 11.5px; --bar-open: 168px; --rail-h: 22px; --rl-pip: 7px; --rl-fs: 10px; --rl-ls: .08em; --rl-end: 8px; --plate-h: 30px; --plate-fs: 12.5px; }
   .bar { width: calc(100vw - 2 * var(--grid-edge)); }
   .fr { --tx: 58%; }
   .cmp-body { padding: 14px 12px 0 18px; }

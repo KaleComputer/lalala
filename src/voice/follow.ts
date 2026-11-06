@@ -2,8 +2,8 @@
  * Follow mode, per device: while on, `[focus: <card id>]` in the brain's replies moves the canvas
  * to that card. Off, only a turn where the user asked to be shown something moves it.
  */
-const KEY = "t3voice:follow";
-const EVENT = "t3voice:follow";
+const KEY = "lalala:follow";
+const EVENT = "lalala:follow";
 
 export function isFollowing(): boolean {
   try {

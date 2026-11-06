@@ -13,7 +13,7 @@ type Canvas = { name: string; cards: string[] } | null;
 type Layout = { cards: Record<string, Rect>; canvases: Record<string, Canvas>; at: number };
 
 const layoutFile = () =>
-  process.env.T3VOICE_CANVAS_FILE?.trim() || NodePath.join(stateDir(), "canvas.json");
+  process.env.LALALA_CANVAS_FILE?.trim() || NodePath.join(stateDir(), "canvas.json");
 
 const isRect = (value: unknown): value is Rect =>
   typeof value === "object" &&

@@ -1,4 +1,4 @@
-// t3voice's dev server: the voice plugin (speech, canvas layout, session log) plus the T3 bridge,
+// lalala's dev server: the voice plugin (speech, canvas layout, session log) plus the T3 bridge,
 // and aliases that point the voice code's T3 Code imports at small stand-ins in src/t3 and src/state.
 import * as NodePath from "node:path";
 
@@ -7,19 +7,19 @@ import react from "@vitejs/plugin-react";
 import { defineConfig } from "vite";
 
 import { t3BridgePlugin } from "./vite/t3bridge.mjs";
-import { t3VoicePlugin } from "./vite/voice.ts";
+import { lalalaPlugin } from "./vite/voice.ts";
 
 const src = NodePath.join(import.meta.dirname, "src");
 const t3 = (file) => NodePath.join(src, "t3", file);
-const port = Number(process.env.T3VOICE_PORT || 5780);
+const port = Number(process.env.LALALA_PORT || 5780);
 
 export default defineConfig({
   plugins: [
     t3BridgePlugin({
-      threadId: process.env.T3VOICE_THREAD_ID?.trim(),
+      threadId: process.env.LALALA_THREAD_ID?.trim(),
       workspaceRoot: import.meta.dirname,
     }),
-    t3VoicePlugin(),
+    lalalaPlugin(),
     tailwindcss(),
     react(),
   ],

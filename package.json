@@ -1,8 +1,8 @@
 {
-  "name": "t3voice",
+  "name": "lalala",
   "private": true,
   "type": "module",
-  "description": "A voice-first canvas for T3 Code: talk to a brain thread, hear it answer, watch it build cards.",
+  "description": "Talk to your computer. A voice-first canvas for coding agents.",
   "license": "MIT",
   "engines": {
     "node": ">=22.12"

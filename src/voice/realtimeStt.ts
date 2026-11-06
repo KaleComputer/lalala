@@ -1,5 +1,5 @@
 /**
- * Streaming speech-to-text: local Parakeet via `/__t3voice/local/stt`, speaking ElevenLabs Scribe
+ * Streaming speech-to-text: local Parakeet via `/__lalala/local/stt`, speaking ElevenLabs Scribe
  * realtime's message shapes. 16 kHz PCM streams only while the user talks; a manual commit per utterance
  * returns its transcript. Without a socket, the same engine's batch endpoint takes it, never the other.
  */
@@ -59,7 +59,7 @@ async function transcribeBatch(
   chunks: ReadonlyArray<Int16Array>,
   engine: SpeechEngine,
 ): Promise<string> {
-  const response = await fetch(`/__t3voice/stt?engine=${engine}`, {
+  const response = await fetch(`/__lalala/stt?engine=${engine}`, {
     method: "POST",
     headers: { "content-type": "audio/wav" },
     body: wavOfPcm(chunks),
@@ -70,7 +70,7 @@ async function transcribeBatch(
 }
 
 async function socketUrl(_engine: SpeechEngine): Promise<string> {
-  return `${location.protocol === "https:" ? "wss" : "ws"}://${location.host}/__t3voice/local/stt`;
+  return `${location.protocol === "https:" ? "wss" : "ws"}://${location.host}/__lalala/local/stt`;
 }
 
 type PendingCommit = {

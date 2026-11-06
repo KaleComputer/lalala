@@ -6,7 +6,7 @@ export function StreamerToggle() {
   return (
     <button
       type="button"
-      data-t3voice-streamer=""
+      data-lalala-streamer=""
       aria-pressed={on}
       aria-label="Streamer mode"
       onClick={() => setStreamer(!on)}

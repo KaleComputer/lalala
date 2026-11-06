@@ -7,10 +7,10 @@ import { liftOverKeyboard } from "./keyboardLift";
 
 // canvasStore lives in the separately built extras bundle; it announces changes with this event.
 const subscribe = (listener: () => void) => {
-  document.addEventListener("t3voice:canvases", listener);
-  return () => document.removeEventListener("t3voice:canvases", listener);
+  document.addEventListener("lalala:canvases", listener);
+  return () => document.removeEventListener("lalala:canvases", listener);
 };
-const snapshot = () => globalThis.__t3voiceCanvases?.snapshot() ?? null;
+const snapshot = () => globalThis.__lalalaCanvases?.snapshot() ?? null;
 
 /**
  * The canvas's tab in the device bar's row: its name, which raises its list over the bar (switch,
@@ -63,7 +63,7 @@ export function CanvasTabs(props: {
   // oxlint-disable-next-line t3code/no-unreasoned-state-sync -- the phone keyboard (visual viewport) lifts the bar over itself while a name is typed
   useEffect(() => (editing ? liftOverKeyboard(props.bar) : undefined), [editing, props.bar]);
 
-  const api = globalThis.__t3voiceCanvases;
+  const api = globalThis.__lalalaCanvases;
   if (!onCanvas || canvases === null || api === undefined) return null;
   const current = canvases.list.find((canvas) => canvas.id === canvases.active);
 
@@ -76,10 +76,10 @@ export function CanvasTabs(props: {
   };
 
   const tabs = (
-    <span ref={tabsRef} data-t3voice-canvas-tabs="">
+    <span ref={tabsRef} data-lalala-canvas-tabs="">
       <button
         type="button"
-        data-t3voice-canvas-name=""
+        data-lalala-canvas-name=""
         aria-hidden={!props.live}
         tabIndex={props.live ? undefined : -1}
         data-open={open ? "" : undefined}
@@ -98,8 +98,8 @@ export function CanvasTabs(props: {
   const panel = !open ? null : (
     <div
       ref={panelRef}
-      data-t3voice-canvas-panel=""
-      style={{ "--t3voice-canvas-at": `${openAt}px` } as CSSProperties}
+      data-lalala-canvas-panel=""
+      style={{ "--lalala-canvas-at": `${openAt}px` } as CSSProperties}
     >
       {canvases.list.length > 0 ? (
         <ul>
@@ -141,7 +141,7 @@ export function CanvasTabs(props: {
           ))}
         </ul>
       ) : null}
-      <div data-t3voice-canvas-actions="">
+      <div data-lalala-canvas-actions="">
         <button
           type="button"
           onClick={() => {
@@ -194,7 +194,7 @@ export function CanvasTabs(props: {
 }
 
 /**
- * t3voice mounts this in its top-left controls.
+ * lalala mounts this in its top-left controls.
  * @public
  */
 export function CanvasSwitcher() {

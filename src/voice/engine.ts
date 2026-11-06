@@ -1,12 +1,12 @@
 /**
- * Which speech engine t3voice uses: always Parakeet + Kokoro on the local speech service
+ * Which speech engine lalala uses: always Parakeet + Kokoro on the local speech service
  * (`scripts/speech.sh`). Kept as a seam for other engines.
  */
 import { useSyncExternalStore } from "react";
 
 export type SpeechEngine = "local";
 
-const KEY = "t3voice:engine";
+const KEY = "lalala:engine";
 const listeners = new Set<() => void>();
 
 export function speechEngine(): SpeechEngine {

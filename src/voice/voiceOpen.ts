@@ -1,7 +1,7 @@
 import { useSyncExternalStore } from "react";
 
-// t3voice runs on Vite's dev server.
-export const voiceEnabled = import.meta.env.DEV || import.meta.env.VITE_T3VOICE === "1";
+// lalala runs on Vite's dev server.
+export const voiceEnabled = import.meta.env.DEV || import.meta.env.VITE_LALALA === "1";
 
 // Whether the voice bar is shown. It stays across views until the user hides it; hidden, no mic runs.
 let open = false;

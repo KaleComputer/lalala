@@ -1,6 +1,6 @@
 /* The canvas surface: the whole page, catching every gesture; the world inside it is what pans and zooms.
    Its own layer: a card raised by a tap (CanvasSurface) never climbs over the corner (voiceClock.css). */
-[data-t3voice-surface] {
+[data-lalala-surface] {
   position: absolute;
   z-index: 0;
   inset: 0;
@@ -10,7 +10,7 @@
   -webkit-tap-highlight-color: transparent;
   pointer-events: auto;
 }
-[data-t3voice-world] {
+[data-lalala-world] {
   position: absolute;
   left: 0;
   top: 0;
@@ -18,7 +18,7 @@
 }
 
 /* A card (CanvasCard): its header moves it, its corner resizes it, its body scrolls by itself. */
-[data-t3voice-card] {
+[data-lalala-card] {
   position: absolute;
   display: flex;
   flex-direction: column;
@@ -29,7 +29,7 @@
   font-size: 12px;
   line-height: 1.35;
 }
-[data-t3voice-card] > header {
+[data-lalala-card] > header {
   flex: none;
   padding: 5px 10px 4px;
   border-bottom: 1px solid rgba(61, 255, 143, 0.34);
@@ -42,10 +42,10 @@
   user-select: none;
   -webkit-user-select: none;
 }
-[data-t3voice-card] > header:active {
+[data-lalala-card] > header:active {
   cursor: grabbing;
 }
-[data-t3voice-card-body] {
+[data-lalala-card-body] {
   flex: 1;
   min-height: 0;
   overflow-y: auto;
@@ -54,10 +54,10 @@
   scrollbar-width: none;
   padding: 8px 10px 14px;
 }
-[data-t3voice-card-body]::-webkit-scrollbar {
+[data-lalala-card-body]::-webkit-scrollbar {
   display: none;
 }
-[data-t3voice-card-resize] {
+[data-lalala-card-resize] {
   position: absolute;
   right: -1px;
   bottom: -1px;
@@ -65,7 +65,7 @@
   height: 22px;
   cursor: nwse-resize;
 }
-[data-t3voice-card-resize]::after {
+[data-lalala-card-resize]::after {
   content: "";
   position: absolute;
   right: 3px;
@@ -78,7 +78,7 @@
 }
 
 /* The mini-map (CanvasMap) fills the device bar's map square, which voiceBar.css places. */
-[data-t3voice-map] > canvas {
+[data-lalala-map] > canvas {
   position: relative;
   display: block;
   width: 100%;

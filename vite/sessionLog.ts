@@ -4,10 +4,10 @@ import * as NodePath from "node:path";
 import { stateDir } from "./stateDir.mjs";
 
 /**
- * t3voice's session log: one JSON line per event in sessions-YYYY-MM-DD.jsonl (local date), posted
+ * lalala's session log: one JSON line per event in sessions-YYYY-MM-DD.jsonl (local date), posted
  * by the page (voiceLog.ts). Text only: never audio, and keys that look like credentials are dropped.
  */
-const logDir = () => process.env.T3VOICE_LOG_DIR?.trim() || NodePath.join(stateDir(), "logs");
+const logDir = () => process.env.LALALA_LOG_DIR?.trim() || NodePath.join(stateDir(), "logs");
 const SECRET = /token|secret|password|authori[sz]ation|cookie|api.?key/i;
 const MAX_TEXT = 4_000;
 const MAX_EVENTS = 500;
