@@ -1,10 +1,5 @@
-import { Bar } from "./Bar";
+import { Landing } from "./canvas/LandingLoader";
 
 export default function Home() {
-  return (
-    <main>
-      <h1>talk to all your agents</h1>
-      <Bar />
-    </main>
-  );
+  return <Landing />;
 }

@@ -1,0 +1,35 @@
+/* The page is the canvas: fixed to the view, never scrolling (the surface pans instead). */
+[data-lalala-landing] {
+  position: fixed;
+  inset: 0;
+  overflow: hidden;
+}
+
+/* The canvas menu works out of a call here: there is no call needed to arrange the page. */
+[data-lalala-landing] ~ [data-lalala-dock] [data-lalala-presence]
+  .lalala-tabs:has(.fr-tmr[hidden])
+  [data-lalala-canvas-name] {
+  cursor: pointer;
+  pointer-events: auto;
+}
+[data-lalala-landing] ~ [data-lalala-dock] [data-lalala-presence]
+  .lalala-tabs:has(.fr-tmr[hidden])
+  [data-lalala-canvas-name]
+  > * {
+  opacity: 1;
+}
+
+/* The headline card: the headline grows and shrinks with the card. */
+[data-landing-talk] {
+  display: grid;
+  height: 100%;
+  align-content: center;
+  container-type: inline-size;
+}
+[data-landing-talk] h1 {
+  margin: 0;
+  color: rgb(245, 238, 226);
+  font: 600 clamp(26px, 13cqi, 80px) / 1 "Oxanium", ui-monospace, monospace;
+  letter-spacing: -0.02em;
+  text-wrap: balance;
+}

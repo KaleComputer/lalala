@@ -45,6 +45,30 @@
 [data-lalala-card] > header:active {
   cursor: grabbing;
 }
+[data-lalala-card-close] {
+  position: absolute;
+  top: 0;
+  right: 0;
+  display: grid;
+  place-items: center;
+  width: 26px;
+  height: 23px;
+  padding: 0;
+  border: 0;
+  color: rgba(61, 255, 143, 0.6);
+  background: none;
+  cursor: pointer;
+}
+[data-lalala-card-close]:is(:hover, :focus-visible) {
+  color: #3dff8f;
+}
+[data-lalala-card-close] > svg {
+  width: 13px;
+  height: 13px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2.2;
+}
 [data-lalala-card-body] {
   flex: 1;
   min-height: 0;

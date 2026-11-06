@@ -44,6 +44,8 @@ export function CanvasCard(props: {
   readonly title: string;
   readonly at: Rect;
   readonly canvas?: string;
+  /** Gives the card a close button (lalala.talk, where visitors arrange the canvas themselves). */
+  readonly onRemove?: () => void;
   readonly children: ReactNode;
 }) {
   const ref = useRef<HTMLElement>(null);
@@ -82,6 +84,19 @@ export function CanvasCard(props: {
   return (
     <section ref={ref} data-lalala-card={key} style={style(getCards()[key])}>
       <header data-lalala-card-grip="">{title}</header>
+      {/* Beside the header, not in it: a press there would start a move. */}
+      {props.onRemove ? (
+        <button
+          type="button"
+          data-lalala-card-close=""
+          aria-label={`Remove ${title}`}
+          onClick={props.onRemove}
+        >
+          <svg viewBox="0 0 24 24" aria-hidden="true">
+            <path d="M6 6l12 12M18 6L6 18" />
+          </svg>
+        </button>
+      ) : null}
       <div
         data-lalala-card-body=""
         onScroll={(event) => (scrollTops[key] = event.currentTarget.scrollTop)}

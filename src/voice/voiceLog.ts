@@ -71,6 +71,8 @@ function serialise(event: Record<string, unknown>): string {
 }
 
 export function voiceLog(who: VoiceLogWho, type: string, data: Record<string, unknown> = {}): void {
+  // No server keeps a log behind the browser storage adapter (lalala.talk).
+  if (globalThis.__lalalaAdapters?.storage.shared === false) return;
   try {
     queue.push(serialise({ t: new Date().toISOString(), page, session, who, type, ...data }));
     if (queue.length > MAX_QUEUE) queue = queue.slice(-MAX_QUEUE);

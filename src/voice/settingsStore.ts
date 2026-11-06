@@ -1,9 +1,8 @@
 import { useSyncExternalStore } from "react";
 
 /**
- * The voice's own settings. `synced` is one value for every device (the dev server keeps it,
- * `/__lalala/t3/settings`, newest write wins; without that route it stays on this device); the mic
- * is per device. The brain's own model lives on its T3 thread, not here.
+ * The voice's own settings. `synced` is one value for every device (the storage adapter keeps it,
+ * newest write wins; without a shared store it stays on this device); the mic is per device. The brain's own model lives on its T3 thread, not here.
  */
 export type OptionValue = string | boolean;
 
@@ -39,7 +38,10 @@ const DEFAULTS: SyncedSettings = {
 const SYNCED_KEY = "lalala:settings";
 const MIC_KEY = "lalala:mic";
 const EVENT = "lalala:settings";
-const ROUTE = "/__lalala/t3/settings";
+const storage = () => {
+  const adapter = globalThis.__lalalaAdapters?.storage;
+  return adapter?.shared ? adapter : null;
+};
 
 const isRecord = (value: unknown): value is Record<string, unknown> =>
   typeof value === "object" && value !== null && !Array.isArray(value);
@@ -92,12 +94,8 @@ export const syncedSettings = (): SyncedSettings => current();
 export function updateSynced(patch: Partial<Omit<SyncedSettings, "at">>) {
   const next = { ...current(), ...patch, at: Math.max(Date.now(), current().at + 1) };
   adopt(next);
-  void fetch(ROUTE, {
-    method: "PUT",
-    headers: { "content-type": "application/json" },
-    body: JSON.stringify(next),
-  })
-    .then((response) => (response.ok ? response.json() : null))
+  void storage()
+    ?.write("settings", next)
     .then((saved: unknown) => {
       const parsed = parseSynced(saved);
       if (parsed && parsed.at > current().at) adopt(parsed);
@@ -107,8 +105,8 @@ export function updateSynced(patch: Partial<Omit<SyncedSettings, "at">>) {
 
 /** Takes the other devices' newer settings, if the dev server keeps them. */
 export function pullSynced(): void {
-  void fetch(ROUTE, { cache: "no-store" })
-    .then((response) => (response.ok ? response.json() : null))
+  void storage()
+    ?.read("settings")
     .then((saved: unknown) => {
       const parsed = parseSynced(saved);
       if (parsed && parsed.at > current().at) adopt(parsed);
@@ -163,6 +161,11 @@ export function delegatesTag(delegates = current().delegates): string {
         : `${delegates.instanceId}/${delegates.model}`;
   const options = Object.entries(delegates.options).map(([id, value]) => `${id}=${value}`);
   return [model, ...options].join(" ");
+}
+
+declare global {
+  /** The extras' pictures and sounds as URLs (extrasImages.ts in the app, the site's own list). */
+  var __lalalaImages: Readonly<Record<string, string>> | undefined;
 }
 
 /** The chosen topic sound's file, null for none or the built-in chime. The page build lists every extras sound (extrasImages.ts). */

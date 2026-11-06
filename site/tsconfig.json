@@ -21,7 +21,63 @@
     ],
     "allowJs": true,
     "incremental": true,
-    "esModuleInterop": true
+    "esModuleInterop": true,
+    "paths": {
+      "react": [
+        "./node_modules/@types/react"
+      ],
+      "react/*": [
+        "./node_modules/@types/react/*"
+      ],
+      "react-dom": [
+        "./node_modules/@types/react-dom"
+      ],
+      "react-dom/*": [
+        "./node_modules/@types/react-dom/*"
+      ],
+      "~/*": [
+        "../src/*"
+      ],
+      "@t3tools/contracts": [
+        "../src/t3/contracts.ts"
+      ],
+      "@t3tools/client-runtime/environment": [
+        "../src/t3/clientRuntime.ts"
+      ],
+      "@t3tools/client-runtime/state/models": [
+        "../src/t3/clientRuntime.ts"
+      ],
+      "@t3tools/client-runtime/state/runtime": [
+        "../src/t3/clientRuntime.ts"
+      ],
+      "@t3tools/client-runtime/image-attachment-size": [
+        "../src/t3/imageAttachmentSize.ts"
+      ],
+      "@t3tools/shared/imageDimensions": [
+        "../src/t3/imageDimensions.ts"
+      ],
+      "@t3tools/shared/themePalettes": [
+        "../src/t3/themePalettes.ts"
+      ],
+      "@effect/atom-react": [
+        "../src/t3/atomReact.ts"
+      ],
+      "effect/DateTime": [
+        "../src/t3/dateTime.ts"
+      ],
+      "@tanstack/react-router": [
+        "../src/t3/router.ts"
+      ],
+      "class-variance-authority": [
+        "./node_modules/class-variance-authority"
+      ],
+      "tailwind-merge": [
+        "./node_modules/tailwind-merge"
+      ],
+      "heic-to/csp": [
+        "./node_modules/heic-to/dist/csp/heic-to.d.ts"
+      ]
+    }
   },
   "include": [
     "next-env.d.ts",

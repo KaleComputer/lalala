@@ -14,18 +14,12 @@ body {
   margin: 0;
 }
 
-main {
-  min-height: 100dvh;
-  display: grid;
-  place-items: center;
-  padding: 24px 24px 140px;
-}
-
-h1 {
-  margin: 0;
-  color: rgb(245, 238, 226);
-  font: 600 clamp(36px, 8vw, 88px) / 1 "Oxanium", ui-monospace, monospace;
-  letter-spacing: -0.02em;
-  text-align: center;
-  text-wrap: balance;
+/* The headline in the static HTML, for readers without JavaScript; the canvas replaces it. */
+[data-landing-fallback] {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
 }

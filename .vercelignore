@@ -3,6 +3,10 @@
 !/src
 /src/*
 !/src/voice
+!/src/t3
+!/src/lib
+!/src/localApi.ts
+!/src/confirmDialog.ts
 /site/node_modules
 /site/.next
 /site/out

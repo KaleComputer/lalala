@@ -30,6 +30,18 @@ browser (mic, canvas) ──▶ lalala server :5780 ──▶ T3 Code server   (
   from the corner. It starts empty; the brain adds cards when you ask for them. The layout is
   saved in `.lalala/canvas.json`, so it survives restarts and is the same on every device.
 
+### One codebase, two hosts
+
+The app and [lalala.talk](https://lalala.talk) (`site/`, Next.js) run the same canvas, cards, bar,
+settings and call code from `src/voice`. Only the adapters in `src/voice/adapters` differ, picked
+once at startup (`src/main.tsx` for the app, `site/app/canvas/adapters.ts` for the site):
+
+- **storage**: layout and settings on the lalala server (`server.ts`), or in this browser only (`browser.ts`).
+- **speech**: the local speech service, or Parakeet and Kokoro in the browser (ONNX, WebGPU or WASM).
+- **harness**: T3 Code through the lalala server, or straight from the browser to T3 Code.
+
+The site imports `src/voice` with the app's own aliases (`site/next.config.mjs` mirrors `vite.config.mjs`).
+
 ## Requirements
 
 - **Mac with Apple silicon** (M1 or later). The speech models run on MLX, which is Apple-silicon

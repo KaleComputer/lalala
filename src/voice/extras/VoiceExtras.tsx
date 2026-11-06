@@ -1,3 +1,4 @@
+import type { ReactNode } from "react";
 import { CanvasMap } from "./CanvasMap";
 import { CanvasSurface } from "./CanvasSurface";
 import { StreamerToggle } from "./StreamerToggle";
@@ -8,11 +9,12 @@ import { VoiceClock } from "./VoiceClock";
  * Cards pan and zoom on the surface; the corner stays fixed; the mini-map sits in the device bar.
  * The brain adds cards here, one line each:
  *   <CanvasCard id="..." title="..." at={{ x, y, w, h }}><YourThing /></CanvasCard>
+ * `children` are a host's own cards (lalala.talk's), beside these.
  */
-export function VoiceExtras() {
+export function VoiceExtras(props: { readonly children?: ReactNode }) {
   return (
     <>
-      <CanvasSurface>{null}</CanvasSurface>
+      <CanvasSurface>{props.children}</CanvasSurface>
       <div data-lalala-corner="">
         <StreamerToggle />
         <VoiceClock />

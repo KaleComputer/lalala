@@ -128,9 +128,13 @@ const splitKey = (key: string) => {
 
 /**
  * The voice's settings: the gear tab in the bar's row, there in and out of a call, opens
- * them over the page as one page of grouped rows (so few options need no sub-pages).
+ * them over the page as one page of grouped rows (so few options need no sub-pages). `children`
+ * replaces the app's sections (lalala.talk shows only what works in a browser).
  */
-export function VoiceSettings(props: { readonly tabHost: HTMLElement }) {
+export function VoiceSettings(props: {
+  readonly tabHost: HTMLElement;
+  readonly children?: ReactNode;
+}) {
   const [open, setOpen] = useState(false);
 
   // oxlint-disable-next-line t3code/no-unreasoned-state-sync -- takes the other devices' newer settings when this page comes back into view
@@ -161,7 +165,14 @@ export function VoiceSettings(props: { readonly tabHost: HTMLElement }) {
         </button>,
         props.tabHost,
       )}
-      {open ? createPortal(<SettingsSheet onClose={() => setOpen(false)} />, document.body) : null}
+      {open
+        ? createPortal(
+            <SettingsSheet onClose={() => setOpen(false)}>
+              {props.children ?? <AppSections />}
+            </SettingsSheet>,
+            document.body,
+          )
+        : null}
     </>
   );
 }
@@ -181,28 +192,60 @@ const fetchBrain = () =>
       brain: null,
     }));
 
-function SettingsSheet(props: { readonly onClose: () => void }) {
-  const [brain, setBrain] = useState<BrainState>({ kind: "loading" });
+function SettingsSheet(props: { readonly onClose: () => void; readonly children: ReactNode }) {
   const panelRef = useRef<HTMLDivElement>(null);
   const onClose = props.onClose;
 
-  // oxlint-disable-next-line t3code/no-unreasoned-state-sync -- reads the brain thread's model and T3's models from the dev server while the sheet is open; Esc closes it
+  // oxlint-disable-next-line t3code/no-unreasoned-state-sync -- takes the newest synced settings while the sheet is open; Esc closes it
   useEffect(() => {
-    let cancelled = false;
     pullSynced();
-    void fetchBrain().then((next) => {
-      if (!cancelled) setBrain(next);
-    });
     panelRef.current?.focus();
     const onKey = (event: KeyboardEvent) => {
       if (event.key === "Escape" && !event.defaultPrevented) onClose();
     };
     document.addEventListener("keydown", onKey);
+    return () => document.removeEventListener("keydown", onKey);
+  }, [onClose]);
+
+  return (
+    <div data-lalala-settings="" onClick={onClose}>
+      <div
+        ref={panelRef}
+        role="dialog"
+        aria-modal="true"
+        aria-label="Voice settings"
+        tabIndex={-1}
+        data-lalala-settings-panel=""
+        onClick={(event) => event.stopPropagation()}
+      >
+        <header>
+          <h1>Settings</h1>
+          <button type="button" aria-label="Close settings" onClick={onClose}>
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <path d="M6 6l12 12M18 6L6 18" />
+            </svg>
+          </button>
+        </header>
+        <div data-lalala-settings-body="">{props.children}</div>
+      </div>
+    </div>
+  );
+}
+
+/** The app's sections: the harness connection, the brain's and new threads' models, sound, canvas. */
+function AppSections() {
+  const [brain, setBrain] = useState<BrainState>({ kind: "loading" });
+
+  // oxlint-disable-next-line t3code/no-unreasoned-state-sync -- reads the brain thread's model and T3's models from the dev server while the sheet is open
+  useEffect(() => {
+    let cancelled = false;
+    void fetchBrain().then((next) => {
+      if (!cancelled) setBrain(next);
+    });
     return () => {
       cancelled = true;
-      document.removeEventListener("keydown", onKey);
     };
-  }, [onClose]);
+  }, []);
 
   const configureBrain = (selection: Selection) => {
     if (brain.kind !== "ready") return;
@@ -229,37 +272,17 @@ function SettingsSheet(props: { readonly onClose: () => void }) {
   const known = brain.kind === "ready" ? brain.brain : brain.kind === "error" ? brain.brain : null;
 
   return (
-    <div data-lalala-settings="" onClick={onClose}>
-      <div
-        ref={panelRef}
-        role="dialog"
-        aria-modal="true"
-        aria-label="Voice settings"
-        tabIndex={-1}
-        data-lalala-settings-panel=""
-        onClick={(event) => event.stopPropagation()}
-      >
-        <header>
-          <h1>Settings</h1>
-          <button type="button" aria-label="Close settings" onClick={onClose}>
-            <svg viewBox="0 0 24 24" aria-hidden="true">
-              <path d="M6 6l12 12M18 6L6 18" />
-            </svg>
-          </button>
-        </header>
-        <div data-lalala-settings-body="">
-          <ConnectionSection onChange={() => void fetchBrain().then(setBrain)} />
-          <BrainSection state={brain} onConfigure={configureBrain} />
-          <ThreadsSection brain={known} />
-          <SoundSection />
-          <CanvasRows />
-        </div>
-      </div>
-    </div>
+    <>
+      <ConnectionSection onChange={() => void fetchBrain().then(setBrain)} />
+      <BrainSection state={brain} onConfigure={configureBrain} />
+      <ThreadsSection brain={known} />
+      <SoundSection />
+      <CanvasRows />
+    </>
   );
 }
 
-function Section(props: {
+export function Section(props: {
   readonly title?: string;
   readonly note?: ReactNode;
   readonly children?: ReactNode;
@@ -273,7 +296,7 @@ function Section(props: {
   );
 }
 
-function Row(props: {
+export function Row(props: {
   readonly title: string;
   readonly description?: ReactNode;
   readonly children: ReactNode;
@@ -901,7 +924,7 @@ function ThreadsSection(props: { readonly brain: Brain | null }) {
   );
 }
 
-function SoundSection() {
+export function SoundSection() {
   const { topicSound } = useSyncedSettings();
   const mic = useMicDeviceId();
   const [mics, setMics] = useState<ReadonlyArray<MediaDeviceInfo> | null>(null);
@@ -977,7 +1000,7 @@ function SoundSection() {
   );
 }
 
-function CanvasRows() {
+export function CanvasRows() {
   const following = useSyncExternalStore(subscribeFollow, isFollowing, () => false);
   const streamer = useStreamerMode();
   return (

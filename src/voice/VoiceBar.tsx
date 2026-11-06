@@ -45,6 +45,10 @@ export function VoiceBar(props: {
   /** The user's mic is muted; the mic tab shows it and `onMute` flips it. */
   readonly muted?: boolean;
   readonly onMute?: () => void;
+  /** The canvas menu works out of a call too (lalala.talk: arranging the page needs no call). */
+  readonly canvasMenuAlways?: boolean;
+  /** The settings' sections, in place of the app's (lalala.talk shows only what a browser can do). */
+  readonly settings?: ReactNode;
 }) {
   const rootRef = useRef<HTMLDivElement>(null);
   const frameRef = useRef<PresenceFrame | null>(null);
@@ -115,7 +119,7 @@ export function VoiceBar(props: {
           tabHost={canvasHost}
           panelHost={inputHosts.panel}
           bar={inputHosts.bar}
-          live={props.live ?? false}
+          live={props.canvasMenuAlways || (props.live ?? false)}
         />
       ) : null}
       {micHost !== null && props.onMute
@@ -139,7 +143,9 @@ export function VoiceBar(props: {
             micHost,
           )
         : null}
-      {settingsHost !== null ? <VoiceSettings tabHost={settingsHost} /> : null}
+      {settingsHost !== null ? (
+        <VoiceSettings tabHost={settingsHost}>{props.settings}</VoiceSettings>
+      ) : null}
       {lead !== null && updateReady
         ? createPortal(
             // An update waits; during a call it applies only on this tap. It fills the lead

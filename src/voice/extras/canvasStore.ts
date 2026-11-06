@@ -340,11 +340,15 @@ export function holdCard(id: string | null) {
 }
 
 /**
- * Card boxes are one layout for every device, kept by the dev server (vite/canvasLayout.ts): each
- * device sends the cards it changed, the newest write wins, and the others pick it up within
- * POLL_MS. The camera stays per device, in localStorage only.
+ * Card boxes are one layout for every device, kept by the storage adapter (the app's server,
+ * vite/canvasLayout.ts): each device sends the cards it changed, the newest write wins, and the
+ * others pick it up within POLL_MS. The camera stays per device, in localStorage only. Without a
+ * shared store (lalala.talk) the layout lives in this browser alone.
  */
-const SHARED = "/__lalala/canvas";
+const storage = () => {
+  const adapter = globalThis.__lalalaAdapters?.storage;
+  return adapter?.shared ? adapter : null;
+};
 const POLL_MS = 3_000;
 type Shared = {
   readonly cards: Readonly<Record<string, Rect>>;
@@ -406,7 +410,8 @@ function schedulePush() {
 
 async function push(leaving = false) {
   window.clearTimeout(pushTimer);
-  if (pushing || (unsynced.size === 0 && unsentCanvases.size === 0)) return;
+  const store = storage();
+  if (store === null || pushing || (unsynced.size === 0 && unsentCanvases.size === 0)) return;
   if (held !== null && !leaving) return;
   const sent = boxesOf([...unsynced].filter((id) => !newlyPlaced.has(id)));
   const sentPlaced = boxesOf([...unsynced].filter((id) => newlyPlaced.has(id)));
@@ -415,18 +420,16 @@ async function push(leaving = false) {
   );
   pushing = true;
   try {
-    const response = await fetch(SHARED, {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({
+    const shared = (await store.write(
+      "canvas",
+      {
         cards: sent,
         ...(Object.keys(sentPlaced).length > 0 && { placed: sentPlaced }),
         ...(unsentCanvases.size > 0 && { canvases: sentCanvases }),
-      }),
-      keepalive: leaving,
-    });
-    if (!response.ok) return;
-    const shared = (await response.json()) as Shared;
+      },
+      { leaving },
+    )) as Shared | null;
+    if (shared === null) return;
     for (const [id, rect] of Object.entries(sent)) if (live.cards[id] === rect) unsynced.delete(id);
     // Untouched since: the shared layout's box wins, whichever tab placed it.
     for (const [id, rect] of Object.entries(sentPlaced)) {
@@ -452,10 +455,11 @@ async function push(leaving = false) {
 
 /** Reads the shared layout; the first read of an empty one seeds it with this device's cards. */
 async function pull(first = false) {
+  const store = storage();
+  if (store === null) return;
   try {
-    const response = await fetch(SHARED, { cache: "no-store", signal: AbortSignal.timeout(3_000) });
-    if (!response.ok) return;
-    const shared = (await response.json()) as Shared;
+    const shared = (await store.read("canvas")) as Shared | null;
+    if (shared === null) return;
     if (first && shared.at === 0) {
       for (const id of Object.keys(live.cards)) unsynced.add(id);
       await push();
@@ -755,7 +759,7 @@ const firstPull = typeof window === "undefined" ? Promise.resolve() : pull(true)
 if (typeof window !== "undefined") {
   globalThis.__lalalaCanvases = api;
   canvasesChanged();
-  const poll = window.setInterval(sync, POLL_MS);
+  const poll = storage() === null ? 0 : window.setInterval(sync, POLL_MS);
   window.addEventListener("pagehide", leave);
   window.addEventListener("storage", adopt);
   window.addEventListener("focus", sync);

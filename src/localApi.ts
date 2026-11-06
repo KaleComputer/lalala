@@ -6,7 +6,8 @@ export function ensureLocalApi() {
   return {
     dialogs: {
       confirm: async (message: string, options?: ConfirmDialogOptions) =>
-        requestConfirmDialog(message, options) ?? false,
+        // No themed host on the page (lalala.talk): the browser's own dialog.
+        requestConfirmDialog(message, options) ?? window.confirm(message),
     },
   };
 }

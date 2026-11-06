@@ -10,11 +10,16 @@ import { createRoot } from "react-dom/client";
 
 import { ConfirmDialogHost } from "./components/ConfirmDialogHost";
 import { TooltipProvider } from "./components/ui/tooltip";
+import { installAdapters } from "./voice/adapters";
+import { serverStorage } from "./voice/adapters/storage/server";
 import { CanvasPage } from "./voice/CanvasPage";
 import { CanvasSwitcher } from "./voice/CanvasSwitcher";
 import { StreamerFilter } from "./voice/streamerMode";
 import { VoiceDock } from "./voice/VoiceDock";
 import { setVoiceOpen } from "./voice/voiceOpen";
+
+// The app keeps layout and settings on its server; lalala.talk installs the browser adapters.
+installAdapters({ storage: serverStorage });
 
 // The /canvas route opens the bar on entry (routes/_chat.canvas.tsx).
 setVoiceOpen(true);
