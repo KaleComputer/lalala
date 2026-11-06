@@ -53,7 +53,7 @@ browser (mic, canvas) ──▶ lalala server :5780 ──▶ T3 Code server   (
 1. **Clone and install**
 
    ```sh
-   git clone https://github.com/timpietrusky/lalala.git
+   git clone https://github.com/KaleComputer/lalala.git
    cd lalala
    npm install
    cp .env.example .env
