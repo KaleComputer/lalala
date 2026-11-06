@@ -88,9 +88,6 @@ export function CanvasTabs(props: {
         onClick={toggle}
       >
         <span>{current?.name ?? "No canvas"}</span>
-        <svg viewBox="0 0 8 8" aria-hidden="true">
-          <path d="M1 2.5h6L4 6.5z" />
-        </svg>
       </button>
     </span>
   );

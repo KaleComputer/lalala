@@ -539,7 +539,6 @@
 }
 /* The time's type, like "+": side by side they read as one row. */
 [data-lalala-presence] [data-lalala-canvas-name] {
-  gap: 5px;
   max-width: 112px;
   padding: 0 8px 0 9px;
   font: 400 calc(var(--tab-fs) - 1px) / 1 var(--font-mono);
@@ -551,12 +550,6 @@
   min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
-}
-[data-lalala-presence] [data-lalala-canvas-name] > svg {
-  flex: none;
-  width: 7px;
-  fill: currentColor;
-  opacity: 0.75;
 }
 [data-lalala-presence] [data-lalala-canvas-name]:focus-visible {
   outline: 0;

@@ -95,9 +95,6 @@ export function Bar() {
             <span data-lalala-canvas-tabs="">
               <button type="button" data-lalala-canvas-name="" aria-hidden={!live} tabIndex={-1}>
                 <span>lalala</span>
-                <svg viewBox="0 0 8 8" aria-hidden="true">
-                  <path d="M1 2.5h6L4 6.5z" />
-                </svg>
               </button>
             </span>,
             hosts.canvas,
