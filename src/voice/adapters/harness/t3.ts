@@ -254,6 +254,7 @@ export type ModelSelection = { instanceId: string; model: string };
 export type Project = {
   id: string;
   title: string;
+  workspaceRoot: string;
   defaultModelSelection: ModelSelection | null;
   archivedAt?: string | null;
 };
@@ -297,13 +298,43 @@ export async function readWorkspace(socket: T3Socket) {
     }));
   return {
     label: config.environment?.label ?? "T3 Code",
-    projects: snapshot.projects.filter((p) => !p.archivedAt),
+    projects: snapshot.projects,
     threads: [...snapshot.threads].sort((a, b) =>
       String(b.updatedAt ?? "").localeCompare(String(a.updatedAt ?? "")),
     ),
     providers,
     defaultModel: config.settings?.defaultModelSelection ?? null,
   };
+}
+
+export const LALALA_PROJECT = "lalala";
+export const VOICE_THREAD_TITLE = "voice (lalala.talk)";
+
+/**
+ * lalala's own project, `~/lalala` on the paired machine (T3 expands `~` and makes the folder),
+ * found by its title or made once; an archived one comes back.
+ */
+export async function ensureLalalaProject(socket: T3Socket, projects: Project[], name = LALALA_PROJECT) {
+  const own = projects.filter((p) => p.title === name);
+  const live = own.find((p) => !p.archivedAt);
+  if (live) return { project: live, created: false };
+  const archived = own[0];
+  const project = archived
+    ? await socket.request<Project>("projects.mutate", {
+        type: "project.update",
+        commandId: uuid(),
+        projectId: archived.id,
+        archived: false,
+      })
+    : await socket.request<Project>("projects.mutate", {
+        type: "project.create",
+        commandId: uuid(),
+        projectId: uuid(),
+        title: name,
+        workspaceRoot: `~/${name}`,
+        createWorkspaceRootIfMissing: true,
+      });
+  return { project, created: !archived };
 }
 
 export async function launchVoiceThread(
@@ -315,7 +346,7 @@ export async function launchVoiceThread(
     commandId: uuid(),
     creationSource: "web",
     projectId,
-    title: "voice (lalala.talk)",
+    title: VOICE_THREAD_TITLE,
     modelSelection,
     runtimeMode: "full-access",
     interactionMode: "default",

@@ -194,7 +194,7 @@ export function VoiceHost({
   /** The user's words (spoken, or typed in the bar's input with its pictures) as a turn on the voice thread, made on first use. */
   const send = useEffectEvent(async (text: string, images: ReadonlyArray<File> = []) => {
     if (environmentId === null || project === undefined) {
-      setError("No brain thread yet: set LALALA_THREAD_ID in .env and restart.");
+      setError("No brain thread yet: pair with T3 Code in the settings.");
       return false;
     }
     const defaultSelection = serverSettings.defaultModelSelection;

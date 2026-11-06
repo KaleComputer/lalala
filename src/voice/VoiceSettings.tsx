@@ -75,6 +75,7 @@ type Connection = {
   readonly server: { readonly label: string; readonly version: string } | null;
   readonly session: { readonly expiresAt: number; readonly renews: boolean } | null;
   readonly brainThread: { readonly id: string; readonly title: string | null } | null;
+  readonly notice?: string | null;
 };
 type ConnectionState =
   | { readonly kind: "loading" }
@@ -700,6 +701,7 @@ function ConnectionSection(props: { readonly onChange: () => void }) {
   return (
     <Section title={title} note="The coding harness the voice works through.">
       {problem ? <p data-lalala-settings-error="">{problem}</p> : null}
+      {c.notice ? <p data-lalala-settings-info="">{c.notice}</p> : null}
       <Row
         title={c.harness}
         description={

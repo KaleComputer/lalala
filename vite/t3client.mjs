@@ -282,6 +282,24 @@ export class T3Socket {
   stream(tag, payload, onChunk) {
     return this.#call(tag, payload, onChunk);
   }
+
+  /** A subscription's first snapshot; the subscription stops there. */
+  snapshot(tag, payload) {
+    const id = String(this.#nextId++);
+    return new Promise((resolve, reject) => {
+      this.#pending.set(id, {
+        reject,
+        resolve: () => reject(new Error(`${tag} ended without a snapshot`)),
+        onChunk: (chunk) => {
+          if (chunk.kind !== "snapshot") return;
+          this.#pending.delete(id);
+          this.#send({ _tag: "Interrupt", requestId: id, interruptors: [] });
+          resolve(chunk.snapshot);
+        },
+      });
+      this.#send({ _tag: "Request", id, tag, payload, headers: [] });
+    });
+  }
 }
 
 function describeCause(cause) {

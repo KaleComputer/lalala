@@ -102,30 +102,20 @@ The site imports `src/voice` with the app's own aliases (`site/next.config.mjs` 
    this machine's T3 Code, and Disconnect. A link pairing does not renew itself; pair again before
    it ends.
 
-5. **Make the brain thread**
+5. **The brain thread**
 
-   Add this folder as a T3 Code project and start the brain thread in it:
+   Nothing to do: once paired, lalala uses this folder's T3 Code project (or makes it once, named
+   "lalala") and starts a thread called "brain" there, on the project's or T3 Code's default model.
+   It remembers that thread in `.lalala/brain.json`. Because the project is this folder, the brain
+   edits this repo's `src/voice/extras` when you ask for a card, and Vite shows it within seconds.
 
-   ```sh
-   ~/.t3/bin/t3 project add .
-   ~/.t3/bin/t3 thread start . "Hi, you are my voice brain. Reply with one short sentence." --title brain --wait
-   ```
-
-   `thread start` prints `Thread <thread id>` and then the brain's first reply. Put the id
-   (all of it, including any prefix such as `mcp:`) in `.env`:
-
-   ```sh
-   LALALA_THREAD_ID=<thread id>
-   ```
-
-   The brain answers every time you speak, so give it a fast model: add
-   `--provider <instance> --model <model>` to `thread start` (for example a Haiku-class or
-   "mini" model), or change the thread's model in T3 Code afterwards. Delegated threads do the
-   heavy work.
+   The brain answers every time you speak, so give it a fast model (a Haiku-class or "mini"
+   model): change it in the settings (gear in the bar) or in T3 Code. Delegated threads do the
+   heavy work. To use a thread of your own instead, put its id (all of it, including any prefix
+   such as `mcp:`) in `.env` as `LALALA_THREAD_ID=<thread id>`.
 
    You don't paste `brain.md` anywhere; lalala sends it into the thread before your first spoken
-   message. Because the project is this folder, the brain edits this repo's `src/voice/extras`
-   when you ask for a card, and Vite shows it within seconds.
+   message.
 
 6. **Start lalala**
 
@@ -190,7 +180,7 @@ Set in `.env` (see `.env.example`).
 
 | Variable | Default | What |
 | --- | --- | --- |
-| `LALALA_THREAD_ID` | (required) | The brain thread |
+| `LALALA_THREAD_ID` | made after pairing | The brain thread, if not the one lalala makes |
 | `LALALA_PORT` | `5780` | lalala server port |
 | `LALALA_LOCAL_PORT` | `5797` | Local speech service port |
 | `LALALA_LOCAL_VOICE` | `af_heart` | Kokoro voice |

@@ -13,13 +13,6 @@ if (process.argv[2] === "pair") {
   process.exit(0);
 }
 
-if (!process.env.LALALA_THREAD_ID?.trim()) {
-  console.error(
-    "LALALA_THREAD_ID is not set. Create the brain thread in T3 Code and put its id in .env (see README).",
-  );
-  process.exit(1);
-}
-
 const port = Number(process.env.LALALA_PORT || 5780);
 process.env.VITE_CONFIG_NATIVE_IGNORE_WARNING ??= "true";
 

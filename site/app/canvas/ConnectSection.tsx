@@ -1,8 +1,11 @@
 import { useEffect, useRef, useState } from "react";
 
 import {
+  LALALA_PROJECT,
   type Session,
   T3Socket,
+  VOICE_THREAD_TITLE,
+  ensureLalalaProject,
   launchVoiceThread,
   pairWithLink,
   readBrainThread,
@@ -18,6 +21,8 @@ type Connected = { readonly session: Session; readonly socket: T3Socket; readonl
 const PAIR_COMMAND =
   "npx t3 pair --scope orchestration:read --scope orchestration:operate --label lalala.talk";
 const NEW_THREAD = "";
+const CREATING = `Creating a "${LALALA_PROJECT}" project in your home folder for your voice thread.`;
+const CREATED = `Created a "${LALALA_PROJECT}" project in your home folder for your voice thread.`;
 const SEP = "\u0000";
 
 // Chrome (and Edge) let an https page reach localhost after a prompt; Safari and Firefox do not yet.
@@ -28,6 +33,12 @@ const canReachLocal = () =>
 
 const modelValue = (selection: { instanceId: string; model: string } | null | undefined) =>
   selection ? `${selection.instanceId}${SEP}${selection.model}` : "";
+
+const firstModel = (workspace: Workspace) => {
+  const provider = workspace.providers[0];
+  const slug = provider?.models[0]?.slug;
+  return provider && slug ? { instanceId: provider.instanceId, model: slug } : null;
+};
 
 /** A cropped screenshot of T3 Code's own UI, showing where to click. */
 const Shot = (props: { src: string; width: number; height: number; alt: string }) => (
@@ -48,19 +59,32 @@ export function ConnectSection() {
   const [projectId, setProjectId] = useState("");
   const [threadId, setThreadId] = useState(NEW_THREAD);
   const [model, setModel] = useState("");
+  const [notice, setNotice] = useState<string | null>(null);
+  const [choosing, setChoosing] = useState(false);
   const socketRef = useRef<T3Socket | null>(null);
 
   async function open(session: Session) {
     const socket = new T3Socket(session);
     await socket.connect();
     socketRef.current = socket;
-    const workspace = await readWorkspace(socket);
+    const read = await readWorkspace(socket);
+    // No project picking by default: the voice thread lives in lalala's own project.
+    if (!read.projects.some((p) => p.title === LALALA_PROJECT && !p.archivedAt)) setNotice(CREATING);
+    const { project: own, created } = await ensureLalalaProject(socket, read.projects);
+    setNotice(created ? CREATED : null);
+    const workspace = {
+      ...read,
+      projects: [own, ...read.projects.filter((p) => p.id !== own.id && !p.archivedAt)],
+    };
     const current = readBrainThread(session.origin);
-    const thread = workspace.threads.find((candidate) => candidate.id === current);
-    const project = workspace.projects.find((p) => p.id === thread?.projectId) ?? workspace.projects[0];
-    setProjectId(project?.id ?? "");
+    const thread =
+      workspace.threads.find((candidate) => candidate.id === current) ??
+      workspace.threads.find((t) => t.projectId === own.id && t.title === VOICE_THREAD_TITLE);
+    const project = workspace.projects.find((p) => p.id === thread?.projectId) ?? own;
+    setProjectId(project.id);
+    setChoosing(project.id !== own.id);
     setThreadId(thread?.id ?? NEW_THREAD);
-    setModel(modelValue(project?.defaultModelSelection ?? workspace.defaultModel));
+    setModel(modelValue(project.defaultModelSelection ?? workspace.defaultModel ?? firstModel(workspace)));
     setConnected({ session, socket, workspace });
   }
 
@@ -120,6 +144,7 @@ export function ConnectSection() {
     return (
       <Section title={title} note={note}>
         {problem ? <p data-lalala-settings-error="">{problem}</p> : null}
+        {busy && notice ? <p data-lalala-settings-info="">{notice}</p> : null}
         {canReachLocal() ? null : (
           <p data-lalala-settings-error="">
             This needs Chrome or Edge on the computer running T3 Code: other browsers do not let a
@@ -227,17 +252,21 @@ export function ConnectSection() {
           Connected
         </span>
       </Row>
-      <PickRow
-        title="Project"
-        label="Project"
-        value={projectId}
-        disabled={busy}
-        groups={[{ options: workspace.projects.map((p) => ({ value: p.id, label: p.title })) }]}
-        onChange={(next) => {
-          setProjectId(next);
-          setThreadId(NEW_THREAD);
-        }}
-      />
+      {notice ? <p data-lalala-settings-info="">{notice}</p> : null}
+      {choosing ? (
+        <PickRow
+          title="Project"
+          description={`The T3 project the thread lives in; "${LALALA_PROJECT}" is lalala's own.`}
+          label="Project"
+          value={projectId}
+          disabled={busy}
+          groups={[{ options: workspace.projects.map((p) => ({ value: p.id, label: p.title })) }]}
+          onChange={(next) => {
+            setProjectId(next);
+            setThreadId(NEW_THREAD);
+          }}
+        />
+      ) : null}
       <PickRow
         title="Thread"
         description="The thread lalala talks to: it answers out loud and hands work to other threads."
@@ -257,6 +286,13 @@ export function ConnectSection() {
           onChange={setModel}
         />
       ) : null}
+      {choosing ? null : (
+        <Row title="Advanced" description={`The thread lives in lalala's own "${LALALA_PROJECT}" project.`}>
+          <button type="button" data-lalala-settings-button="" disabled={busy} onClick={() => setChoosing(true)}>
+            Choose another project
+          </button>
+        </Row>
+      )}
       <Row title="Call" description="Closes the settings and starts talking.">
         <button
           type="button"

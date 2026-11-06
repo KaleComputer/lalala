@@ -224,6 +224,12 @@
   color: #ffb02e;
   font-size: 12px;
 }
+[data-lalala-settings-info] {
+  margin: 0;
+  padding: 10px 14px;
+  color: var(--s-ink-2);
+  font-size: 12px;
+}
 [data-lalala-settings-value] {
   min-width: 0;
   max-width: 55cqw;

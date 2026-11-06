@@ -12,12 +12,15 @@ import {
   pair,
   pairWithLink,
   sessionInfo,
+  t3Origin,
   uuid,
 } from "./t3client.mjs";
 
 const PREFIX = "/__lalala/t3";
 const ACTIVE_RUN = new Set(["preparing", "queued", "starting", "running", "waiting"]);
 const MAX_ROWS = 400;
+const PROJECT_NAME = "lalala";
+const BRAIN_TITLE = "brain";
 // The page only reads these fields (VoiceHost, brief.ts); everything else stays on the server.
 const slim = (visibility, item) => ({
   visibility,
@@ -68,9 +71,25 @@ function saveSettings(next) {
   return next;
 }
 
+// Without LALALA_THREAD_ID, the brain thread this checkout made (or found) for the paired T3.
+const brainFile = () => NodePath.join(stateDir(), "brain.json");
+function readStoredBrain() {
+  try {
+    const stored = JSON.parse(NodeFS.readFileSync(brainFile(), "utf8"));
+    return stored.origin === t3Origin() && typeof stored.threadId === "string" ? stored.threadId : null;
+  } catch {
+    return null;
+  }
+}
+function storeBrain(threadId) {
+  NodeFS.mkdirSync(stateDir(), { recursive: true });
+  NodeFS.writeFileSync(brainFile(), JSON.stringify({ origin: t3Origin(), threadId }));
+}
+
 export function t3BridgePlugin({ threadId: configuredThreadId, workspaceRoot }) {
   const state = {
-    threadId: configuredThreadId,
+    threadId: configuredThreadId || null,
+    notice: null,
     thread: null,
     rows: new Map(),
     runs: new Map(),
@@ -139,6 +158,8 @@ export function t3BridgePlugin({ threadId: configuredThreadId, workspaceRoot }) 
         broadcast(hello());
         schedule(2_000);
       };
+      if (!state.threadId) state.threadId = readStoredBrain() ?? (await ensureBrain(next));
+      if (gen !== generation) return;
       void readServer(next);
       void next
         .stream(
@@ -180,6 +201,11 @@ export function t3BridgePlugin({ threadId: configuredThreadId, workspaceRoot }) 
         )
         .catch((error) => {
           if (gen !== generation) return;
+          // The stored brain thread is gone (deleted in T3): make or find another on the next connect.
+          if (!configuredThreadId && /not found|does not exist|unknown thread/i.test(error.message)) {
+            NodeFS.rmSync(brainFile(), { force: true });
+            state.threadId = null;
+          }
           state.error = `T3: ${error.message}`;
           broadcast(hello());
           next.close();
@@ -191,6 +217,58 @@ export function t3BridgePlugin({ threadId: configuredThreadId, workspaceRoot }) 
       broadcast(hello());
       schedule(5_000);
     }
+  }
+
+  /**
+   * The brain thread for this folder: its T3 project (made once, named "lalala") and the newest
+   * "brain" thread there, or a new one on the project's or T3's default model.
+   */
+  async function ensureBrain(via) {
+    const { projects, threads } = await via.snapshot("orchestration.subscribeShell", {});
+    const config = await readServer(via);
+    const mine = projects.filter((p) => p.workspaceRoot === workspaceRoot);
+    let project = mine.find((p) => !p.archivedAt) ?? mine[0];
+    if (project?.archivedAt) {
+      project = await via.request("projects.mutate", {
+        type: "project.update",
+        commandId: uuid(),
+        projectId: project.id,
+        archived: false,
+      });
+    } else if (!project) {
+      state.notice = `Created a "${PROJECT_NAME}" project for this folder in T3 Code, for your voice thread.`;
+      project = await via.request("projects.mutate", {
+        type: "project.create",
+        commandId: uuid(),
+        projectId: uuid(),
+        title: PROJECT_NAME,
+        workspaceRoot,
+      });
+    }
+    const existing = threads
+      .filter((t) => t.projectId === project.id && t.title === BRAIN_TITLE && !t.archivedAt)
+      .sort((a, b) => String(b.updatedAt ?? "").localeCompare(String(a.updatedAt ?? "")))[0];
+    let threadId = existing?.id;
+    if (!threadId) {
+      const provider = slimProviders(config.providers)[0];
+      const modelSelection =
+        project.defaultModelSelection ??
+        config.settings?.defaultModelSelection ??
+        (provider && { instanceId: provider.instanceId, model: provider.models[0].slug });
+      if (!modelSelection) throw new Error("T3 Code has no model to start the brain thread with");
+      ({ threadId } = await via.request("orchestration.launchThread", {
+        commandId: uuid(),
+        creationSource: "web",
+        projectId: project.id,
+        title: BRAIN_TITLE,
+        modelSelection,
+        runtimeMode: "full-access",
+        interactionMode: "default",
+        workspaceStrategy: { type: "root" },
+      }));
+    }
+    storeBrain(threadId);
+    return threadId;
   }
 
   async function readServer(via) {
@@ -224,7 +302,8 @@ export function t3BridgePlugin({ threadId: configuredThreadId, workspaceRoot }) 
       canPairLocal: canPairLocal(),
       server: state.server,
       session: session && { expiresAt: session.expiresAt, renews: session.renews },
-      brainThread: { id: state.threadId, title: state.thread?.title ?? null },
+      brainThread: state.threadId ? { id: state.threadId, title: state.thread?.title ?? null } : null,
+      notice: state.notice,
     };
   };
 
@@ -264,6 +343,7 @@ export function t3BridgePlugin({ threadId: configuredThreadId, workspaceRoot }) 
 
   async function send({ threadId, message, runtimeMode, interactionMode }) {
     if (!socket) throw new Error(state.error ?? "Not connected to T3 Code");
+    if (!state.threadId) throw new Error("No brain thread yet: pair with T3 Code in the settings");
     if (threadId !== state.threadId) throw new Error("Not the brain thread");
     const uploads = (message.attachments ?? []).filter((a) => typeof a.dataUrl === "string");
     const attachments =
