@@ -62,13 +62,14 @@ export const wantCallOnConnect = (want: boolean) => {
 
 /**
  * The call talks to this thread on the paired T3 from now on. Its call starts right away when the
- * call button led here, or keeps going when one was live on the previous thread.
+ * call button led here, or keeps going when one was live on the previous thread. Says whether a call runs.
  */
 export function followBrainThread(session: Session, threadId: string) {
   const startCall = callOnConnect || callLive();
   callOnConnect = false;
   saveBrainThread(session.origin, threadId);
   follow(browserHarness(), startCall);
+  return startCall;
 }
 
 /** Whether this brain version's call starts as soon as it mounts. */

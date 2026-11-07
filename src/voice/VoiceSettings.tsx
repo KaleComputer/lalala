@@ -9,7 +9,9 @@ import {
 } from "react";
 import { createPortal } from "react-dom";
 
+import { ConnectedRows, PairSteps } from "./ConnectFlow";
 import { isFollowing, setFollowing, subscribeFollow } from "./follow";
+import { pairingLink } from "./pairing";
 import { useStreamerMode } from "./streamerMode";
 import { topicChime } from "./player";
 import {
@@ -621,9 +623,6 @@ const sendConnection = (path: string, body?: object) =>
     return result;
   });
 
-const untilDate = (at: number) =>
-  new Date(at).toLocaleDateString(undefined, { weekday: "short", day: "numeric", month: "short" });
-
 const fetchConnection = () =>
   fetch(CONNECTION_ROUTE, { cache: "no-store" })
     .then(async (response): Promise<ConnectionState> => {
@@ -645,50 +644,73 @@ const fetchConnection = () =>
       },
     }));
 
+const PAIR_COMMAND = "npx t3 pair --scope orchestration:read --scope orchestration:operate --label lalala";
+/** Asks T3 Code for one small answer through the bridge: what makes the link count as working. */
+const checkConnection = () =>
+  sendConnection("/test").then((result) => {
+    const { ms } = result as { ms?: number };
+    return `answered in ${ms ?? "?"} ms`;
+  });
+const describe = (cause: unknown) => {
+  const message = cause instanceof Error ? cause.message : String(cause);
+  return /token exchange answered 40[01]/.test(message)
+    ? "That pairing link was already used or expired. Make a new one in T3 Code."
+    : message;
+};
+
 /**
- * The harness the voice works through: T3 Code today, the one the standalone's bridge
- * pairs with. Inside T3 Code itself (no bridge route) there is nothing to set.
+ * The harness the voice works through: T3 Code today, the one the app's bridge pairs with. Paste a
+ * pairing link and it pairs, checks the link and shows it connected; nothing else to click.
  */
 function ConnectionSection(props: { readonly onChange: () => void }) {
   const [state, setState] = useState<ConnectionState>({ kind: "loading" });
-  const [busy, setBusy] = useState(false);
+  const [working, setWorking] = useState<string | null>(null);
   const [problem, setProblem] = useState<string | null>(null);
-  const [test, setTest] = useState<string | null>(null);
-  const [link, setLink] = useState("");
+  const [checked, setChecked] = useState<string | null>(null);
   const onChange = props.onChange;
 
-  // oxlint-disable-next-line t3code/no-unreasoned-state-sync -- reads the bridge's link to the harness while the sheet is open
+  const check = () => checkConnection().then(setChecked);
+
+  // oxlint-disable-next-line t3code/no-unreasoned-state-sync -- reads the bridge's link to the harness while the sheet is open, and checks it once
   useEffect(() => {
     let cancelled = false;
     void fetchConnection().then((next) => {
-      if (!cancelled) setState(next);
+      if (cancelled) return;
+      setState(next);
+      if (next.kind !== "ready" || !next.connection.paired) return;
+      checkConnection().then(
+        (answer) => !cancelled && setChecked(answer),
+        (cause: unknown) => !cancelled && setProblem(describe(cause)),
+      );
     });
     return () => {
       cancelled = true;
     };
   }, []);
 
-  const act = (path: string, body?: object) => {
-    setBusy(true);
+  const run = (label: string, work: () => Promise<unknown>) => {
+    setWorking(label);
     setProblem(null);
-    setTest(null);
-    void sendConnection(path, body)
-      .then((result) => {
-        if (path === "/test") {
-          const { ms } = result as { ms?: number };
-          setTest(`answered in ${ms ?? "?"} ms`);
-        } else {
-          setLink("");
-          onChange();
-        }
-      })
-      .catch((cause: unknown) => setProblem(cause instanceof Error ? cause.message : String(cause)))
+    void work()
+      .catch((cause: unknown) => setProblem(describe(cause)))
       .then(fetchConnection)
       .then((next) => {
         setState(next);
-        setBusy(false);
+        setWorking(null);
       });
   };
+
+  /** Pairs, then checks the link: T3 Code answering is what makes it Connected. */
+  const pair = (body: object) =>
+    run("Pairing with T3 Code…", async () => {
+      setChecked(null);
+      const result = (await sendConnection("/pair", body)) as unknown as Connection;
+      if (!result.connected)
+        throw new Error(result.error?.replace(/^T3: /, "") ?? "T3 Code did not answer. Is it running?");
+      setWorking("Checking the connection…");
+      await check();
+      onChange();
+    });
 
   const title = "Connection";
   if (state.kind === "loading") return <Section title={title} note="Reading the connection…" />;
@@ -698,112 +720,70 @@ function ConnectionSection(props: { readonly onChange: () => void }) {
     );
   }
   const c = state.connection;
-  const error = c.error?.replace(/^T3: /, "") ?? null;
-  const where = [c.origin, c.server ? `${c.server.label} · v${c.server.version}` : null]
-    .filter(Boolean)
-    .join(" · ");
+  const note = "The coding harness the voice works through.";
 
-  return (
-    <Section title={title} note="The coding harness the voice works through.">
-      {problem ? <p data-lalala-settings-error="">{problem}</p> : null}
-      {c.notice ? <p data-lalala-settings-info="">{c.notice}</p> : null}
-      <Row
-        title={c.harness}
-        description={
-          c.connected
-            ? [where, test].filter(Boolean).join(" · ")
-            : (error ?? (c.paired ? where : "Not paired yet."))
-        }
-      >
-        <span data-lalala-settings-status="" data-ok={c.connected ? "" : undefined}>
-          {c.connected ? "Connected" : "Not connected"}
-        </span>
-        {c.paired ? (
-          <button
-            type="button"
-            data-lalala-settings-button=""
-            disabled={busy}
-            onClick={() => act("/test")}
-          >
-            Test
-          </button>
-        ) : null}
-      </Row>
-      {c.paired && c.brainThread ? (
-        <Row title="Brain thread">
-          <span data-lalala-settings-value="">{c.brainThread.title ?? c.brainThread.id}</span>
-        </Row>
-      ) : null}
-      {c.paired && c.session ? (
-        <Row
-          title="Session"
-          description={
-            c.session.renews ? "Renews itself a week before it ends." : "Pair again before it ends."
-          }
+  if (!c.paired) {
+    return (
+      <Section title={title} note={note}>
+        <PairSteps
+          reach="server"
+          label="lalala"
+          command={PAIR_COMMAND}
+          working={working}
+          problem={problem}
+          onPair={(input) => {
+            try {
+              pair({ link: pairingLink(input) });
+            } catch (cause) {
+              setProblem(describe(cause));
+            }
+          }}
         >
-          <span data-lalala-settings-value="">Until {untilDate(c.session.expiresAt)}</span>
-        </Row>
-      ) : null}
-      {c.paired ? (
-        <Row
-          title="Pairing"
-          description="Forget this pairing; the voice stops until you pair again."
-        >
-          <button
-            type="button"
-            data-lalala-settings-button=""
-            data-danger=""
-            disabled={busy}
-            onClick={() => {
-              if (window.confirm(`Disconnect from ${c.harness}?`)) act("/disconnect");
-            }}
-          >
-            Disconnect
-          </button>
-        </Row>
-      ) : (
-        <>
-          <Row
-            title="Pairing link"
-            description="Make a pairing link in T3 Code's Connections settings and paste it here."
-          >
-            <input
-              type="url"
-              aria-label="Pairing link"
-              placeholder="https://…/pair#token=…"
-              autoComplete="off"
-              spellCheck={false}
-              value={link}
-              disabled={busy}
-              onChange={(event) => setLink(event.currentTarget.value)}
-              onKeyDown={(event) => {
-                if (event.key === "Enter" && link.trim() !== "")
-                  act("/pair", { link: link.trim() });
-              }}
-            />
-            <button
-              type="button"
-              data-lalala-settings-button=""
-              disabled={busy || link.trim() === ""}
-              onClick={() => act("/pair", { link: link.trim() })}
-            >
-              Connect
-            </button>
-          </Row>
           {c.canPairLocal ? (
-            <Row title="This computer" description="Pair with the T3 Code running here.">
+            <Row title="Or this computer" description="Pair with the T3 Code running here, in one click.">
               <button
                 type="button"
                 data-lalala-settings-button=""
-                disabled={busy}
-                onClick={() => act("/pair", { local: true })}
+                disabled={working !== null}
+                onClick={() => pair({ local: true })}
               >
                 Pair
               </button>
             </Row>
           ) : null}
-        </>
-      )}
+        </PairSteps>
+      </Section>
+    );
+  }
+
+  const error = c.connected ? null : (c.error?.replace(/^T3: /, "") ?? null);
+  return (
+    <Section title={title} note={note}>
+      {c.notice ? <p data-lalala-settings-info="">{c.notice}</p> : null}
+      <ConnectedRows
+        ok={c.connected}
+        where={[c.server ? `${c.server.label} · v${c.server.version}` : null, c.origin]
+          .filter(Boolean)
+          .join(" · ")}
+        checked={working ?? checked}
+        problem={problem ?? error}
+        expiresAt={c.session?.expiresAt ?? null}
+        renews={c.session?.renews}
+        busy={working !== null}
+        onRetest={() => run("checking…", check)}
+        onDisconnect={() =>
+          run("Disconnecting…", async () => {
+            await sendConnection("/disconnect");
+            setChecked(null);
+          })
+        }
+      >
+        {c.brainThread ? (
+          <Row title="Thread">
+            <span data-lalala-settings-value="">{c.brainThread.title ?? c.brainThread.id}</span>
+          </Row>
+        ) : null}
+      </ConnectedRows>
     </Section>
   );
 }

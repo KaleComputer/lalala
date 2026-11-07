@@ -182,13 +182,75 @@
   overflow-wrap: anywhere;
   user-select: all;
 }
-/* A cropped screenshot of T3 Code's UI under its step, at its own size or narrower. */
-[data-lalala-settings-shot] {
+/* Connection's steps: a numbered square, lit on the step to act on, ticked once it is behind. */
+[data-lalala-settings-step] h3 {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+[data-lalala-settings-step-n] {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 20px;
+  height: 20px;
+  border: 1px solid var(--s-edge);
+  color: var(--s-ink-2);
+  font: 400 11px / 1 var(--s-mono);
+}
+[data-lalala-settings-step="now"] [data-lalala-settings-step-n] {
+  border-color: var(--s-hud);
+  color: var(--s-hud-ink);
+  background: var(--s-hud);
+}
+[data-lalala-settings-step="done"] [data-lalala-settings-step-n] {
+  color: var(--s-hud);
+}
+[data-lalala-settings-step] h3 + p {
+  padding-left: 30px;
+}
+/* What to click in T3 Code: a short line over a cropped screenshot of its UI, per sub-step. */
+[data-lalala-settings-shots] {
   grid-column: 1 / -1;
+  display: grid;
+  gap: 14px;
+  margin: 2px 0 0;
+  padding: 0 0 0 30px;
+  list-style: none;
+  counter-reset: shot;
+}
+[data-lalala-settings-shots] > li {
+  display: grid;
+  gap: 6px;
+  counter-increment: shot;
+}
+[data-lalala-settings-shots] p {
+  margin: 0;
+  color: var(--s-ink-2);
+  font-size: 12px;
+}
+[data-lalala-settings-shots] p::before {
+  content: counter(shot, lower-alpha) ". ";
+  color: var(--s-ink-3);
+  font-family: var(--s-mono);
+}
+[data-lalala-settings-shots] img {
   display: block;
   max-width: 100%;
   height: auto;
   border: 1px solid var(--s-hair);
+}
+/* The terminal's pairing command, with its Copy button beside it. */
+[data-lalala-settings-command] {
+  grid-column: 1 / -1;
+  display: flex;
+  align-items: stretch;
+  gap: 8px;
+  padding-left: 30px;
+}
+[data-lalala-settings-command] > [data-lalala-settings-code] {
+  flex: 1;
+  min-width: 0;
 }
 /* Two or three ways to do one thing: one button each, the chosen one lit. */
 [data-lalala-settings-segments] {
@@ -433,6 +495,12 @@
 }
 [data-lalala-settings-button][data-danger] {
   color: #ffb02e;
+}
+[data-lalala-settings-button][data-quiet] {
+  height: 24px;
+  padding: 0 8px;
+  border-color: var(--s-hair);
+  color: var(--s-ink-2);
 }
 [data-lalala-settings-switch] {
   position: relative;

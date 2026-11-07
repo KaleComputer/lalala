@@ -2,6 +2,8 @@
 // ticket, and the Effect RPC JSON protocol T3's own clients speak on /ws. T3 already answers
 // cross-origin bearer requests (CORS `*`), so no helper or server change is needed.
 
+import { readPairing } from "../../pairing";
+
 const PROTOCOL = 2;
 const SESSION_KEY = "lalala.t3.session";
 
@@ -80,50 +82,6 @@ export function readBrainThread(origin: string): string | null {
 export const saveBrainThread = (origin: string, threadId: string) =>
   localStorage.setItem(THREAD_KEY, JSON.stringify({ origin, threadId }));
 
-const DEFAULT_ORIGIN = "http://127.0.0.1:3773";
-
-/**
- * Reads what T3 hands out: the bare code (Copy code), a pairing link (`http://127.0.0.1:3773/pair#token=…`),
- * its hosted form (`…/pair?host=…#token=…`), a `t3code://pair?pairingUrl=…` link, or the desktop's own
- * `t3code://app/pair#token=…`, which names no server: codes and those go to T3's default address.
- */
-export function readPairing(input: string): { origin: string; token: string } {
-  const value = input.trim();
-  if (/^[A-Za-z0-9_-]{6,}$/.test(value)) return { origin: DEFAULT_ORIGIN, token: value };
-  let url: URL;
-  try {
-    url = new URL(value);
-  } catch {
-    throw new Error("That is neither a pairing code nor a link. Copy it again from T3 Code.");
-  }
-  const appLink = url.searchParams.get("pairingUrl");
-  if (appLink) return readPairing(appLink);
-  const token =
-    new URLSearchParams(url.hash.replace(/^#/, "")).get("token") ?? url.searchParams.get("token");
-  if (!token) throw new Error("That link has no pairing code in it. Copy it again from T3 Code.");
-  const host = serverOrigin(url.searchParams.get("host"));
-  const own = url.protocol === "http:" || url.protocol === "https:" ? reachable(url) : null;
-  return { origin: host ?? own ?? DEFAULT_ORIGIN, token };
-}
-
-/** A server bound to every interface (T3 then links `0.0.0.0`) answers on loopback. */
-function reachable(url: URL): string {
-  if (url.hostname === "0.0.0.0" || url.hostname === "[::]") url.hostname = "127.0.0.1";
-  return url.origin;
-}
-
-/** The http(s) origin in `value` (a scheme-less `host:port` counts as http), or null when it names none. */
-function serverOrigin(value: string | null): string | null {
-  if (!value) return null;
-  for (const candidate of [value, `http://${value}`]) {
-    try {
-      const url = new URL(candidate);
-      if (url.protocol === "http:" || url.protocol === "https:") return reachable(url);
-    } catch {}
-  }
-  return null;
-}
-
 /** Trades a T3 pairing code or link for a bearer session. */
 export async function pairWithLink(input: string): Promise<Session> {
   const { origin, token } = readPairing(input);
@@ -147,8 +105,8 @@ export async function pairWithLink(input: string): Promise<Session> {
   const result = await response.json().catch(() => ({}));
   if (!response.ok || typeof result.access_token !== "string") {
     throw new Error(
-      result.error === "invalid_grant"
-        ? "That pairing code was already used or expired. Make a new one."
+      result.error === "invalid_grant" || response.status === 401
+        ? "That pairing link was already used or expired. Make a new one in T3 Code."
         : `T3 answered ${response.status} ${result.error ?? ""}.`,
     );
   }
@@ -333,7 +291,7 @@ export async function readWorkspace(socket: T3Socket) {
     },
   );
   const config = await socket.request<{
-    environment?: { label?: string };
+    environment?: { label?: string; serverVersion?: string };
     settings?: { defaultModelSelection?: ModelSelection };
     providers: {
       instanceId: string;
@@ -353,6 +311,7 @@ export async function readWorkspace(socket: T3Socket) {
     }));
   return {
     label: config.environment?.label ?? "T3 Code",
+    version: config.environment?.serverVersion ?? null,
     projects: snapshot.projects,
     threads: [...snapshot.threads].sort((a, b) =>
       String(b.updatedAt ?? "").localeCompare(String(a.updatedAt ?? "")),
@@ -360,6 +319,13 @@ export async function readWorkspace(socket: T3Socket) {
     providers,
     defaultModel: config.settings?.defaultModelSelection ?? null,
   };
+}
+
+/** How long T3 takes to answer one small request, in ms: the check that the link works. */
+export async function pingServer(socket: T3Socket) {
+  const startedAt = performance.now();
+  await socket.request("server.getConfig", {});
+  return Math.round(performance.now() - startedAt);
 }
 
 export const LALALA_PROJECT = "lalala";
