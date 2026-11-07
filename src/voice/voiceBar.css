@@ -173,29 +173,30 @@
 }
 /* Gear design D (the user, 6 Nov): the row always stands in one layout, so the gear never moves. Out of a call
    (frame.js hides the timer) the call tabs keep their solid edges and corners, just empty and inert, only
-   the gear live (the user, 6 Nov: no dashed slots). A call going live fills them: the seam under the row
-   lights and the content rises out of it; ending fades it out. Nothing moves in between. */
+   the canvases (they work offline) and the gear live (the user, 6 Nov: no dashed slots). A call going
+   live fills them: the seam under the row lights and the content rises out of it; ending fades it out.
+   Nothing moves in between. */
 [data-lalala-presence] .lalala-tabs:has(.fr-tmr[hidden]) [data-lalala-mic][data-muted]::after {
   background: var(--lalala-fill);
 }
 [data-lalala-presence]
   .lalala-tabs:has(.fr-tmr[hidden])
-  :is([data-lalala-canvas-name], [data-lalala-mic], [data-lalala-input-tab]) {
+  :is([data-lalala-mic], [data-lalala-input-tab]) {
   cursor: default;
   pointer-events: none;
 }
 [data-lalala-presence]
-  :is([data-lalala-canvas-name] > *, [data-lalala-mic] svg, [data-lalala-input-tab] svg) {
+  :is([data-lalala-mic] svg, [data-lalala-input-tab] svg) {
   transition: opacity 200ms ease-out;
 }
 [data-lalala-presence]
   .lalala-tabs:has(.fr-tmr[hidden])
-  :is([data-lalala-canvas-name] > *, [data-lalala-mic] svg, [data-lalala-input-tab] svg) {
+  :is([data-lalala-mic] svg, [data-lalala-input-tab] svg) {
   opacity: 0;
 }
 [data-lalala-presence]
   .lalala-tabs:has(.fr-tmr:not([hidden]))
-  :is([data-lalala-canvas-name] > *, [data-lalala-mic] svg, [data-lalala-input-tab] svg) {
+  :is([data-lalala-mic] svg, [data-lalala-input-tab] svg) {
   animation: lalala-content-rise 240ms cubic-bezier(0.2, 0.9, 0.3, 1);
 }
 @keyframes lalala-content-rise {
@@ -212,7 +213,7 @@
 @media (prefers-reduced-motion: reduce) {
   [data-lalala-presence]
     .lalala-tabs:has(.fr-tmr:not([hidden]))
-    :is([data-lalala-canvas-name] > *, [data-lalala-mic] svg, [data-lalala-input-tab] svg) {
+    :is([data-lalala-mic] svg, [data-lalala-input-tab] svg) {
     animation: none;
   }
 }
@@ -508,8 +509,8 @@
     linear-gradient(rgba(255, 176, 46, 0.2), rgba(255, 176, 46, 0.2)), var(--lalala-fill);
 }
 
-/* The canvas's name tab (CanvasTabs; the user, 6 Nov, design A), first in the row, built like the mic; only in
-   a call, like the rest of the row. */
+/* The canvases tab (CanvasTabs; the user, 6 Nov, design A), first in the row, built like the mic; live in
+   and out of a call, like the gear. */
 [data-lalala-presence] .lalala-canvas-slot {
   display: flex;
 }

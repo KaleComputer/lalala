@@ -15,14 +15,13 @@ const snapshot = () => globalThis.__lalalaCanvases?.snapshot() ?? null;
 
 /**
  * The canvas's tab in the device bar's row: a stacked-layers icon, which raises its list over the bar
- * (the open canvas named on top, switch, New, Rename, Tidy, Delete). On /canvas; out of a call it is an empty, inert slot in the same spot,
- * like the rest of the row's call tabs. Follow lives in the settings.
+ * (the open canvas named on top, switch, New, Rename, Tidy, Delete). On /canvas, live in and out of a
+ * call and offline too, like the gear. Follow lives in the settings.
  */
 export function CanvasTabs(props: {
   readonly tabHost: HTMLElement;
   readonly panelHost: HTMLElement;
   readonly bar: HTMLElement;
-  readonly live: boolean;
 }) {
   const onCanvas = useLocation({ select: (location) => location.pathname === "/canvas" });
   const canvases = useSyncExternalStore(subscribe, snapshot, () => null);
@@ -31,7 +30,7 @@ export function CanvasTabs(props: {
   const [renaming, setRenaming] = useState(false);
   const tabsRef = useRef<HTMLSpanElement>(null);
   const panelRef = useRef<HTMLDivElement>(null);
-  const open = openAt !== null && props.live;
+  const open = openAt !== null;
   const editing = renaming && open;
   const close = () => {
     setOpenAt(null);
@@ -81,8 +80,6 @@ export function CanvasTabs(props: {
       <button
         type="button"
         data-lalala-canvas-name=""
-        aria-hidden={!props.live}
-        tabIndex={props.live ? undefined : -1}
         data-open={open ? "" : undefined}
         aria-expanded={open}
         aria-label={`Canvases (${current?.name ?? "none"})`}

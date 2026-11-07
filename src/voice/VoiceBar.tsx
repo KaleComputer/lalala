@@ -148,12 +148,7 @@ export function VoiceBar(props: {
         />
       ) : null}
       {canvasHost !== null && inputHosts !== null ? (
-        <CanvasTabs
-          tabHost={canvasHost}
-          panelHost={inputHosts.panel}
-          bar={inputHosts.bar}
-          live={props.live ?? false}
-        />
+        <CanvasTabs tabHost={canvasHost} panelHost={inputHosts.panel} bar={inputHosts.bar} />
       ) : null}
       {micHost !== null && props.onMute
         ? createPortal(
