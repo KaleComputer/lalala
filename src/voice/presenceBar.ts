@@ -81,6 +81,8 @@ export type PresenceBarHosts = {
   readonly mic: HTMLElement | null;
   readonly canvas: HTMLElement | null;
   readonly settings: HTMLElement | null;
+  /** The call room, where START CALL sits. */
+  readonly room: HTMLElement | null;
 };
 
 /**
@@ -130,6 +132,7 @@ export function mountPresenceBar(
     mic: root.querySelector<HTMLElement>(".lalala-mic-slot"),
     canvas: root.querySelector<HTMLElement>(".lalala-canvas-slot"),
     settings: root.querySelector<HTMLElement>(".lalala-settings-slot"),
+    room: root.querySelector<HTMLElement>(".bar-line"),
   };
 
   const wash = root.querySelector<HTMLElement>("[data-wash]");

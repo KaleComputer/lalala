@@ -9,6 +9,7 @@ import { type ComponentProps, useEffect, useEffectEvent, useRef, useState } from
 import { readFileAsDataUrl } from "~/lib/imageCompression";
 import { newMessageId, newThreadId, randomUUID } from "~/lib/utils";
 import {
+  useHarnessDown,
   useHarnessLink,
   useProjects,
   useThreadShells,
@@ -27,6 +28,7 @@ import { asksToSee, followCommand, isFollowing, setFollowing, takeFocus } from "
 import { type VoicePhase, VoiceSession } from "./speech";
 import { takeSentences } from "./speechText";
 import { VoiceBar, type VoiceBarState } from "./VoiceBar";
+import { openVoiceSettings } from "./VoiceSettings";
 import { endVoiceLogSession, startVoiceLogSession, voiceLog } from "./voiceLog";
 import { syncVoiceTheme } from "./voiceThemeSync";
 
@@ -79,6 +81,7 @@ export function VoiceHost({
   const projects = useProjects();
   const shells = useThreadShells();
   const link = useHarnessLink();
+  const down = useHarnessDown();
   const serverSettings = useAtomValue(primaryServerSettingsAtom);
   const startTurn = useOrchestrationCommand(threadEnvironment.startTurn, { reportFailure: false });
 
@@ -570,6 +573,7 @@ export function VoiceHost({
       stoppedAt={stoppedAt}
       onSubmit={(text, images) => send(text, images)}
       live={phase !== "off"}
+      offline={down && !live ? () => openVoiceSettings("Connection") : null}
       muted={muted}
       onMute={() => {
         const session = sessionRef.current;

@@ -20,6 +20,9 @@ export function useProjects() {
 export const useHarnessLink = () =>
   useBridge((state) => (state.connected ? null : (state.error ?? "Connecting to T3 Code…")));
 
+/** The harness answered and is down (unpaired, or T3 Code unreachable); false until it first answers. */
+export const useHarnessDown = () => useBridge((state) => !state.connected && state.error !== null);
+
 export function useThreadShells() {
   const shell = useBridge((state) => state.shell);
   return useMemo(

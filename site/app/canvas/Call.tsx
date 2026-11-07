@@ -36,6 +36,7 @@ export function Call(props: BarProps) {
         return Promise.resolve(false);
       }}
       live={false}
+      offline={openConnection}
       muted={false}
       onMute={() => {}}
     />
