@@ -18,6 +18,25 @@ const RETRY_MS = [1_000, 2_000, 5_000, 10_000];
 // How long a turn waits for a dropped link to come back before it fails.
 const SEND_WAIT_MS = 15_000;
 
+type Run = { id: string; status: string; userMessageId: string; completedAt?: string | null };
+type Usage = {
+  usedTokens: number;
+  maxTokens?: number | null;
+  promptCacheTtlMs?: number;
+  updatedAt: string;
+};
+type ProviderTurn = { providerThreadId: string; tokenUsage?: Usage };
+type Message = { id: string; role: string; text?: string; attachments?: unknown[] };
+const isCompaction = (message: Message) =>
+  message.role === "user" &&
+  message.text?.trim().toLowerCase() === "/compact" &&
+  (message.attachments?.length ?? 0) === 0;
+const slimRun = (run: Run) => ({
+  status: run.status,
+  userMessageId: run.userMessageId,
+  completedAt: run.completedAt ?? null,
+});
+
 type Item = {
   id: string;
   type: string;
@@ -34,6 +53,7 @@ type Thread = {
   createdAt: string;
   runtimeMode: string;
   interactionMode: string;
+  activeProviderThreadId?: string | null;
 };
 
 // The page only reads these fields (VoiceHost, brief.ts), as from the app's bridge.
@@ -65,7 +85,12 @@ export function browserHarness(): HarnessAdapter {
     error: null as string | null,
     thread: null as Thread | null,
     rows: new Map<string, Row>(),
-    runs: new Map<string, string>(),
+    runs: new Map<string, ReturnType<typeof slimRun>>(),
+    // The brain's context for the page's compact-on-return (src/voice/brainCompaction.ts).
+    usage: null as Usage | null,
+    claude: false,
+    compactions: new Set<string>(),
+    contextLine: "null",
   };
   let socket: T3Socket | null = null;
   let started = false;
@@ -75,7 +100,40 @@ export function browserHarness(): HarnessAdapter {
   let permission: PermissionStatus | null = null;
   const waiters = new Set<() => void>();
 
-  const active = () => [...state.runs.values()].some((status) => ACTIVE_RUN.has(status));
+  const active = () => [...state.runs.values()].some((run) => ACTIVE_RUN.has(run.status));
+  const context = () => {
+    if (state.usage === null) return null;
+    let compacting = false;
+    let compactedAt: number | null = null;
+    for (const run of state.runs.values()) {
+      if (!state.compactions.has(run.userMessageId)) continue;
+      if (ACTIVE_RUN.has(run.status)) compacting = true;
+      else if (run.status === "completed" && run.completedAt !== null) {
+        compactedAt = Math.max(compactedAt ?? 0, Date.parse(run.completedAt));
+      }
+    }
+    return {
+      usedTokens: state.usage.usedTokens,
+      maxTokens: state.usage.maxTokens ?? null,
+      reportedAt: Date.parse(state.usage.updatedAt),
+      cacheTtlMs: state.usage.promptCacheTtlMs ?? null,
+      claude: state.claude,
+      compacting,
+      compactedAt,
+    };
+  };
+  // Newest report of the thread's active provider session.
+  const takeUsage = (turn: ProviderTurn) => {
+    if (turn.tokenUsage === undefined) return;
+    if (turn.providerThreadId !== state.thread?.activeProviderThreadId) return;
+    if (
+      state.usage !== null &&
+      Date.parse(turn.tokenUsage.updatedAt) < Date.parse(state.usage.updatedAt)
+    ) {
+      return;
+    }
+    state.usage = turn.tokenUsage;
+  };
   const brain = browserBrain();
   // VoiceHost matches the bridge's workspace with its config's; the thread is the whole workspace here.
   const workspaceRoot = brain ? `t3:${brain.threadId}` : null;
@@ -86,9 +144,16 @@ export function browserHarness(): HarnessAdapter {
     workspaceRoot,
     shell: state.thread && { ...state.thread, active: active() },
     rows: [...state.rows.values()],
+    context: context(),
   });
   const emit = (event: unknown) => {
     for (const listener of listeners) listener(event);
+  };
+  const emitContext = () => {
+    const line = JSON.stringify(context());
+    if (line === state.contextLine) return;
+    state.contextLine = line;
+    emit({ type: "context", context: JSON.parse(line) });
   };
 
   const fail = (message: string) => {
@@ -145,11 +210,24 @@ export function browserHarness(): HarnessAdapter {
             if (chunk.kind === "snapshot" && chunk.projection) {
               const projection = chunk.projection as {
                 thread: Thread;
-                runs: { id: string; status: string }[];
+                runs: Run[];
+                messages: Message[];
+                providerThreads: { id: string; driver: string }[];
+                providerTurns: ProviderTurn[];
                 visibleTurnItems: { visibility: string; item: Item }[];
               };
               state.thread = projection.thread;
-              state.runs = new Map(projection.runs.map((run) => [run.id, run.status]));
+              state.runs = new Map(projection.runs.map((run) => [run.id, slimRun(run)]));
+              state.compactions = new Set(
+                projection.messages.filter(isCompaction).map((message) => message.id),
+              );
+              state.claude =
+                projection.providerThreads.find(
+                  (thread) => thread.id === projection.thread.activeProviderThreadId,
+                )?.driver === "claudeAgent";
+              state.usage = null;
+              for (const turn of projection.providerTurns) takeUsage(turn);
+              state.contextLine = JSON.stringify(context());
               state.rows = new Map(
                 projection.visibleTurnItems
                   .slice(-MAX_ROWS)
@@ -162,7 +240,10 @@ export function browserHarness(): HarnessAdapter {
               for (const wake of waiters) wake();
               waiters.clear();
             } else if (chunk.kind === "event" && chunk.event) {
-              const { type, payload } = chunk.event as { type: string; payload: Item & { threadId?: string; status?: string } };
+              const { type, payload } = chunk.event as {
+                type: string;
+                payload: Item & Run & ProviderTurn & Message & { threadId?: string; driver?: string };
+              };
               if (type === "turn-item.updated" && payload.threadId === brain.threadId) {
                 const row = slim("local", payload);
                 state.rows.delete(row.item.id);
@@ -171,8 +252,20 @@ export function browserHarness(): HarnessAdapter {
                 emit({ type: "row", row });
               } else if (type === "run.created" || type === "run.updated") {
                 const was = active();
-                state.runs.set(payload.id, payload.status ?? "");
+                state.runs.set(payload.id, slimRun(payload));
                 if (active() !== was) emit({ type: "active", value: active() });
+                emitContext();
+              } else if (type === "provider-turn.updated") {
+                takeUsage(payload);
+                emitContext();
+              } else if (type === "provider-thread.updated") {
+                if (payload.id === state.thread?.activeProviderThreadId) {
+                  state.claude = payload.driver === "claudeAgent";
+                  emitContext();
+                }
+              } else if (type === "message.updated" && isCompaction(payload)) {
+                state.compactions.add(payload.id);
+                emitContext();
               }
             }
           },
@@ -231,9 +324,16 @@ export function browserHarness(): HarnessAdapter {
     async send(command) {
       const { threadId, message } = command as {
         threadId: string;
-        message: { messageId: string; text: string; attachments?: { dataUrl?: string }[] };
+        message: {
+          messageId: string;
+          text: string;
+          attachments?: { dataUrl?: string }[];
+          idleCompaction?: string;
+        };
       };
       if (brain === null || threadId !== brain.threadId) throw new Error("Not the brain thread");
+      // Two devices back at once both ask; one compaction is enough.
+      if (message.idleCompaction !== undefined && context()?.compacting) return null;
       const uploads = (message.attachments ?? []).filter((a) => typeof a.dataUrl === "string");
       // One id for both tries, so T3 runs the turn once even if the first try did reach it.
       const commandId = uuid();
@@ -258,6 +358,7 @@ export function browserHarness(): HarnessAdapter {
           messageId: message.messageId,
           text: message.text,
           attachments,
+          ...(message.idleCompaction === undefined ? {} : { idleCompaction: message.idleCompaction }),
           deliveryIntent: "auto",
           dispatchMode: { type: "start_immediately" },
         });

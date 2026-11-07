@@ -10,6 +10,8 @@ import {
 } from "react";
 import { createPortal } from "react-dom";
 
+import { useVoiceBrainContext } from "../state/voiceBrainContext";
+import { formatTokens, useSharedBrainThread } from "./brainCompaction";
 import { ConnectedRows, PairSteps } from "./ConnectFlow";
 import { isFollowing, setFollowing, subscribeFollow } from "./follow";
 import { pairingLink } from "./pairing";
@@ -812,7 +814,9 @@ function BrainSection(props: {
       <Section
         title={title}
         note="The brain's model is set here in the voice app. In T3 Code, use the voice thread's model picker."
-      />
+      >
+        <BrainContextRow />
+      </Section>
     );
   }
   const brain = state.brain;
@@ -833,6 +837,7 @@ function BrainSection(props: {
           <StreamerText text={error} />
         </p>
       ) : null}
+      <BrainContextRow />
       <PickRow
         title="Model"
         label="Voice brain model"
@@ -866,6 +871,24 @@ function BrainSection(props: {
         }}
       />
     </Section>
+  );
+}
+
+/** The brain's context size; a big one compacts when the user comes back (VoiceHost). */
+function BrainContextRow() {
+  const context = useVoiceBrainContext(useSharedBrainThread());
+  if (context === null || !context.claude) return null;
+  return (
+    <Row
+      title="Context"
+      description="Over 200k after a pause, it tidies up its memory before your next words."
+    >
+      <span data-lalala-settings-value="">
+        {context.compacting
+          ? "Tidying up…"
+          : `${formatTokens(context.usedTokens)}${context.maxTokens ? ` of ${formatTokens(context.maxTokens)}` : ""} tokens`}
+      </span>
+    </Row>
   );
 }
 

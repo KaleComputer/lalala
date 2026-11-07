@@ -38,6 +38,8 @@ export function withCanvas(text: string): string {
 export function needsBrief(
   threadId: ThreadId,
   items: ReadonlyArray<OrchestrationV2ProjectedTurnItem>,
+  /** When the thread last compacted, for when its items are not loaded (no call). */
+  compactedAt: number | null = null,
 ): boolean {
   let briefed: { version?: string; at?: number } | null = null;
   try {
@@ -47,6 +49,7 @@ export function needsBrief(
   }
   if (briefed?.version !== briefVersion || typeof briefed.at !== "number") return true;
   const since = briefed.at;
+  if (compactedAt !== null && compactedAt > since) return true;
   return items.some(
     ({ item }) => item.type === "compaction" && DateTime.toEpochMillis(item.updatedAt) > since,
   );

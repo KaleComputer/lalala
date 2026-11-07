@@ -19,6 +19,15 @@ import {
 const PREFIX = "/__lalala/t3";
 const ACTIVE_RUN = new Set(["preparing", "queued", "starting", "running", "waiting"]);
 const MAX_ROWS = 400;
+const isCompaction = (message) =>
+  message.role === "user" &&
+  message.text?.trim().toLowerCase() === "/compact" &&
+  (message.attachments?.length ?? 0) === 0;
+const slimRun = (run) => ({
+  status: run.status,
+  userMessageId: run.userMessageId,
+  completedAt: run.completedAt ?? null,
+});
 const PROJECT_NAME = "lalala";
 const BRAIN_TITLE = "brain";
 // The page only reads these fields (VoiceHost, brief.ts); everything else stays on the server.
@@ -93,6 +102,11 @@ export function t3BridgePlugin({ threadId: configuredThreadId, workspaceRoot }) 
     thread: null,
     rows: new Map(),
     runs: new Map(),
+    // The brain's context for the page's compact-on-return (src/voice/brainCompaction.ts).
+    usage: null,
+    claude: false,
+    compactions: new Set(),
+    contextLine: "null",
     connected: false,
     error: null,
     server: null,
@@ -104,7 +118,38 @@ export function t3BridgePlugin({ threadId: configuredThreadId, workspaceRoot }) 
   let timer = null;
   let generation = 0;
 
-  const active = () => [...state.runs.values()].some((status) => ACTIVE_RUN.has(status));
+  const active = () => [...state.runs.values()].some((run) => ACTIVE_RUN.has(run.status));
+  const context = () => {
+    if (state.usage === null) return null;
+    let compacting = false;
+    let compactedAt = null;
+    for (const run of state.runs.values()) {
+      if (!state.compactions.has(run.userMessageId)) continue;
+      if (ACTIVE_RUN.has(run.status)) compacting = true;
+      else if (run.status === "completed" && run.completedAt !== null) {
+        compactedAt = Math.max(compactedAt ?? 0, Date.parse(run.completedAt));
+      }
+    }
+    return {
+      usedTokens: state.usage.usedTokens,
+      maxTokens: state.usage.maxTokens ?? null,
+      reportedAt: Date.parse(state.usage.updatedAt),
+      cacheTtlMs: state.usage.promptCacheTtlMs ?? null,
+      claude: state.claude,
+      compacting,
+      compactedAt,
+    };
+  };
+  const compacting = () => context()?.compacting === true;
+  // Newest report of the thread's active provider session.
+  const takeUsage = (turn) => {
+    if (turn.tokenUsage === undefined) return;
+    if (turn.providerThreadId !== state.thread?.activeProviderThreadId) return;
+    if (state.usage !== null && Date.parse(turn.tokenUsage.updatedAt) < Date.parse(state.usage.updatedAt)) {
+      return;
+    }
+    state.usage = turn.tokenUsage;
+  };
   const shell = () =>
     state.thread && {
       id: state.thread.id,
@@ -122,7 +167,14 @@ export function t3BridgePlugin({ threadId: configuredThreadId, workspaceRoot }) 
     workspaceRoot,
     shell: shell(),
     rows: [...state.rows.values()],
+    context: context(),
   });
+  const broadcastContext = () => {
+    const line = JSON.stringify(context());
+    if (line === state.contextLine) return;
+    state.contextLine = line;
+    broadcast({ type: "context", context: JSON.parse(line) });
+  };
   const broadcast = (event) => {
     const line = `data: ${JSON.stringify(event)}\n\n`;
     for (const res of listeners) res.write(line);
@@ -169,7 +221,17 @@ export function t3BridgePlugin({ threadId: configuredThreadId, workspaceRoot }) 
             if (chunk.kind === "snapshot") {
               const projection = chunk.projection;
               state.thread = projection.thread;
-              state.runs = new Map(projection.runs.map((run) => [run.id, run.status]));
+              state.runs = new Map(projection.runs.map((run) => [run.id, slimRun(run)]));
+              state.compactions = new Set(
+                projection.messages.filter(isCompaction).map((message) => message.id),
+              );
+              state.claude =
+                projection.providerThreads.find(
+                  (thread) => thread.id === projection.thread.activeProviderThreadId,
+                )?.driver === "claudeAgent";
+              state.usage = null;
+              for (const turn of projection.providerTurns) takeUsage(turn);
+              state.contextLine = JSON.stringify(context());
               state.rows = new Map(
                 projection.visibleTurnItems
                   .slice(-MAX_ROWS)
@@ -184,8 +246,22 @@ export function t3BridgePlugin({ threadId: configuredThreadId, workspaceRoot }) 
                 upsert(slim("local", payload));
               } else if (type === "run.created" || type === "run.updated") {
                 const was = active();
-                state.runs.set(payload.id, payload.status);
+                state.runs.set(payload.id, slimRun(payload));
                 if (active() !== was) broadcast({ type: "active", value: active() });
+                broadcastContext();
+              } else if (type === "provider-turn.updated") {
+                takeUsage(payload);
+                broadcastContext();
+              } else if (type === "provider-thread.updated") {
+                if (payload.id === state.thread?.activeProviderThreadId) {
+                  state.claude = payload.driver === "claudeAgent";
+                  broadcastContext();
+                }
+              } else if (type === "message.updated") {
+                if (isCompaction(payload)) {
+                  state.compactions.add(payload.id);
+                  broadcastContext();
+                }
               } else if (
                 type === "thread.updated" ||
                 type === "thread.runtime-mode-updated" ||
@@ -345,6 +421,8 @@ export function t3BridgePlugin({ threadId: configuredThreadId, workspaceRoot }) 
     if (!socket) throw new Error(state.error ?? "Not connected to T3 Code");
     if (!state.threadId) throw new Error("No brain thread yet: pair with T3 Code in the settings");
     if (threadId !== state.threadId) throw new Error("Not the brain thread");
+    // Two devices back at once both ask; one compaction is enough.
+    if (message.idleCompaction !== undefined && compacting()) return null;
     const uploads = (message.attachments ?? []).filter((a) => typeof a.dataUrl === "string");
     const attachments =
       uploads.length === 0
@@ -367,6 +445,7 @@ export function t3BridgePlugin({ threadId: configuredThreadId, workspaceRoot }) 
       messageId: message.messageId,
       text: message.text,
       attachments,
+      ...(message.idleCompaction === undefined ? {} : { idleCompaction: message.idleCompaction }),
       deliveryIntent: "auto",
       dispatchMode: { type: "start_immediately" },
     });

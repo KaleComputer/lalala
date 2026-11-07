@@ -18,6 +18,8 @@ import { usePrimaryEnvironmentId } from "../state/environments";
 import { primaryServerSettingsAtom } from "../state/server";
 import { threadEnvironment } from "../state/threads";
 import { useOrchestrationCommand } from "../state/use-orchestration-command";
+import { useVoiceBrainContext } from "../state/voiceBrainContext";
+import { compactionDue, shareBrainThread } from "./brainCompaction";
 import { markBriefed, needsBrief, withBrief, withCanvas } from "./brief";
 import type { ModelProgress } from "./adapters";
 import { speechEngine, useSpeechEngine } from "./engine";
@@ -51,6 +53,8 @@ const NEW_TOPIC_TAG = /\s*\[new topic\]\s*/gi;
 // own sentence and the topic sound plays right before it.
 const TOPIC_MARK = "\u2063";
 const TIDY_TAG = /\[tidy\]\s*/gi;
+// A sent `/compact` counts as running this long at most, until its run shows on the thread.
+const COMPACT_SHOWS_MS = 10_000;
 
 type VoiceConfig = {
   readonly workspaceRoot: string;
@@ -137,6 +141,17 @@ export function VoiceHost({
     : null;
   const items = useThreadVisibleTurnItems(phase === "off" ? null : voiceThreadRef);
   const thinking = threadRuntimeIsActive(voiceThread?.runtime);
+  const brainContext = useVoiceBrainContext(voiceThreadRef);
+  // When this page sent a `/compact`, until its run shows or ends; and the usage it compacted.
+  const [compactSentAt, setCompactSentAt] = useState<number | null>(null);
+  const compactedForRef = useRef<number | null>(null);
+  // The user's words that wait for the compaction, so they and the brief land after it.
+  const compactWaitersRef = useRef<Array<() => void>>([]);
+  // The `/compact` on its way to T3, so words spoken meanwhile wait for it too.
+  const compactSendingRef = useRef<Promise<boolean> | null>(null);
+  const tidying =
+    brainContext?.compacting === true ||
+    (compactSentAt !== null && (brainContext?.compactedAt ?? 0) < compactSentAt);
 
   // lalala.talk: the harness and speech adapters stand in for the dev server and the speech service.
   const harness = globalThis.__lalalaAdapters?.harness;
@@ -197,8 +212,87 @@ export function VoiceHost({
   // oxlint-disable-next-line t3code/no-unreasoned-state-sync -- installs the brain-edited theme file as T3's "Voice" theme
   useEffect(() => syncVoiceTheme(), []);
 
+  /**
+   * T3's "compact when you return": a big brain context whose cache went cold compacts before
+   * the user's next words. True while a compaction runs, so the caller waits for it.
+   */
+  const compactIfDue = useEffectEvent(async (why: string): Promise<boolean> => {
+    if (tidying) return true;
+    if (compactSendingRef.current !== null) return compactSendingRef.current;
+    if (environmentId === null || voiceThread === undefined || thinking) return false;
+    if (brainContext === null || !compactionDue(brainContext, Date.now())) return false;
+    if (compactedForRef.current === brainContext.reportedAt) return false;
+    compactedForRef.current = brainContext.reportedAt;
+    const tokens = brainContext.usedTokens;
+    const sending = (async () => {
+      const sentAt = Date.now();
+      voiceLog("system", "compact", { why, tokens });
+      const result = await startTurn({
+        environmentId,
+        input: {
+          threadId: voiceThread.id,
+          message: {
+            messageId: newMessageId(),
+            role: "user",
+            text: "/compact",
+            attachments: [],
+            idleCompaction: "onReturn",
+          },
+          runtimeMode: voiceThread.runtimeMode,
+          interactionMode: voiceThread.interactionMode,
+          createdAt: new Date(sentAt).toISOString(),
+        },
+      });
+      if (result._tag === "Failure") {
+        const failure = squashAtomCommandFailure(result);
+        voiceLog("system", "error", { where: "compact", message: String(failure) });
+        return false;
+      }
+      setCompactSentAt(sentAt);
+      window.setTimeout(
+        () => setCompactSentAt((current) => (current === sentAt ? null : current)),
+        COMPACT_SHOWS_MS,
+      );
+      return true;
+    })();
+    compactSendingRef.current = sending;
+    return sending.finally(() => {
+      compactSendingRef.current = null;
+    });
+  });
+
+  const brainKnown = brainContext !== null;
+  // oxlint-disable-next-line t3code/no-unreasoned-state-sync -- compacts a big, cold brain when the page opens (T3's "compact when you return")
+  useEffect(() => {
+    if (brainKnown) void compactIfDue("page open");
+  }, [brainKnown]);
+
+  // oxlint-disable-next-line t3code/no-unreasoned-state-sync -- lets the user's words that waited for a compaction go once it ended
+  useEffect(() => {
+    if (tidying) return;
+    for (const resolve of compactWaitersRef.current.splice(0)) resolve();
+  }, [tidying]);
+
+  const brainThreadId = voiceThread?.id ?? null;
+  // oxlint-disable-next-line t3code/no-unreasoned-state-sync -- tells the settings sheet (rendered by the bar, without the thread) which thread is the brain
+  useEffect(() => {
+    shareBrainThread(
+      environmentId === null || brainThreadId === null
+        ? null
+        : scopeThreadRef(environmentId, brainThreadId),
+    );
+  }, [environmentId, brainThreadId]);
+
+  /** The user's words, after a compaction that is due or running (its turn re-reads less). */
+  const send = async (text: string, images: ReadonlyArray<File> = []) => {
+    if (await compactIfDue("send")) {
+      await new Promise<void>((resolve) => compactWaitersRef.current.push(resolve));
+    }
+    return sendNow(text, images);
+  };
+
   /** The user's words (spoken, or typed in the bar's input with its pictures) as a turn on the voice thread, made on first use. */
-  const send = useEffectEvent(async (text: string, images: ReadonlyArray<File> = []) => {
+  const sendNow = useEffectEvent(async (text: string, images: ReadonlyArray<File> = []) => {
     if (environmentId === null || project === undefined) {
       setError("No brain thread yet: pair with T3 Code in the settings.");
       return false;
@@ -232,7 +326,8 @@ export function VoiceHost({
     const follow = followCommand(text);
     if (follow !== undefined) setFollowing(follow);
     showMeRef.current = asksToSee(text);
-    const briefed = existingThreadId === null || needsBrief(threadId, items);
+    const briefed =
+      existingThreadId === null || needsBrief(threadId, items, brainContext?.compactedAt ?? null);
     const turnText = briefed ? withBrief(withCanvas(text)) : withCanvas(text);
     const result =
       existingThreadId !== null || modelSelection === null
@@ -335,6 +430,7 @@ export function VoiceHost({
     sessionRef.current = session;
     sessionStartedAtRef.current = Date.now();
     setStarting(true);
+    void compactIfDue("call start");
     try {
       await session.start();
     } catch (cause) {
@@ -442,7 +538,7 @@ export function VoiceHost({
   const live = phase !== "off" || starting;
   // In a call, a dropped link to T3 shows while it comes back (the harness retries on its own).
   const linkProblem = live ? link : null;
-  const message = problem ?? linkProblem;
+  const message = problem ?? linkProblem ?? (tidying ? "Tidying up memory…" : null);
   const downloads = live ? loading : null;
   const state: VoiceBarState =
     problem !== null

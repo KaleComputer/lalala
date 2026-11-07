@@ -1,6 +1,7 @@
 // The standalone's stand-in for T3's client state (apps/web/src/state): the brain thread's shell
 // and visible turn items, fed by the dev server's T3 bridge (vite/t3bridge.mjs) over SSE.
 import { useSyncExternalStore } from "react";
+import type { VoiceBrainContext } from "../voice/brainCompaction";
 import type { OrchestrationV2ProjectedTurnItem } from "./contracts";
 
 export const ENVIRONMENT_ID = "standalone";
@@ -22,9 +23,17 @@ type BridgeState = {
   readonly workspaceRoot: string | null;
   readonly shell: Shell | null;
   readonly rows: ReadonlyArray<OrchestrationV2ProjectedTurnItem>;
+  readonly context: VoiceBrainContext | null;
 };
 
-let state: BridgeState = { connected: false, error: null, workspaceRoot: null, shell: null, rows: [] };
+let state: BridgeState = {
+  connected: false,
+  error: null,
+  workspaceRoot: null,
+  shell: null,
+  rows: [],
+  context: null,
+};
 const listeners = new Set<() => void>();
 const set = (next: BridgeState) => {
   state = next;
@@ -48,6 +57,7 @@ function onEvent(event: {
   rows: ReadonlyArray<OrchestrationV2ProjectedTurnItem>;
   row: OrchestrationV2ProjectedTurnItem;
   value: boolean;
+  context?: VoiceBrainContext | null;
 }) {
   if (event.type === "hello") {
     set({
@@ -56,10 +66,13 @@ function onEvent(event: {
       workspaceRoot: event.workspaceRoot,
       shell: event.shell,
       rows: event.rows,
+      context: event.context ?? null,
     });
   } else if (event.type === "row") {
     const rows = state.rows.filter((row) => row.item.id !== event.row.item.id);
     set({ ...state, rows: [...rows, event.row] });
+  } else if (event.type === "context") {
+    set({ ...state, context: event.context ?? null });
   } else if (event.type === "active" && state.shell !== null) {
     set({ ...state, shell: { ...state.shell, active: event.value } });
   }
