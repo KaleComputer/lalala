@@ -649,6 +649,13 @@
     border: 0;
     border-radius: 0;
   }
+  /* Header, section titles and groups share one left edge, the page padding. */
+  [data-lalala-settings-panel] > header {
+    padding-left: var(--s-page);
+  }
+  [data-lalala-settings-section] > h2 {
+    padding: 0;
+  }
 }
 @media (prefers-reduced-motion: reduce) {
   [data-lalala-settings] * {
