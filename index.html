@@ -10,15 +10,14 @@
     <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
     <title>lalala</title>
     <script>
-      // What T3's useTheme puts on <html> for its default theme ("system": light or dark).
+      // What T3's useTheme puts on <html> for its dark theme; the canvas is always dark.
       (() => {
         const root = document.documentElement;
         root.style.cssText =
           "--appearance-contrast-base: 100%; --appearance-contrast-boost: 0%; --appearance-contrast-border-boost: 0%; --glass-opacity: 80%; font-size: 16px; --font-size-prompt: var(--text-sm); --font-size-code: 13px; --diffs-font-size: 13px; -webkit-font-smoothing: antialiased; overscroll-behavior: none;";
-        const dark = window.matchMedia("(prefers-color-scheme: dark)");
         const apply = () => {
-          root.classList.toggle("dark", dark.matches);
-          root.style.colorScheme = dark.matches ? "dark" : "light";
+          root.classList.add("dark");
+          root.style.colorScheme = "dark";
           const background = getComputedStyle(root).getPropertyValue("--background").trim();
           if (background) root.style.backgroundColor = background;
           if (document.body) {
@@ -27,7 +26,6 @@
           }
         };
         apply();
-        dark.addEventListener("change", apply);
         window.addEventListener("DOMContentLoaded", apply);
         window.addEventListener("load", apply);
       })();
