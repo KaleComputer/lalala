@@ -54,8 +54,8 @@ function makeStatusTab(frameEl: HTMLElement) {
   tab.append(timer);
   const lead = document.createElement("span");
   lead.className = "lalala-lead";
-  // Left to right: the canvases (a layers tab), the input (keyboard and paperclip in one tab, VoiceInput),
-  // the mic, the settings gear, then the time. Out of a call all but the canvases and the gear are
+  // Left to right: the input (keyboard and paperclip in one tab, VoiceInput), the mic, the canvases
+  // (a layers tab), the settings gear, then the time. Out of a call all but the canvases and the gear are
   // empty, inert slots.
   const canvas = document.createElement("span");
   canvas.className = "lalala-canvas-slot";
@@ -67,7 +67,7 @@ function makeStatusTab(frameEl: HTMLElement) {
   settings.className = "lalala-settings-slot";
   const row = document.createElement("div");
   row.className = "lalala-tabs";
-  row.append(canvas, input, mic, settings, tab);
+  row.append(input, mic, canvas, settings, tab);
   // The row's slot: it clips the row at the frame's top edge, so revealed content rises out of it.
   const clip = document.createElement("div");
   clip.className = "lalala-tabs-clip";

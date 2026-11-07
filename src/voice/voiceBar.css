@@ -429,22 +429,18 @@
   display: none;
 }
 /* Only the row's first tab keeps the cut corner; each one after it starts on the seam. */
+[data-lalala-presence] .lalala-tabs > :not(:empty) ~ .lalala-mic-slot [data-lalala-mic]::before,
+[data-lalala-presence] .lalala-tabs > :not(:empty) ~ .lalala-mic-slot [data-lalala-mic]::after,
 [data-lalala-presence]
-  .lalala-canvas-slot:not(:empty)
-  + .lalala-input-slot
-  [data-lalala-input-tab]::before,
+  .lalala-tabs
+  > :not(:empty)
+  ~ .lalala-canvas-slot
+  [data-lalala-canvas-name]::before,
 [data-lalala-presence]
-  .lalala-canvas-slot:not(:empty)
-  + .lalala-input-slot
-  [data-lalala-input-tab]::after,
-[data-lalala-presence]
-  .lalala-input-slot:not(:empty)
-  + .lalala-mic-slot
-  [data-lalala-mic]::before,
-[data-lalala-presence]
-  .lalala-input-slot:not(:empty)
-  + .lalala-mic-slot
-  [data-lalala-mic]::after {
+  .lalala-tabs
+  > :not(:empty)
+  ~ .lalala-canvas-slot
+  [data-lalala-canvas-name]::after {
   clip-path: none;
 }
 [data-lalala-presence] [data-lalala-mic] {
@@ -509,8 +505,8 @@
     linear-gradient(rgba(255, 176, 46, 0.2), rgba(255, 176, 46, 0.2)), var(--lalala-fill);
 }
 
-/* The canvases tab (CanvasTabs; the user, 6 Nov, design A), first in the row, built like the mic; live in
-   and out of a call, like the gear. */
+/* The canvases tab (CanvasTabs; the user, 6 Nov, design A), between the mic and the gear, built like
+   the mic; live in and out of a call, like the gear. */
 [data-lalala-presence] .lalala-canvas-slot {
   display: flex;
 }
@@ -761,8 +757,8 @@
   color: var(--hud-ink);
   background: var(--hud);
 }
-/* The settings gear (VoiceSettings; the user, 6 Nov): between the mic and the time, built like the mic, in the
-   same spot in and out of a call (design D). Lit while the settings are open. */
+/* The settings gear (VoiceSettings; the user, 6 Nov): between the canvases tab and the time, built like
+   the mic, in the same spot in and out of a call (design D). Lit while the settings are open. */
 [data-lalala-presence] .lalala-settings-slot {
   display: flex;
 }
@@ -1041,9 +1037,12 @@
   flex-direction: column;
   gap: 4px;
   --lalala-cell-w: var(--lalala-map-w);
-  /* The beam's top, from the frame's right edge: the time box, the gear and the mic, then half the
-     input tab. */
+  /* The beam's top, from the frame's right edge: the time box, the gear (and the canvases tab on
+     /canvas) and the mic, then half the input tab. */
   --lalala-beam-o: calc(var(--lalala-map-w) + 1px + var(--lalala-input-tab-w) * 2.5);
+}
+[data-lalala-presence]:has(.lalala-canvas-slot:not(:empty)) [data-lalala-input-panel] {
+  --lalala-beam-o: calc(var(--lalala-map-w) + 1px + var(--lalala-input-tab-w) * 3.5);
 }
 /* It materializes on the beam's top, outward from there, after the beam is up; closing runs it back
    first, then the beam sinks (VoiceInput unmounts it when the beam is down). */
