@@ -616,3 +616,9 @@
     height: 30px;
   }
 }
+
+/* Streamer mode: a pasted pairing link is a credential, so its text is blurred like scrambled text. */
+[data-lalala-settings-control] input[data-streamer-input] {
+  color: transparent;
+  text-shadow: 0 0 7px var(--s-ink);
+}

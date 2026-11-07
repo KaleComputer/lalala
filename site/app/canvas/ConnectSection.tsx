@@ -188,7 +188,7 @@ export function ConnectSection() {
   const threadGroups: PickGroup[] = [
     { options: [{ value: NEW_THREAD, label: "New voice thread" }] },
     ...(threads.length > 0
-      ? [{ label: "Threads", options: threads.map((thread) => ({ value: thread.id, label: thread.title })) }]
+      ? [{ label: "Threads", options: threads.map((thread) => ({ value: thread.id, label: thread.title, hidden: true })) }]
       : []),
   ];
   const modelGroups: PickGroup[] = workspace.providers.map((provider) => ({
@@ -238,7 +238,7 @@ export function ConnectSection() {
             label="Project"
             value={projectId}
             disabled={busy}
-            groups={[{ options: workspace.projects.map((p) => ({ value: p.id, label: p.title })) }]}
+            groups={[{ options: workspace.projects.map((p) => ({ value: p.id, label: p.title, hidden: true })) }]}
             onChange={(next) =>
               repick({
                 projectId: next,

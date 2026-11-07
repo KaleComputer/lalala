@@ -3,6 +3,7 @@ import { type ReactNode, useState } from "react";
 import step1 from "./connect/step1.png";
 import step2 from "./connect/step2.png";
 import step3 from "./connect/step3.png";
+import { StreamerText, useStreamerMode } from "./streamerMode";
 
 // Vite imports an image as its URL, Next (lalala.talk) as an object holding it.
 type Image = string | { readonly src: string };
@@ -89,6 +90,7 @@ export function PairSteps(props: {
   const [link, setLink] = useState("");
   const [copied, setCopied] = useState(false);
   const support = browserSupport(props.reach);
+  const streamer = useStreamerMode();
   const busy = props.working !== null;
   const pair = (input: string) => {
     const value = input.trim();
@@ -191,6 +193,7 @@ export function PairSteps(props: {
             placeholder="Paste link or code"
             autoComplete="off"
             spellCheck={false}
+            data-streamer-input={streamer ? "" : undefined}
             value={link}
             disabled={busy}
             onChange={(event) => setLink(event.currentTarget.value)}
@@ -216,7 +219,11 @@ export function PairSteps(props: {
         />
       ) : null}
       {props.working ? <p data-lalala-settings-info="">{props.working}</p> : null}
-      {props.problem ? <p data-lalala-settings-error="">{props.problem}</p> : null}
+      {props.problem ? (
+        <p data-lalala-settings-error="">
+          <StreamerText text={props.problem} />
+        </p>
+      ) : null}
       {props.children}
     </>
   );
@@ -243,7 +250,11 @@ export function ConnectedRows(props: {
       <div data-lalala-settings-row="">
         <div>
           <h3>T3 Code</h3>
-          <p>{[props.where, props.checked].filter(Boolean).join(" · ")}</p>
+          <p>
+            {props.where ? <StreamerText text={props.where} /> : null}
+            {props.where && props.checked ? " · " : null}
+            {props.checked}
+          </p>
         </div>
         <div data-lalala-settings-control="">
           <span data-lalala-settings-status="" data-ok={props.ok ? "" : undefined}>
@@ -260,15 +271,24 @@ export function ConnectedRows(props: {
           </button>
         </div>
       </div>
-      {props.problem ? <p data-lalala-settings-error="">{props.problem}</p> : null}
+      {props.problem ? (
+        <p data-lalala-settings-error="">
+          <StreamerText text={props.problem} />
+        </p>
+      ) : null}
       {props.children}
       <div data-lalala-settings-row="">
         <div>
           <h3>Pairing</h3>
           <p>
-            {props.expiresAt === null
-              ? "Forget it to pair again."
-              : `Valid until ${untilDate(props.expiresAt)}. ${props.renews ? "Renews itself a week before." : "Pair again after that."}`}
+            {props.expiresAt === null ? (
+              "Forget it to pair again."
+            ) : (
+              <>
+                Valid until <StreamerText text={untilDate(props.expiresAt)} />.{" "}
+                {props.renews ? "Renews itself a week before." : "Pair again after that."}
+              </>
+            )}
           </p>
         </div>
         <div data-lalala-settings-control="">

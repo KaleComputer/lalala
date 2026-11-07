@@ -13,7 +13,7 @@ import { createPortal } from "react-dom";
 import { ConnectedRows, PairSteps } from "./ConnectFlow";
 import { isFollowing, setFollowing, subscribeFollow } from "./follow";
 import { pairingLink } from "./pairing";
-import { useStreamerMode } from "./streamerMode";
+import { StreamerText, useStreamerMode } from "./streamerMode";
 import { topicChime } from "./player";
 import {
   BUILT_IN_TOPIC_SOUND,
@@ -380,7 +380,11 @@ type PickOption = {
   readonly label: string;
   /** The row gets a play button (onPlay). */
   readonly playable?: boolean;
+  /** The label can identify the user (a device name, a project title): streamer mode scrambles it. */
+  readonly hidden?: boolean;
 };
+const PickLabel = (props: { readonly option: PickOption | undefined }) =>
+  props.option?.hidden ? <StreamerText text={props.option.label} /> : (props.option?.label ?? "None");
 export type PickGroup = { readonly label?: string; readonly options: ReadonlyArray<PickOption> };
 
 const modelGroups = (providers: ReadonlyArray<Provider>): PickGroup[] =>
@@ -540,7 +544,9 @@ export function PickRow(props: {
                           </svg>
                         </button>
                       ) : null}
-                      <span>{option.label}</span>
+                      <span>
+                        <PickLabel option={option} />
+                      </span>
                       {at === selected ? (
                         <svg viewBox="0 0 12 12" aria-hidden="true">
                           <path d="M2 6.5l2.5 2.5L10 3.5" />
@@ -574,7 +580,9 @@ export function PickRow(props: {
           show();
         }}
       >
-        <span>{options[selected]?.label ?? "None"}</span>
+        <span>
+          <PickLabel option={options[selected]} />
+        </span>
       </button>
     </Row>
   );
@@ -782,7 +790,9 @@ function ConnectionSection(props: { readonly onChange: () => void }) {
       >
         {c.brainThread ? (
           <Row title="Thread">
-            <span data-lalala-settings-value="">{c.brainThread.title ?? c.brainThread.id}</span>
+            <span data-lalala-settings-value="">
+              <StreamerText text={c.brainThread.title ?? c.brainThread.id} />
+            </span>
           </Row>
         ) : null}
       </ConnectedRows>
@@ -807,7 +817,7 @@ function BrainSection(props: {
   }
   const brain = state.brain;
   const error = state.kind === "error" ? state.message : null;
-  if (brain === null) return <Section title={title} note={error} />;
+  if (brain === null) return <Section title={title} note={error ? <StreamerText text={error} /> : null} />;
   const selection = brain.modelSelection;
   const model = selection ? findModel(brain, selection.instanceId, selection.model) : undefined;
   const values = carryOptions(model, optionMap(selection));
@@ -818,7 +828,11 @@ function BrainSection(props: {
       title={title}
       note="The thread you talk to. Changes apply from its next turn, on every device."
     >
-      {error ? <p data-lalala-settings-error="">{error}</p> : null}
+      {error ? (
+        <p data-lalala-settings-error="">
+          <StreamerText text={error} />
+        </p>
+      ) : null}
       <PickRow
         title="Model"
         label="Voice brain model"
@@ -1010,7 +1024,7 @@ export function SoundSection() {
           {
             options: [
               { value: "", label: "System default" },
-              ...named.map((device) => ({ value: device.deviceId, label: device.label })),
+              ...named.map((device) => ({ value: device.deviceId, label: device.label, hidden: true })),
             ],
           },
         ]}
