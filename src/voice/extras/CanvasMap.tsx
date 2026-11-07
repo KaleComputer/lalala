@@ -131,6 +131,7 @@ function drawInto(slot: HTMLElement) {
   const move = (event: PointerEvent) => {
     if (held !== null) go(event);
   };
+  const stop = (event: TouchEvent) => event.preventDefault();
   const up = () => {
     held = null;
     draw();
@@ -142,6 +143,8 @@ function drawInto(slot: HTMLElement) {
   const resize = new ResizeObserver(draw);
   resize.observe(canvas);
   canvas.addEventListener("pointerdown", down);
+  // iOS starts a selection or callout on a held touch even when pointerdown is prevented.
+  canvas.addEventListener("touchstart", stop, { passive: false });
   canvas.addEventListener("pointermove", move);
   canvas.addEventListener("pointerup", up);
   canvas.addEventListener("pointercancel", up);

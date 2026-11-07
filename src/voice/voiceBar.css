@@ -394,6 +394,21 @@
 [data-lalala-dock]:not([data-lalala-canvas]) .fr-map {
   display: none;
 }
+/* Nothing in the bar selects or flashes on a press or a drag across the map (Tim, 7 Nov); its text
+   fields stay selectable. */
+[data-lalala-presence] {
+  -webkit-user-select: none;
+  user-select: none;
+  -webkit-touch-callout: none;
+  -webkit-tap-highlight-color: transparent;
+}
+[data-lalala-presence] :is(input, textarea, [contenteditable="true"]) {
+  -webkit-user-select: text;
+  user-select: text;
+}
+[data-lalala-presence] .fr-map canvas {
+  touch-action: none;
+}
 [data-lalala-canvas] [data-lalala-presence] .bar-line {
   right: var(--lalala-map-w);
 }
