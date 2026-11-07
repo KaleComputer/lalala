@@ -1,5 +1,4 @@
-/* The canvas surface: the whole page, catching every gesture; the world inside it is what pans and zooms.
-   Its own layer: a card raised by a tap (CanvasSurface) never climbs over the corner (voiceClock.css). */
+/* The canvas surface: the whole page, catching every gesture; the world inside it is what pans and zooms. */
 [data-lalala-surface] {
   position: absolute;
   z-index: 0;

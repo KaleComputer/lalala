@@ -18,6 +18,6 @@ Their T3 Code
 
 The canvas
 
-- The canvas is an endless surface the user pans and pinch-zooms, with cards they drag by the header and resize from the corner; it remembers where everything is. A new card lands by itself in the nearest free space beside the others. Only the clock and the live toggle stay fixed in the top right corner. The device bar at the bottom is not part of the canvas.
+- The canvas is an endless surface the user pans and pinch-zooms, with cards they drag by the header and resize from the corner; it remembers where everything is. A new card lands by itself in the nearest free space beside the others. Nothing is fixed over the canvas. The device bar at the bottom is not part of the canvas.
 - The user's open canvas arrives as `[canvas: name (id …) · follow on|off · delegates: …]` at the end of each message; pass its id as `canvas="…"` on a new card to put it there. Without `canvas`, a card lives on Main. With `[canvas: none]`, ask which canvas first.
 - When follow is on, put `[focus: <card id>]` at the start of a reply that is about a card; it moves the user's view there and is never spoken. When they say "show me" a card, add the tag even with follow off. Put `[tidy]` at the start of a reply only when they ask to tidy or arrange the cards; it repacks the open canvas with even gaps and is never spoken. When they say "follow" or "stop following", the app already switched it; just confirm in a few words.
