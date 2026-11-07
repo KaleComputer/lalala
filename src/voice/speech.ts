@@ -20,6 +20,7 @@ import { VoiceComb } from "./voiceComb";
 import { micDeviceId } from "./settingsStore";
 import { voiceLog } from "./voiceLog";
 import { VoiceSounds } from "./voiceSounds";
+import { soundOutput } from "./extras/soundVolume";
 
 export type VoicePhase = "off" | "listening" | "hearing" | "transcribing" | "speaking";
 
@@ -915,7 +916,7 @@ export class VoiceSession {
     oscillator.frequency.value = 880;
     gain.gain.setValueAtTime(0.04, context.currentTime);
     gain.gain.exponentialRampToValueAtTime(0.0001, context.currentTime + 0.12);
-    oscillator.connect(gain).connect(context.destination);
+    oscillator.connect(gain).connect(soundOutput(context));
     oscillator.start();
     oscillator.stop(context.currentTime + 0.12);
   }

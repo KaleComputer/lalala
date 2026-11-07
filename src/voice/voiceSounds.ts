@@ -1,3 +1,5 @@
+import { soundOutput } from "./extras/soundVolume";
+
 // Call sounds on the session's context (unlocked in the user's tap) into its destination, the replies'
 // path, so echo cancellation hears them as ours: Presence's connect cue (shared/sounds.mjs) and a
 // thinking pulse per sweep pass, panned with the light. Far under the close-talk bar, and no two
@@ -104,7 +106,7 @@ export class VoiceSounds {
 
   constructor(private readonly context: AudioContext) {
     this.out = context.createGain();
-    this.out.connect(context.destination);
+    this.out.connect(soundOutput(context));
   }
 
   /** The call is live. */

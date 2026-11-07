@@ -145,6 +145,7 @@
   > [data-lalala-settings-control]
     > :is(
       [data-lalala-settings-switch],
+      [data-lalala-settings-range],
       [data-lalala-settings-status],
       [data-lalala-settings-value]
     )
@@ -473,6 +474,55 @@
 [data-lalala-settings-switch]:focus-visible {
   outline: 1px solid var(--s-hud);
   outline-offset: 1px;
+}
+/* A volume: a 1px track filled in the hud colour up to a square thumb, never the browser's look. */
+[data-lalala-settings-control] [data-lalala-settings-range] {
+  appearance: none;
+  width: 140px;
+  height: 20px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  cursor: pointer;
+}
+[data-lalala-settings-range]::-webkit-slider-runnable-track {
+  height: 6px;
+  border: 1px solid var(--s-edge);
+  background:
+    linear-gradient(var(--s-hud), var(--s-hud)) 0 0 / var(--fill, 100%) 100% no-repeat,
+    var(--s-raise);
+}
+[data-lalala-settings-range]::-moz-range-track {
+  height: 6px;
+  border: 1px solid var(--s-edge);
+  background:
+    linear-gradient(var(--s-hud), var(--s-hud)) 0 0 / var(--fill, 100%) 100% no-repeat,
+    var(--s-raise);
+}
+[data-lalala-settings-range]::-webkit-slider-thumb {
+  appearance: none;
+  width: 8px;
+  height: 16px;
+  margin-top: -6px;
+  border: 1px solid var(--s-hud);
+  border-radius: 0;
+  background: var(--s-surface);
+}
+[data-lalala-settings-range]::-moz-range-thumb {
+  box-sizing: border-box;
+  width: 10px;
+  height: 18px;
+  border: 1px solid var(--s-hud);
+  border-radius: 0;
+  background: var(--s-surface);
+}
+[data-lalala-settings-range]:focus-visible {
+  outline: 1px solid var(--s-hud);
+  outline-offset: 2px;
+}
+[data-lalala-settings-range] + [data-lalala-settings-value] {
+  width: 4ch;
+  text-align: right;
 }
 [data-lalala-settings-control] :disabled {
   opacity: 0.5;

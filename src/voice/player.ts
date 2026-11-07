@@ -11,6 +11,7 @@ import {
   syncedSettings,
   topicSoundUrl,
 } from "./settingsStore";
+import { soundGain } from "./extras/soundVolume";
 import { voiceLog } from "./voiceLog";
 
 const TTS_SAMPLE_RATE = 24_000;
@@ -451,7 +452,9 @@ export class SpeechPlayer {
               waitMs: Math.round(performance.now() - sentence.queuedAt),
             });
             if (sentence.newTopic && this.topicSound !== null) {
-              this.schedule(this.topicSound, sentence, -1);
+              const gain = soundGain();
+              const sound = this.topicSound;
+              this.schedule(gain === 1 ? sound : sound.map((sample) => sample * gain), sentence, -1);
             }
           }
           this.schedule(sentence.chunks[played]!, sentence, played);

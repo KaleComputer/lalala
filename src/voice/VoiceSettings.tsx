@@ -1,4 +1,5 @@
 import {
+  type CSSProperties,
   type KeyboardEvent as ReactKeyboardEvent,
   type ReactNode,
   useEffect,
@@ -27,6 +28,7 @@ import {
   useMicDeviceId,
   useSyncedSettings,
 } from "./settingsStore";
+import { setSoundVolume, soundOutput, useSoundVolume, withSoundVolume } from "./extras/soundVolume";
 import "./voiceSettings.css";
 
 // What the dev server's T3 bridge serves (lalala's vite/t3bridge.mjs): the brain thread's model and
@@ -396,7 +398,7 @@ function playTopicSound(name: string): void {
   previewAudio = null;
   const url = topicSoundUrl(name);
   if (url !== null) {
-    previewAudio = new Audio(url);
+    previewAudio = withSoundVolume(new Audio(url));
     void previewAudio.play().catch(() => undefined);
     return;
   }
@@ -407,7 +409,7 @@ function playTopicSound(name: string): void {
   buffer.copyToChannel(samples, 0);
   const source = context.createBufferSource();
   source.buffer = buffer;
-  source.connect(context.destination);
+  source.connect(soundOutput(context));
   source.addEventListener("ended", () => void context.close());
   source.start();
 }
@@ -994,6 +996,7 @@ export function SoundSection() {
           playTopicSound(name);
         }}
       />
+      <VolumeRow />
       <PickRow
         title="Microphone"
         description={
@@ -1014,6 +1017,29 @@ export function SoundSection() {
         onChange={(id) => setMicDeviceId(id || null)}
       />
     </Section>
+  );
+}
+
+function VolumeRow() {
+  const percent = Math.round(useSoundVolume() * 100);
+  return (
+    <Row
+      title="Sounds & music"
+      description="Every sound but the voice: the topic sound, chimes, cards and games. On this device."
+    >
+      <input
+        type="range"
+        min={0}
+        max={100}
+        step={1}
+        value={percent}
+        aria-label="Sounds & music volume"
+        data-lalala-settings-range=""
+        style={{ "--fill": `${percent}%` } as CSSProperties}
+        onChange={(event) => setSoundVolume(Number(event.currentTarget.value) / 100)}
+      />
+      <span data-lalala-settings-value="">{percent}%</span>
+    </Row>
   );
 }
 
