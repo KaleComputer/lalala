@@ -528,26 +528,23 @@ export function VoiceHost({
     void toggle();
   }, [autoStart, config]);
 
-  // The amber CONNECT TO T3 CODE button was tapped: once the pairing links T3, the settings close and
-  // the call starts. Closing the settings first drops that intent; the gear never starts a call.
-  const callOnConnectRef = useRef(false);
+  // The amber CONNECT TO T3 CODE button was tapped: once the pairing links T3, Connected shows for a
+  // moment and the settings close onto the normal START CALL. Closing them first drops that intent.
+  const closeOnConnectRef = useRef(false);
   // oxlint-disable-next-line t3code/no-unreasoned-state-sync -- follows the settings sheet closing, outside React
   useEffect(
     () =>
       onVoiceSettingsClosed(() => {
-        callOnConnectRef.current = false;
+        closeOnConnectRef.current = false;
       }),
     [],
   );
-  // oxlint-disable-next-line t3code/no-unreasoned-state-sync -- the bridge reaching T3 (after pairing) starts the call the amber button asked for
+  // oxlint-disable-next-line t3code/no-unreasoned-state-sync -- the bridge reaching T3 (after pairing) closes the settings the amber button opened
   useEffect(() => {
-    if (down || !callOnConnectRef.current) return;
-    callOnConnectRef.current = false;
+    if (down || !closeOnConnectRef.current) return;
+    closeOnConnectRef.current = false;
     // Connected shows in the sheet for a moment, so the pairing visibly worked before it closes.
-    const timer = window.setTimeout(() => {
-      closeVoiceSettings();
-      void toggle();
-    }, CONNECTED_HOLD_MS);
+    const timer = window.setTimeout(closeVoiceSettings, CONNECTED_HOLD_MS);
     const stop = onVoiceSettingsClosed(() => window.clearTimeout(timer));
     return () => {
       window.clearTimeout(timer);
@@ -615,7 +612,7 @@ export function VoiceHost({
       offline={
         down && !live
           ? () => {
-              callOnConnectRef.current = true;
+              closeOnConnectRef.current = true;
               openVoiceSettings("Connection");
             }
           : null
