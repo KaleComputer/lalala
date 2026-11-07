@@ -1038,21 +1038,22 @@ function VolumeRow() {
   const percent = Math.round(useSoundVolume() * 100);
   return (
     <Row
-      title="Sounds & music"
-      description="Every sound but the voice: the topic sound, chimes, cards and games. On this device."
+      title="Sounds volume"
+      below={
+        <input
+          type="range"
+          min={0}
+          max={100}
+          step={1}
+          value={percent}
+          aria-label="Sounds volume"
+          data-lalala-settings-range=""
+          style={{ "--fill": `${percent}%` } as CSSProperties}
+          onChange={(event) => setSoundVolume(Number(event.currentTarget.value) / 100)}
+        />
+      }
     >
-      <input
-        type="range"
-        min={0}
-        max={100}
-        step={1}
-        value={percent}
-        aria-label="Sounds & music volume"
-        data-lalala-settings-range=""
-        style={{ "--fill": `${percent}%` } as CSSProperties}
-        onChange={(event) => setSoundVolume(Number(event.currentTarget.value) / 100)}
-      />
-      <span data-lalala-settings-value="">{percent}%</span>
+      <span data-lalala-settings-percent="">{percent}%</span>
     </Row>
   );
 }

@@ -145,7 +145,7 @@
   > [data-lalala-settings-control]
     > :is(
       [data-lalala-settings-switch],
-      [data-lalala-settings-range],
+      [data-lalala-settings-percent],
       [data-lalala-settings-status],
       [data-lalala-settings-value]
     )
@@ -475,10 +475,14 @@
   outline: 1px solid var(--s-hud);
   outline-offset: 1px;
 }
-/* A volume: a 1px track filled in the hud colour up to a square thumb, never the browser's look. */
-[data-lalala-settings-control] [data-lalala-settings-range] {
+/* A volume: the row's whole width under its title, a 1px track filled in the hud colour up to a
+   square thumb, never the browser's look. */
+[data-lalala-settings-range] {
+  grid-column: 1 / -1;
+  display: block;
   appearance: none;
-  width: 140px;
+  width: 100%;
+  margin: 0;
   height: 20px;
   padding: 0;
   border: 0;
@@ -520,8 +524,16 @@
   outline: 1px solid var(--s-hud);
   outline-offset: 2px;
 }
-[data-lalala-settings-range] + [data-lalala-settings-value] {
+/* Its level: a fixed box beside the title, so 5% and 100% take the same room. */
+[data-lalala-settings-percent] {
+  box-sizing: content-box;
   width: 4ch;
+  padding: 2px 6px;
+  border: 1px solid var(--s-hair);
+  color: var(--s-ink-2);
+  background: var(--s-raise);
+  font: 400 12px / 16px var(--s-mono);
+  font-variant-numeric: tabular-nums;
   text-align: right;
 }
 [data-lalala-settings-control] :disabled {
