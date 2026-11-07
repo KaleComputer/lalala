@@ -29,7 +29,7 @@ import { asksToSee, followCommand, isFollowing, setFollowing, takeFocus } from "
 import { type VoicePhase, VoiceSession } from "./speech";
 import { takeSentences } from "./speechText";
 import { VoiceBar, type VoiceBarState } from "./VoiceBar";
-import { openVoiceSettings } from "./VoiceSettings";
+import { closeVoiceSettings, onVoiceSettingsClosed, openVoiceSettings } from "./VoiceSettings";
 import { endVoiceLogSession, startVoiceLogSession, voiceLog } from "./voiceLog";
 import { syncVoiceTheme } from "./voiceThemeSync";
 
@@ -528,6 +528,25 @@ export function VoiceHost({
     void toggle();
   }, [autoStart, config]);
 
+  // The amber CONNECT TO T3 CODE button was tapped: once the pairing links T3, the settings close and
+  // the call starts. Closing the settings first drops that intent; the gear never starts a call.
+  const callOnConnectRef = useRef(false);
+  // oxlint-disable-next-line t3code/no-unreasoned-state-sync -- follows the settings sheet closing, outside React
+  useEffect(
+    () =>
+      onVoiceSettingsClosed(() => {
+        callOnConnectRef.current = false;
+      }),
+    [],
+  );
+  // oxlint-disable-next-line t3code/no-unreasoned-state-sync -- the bridge reaching T3 (after pairing) starts the call the amber button asked for
+  useEffect(() => {
+    if (down || !callOnConnectRef.current) return;
+    callOnConnectRef.current = false;
+    closeVoiceSettings();
+    void toggle();
+  }, [down]);
+
   // oxlint-disable-next-line t3code/no-unreasoned-state-sync -- global mic hotkey and teardown
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
@@ -585,7 +604,14 @@ export function VoiceHost({
       stoppedAt={stoppedAt}
       onSubmit={(text, images) => send(text, images)}
       live={phase !== "off"}
-      offline={down && !live ? () => openVoiceSettings("Connection") : null}
+      offline={
+        down && !live
+          ? () => {
+              callOnConnectRef.current = true;
+              openVoiceSettings("Connection");
+            }
+          : null
+      }
       muted={muted}
       onMute={() => {
         const session = sessionRef.current;

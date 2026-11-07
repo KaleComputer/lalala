@@ -52,8 +52,8 @@ export function VoiceBar(props: {
   /** Models the call is downloading (lalala.talk's in-browser speech): a line each over the room. */
   readonly downloads?: ReadonlyArray<ModelProgress> | null;
   /**
-   * T3 Code can't be reached and no call is on: START CALL gives way to one split button,
-   * DISCONNECTED | CONNECT TO T3 CODE (design K), which calls this. Canvases work on as they are.
+   * T3 Code can't be reached and no call is on: START CALL gives way to one compact amber
+   * CONNECT TO T3 CODE button, which calls this. Canvases work on as they are.
    */
   readonly offline?: (() => void) | null;
 }) {
@@ -125,9 +125,8 @@ export function VoiceBar(props: {
       {room !== null && offline !== null
         ? createPortal(
             <div data-lalala-offline="">
-              <button type="button" aria-label="Disconnected. Connect to T3 Code" onClick={offline}>
-                <span>Disconnected</span>
-                <span>Connect to T3 Code</span>
+              <button type="button" onClick={offline}>
+                Connect to T3 Code
               </button>
             </div>,
             room,

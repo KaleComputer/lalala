@@ -1318,7 +1318,7 @@
 }
 
 /* T3 Code not connected, out of a call (design K): START CALL and its tap target give way to
-   one split button, DISCONNECTED in the look's warning colour, then CONNECT TO T3 CODE filled with it. */
+   one compact CONNECT TO T3 CODE button filled with the look's warning colour. */
 [data-lalala-presence][data-lalala-off] .fr-plate,
 [data-lalala-presence][data-lalala-off] .bar-talk {
   display: none;
@@ -1334,61 +1334,33 @@
 }
 [data-lalala-offline] button {
   --lalala-warn: var(--lala-warn, #ffc14d);
-  position: relative;
   display: inline-flex;
-  align-items: stretch;
+  align-items: center;
   height: var(--plate-h);
-  padding: 0;
+  padding: 1px 12px 0 13px;
   border: 0;
-  background: none;
+  background: var(--lalala-warn);
+  color: var(--color-surface);
   font: 600 var(--plate-fs) / 1 var(--font-tag);
-  letter-spacing: 0.2em;
+  letter-spacing: 0.12em;
   text-transform: uppercase;
   white-space: nowrap;
-  box-shadow: inset 0 0 0 1px var(--lalala-warn);
-  clip-path: polygon(8px 0, 100% 0, 100% calc(100% - 8px), calc(100% - 8px) 100%, 0 100%, 0 8px);
+  clip-path: polygon(7px 0, 100% 0, 100% calc(100% - 7px), calc(100% - 7px) 100%, 0 100%, 0 7px);
   cursor: pointer;
   pointer-events: auto;
   touch-action: manipulation;
 }
-[data-lalala-offline] button::before {
-  content: "";
-  position: absolute;
-  left: -0.5px;
-  top: 8px;
-  width: 11px;
-  height: 1px;
-  background: var(--lalala-warn);
-  transform: rotate(-45deg);
-  transform-origin: 0 0;
+[data-lalala-offline] button:hover {
+  background: color-mix(in srgb, var(--lalala-warn) 85%, white);
 }
 [data-lalala-offline] button:focus-visible {
   outline: 0;
-  box-shadow: inset 0 0 0 2px var(--lalala-warn);
-}
-[data-lalala-offline] span {
-  display: flex;
-  align-items: center;
-  padding: 1px 13px 0 15px;
-  color: var(--lalala-warn);
-}
-[data-lalala-offline] span + span {
-  padding-right: 16px;
-  background: var(--lalala-warn);
-  color: var(--color-surface);
-}
-[data-lalala-offline] button:hover span + span {
-  background: color-mix(in srgb, var(--lalala-warn) 85%, white);
+  box-shadow: inset 0 0 0 2px var(--color-surface);
 }
 @media (max-width: 639px) {
   [data-lalala-offline] button {
+    padding: 1px 9px 0 10px;
     font-size: 10px;
-    letter-spacing: 0.1em;
-  }
-  [data-lalala-offline] span {
-    padding: 1px 8px 0 10px;
-  }
-  [data-lalala-offline] span + span {
-    padding-right: 11px;
+    letter-spacing: 0.08em;
   }
 }
