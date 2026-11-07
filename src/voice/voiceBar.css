@@ -554,19 +554,17 @@
 [data-lalala-presence] [data-lalala-canvas-name]::after {
   clip-path: polygon(3.4px 0, 100% 0, 100% 100%, 0 100%, 0 3.4px);
 }
-/* The time's type, like "+": side by side they read as one row. */
+/* A one-icon tab, stacked layers (the user, 7 Nov): the open canvas's name heads its list instead. */
 [data-lalala-presence] [data-lalala-canvas-name] {
-  max-width: 112px;
-  padding: 0 8px 0 9px;
-  font: 400 calc(var(--tab-fs) - 1px) / 1 var(--font-mono);
-  letter-spacing: 0.12em;
-  text-transform: uppercase;
-  white-space: nowrap;
+  width: var(--lalala-input-tab-w);
 }
-[data-lalala-presence] [data-lalala-canvas-name] > span {
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
+[data-lalala-presence] [data-lalala-canvas-name] svg {
+  width: 13px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.5;
+  stroke-linecap: round;
+  stroke-linejoin: round;
 }
 [data-lalala-presence] [data-lalala-canvas-name]:focus-visible {
   outline: 0;
@@ -612,6 +610,9 @@
   background: var(--lalala-fill);
   clip-path: polygon(5.4px 0, calc(100% - 5.4px) 0, 100% 5.4px, 100% 100%, 0 100%, 0 5.4px);
 }
+[data-lalala-presence] [data-lalala-canvas-head] + ul {
+  clip-path: none;
+}
 [data-lalala-presence] [data-lalala-canvas-panel] li > button {
   display: flex;
   align-items: center;
@@ -641,11 +642,49 @@
   text-overflow: ellipsis;
   white-space: nowrap;
 }
+/* The open canvas: a check in place of the square, on a lit row. */
 [data-lalala-presence] [data-lalala-canvas-panel] li[data-active] > button {
   color: var(--hud);
+  background: var(--hud-4);
 }
 [data-lalala-presence] [data-lalala-canvas-panel] li[data-active] > button::before {
-  background: var(--hud);
+  display: none;
+}
+[data-lalala-presence] [data-lalala-canvas-panel] li > button > svg {
+  flex: none;
+  width: 9px;
+  margin: 0 -1px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 3;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+/* The open canvas's name, heading the list (the tab itself only shows the icon). */
+[data-lalala-presence] [data-lalala-canvas-head] {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  margin: 0;
+  padding: 6px 10px 5px;
+  color: var(--hud);
+  background: var(--lalala-fill);
+  font: 400 var(--tab-fs) / 1.2 var(--font-mono);
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  white-space: nowrap;
+  clip-path: polygon(5.4px 0, calc(100% - 5.4px) 0, 100% 5.4px, 100% 100%, 0 100%, 0 5.4px);
+}
+[data-lalala-presence] [data-lalala-canvas-head] > span:first-child {
+  flex: none;
+  color: var(--hud-3);
+  font-size: calc(var(--tab-fs) - 2px);
+  letter-spacing: 0.14em;
+}
+[data-lalala-presence] [data-lalala-canvas-head] > span + span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 [data-lalala-presence] [data-lalala-canvas-panel] li > button:is(:hover, :focus-visible) {
   outline: 0;

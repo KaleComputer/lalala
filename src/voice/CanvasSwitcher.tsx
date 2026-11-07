@@ -4,6 +4,7 @@ import { createPortal } from "react-dom";
 
 import { ensureLocalApi } from "../localApi";
 import { liftOverKeyboard } from "./keyboardLift";
+import { StreamerText } from "./streamerMode";
 
 // canvasStore lives in the separately built extras bundle; it announces changes with this event.
 const subscribe = (listener: () => void) => {
@@ -13,8 +14,8 @@ const subscribe = (listener: () => void) => {
 const snapshot = () => globalThis.__lalalaCanvases?.snapshot() ?? null;
 
 /**
- * The canvas's tab in the device bar's row: its name, which raises its list over the bar (switch,
- * New, Rename, Tidy, Delete). On /canvas; out of a call it is an empty, inert slot in the same spot,
+ * The canvas's tab in the device bar's row: a stacked-layers icon, which raises its list over the bar
+ * (the open canvas named on top, switch, New, Rename, Tidy, Delete). On /canvas; out of a call it is an empty, inert slot in the same spot,
  * like the rest of the row's call tabs. Follow lives in the settings.
  */
 export function CanvasTabs(props: {
@@ -84,10 +85,14 @@ export function CanvasTabs(props: {
         tabIndex={props.live ? undefined : -1}
         data-open={open ? "" : undefined}
         aria-expanded={open}
-        aria-label={`Canvas: ${current?.name ?? "none"}. Switch, add, rename or delete canvases`}
+        aria-label={`Canvases (${current?.name ?? "none"})`}
         onClick={toggle}
       >
-        <span>{current?.name ?? "No canvas"}</span>
+        <svg viewBox="0 0 24 24" aria-hidden="true">
+          <path d="M12 3 2 8l10 5 10-5-10-5Z" />
+          <path d="m2 13 10 5 10-5" />
+          <path d="m2 18 10 5 10-5" />
+        </svg>
       </button>
     </span>
   );
@@ -98,6 +103,14 @@ export function CanvasTabs(props: {
       data-lalala-canvas-panel=""
       style={{ "--lalala-canvas-at": `${openAt}px` } as CSSProperties}
     >
+      {current ? (
+        <p data-lalala-canvas-head="">
+          <span>Canvas</span>
+          <span>
+            <StreamerText text={current.name} />
+          </span>
+        </p>
+      ) : null}
       {canvases.list.length > 0 ? (
         <ul>
           {canvases.list.map((canvas) => (
@@ -131,7 +144,14 @@ export function CanvasTabs(props: {
                     close();
                   }}
                 >
-                  <span>{canvas.name}</span>
+                  {canvas.id === canvases.active ? (
+                    <svg viewBox="0 0 24 24" aria-hidden="true">
+                      <path d="m4 12.5 5 5L20 6.5" />
+                    </svg>
+                  ) : null}
+                  <span>
+                    <StreamerText text={canvas.name} />
+                  </span>
                 </button>
               )}
             </li>
