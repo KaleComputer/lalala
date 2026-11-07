@@ -52,6 +52,12 @@ export type HarnessAdapter = {
   events(listener: (event: unknown) => void): () => void;
   /** One orchestration command for the harness. */
   send(command: unknown): Promise<unknown>;
+  /**
+   * A text file in the brain thread's project, null when it is not there. Only lalala.talk has
+   * it: its prebuilt page can't load card code, so the brain writes cards there as files
+   * (`[card …]` in its replies, src/voice/brainCards.ts) instead of under src/voice/extras/.
+   */
+  readFile?(relativePath: string): Promise<string | null>;
 };
 
 export type Adapters = {

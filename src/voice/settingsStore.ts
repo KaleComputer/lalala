@@ -20,12 +20,9 @@ export type SyncedSettings = {
   readonly at: number;
 };
 
-// High reasoning, fast mode off: what delegates ran with before these settings existed.
-const DEFAULT_DELEGATES: Delegates = {
-  instanceId: null,
-  model: null,
-  options: { effort: "high", fastMode: false },
-};
+// The brain's model with its own defaults: options are per provider (Claude's `effort`, Codex's
+// `reasoningEffort`), and T3 refuses a delegate whose options its model doesn't have.
+const DEFAULT_DELEGATES: Delegates = { instanceId: null, model: null, options: {} };
 export const DEFAULT_TOPIC_SOUND = "soft-ping";
 /** The topic sound the player renders itself instead of loading a file. */
 export const BUILT_IN_TOPIC_SOUND = "chime";

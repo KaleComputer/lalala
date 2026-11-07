@@ -8,6 +8,7 @@ import {
   localNetworkProblem,
   readBrainThread,
   readSession,
+  readShell,
   uuid,
 } from "./t3";
 
@@ -298,8 +299,28 @@ export function browserHarness(): HarnessAdapter {
     throw new Error(state.error ?? "T3 Code is not answering");
   }
 
+  // The brain thread's project folder on the paired machine, for its card files.
+  let projectRoot: Promise<string> | null = null;
+  const rootOf = (link: T3Socket) =>
+    (projectRoot ??= readShell(link).then(({ projects }) => {
+      const root = projects.find((p) => p.id === state.thread?.projectId)?.workspaceRoot;
+      if (root === undefined) throw new Error("The voice thread's project is gone");
+      return root;
+    })).catch((error: Error) => {
+      projectRoot = null;
+      throw error;
+    });
+
   return {
     config: async () => (workspaceRoot === null ? null : { workspaceRoot, model: null }),
+    async readFile(relativePath) {
+      const link = await linked();
+      const file = await link.request<{ contents: string; truncated: boolean; exists?: boolean }>(
+        "projects.readFile",
+        { cwd: await rootOf(link), relativePath, allowMissing: true },
+      );
+      return file.exists === false || file.truncated ? null : file.contents;
+    },
     events(listener) {
       listeners.add(listener);
       if (!started) {

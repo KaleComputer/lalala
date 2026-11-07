@@ -48,6 +48,10 @@ const harness: HarnessAdapter = {
     if (!current) return Promise.reject(new Error("Not paired with T3 Code yet"));
     return current.send(command);
   },
+  readFile(relativePath) {
+    if (!current?.readFile) return Promise.reject(new Error("Not paired with T3 Code yet"));
+    return current.readFile(relativePath);
+  },
 };
 
 installAdapters({ storage: browserStorage, speech: browserSpeech(), harness });

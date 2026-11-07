@@ -274,22 +274,25 @@ export type Project = {
 export type ThreadShell = { id: string; projectId: string; title: string; updatedAt?: string };
 export type Provider = { instanceId: string; name: string; models: { slug: string; name: string }[] };
 
+/** Every project and thread, once. */
+export function readShell(socket: T3Socket) {
+  return new Promise<{ projects: Project[]; threads: ThreadShell[] }>((resolve, reject) => {
+    const sub = socket.stream<{ kind: string; snapshot?: never }>(
+      "orchestration.subscribeShell",
+      {},
+      (chunk) => {
+        if (chunk.kind !== "snapshot") return;
+        sub.stop();
+        resolve(chunk.snapshot as never);
+      },
+    );
+    sub.done.catch(reject);
+  });
+}
+
 /** Projects, threads and models once, for the picker. */
 export async function readWorkspace(socket: T3Socket) {
-  const snapshot = await new Promise<{ projects: Project[]; threads: ThreadShell[] }>(
-    (resolve, reject) => {
-      const sub = socket.stream<{ kind: string; snapshot?: never }>(
-        "orchestration.subscribeShell",
-        {},
-        (chunk) => {
-          if (chunk.kind !== "snapshot") return;
-          sub.stop();
-          resolve(chunk.snapshot as never);
-        },
-      );
-      sub.done.catch(reject);
-    },
-  );
+  const snapshot = await readShell(socket);
   const config = await socket.request<{
     environment?: { label?: string; serverVersion?: string };
     settings?: { defaultModelSelection?: ModelSelection };

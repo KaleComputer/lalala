@@ -21,8 +21,8 @@ browser (mic, canvas) ──▶ lalala server :5780 ──▶ T3 Code server   (
 - **lalala server** (`npm start`): serves the canvas, keeps one connection to T3 Code that follows
   the brain thread, and forwards audio to the local speech service. The browser only talks to it.
 - **Brain thread**: an ordinary T3 Code thread in a project rooted at this folder. Its instructions
-  are `src/voice/brain.md`, which lalala sends into the thread on the first turn, after compaction
-  and whenever the file changes. The brain keeps replies short (they are read aloud) and delegates
+  are `src/voice/brain.md` plus how this host makes cards (`brain-files.md` or `brain-cards.md`),
+  which lalala sends into the thread on the first turn, after compaction and whenever they change. The brain keeps replies short (they are read aloud) and delegates
   real work to other threads with T3 Code's own tools, so it stays free to listen.
 - **Local speech** (`npm run speech`): a small Python service on `127.0.0.1` that streams partial
   transcripts while you talk and speaks replies sentence by sentence.
@@ -39,6 +39,7 @@ once at startup (`src/main.tsx` for the app, `site/app/canvas/adapters.ts` for t
 - **storage**: layout and settings on the lalala server (`server.ts`), or in this browser only (`browser.ts`).
 - **speech**: the local speech service, or Parakeet and Kokoro in the browser (ONNX, WebGPU or WASM).
 - **harness**: T3 Code through the lalala server, or straight from the browser to T3 Code.
+  The site's harness also reads files from the brain's project, which is how its cards arrive.
 
 The site imports `src/voice` with the app's own aliases (`site/next.config.mjs` mirrors `vite.config.mjs`).
 
@@ -173,6 +174,13 @@ both, so "undo that" is a `git revert`:
   once. "Tidy up" repacks the open canvas with even gaps.
 
 You can write cards by hand too; the brain picks them up like its own.
+
+On lalala.talk the page is prebuilt and can't load new code, so the brain writes each card as one
+HTML file, `cards/<id>.html` in its own project folder (`~/lalala`), and names it in its reply with
+`[card id="timer" title="Pomodoro" size="320x200"]`. The page reads the file through your T3 Code
+connection, keeps it in the browser, and shows it in a sandboxed frame (inline and CDN scripts run;
+no network requests, no access to the page). The card's close button takes it off this browser's
+canvas; `[card remove id="timer"]` lets the brain do the same.
 
 ## Configuration
 

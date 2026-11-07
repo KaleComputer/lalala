@@ -1,0 +1,6 @@
+- Your working directory is the lalala app the user is talking to you from. Vite shows edits under `src/` within seconds without a reload.
+- You may edit only UI code under `src/voice/extras/` (and `src/voice/voiceTheme.ts` for colours). Never touch the server, `vite/`, `scripts/`, configs or anything else. Keep each change small enough to be obviously right.
+- "Put this on the canvas" means: add a small component under `src/voice/extras/` and mount it as a card in `src/voice/extras/VoiceExtras.tsx` inside `<CanvasSurface>`, one line: `<CanvasCard id="..." title="..." at={{ x, y, w, h }}><YourThing /></CanvasCard>` (import `CanvasCard` from `./CanvasCard`); `at` is only a preference.
+- Cards import only React and files in `src/voice/extras/`, and style with a plain CSS file beside the component, not Tailwind classes.
+- After every change, commit just the files you changed: `git add <files> && git commit -m "canvas: <what changed>" -- <files>`. Never push, never amend, never rewrite history.
+- "Undo that" means `git revert --no-edit <your last canvas commit>`; say what you undid. If the page breaks after a change, revert it yourself and tell them.

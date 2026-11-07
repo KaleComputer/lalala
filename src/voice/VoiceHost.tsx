@@ -20,6 +20,7 @@ import { primaryServerSettingsAtom } from "../state/server";
 import { threadEnvironment } from "../state/threads";
 import { useOrchestrationCommand } from "../state/use-orchestration-command";
 import { useVoiceBrainContext } from "../state/voiceBrainContext";
+import { applyCardTags, takeCards } from "./brainCards";
 import { compactionDue, shareBrainThread } from "./brainCompaction";
 import { markBriefed, needsBrief, withBrief, withCanvas } from "./brief";
 import type { ModelProgress } from "./adapters";
@@ -142,7 +143,13 @@ export function VoiceHost({
   const voiceThreadRef = voiceThread
     ? scopeThreadRef(voiceThread.environmentId, voiceThread.id)
     : null;
-  const items = useThreadVisibleTurnItems(phase === "off" ? null : voiceThreadRef);
+  // lalala.talk: the harness and speech adapters stand in for the dev server and the speech service.
+  const harness = globalThis.__lalalaAdapters?.harness;
+  const speech = globalThis.__lalalaAdapters?.speech;
+  // Out of a call too where the brain's replies carry cards (brainCards.ts).
+  const items = useThreadVisibleTurnItems(
+    phase === "off" && !harness?.readFile ? null : voiceThreadRef,
+  );
   const thinking = threadRuntimeIsActive(voiceThread?.runtime);
   const brainContext = useVoiceBrainContext(voiceThreadRef);
   // When this page sent a `/compact`, until its run shows or ends; and the usage it compacted.
@@ -156,9 +163,6 @@ export function VoiceHost({
     brainContext?.compacting === true ||
     (compactSentAt !== null && (brainContext?.compactedAt ?? 0) < compactSentAt);
 
-  // lalala.talk: the harness and speech adapters stand in for the dev server and the speech service.
-  const harness = globalThis.__lalalaAdapters?.harness;
-  const speech = globalThis.__lalalaAdapters?.speech;
   // The in-browser models' download and warm-up (the bar's readout); null once ready.
   const [loading, setLoading] = useState<ReadonlyArray<ModelProgress> | null>(null);
 
@@ -449,6 +453,12 @@ export function VoiceHost({
     sessionRef.current?.setThinking(thinking);
   }, [thinking]);
 
+  // oxlint-disable-next-line t3code/no-unreasoned-state-sync -- puts the cards named in the brain's finished replies on the canvas, reading their files from T3
+  useEffect(() => {
+    const readFile = harness?.readFile;
+    if (readFile && voiceThread) applyCardTags(voiceThread.id, items, readFile);
+  }, [items, voiceThread?.id]);
+
   // oxlint-disable-next-line t3code/no-unreasoned-state-sync -- speaks the voice thread's replies sentence by sentence as they stream while the mic is on
   useEffect(() => {
     const session = sessionRef.current;
@@ -460,10 +470,12 @@ export function VoiceHost({
       if (item.type !== "assistant_message" || visibility !== "local") continue;
       if (item.parentItemId !== null) continue;
       if (startedAt < sessionStartedAtRef.current - 1_000) continue;
-      // Focus tags move the canvas and are never spoken, nor is the brain's `[new topic]` marker.
+      // Focus and card tags are never spoken, nor is the brain's `[new topic]` marker.
       const tidy = item.text.match(TIDY_TAG) !== null;
       const { text, cards } = takeFocus(
-        item.text.replace(NEW_TOPIC_TAG, `\n\n${TOPIC_MARK}`).replace(TIDY_TAG, ""),
+        takeCards(item.text)
+          .text.replace(NEW_TOPIC_TAG, `\n\n${TOPIC_MARK}`)
+          .replace(TIDY_TAG, ""),
       );
       if (thisTurn && tidy && !tidiedRef.current.has(item.id)) {
         tidiedRef.current.add(item.id);
