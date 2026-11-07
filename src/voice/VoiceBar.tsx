@@ -15,6 +15,7 @@ import {
 import { type VoiceFileUpload, VoiceInput, type VoiceInputSubmit } from "./VoiceInput";
 import { VoiceSettings } from "./VoiceSettings";
 import { voiceLog } from "./voiceLog";
+import { useStreamerMode, useStreamerText } from "./streamerMode";
 import "./presence/presence.css";
 import "./voiceBar.css";
 
@@ -57,6 +58,8 @@ export function VoiceBar(props: {
   const updateReady = useUpdateReady();
 
   const press = useEffectEvent(() => props.onPress());
+  const streamer = useStreamerMode();
+  const message = useStreamerText(props.message);
   const readAnalysis = useEffectEvent(() => props.analysis?.() ?? null);
   const hearing = useEffectEvent(() => props.state === "hearing");
   const fill = useEffectEvent(() => downloadFill(props.downloads));
@@ -82,8 +85,14 @@ export function VoiceBar(props: {
   useEffect(() => {
     const root = rootRef.current;
     if (root === null) return;
-    showPresenceState(root, frameRef.current, props);
-  }, [props.state, props.label, props.disabled, props.message]);
+    showPresenceState(root, frameRef.current, {
+      state: props.state,
+      label: props.label,
+      disabled: props.disabled,
+      message,
+      streamer,
+    });
+  }, [props.state, props.label, props.disabled, message, streamer]);
 
   // oxlint-disable-next-line t3code/no-unreasoned-state-sync -- Presence's stopped look when the user cuts a reply off
   useEffect(() => {

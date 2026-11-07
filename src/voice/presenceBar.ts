@@ -189,6 +189,8 @@ export function showPresenceState(
     readonly label: string;
     readonly disabled: boolean;
     readonly message: string | null;
+    /** Streamer mode: `message` arrives scrambled and is drawn pixelated (an error can name a host or a path). */
+    readonly streamer: boolean;
   },
 ) {
   frame?.state(PRESENCE_STATE[input.state]);
@@ -203,7 +205,10 @@ export function showPresenceState(
   if (incoming) {
     incoming.hidden = input.message === null;
     const line = document.createElement("li");
-    line.textContent = input.message ?? "";
+    const text = document.createElement("span");
+    if (input.streamer) text.dataset.streamerText = "";
+    text.textContent = input.message ?? "";
+    line.append(text);
     incoming.replaceChildren(...(input.message === null ? [] : [line]));
   }
 }
