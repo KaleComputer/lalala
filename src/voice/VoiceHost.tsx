@@ -29,7 +29,7 @@ import { asksToSee, followCommand, isFollowing, setFollowing, takeFocus } from "
 import { type VoicePhase, VoiceSession } from "./speech";
 import { takeSentences } from "./speechText";
 import { VoiceBar, type VoiceBarState } from "./VoiceBar";
-import { closeVoiceSettings, onVoiceSettingsClosed, openVoiceSettings } from "./VoiceSettings";
+import { closeVoiceSettings, CONNECTED_HOLD_MS, onVoiceSettingsClosed, openVoiceSettings } from "./VoiceSettings";
 import { endVoiceLogSession, startVoiceLogSession, voiceLog } from "./voiceLog";
 import { syncVoiceTheme } from "./voiceThemeSync";
 
@@ -543,8 +543,16 @@ export function VoiceHost({
   useEffect(() => {
     if (down || !callOnConnectRef.current) return;
     callOnConnectRef.current = false;
-    closeVoiceSettings();
-    void toggle();
+    // Connected shows in the sheet for a moment, so the pairing visibly worked before it closes.
+    const timer = window.setTimeout(() => {
+      closeVoiceSettings();
+      void toggle();
+    }, CONNECTED_HOLD_MS);
+    const stop = onVoiceSettingsClosed(() => window.clearTimeout(timer));
+    return () => {
+      window.clearTimeout(timer);
+      stop();
+    };
   }, [down]);
 
   // oxlint-disable-next-line t3code/no-unreasoned-state-sync -- global mic hotkey and teardown

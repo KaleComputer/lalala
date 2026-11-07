@@ -1,4 +1,4 @@
-import { type ReactNode, useState } from "react";
+import { type ReactNode, useEffect, useRef, useState } from "react";
 
 import step1 from "./connect/step1.png";
 import step2 from "./connect/step2.png";
@@ -245,9 +245,14 @@ export function ConnectedRows(props: {
   readonly onDisconnect: () => void;
   readonly children?: ReactNode;
 }) {
+  const rowRef = useRef<HTMLDivElement>(null);
+  // oxlint-disable-next-line t3code/no-unreasoned-state-sync -- a fresh pairing swaps the taller steps for these rows; keeps Connected in view (DOM scroll)
+  useEffect(() => {
+    rowRef.current?.scrollIntoView({ block: "nearest" });
+  }, []);
   return (
     <>
-      <div data-lalala-settings-row="">
+      <div data-lalala-settings-row="" ref={rowRef}>
         <div>
           <h3>T3 Code</h3>
           <p>

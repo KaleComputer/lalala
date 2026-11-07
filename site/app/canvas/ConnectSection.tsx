@@ -17,7 +17,14 @@ import {
 } from "../../../src/voice/adapters/harness/t3";
 import { browserSupport, ConnectedRows, PairSteps } from "../../../src/voice/ConnectFlow";
 import { readPairing } from "../../../src/voice/pairing";
-import { closeVoiceSettings, PickRow, type PickGroup, Row, Section } from "../../../src/voice/VoiceSettings";
+import {
+  closeVoiceSettings,
+  CONNECTED_HOLD_MS,
+  PickRow,
+  type PickGroup,
+  Row,
+  Section,
+} from "../../../src/voice/VoiceSettings";
 import { disconnectBrain, followBrainThread } from "./adapters";
 
 type Workspace = Awaited<ReturnType<typeof readWorkspace>>;
@@ -113,7 +120,10 @@ export function ConnectSection() {
 
   /** Connected and set up: Connected shows, or the settings close onto a call the call button asked for. */
   async function finish(to: Connected & Pick) {
-    if (await follow(to)) closeVoiceSettings();
+    if (!(await follow(to))) return;
+    // Connected shows for a moment, so the pairing visibly worked before the sheet closes.
+    await new Promise((resolve) => setTimeout(resolve, CONNECTED_HOLD_MS));
+    closeVoiceSettings();
   }
 
   const run = (label: string, work: () => Promise<void>) => {

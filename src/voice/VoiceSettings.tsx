@@ -210,6 +210,8 @@ function setOpenAt(next: string | null) {
 /** Opens the settings sheet, scrolled to the section with this title. */
 export const openVoiceSettings = (section = "") => setOpenAt(section);
 export const closeVoiceSettings = () => setOpenAt(null);
+/** How long a fresh pairing shows Connected before the sheet closes and the call starts. */
+export const CONNECTED_HOLD_MS = 1500;
 /** Calls `listener` whenever the settings sheet closes. */
 export const onVoiceSettingsClosed = (listener: () => void) =>
   subscribeOpen(() => {
