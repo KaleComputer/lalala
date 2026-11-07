@@ -4,8 +4,10 @@
 [data-lalala-presence] .bar-line {
   right: 0;
 }
+/* The wave breaks out of the UI (the user, 7 Nov): over the tab row (4), under the open panels (6); clicks pass through. */
 [data-lalala-presence] .fr-wv {
   right: 1px;
+  z-index: 5;
 }
 [data-lalala-presence] .fr-rail,
 [data-lalala-presence] .fr-segs {

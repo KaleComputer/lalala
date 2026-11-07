@@ -51,6 +51,8 @@ const N = 160; // samples along the line
 export const WASH = Object.freeze({ listening: 0.7, stopped: 0.35, learning: 0.55 });
 /** Her line at full voice, of the canvas's height above the middle. */
 export const VOICE_AMP = 0.4;
+/** Loud peaks reach this much further (1.1× at full voice, quiet points unchanged), so the wave breaks out of the bar (the user, 7 Nov). */
+export const PEAK_LIFT = 0.1;
 // The line between frames: eased only lightly (a frame or two), the ghost a moment behind it.
 const LINE_EASE = 40;
 const GHOST_EASE = 9;
@@ -200,7 +202,8 @@ export function createCallWave(canvas, { reduced = false, wash = null, state = (
     const cy = H / 2;
     let peak = 0;
     for (let i = 0; i <= N; i++) {
-      const y = line[i] * taper(i / N) * amp;
+      const v = line[i];
+      const y = v * (1 + PEAK_LIFT * v * v) * taper(i / N) * amp;
       if (Math.abs(y) > peak) peak = Math.abs(y);
       xs[i] = a + ((b - a) * i) / N;
       ys[i] = cy - y;
