@@ -351,7 +351,7 @@ function SettingsSheet(props: {
   const opened = props.pages.find((p) => p.title === props.section)?.id;
   const [page, setPage] = useState(() => opened ?? lastPage(props.pages));
   // A phone shows the list of pages first, unless the sheet was opened on one.
-  const [listed, setListed] = useState(opened === undefined);
+  const [listed, setListed] = useState(() => opened === undefined && isPhone());
   const phone = useSyncExternalStore(PHONE_MEDIA.subscribe, isPhone, () => false);
   const rail = useSyncExternalStore(RAIL_MEDIA.subscribe, RAIL_MEDIA.matches, () => false);
   // The sidebar's one Tab stop follows keyboard focus, as T3's tree does.
@@ -362,6 +362,7 @@ function SettingsSheet(props: {
   const bodyRef = useRef<HTMLDivElement>(null);
   // The view focus was last placed for (phone, list or page, which page): a new one gets focus.
   const focusedView = useRef<string | null>(null);
+  const titleId = useId();
   const current = props.pages.find((p) => p.id === page) ?? props.pages[0];
 
   const show = (id: string) => {
@@ -376,21 +377,22 @@ function SettingsSheet(props: {
   // A phone's page steps back to the list first, as Back would.
   const onEscape = useEffectEvent(() => (phone && !listed ? backToList() : props.onClose()));
 
-  // oxlint-disable-next-line t3code/no-unreasoned-state-sync -- each new view (opening, a step between list and page, a page, the 640px switch) gets focus and is remembered: a phone page's Back, else the current row
+  // oxlint-disable-next-line t3code/no-unreasoned-state-sync -- each new view (opening, a step between list and page, a page, the 640px switch) is remembered and, unless a showing control holds it, gets focus; panelRef is listed only because the lint asks
   useLayoutEffect(() => {
     const view = `${phone}/${onList}/${current?.id}`;
     if (view === focusedView.current) return;
     focusedView.current = view;
     if (!onList && current) remember(current.id);
-    // A control the user is in on the page keeps focus (a resize); otherwise a phone page's Back, else the page's row.
+    // A control still showing keeps focus (a resize); a hidden one or none: a phone page's Back, else the page's row.
+    const panel = panelRef.current;
     const at = document.activeElement;
-    if (at && bodyRef.current?.contains(at) && at.getClientRects().length > 0) return;
+    if (at && at !== panel && panel?.contains(at) && at.getClientRects().length > 0) return;
     const target =
       phone && !onList
         ? backRef.current
         : navRef.current?.querySelector<HTMLElement>(`[data-page="${current?.id}"]`);
     if (target !== at) target?.focus({ preventScroll: true });
-  }, [phone, onList, current?.id, bodyRef]);
+  }, [phone, onList, current?.id, panelRef]);
 
   // T3's sidebar: one Tab stop, arrows move along it without wrapping.
   const onNavKey = (event: ReactKeyboardEvent<HTMLElement>) => {
@@ -445,7 +447,7 @@ function SettingsSheet(props: {
         ref={panelRef}
         role="dialog"
         aria-modal="true"
-        aria-label={onList ? "Settings" : `Settings, ${current?.title}`}
+        aria-labelledby={titleId}
         tabIndex={-1}
         data-lalala-settings-panel=""
         data-view={onList ? "list" : "page"}
@@ -501,13 +503,14 @@ function SettingsSheet(props: {
                 ref={backRef}
                 type="button"
                 aria-label="Back to settings"
+                aria-describedby={titleId}
                 onClick={backToList}
               >
                 <Glyph d={["m15 18-6-6 6-6"]} />
                 Settings
               </button>
             </div>
-            <h1>
+            <h1 id={titleId}>
               <span>Settings</span>
               <span>
                 <span aria-hidden="true">/</span>

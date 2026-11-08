@@ -222,11 +222,12 @@
   color: var(--s-fg);
   background: var(--s-active);
 }
-/* Cyberpunk: the current page lit in neon. */
+/* Cyberpunk: the current page lit in neon, over a green-tinted fill. */
 :root:is(:not([data-lala-look]), [data-lala-look="neon"])
   [data-lalala-settings-nav]
   button[aria-current="page"] {
   color: var(--s-primary);
+  background: color-mix(in srgb, var(--s-primary) 12%, transparent);
 }
 /* T3's page: px-6 pt-6 pb-12, gap-8 between sections. */
 [data-lalala-settings-body] {
@@ -973,7 +974,7 @@
   /* The header: Back (on a page) left, the name centred (Settings, or the page), close right. */
   [data-lalala-settings-main] > header {
     display: grid;
-    grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+    grid-template-columns: minmax(max-content, 1fr) auto minmax(max-content, 1fr);
     padding: 0 8px;
   }
   [data-lalala-settings-back] {
@@ -982,7 +983,7 @@
   /* A long page name ellipsizes between Back and the close instead of pushing them. */
   [data-lalala-settings-main] > header > h1 {
     grid-column: 2;
-    max-width: calc(100vw - 256px);
+    overflow: hidden;
   }
   [data-lalala-settings-main] > header > :is([data-lalala-settings-saving], button) {
     grid-area: 1 / 3;
@@ -997,9 +998,16 @@
   [data-lalala-settings] [data-lalala-settings-back] > button:focus-visible {
     outline-offset: -2px;
   }
-  [data-view="list"] header > h1 > span:not(:first-child),
-  [data-view="page"] header > h1 > span:not(:last-child) {
+  [data-view="list"] header > h1 > span:not(:first-child) {
     display: none;
+  }
+  /* On a page "Settings, " stays for readers: the h1 names the dialog either way. */
+  [data-view="page"] header > h1 > span:not(:last-child) {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
   }
   [data-lalala-settings-main] > header > h1 > span:is(:first-child, :last-child) {
     color: var(--s-fg);
