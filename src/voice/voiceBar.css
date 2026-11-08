@@ -1133,18 +1133,41 @@
   justify-content: center;
   pointer-events: none;
 }
+/* The bar's plates (START, CONNECT TO T3 CODE, and any label that should look like them): one cut, one
+   tracking, even padding; the indent equals the tracking that trails the last letter, so any word sits
+   optically centred. On a phone a 2px top pad moves the caps 1px down, to the taller plate's centre. */
+[data-lalala-presence] {
+  --lalala-plate-cut: 8px;
+  --lalala-plate-clip: polygon(
+    var(--lalala-plate-cut) 0,
+    100% 0,
+    100% calc(100% - var(--lalala-plate-cut)),
+    calc(100% - var(--lalala-plate-cut)) 100%,
+    0 100%,
+    0 var(--lalala-plate-cut)
+  );
+  --lalala-plate-track: 0.14em;
+  --lalala-plate-pad: 16px;
+  --lalala-plate-drop: 0px;
+}
+@media (max-width: 639px) {
+  [data-lalala-presence] {
+    --lalala-plate-drop: 2px;
+  }
+}
 [data-lalala-offline] button {
   position: relative;
   isolation: isolate;
   display: inline-flex;
   align-items: center;
   height: var(--bar-row);
-  padding: 1px 12px 0 13px;
+  padding: var(--lalala-plate-drop) var(--lalala-plate-pad) 0;
   border: 0;
   background: none;
   color: var(--color-surface);
   font: 600 var(--plate-fs) / 1 var(--font-tag);
-  letter-spacing: 0.12em;
+  letter-spacing: var(--lalala-plate-track);
+  text-indent: var(--lalala-plate-track);
   text-transform: uppercase;
   white-space: nowrap;
   cursor: pointer;
@@ -1158,18 +1181,24 @@
   z-index: -1;
   inset: calc((100% - var(--plate-h)) / 2) 0;
   background: var(--lalala-warn);
-  clip-path: polygon(7px 0, 100% 0, 100% calc(100% - 7px), calc(100% - 7px) 100%, 0 100%, 0 7px);
+  clip-path: var(--lalala-plate-clip);
 }
 @media (hover: hover) {
   [data-lalala-offline] button:hover::before {
-    background: color-mix(in srgb, var(--lalala-warn) 85%, white);
+    background: color-mix(in srgb, var(--lalala-warn) 76%, white);
   }
 }
 [data-lalala-offline] button:focus-visible {
   outline: 0;
 }
-[data-lalala-offline] button:focus-visible::before {
-  box-shadow: inset 0 0 0 2px var(--color-surface);
+/* Focus rings the room and underlines the word in the plate's ink, as START (a ring on the plate would cut
+   off at its corners). */
+[data-lalala-offline]:has(button:focus-visible) {
+  box-shadow: inset 0 0 0 2px var(--hud);
+}
+[data-lalala-offline] button:focus-visible {
+  text-decoration: underline 2px;
+  text-underline-offset: 3px;
 }
 
 /* The committee's cyberpunk pass (8 Nov), against the canvas's own look: the canvas's surface, flat fills,
@@ -1191,11 +1220,23 @@
       repeating-linear-gradient(to bottom, rgba(255, 255, 255, 0.03) 0 1px, transparent 1px 3px),
       var(--color-surface);
   }
-  & .fr-plate {
+  /* START as the bar's plate (above, with CONNECT): filled accent, dark caps; [data-lalala-plate] gives
+     any other label the same look. */
+  & :is(.fr-plate, [data-lalala-plate]) {
+    display: inline-flex;
+    align-items: center;
+    height: var(--plate-h);
+    white-space: nowrap;
+    padding: var(--lalala-plate-drop) var(--lalala-plate-pad) 0;
     background: var(--hud);
     color: var(--hud-ink);
+    font: 600 var(--plate-fs) / 1 var(--font-tag);
+    letter-spacing: var(--lalala-plate-track);
+    text-indent: var(--lalala-plate-track);
+    text-transform: uppercase;
     text-shadow: none;
-    box-shadow: 0 0 0 4px var(--color-surface);
+    box-shadow: none;
+    clip-path: var(--lalala-plate-clip);
   }
   & .fr-plate::before,
   & .fr-plate::after {
@@ -1203,11 +1244,16 @@
   }
   @media (hover: hover) {
     & .bar-line:has(.bar-talk:hover) .fr-plate {
-      background: color-mix(in srgb, var(--hud) 85%, white);
+      background: color-mix(in srgb, var(--hud) 76%, white);
     }
   }
+  /* Keyboard focus rings the room and underlines the word, as on CONNECT. */
   & .bar-talk:focus-visible {
     box-shadow: inset 0 0 0 2px var(--hud);
+  }
+  & .bar-line:has(.bar-talk:focus-visible) .fr-plate {
+    text-decoration: underline 2px;
+    text-underline-offset: 3px;
   }
 
   /* No signal: the frame's edge in the danger colour instead of a torn slab, the wave gives way to a calm
