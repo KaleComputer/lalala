@@ -58,8 +58,6 @@ export function VoiceInput(props: {
   readonly panelHost: HTMLElement;
   /** The bar: files dropped anywhere on it land here, and the phone keyboard lifts it. */
   readonly bar: HTMLElement;
-  /** A call is on; out of a call the tab is an empty, inert slot and an open field closes. */
-  readonly live: boolean;
   readonly onSubmit: VoiceInputSubmit;
   /** T3's attachment upload; none, pictures only. */
   readonly upload?: VoiceFileUpload | undefined;
@@ -116,9 +114,15 @@ export function VoiceInput(props: {
     return { id, kind: "file", name: file.name || "file", progress: 0, ref: null, failed: false };
   };
 
-  const add = async (files: ReadonlyArray<File>) => {
-    if (files.length === 0 || !props.live) return;
+  // One bar panel at a time: the canvas list closes.
+  const show = () => {
     setPhase("open");
+    document.dispatchEvent(new CustomEvent("lalala:panel", { detail: "input" }));
+  };
+
+  const add = async (files: ReadonlyArray<File>) => {
+    if (files.length === 0) return;
+    show();
     setProblem(null);
     const next: Picked[] = [];
     for (const file of files) {
@@ -163,13 +167,7 @@ export function VoiceInput(props: {
     close();
     tabRef.current?.focus();
   });
-
-  // The call ending closes an open field (played back) before the tabs empty.
-  const [wasLive, setWasLive] = useState(props.live);
-  if (wasLive !== props.live) {
-    setWasLive(props.live);
-    if (!props.live && phase === "open") close();
-  }
+  const closeByOther = useEffectEvent(close);
 
   const files = picked.filter((item) => item.kind === "file");
   const uploading = files.filter((item) => item.ref === null && !item.failed);
@@ -232,17 +230,22 @@ export function VoiceInput(props: {
     };
   }, [props.bar]);
 
-  // oxlint-disable-next-line t3code/no-unreasoned-state-sync -- while open: Esc closes from anywhere, and the phone keyboard (visual viewport) lifts the bar over itself
+  // oxlint-disable-next-line t3code/no-unreasoned-state-sync -- while open: Esc closes from anywhere, another bar panel opening closes it, and the phone keyboard (visual viewport) lifts the bar over itself
   useEffect(() => {
     if (!open) return;
     fieldRef.current?.focus();
     const onKey = (event: KeyboardEvent) => {
       if (event.key === "Escape") closeByKey();
     };
+    const onPanel = (event: Event) => {
+      if ((event as CustomEvent<string>).detail !== "input") closeByOther();
+    };
     document.addEventListener("keydown", onKey);
+    document.addEventListener("lalala:panel", onPanel);
     const drop = liftOverKeyboard(props.bar);
     return () => {
       document.removeEventListener("keydown", onKey);
+      document.removeEventListener("lalala:panel", onPanel);
       drop();
     };
   }, [open, props.bar]);
@@ -282,10 +285,8 @@ export function VoiceInput(props: {
             : ({ "--lalala-upload": uploadProgress } as CSSProperties)
         }
         aria-expanded={open}
-        aria-hidden={!props.live}
-        tabIndex={props.live ? undefined : -1}
         aria-label={tabLabel}
-        onClick={() => (open ? close() : setPhase("open"))}
+        onClick={() => (open ? close() : show())}
       >
         <i aria-hidden="true" />
         <b
@@ -300,7 +301,7 @@ export function VoiceInput(props: {
           <rect x="2.5" y="5.5" width="19" height="13" rx="1.5" />
           <path d="M6.5 9.5h.01M10 9.5h.01M13.5 9.5h.01M17 9.5h.01M6.5 12.5h.01M17 12.5h.01M10 12.5h4M8 15.5h8" />
         </svg>
-        {props.live && (uploadProgress !== null || failed) ? (
+        {uploadProgress !== null || failed ? (
           <s data-lalala-upload-bar="" aria-hidden="true" />
         ) : null}
       </button>

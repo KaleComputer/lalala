@@ -448,6 +448,8 @@ export function VoiceHost({
     void compactIfDue("call start");
     try {
       await session.start();
+      // Muted before the call: it starts muted.
+      if (muted) session.setMuted(true);
     } catch (cause) {
       sessionRef.current = null;
       setError(cause instanceof Error ? cause.message : String(cause));
@@ -625,7 +627,11 @@ export function VoiceHost({
       onPress={() => void toggle()}
       analysis={() => sessionRef.current?.analysis() ?? null}
       stoppedAt={stoppedAt}
-      onSubmit={(text, images) => send(text, images)}
+      // Sending out of a call starts one (the user, 8 Nov), so the reply is spoken and the talk goes on.
+      onSubmit={async (text, images) => {
+        if (!sessionRef.current?.active) await toggle();
+        return send(text, images);
+      }}
       live={phase !== "off"}
       offline={
         down && !live
@@ -637,9 +643,7 @@ export function VoiceHost({
       }
       muted={muted}
       onMute={() => {
-        const session = sessionRef.current;
-        if (!session?.active) return;
-        session.setMuted(!muted);
+        sessionRef.current?.setMuted(!muted);
         setMuted(!muted);
       }}
     />

@@ -139,7 +139,6 @@ export function VoiceBar(props: {
           tabHost={inputHosts.tab}
           panelHost={inputHosts.panel}
           bar={inputHosts.bar}
-          live={props.live ?? false}
           onSubmit={props.onSubmit}
           upload={props.upload}
         />
@@ -153,8 +152,6 @@ export function VoiceBar(props: {
               type="button"
               data-lalala-mic=""
               data-lalala-tab=""
-              aria-hidden={!props.live}
-              tabIndex={props.live ? undefined : -1}
               data-muted={props.muted ? "" : undefined}
               aria-pressed={props.muted ?? false}
               aria-label="Mute microphone"

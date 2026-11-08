@@ -115,6 +115,8 @@ export function mountPresenceBar(
   const canvas = root.querySelector<HTMLCanvasElement>("[data-light]");
   if (bar === null || frameEl === null || canvas === null) return null;
   makeStatusTab(frameEl);
+  // Just "Start" on the plate, no power mark (the user, 8 Nov).
+  frameEl.querySelector(".fr-plate")?.replaceChildren("start");
   const reduced = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
   const frame = createFrame({ bar, frame: frameEl, reduced });
   startSweepClock(reduced);

@@ -144,43 +144,8 @@
     0 100%
   );
 }
-/* Gear design D (the user, 6 Nov): the row always stands in one layout, so the gear never moves. Out of a call
-   (VoiceBar's data-lalala-live) the call tabs keep their solid edges and corners, just empty and inert, only
-   the canvases (the user, 7 Nov: they work offline) and the gear live (the user, 6 Nov: no dashed slots). A call
-   going live fills them: the seam under the row lights and the content rises out of it; ending fades it
-   out. Nothing moves in between. */
-[data-lalala-presence]:not([data-lalala-live]) [data-lalala-mic][data-muted] {
-  --lalala-strip: 0 0 transparent;
-}
-[data-lalala-presence]:not([data-lalala-live]) [data-lalala-mic][data-muted]::after {
-  background: var(--lalala-fill);
-}
-[data-lalala-presence]:not([data-lalala-live]) :is([data-lalala-mic], [data-lalala-input-tab]) {
-  cursor: default;
-  pointer-events: none;
-}
-[data-lalala-presence] :is([data-lalala-mic] svg, [data-lalala-input-tab] svg) {
-  transition: opacity 200ms ease-out;
-}
-[data-lalala-presence]:not([data-lalala-live])
-  :is([data-lalala-mic] svg, [data-lalala-input-tab] svg) {
-  opacity: 0;
-}
-[data-lalala-presence][data-lalala-live]
-  :is([data-lalala-mic] svg, [data-lalala-input-tab] svg) {
-  animation: lalala-content-rise 240ms cubic-bezier(0.2, 0.9, 0.3, 1);
-}
-@keyframes lalala-content-rise {
-  0% {
-    transform: translateY(var(--tab-h));
-  }
-  70% {
-    transform: translateY(-2px);
-  }
-  100% {
-    transform: none;
-  }
-}
+/* Every tab is live in and out of a call (the user, 8 Nov); only the time waits for one. A call going
+   live lights the seam under the row once. */
 [data-lalala-presence] .lalala-tabs-clip::after {
   content: "";
   position: absolute;
@@ -463,9 +428,7 @@
       var(--lalala-fill);
   }
 }
-[data-lalala-presence]
-  [data-lalala-tab]:is(:hover, :focus-visible, [data-open], [data-muted])
-  svg {
+[data-lalala-presence] [data-lalala-tab]:is(:hover, :focus-visible, [data-open], [data-muted]) svg {
   opacity: 1;
 }
 /* The drawn tab carries two marks as inset layers: focus is a ring, not a tint (accent 1px in, a dark
@@ -511,30 +474,32 @@
   }
 }
 
-/* The list, risen over the name tab, built like the frame: the edge 1px around, the canvases (the open
-   one's row lit), then New, Rename, Tidy and Delete as one row of cells. It glitches in once. */
+/* The list, projected over the canvases tab like the input's field (its beam, VoiceInput's): the edge 1px
+   around, the canvases (the open one's row lit), then New, Rename, Tidy and Delete as one row of cells.
+   Flush with the bar's right edge, so the beam meets its straight bottom edge, never the cut corner; it
+   materializes from the beam's top. */
 [data-lalala-presence] [data-lalala-canvas-panel] {
   position: absolute;
   z-index: 6;
-  right: max(0px, min(var(--lalala-canvas-at), calc(100% - 200px)));
-  bottom: calc(100% + var(--tab-h) + max(6px, var(--lalala-hit)));
+  right: 0;
+  bottom: calc(100% + var(--tab-h) + 21px);
   width: min(200px, 100%);
+  transform-origin: calc(100% - var(--lalala-canvas-at) - var(--lalala-input-tab-w) / 2) 100%;
   display: flex;
   flex-direction: column;
   gap: 1px;
   padding: 1px;
   background: var(--fe);
-  clip-path: polygon(6px 0, calc(100% - 6px) 0, 100% 6px, 100% 100%, 0 100%, 0 6px);
-  animation: lalala-glitch-in 180ms steps(1, end);
+  clip-path: polygon(6px 0, 100% 0, 100% calc(100% - 6px), calc(100% - 6px) 100%, 0 100%, 0 6px);
 }
 [data-lalala-presence] [data-lalala-canvas-panel] > ul {
   max-height: 40vh;
   margin: 0;
-  padding: 4px 0;
+  padding: 0;
   overflow-y: auto;
   list-style: none;
   background: var(--lalala-fill);
-  clip-path: polygon(5.4px 0, calc(100% - 5.4px) 0, 100% 5.4px, 100% 100%, 0 100%, 0 5.4px);
+  clip-path: polygon(5.4px 0, 100% 0, 100% 100%, 0 100%, 0 5.4px);
 }
 [data-lalala-presence] [data-lalala-canvas-panel] li > button {
   display: flex;
@@ -574,6 +539,18 @@
 [data-lalala-presence] [data-lalala-canvas-panel] li[data-active] > button::before {
   display: none;
 }
+/* The top row lit: its outline follows the list's cut corner, the diagonal drawn in its own corner. */
+[data-lalala-presence] [data-lalala-canvas-panel] li[data-active]:first-child > button {
+  background:
+    linear-gradient(
+        to bottom right,
+        transparent calc(50% - 0.75px),
+        var(--hud) calc(50% - 0.75px) calc(50% + 0.75px),
+        transparent calc(50% + 0.75px)
+      )
+      0 0 / 5.4px 5.4px no-repeat,
+    var(--hud-4);
+}
 [data-lalala-presence] [data-lalala-canvas-panel] li > button > svg {
   flex: none;
   width: 9px;
@@ -609,6 +586,7 @@
   letter-spacing: 0.06em;
 }
 [data-lalala-presence] [data-lalala-canvas-actions] {
+  clip-path: polygon(0 0, 100% 0, 100% calc(100% - 5.4px), calc(100% - 5.4px) 100%, 0 100%);
   display: grid;
   grid-auto-columns: 1fr;
   grid-auto-flow: column;
@@ -654,7 +632,6 @@
 @media (pointer: coarse) {
   [data-lalala-presence] [data-lalala-canvas-panel] {
     width: min(240px, 100%);
-    right: max(0px, min(var(--lalala-canvas-at), calc(100% - 240px)));
   }
   [data-lalala-presence] [data-lalala-canvas-panel] li > button {
     min-height: 36px;
@@ -788,7 +765,7 @@
    the tab's top edge and a hologram cone from it up to the field's bottom edge (the panel floats 22px
    over the tab), a smooth gradient in the HUD green, faint at the tab and brightest at the field. It
    rises on open and sinks fast on close; nothing moves in between, and closed none of it is there. */
-[data-lalala-presence] [data-lalala-input-tab] > i {
+[data-lalala-presence] :is([data-lalala-input-tab], [data-lalala-canvas-name]) > i {
   position: absolute;
   left: calc(50% - 12px);
   bottom: calc(100% - var(--lalala-hit) - 1px);
@@ -812,15 +789,13 @@
   transform-origin: 50% 100%;
   pointer-events: none;
 }
-[data-lalala-presence]
-  [data-lalala-input-tab][data-state="closed"]
-  > :is(i, [data-lalala-beam]) {
+[data-lalala-presence] [data-lalala-tab][data-state="closed"] > :is(i, [data-lalala-beam]) {
   display: none;
 }
-[data-lalala-presence] [data-lalala-input-tab][data-state="open"] > [data-lalala-beam] {
+[data-lalala-presence] [data-lalala-tab][data-state="open"] > [data-lalala-beam] {
   animation: lalala-beam-up 160ms cubic-bezier(0.2, 0.8, 0.2, 1) both;
 }
-[data-lalala-presence] [data-lalala-input-tab][data-state="closing"] > [data-lalala-beam] {
+[data-lalala-presence] [data-lalala-tab][data-state="closing"] > [data-lalala-beam] {
   animation: lalala-beam-down 70ms ease-in 60ms both;
 }
 @keyframes lalala-beam-up {
@@ -857,10 +832,12 @@
 }
 /* It materializes on the beam's top, outward from there, after the beam is up; closing runs it back
    first, then the beam sinks (VoiceInput unmounts it when the beam is down). */
-[data-lalala-presence] [data-lalala-input-panel][data-state="open"] {
+[data-lalala-presence]
+  :is([data-lalala-input-panel], [data-lalala-canvas-panel])[data-state="open"] {
   animation: lalala-materialize 260ms cubic-bezier(0.2, 0.8, 0.2, 1) 120ms both;
 }
-[data-lalala-presence] [data-lalala-input-panel][data-state="closing"] {
+[data-lalala-presence]
+  :is([data-lalala-input-panel], [data-lalala-canvas-panel])[data-state="closing"] {
   pointer-events: none;
   animation: lalala-materialize 70ms ease-in reverse both;
 }
@@ -1252,15 +1229,6 @@
     display: none;
   }
 
-  /* On touch the canvas list floats over the tabs' reach; a 2px stem hangs it from its lit tab. */
-  @media (pointer: coarse) {
-    & [data-lalala-canvas-name][data-open] {
-      --lalala-stem: color-mix(in srgb, var(--hud) 60%, transparent);
-      background: linear-gradient(var(--lalala-stem), var(--lalala-stem)) 50% 0 / 2px
-        var(--lalala-hit) no-repeat;
-    }
-  }
-
   /* The one line over the frame on its own cut-corner plate (an edge layer, the plate 1px in), readable
      over any card; an error in the danger colour. */
   & .bar-incoming li {
@@ -1302,18 +1270,11 @@
     animation: none;
     display: none;
   }
-  [data-lalala-presence][data-lalala-live]
-    :is([data-lalala-mic] svg, [data-lalala-input-tab] svg) {
-    animation: none;
-  }
   [data-lalala-presence] .lalala-tabs > .fr-tab:has(> .fr-tmr:not([hidden])) > .fr-tmr {
     animation: lalala-fade-in 200ms ease-out;
   }
-  [data-lalala-presence] [data-lalala-canvas-panel] {
-    animation: none;
-  }
-  [data-lalala-presence] [data-lalala-input-panel][data-state],
-  [data-lalala-presence] [data-lalala-input-tab] > [data-lalala-beam] {
+  [data-lalala-presence] :is([data-lalala-input-panel], [data-lalala-canvas-panel])[data-state],
+  [data-lalala-presence] [data-lalala-tab] > [data-lalala-beam] {
     animation: none !important;
   }
 }
