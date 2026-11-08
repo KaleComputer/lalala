@@ -55,8 +55,10 @@
   }
 }
 /* T3's route modal: rounded-2xl, here with the canvas's green edge. */
+/* Header first in the DOM (close before the pages); the grid puts T3's sidebar full height on the left. */
 [data-lalala-settings-panel] {
-  display: flex;
+  display: grid;
+  grid-template: "nav header" auto "nav body" minmax(0, 1fr) / auto minmax(0, 1fr);
   width: min(880px, 100%);
   height: min(640px, calc(100dvh - 48px));
   overflow: hidden;
@@ -68,7 +70,8 @@
 }
 /* The sheet itself holds focus as a phone's list opens: a faint ring for a keyboard. */
 [data-lalala-settings-panel]:focus-visible {
-  box-shadow: inset 0 0 0 2px color-mix(in srgb, var(--s-ring) 45%, transparent);
+  outline: 2px solid color-mix(in srgb, var(--s-ring) 45%, transparent);
+  outline-offset: -2px;
 }
 @keyframes lalala-settings-in {
   from {
@@ -76,8 +79,8 @@
   }
 }
 /* T3's header: h-12, border-b, ps-5 pe-2, the breadcrumb in text-sm medium, a ghost close. */
-[data-lalala-settings-main] > header {
-  flex: none;
+[data-lalala-settings-panel] > header {
+  grid-area: header;
   height: 48px;
   display: flex;
   align-items: center;
@@ -85,7 +88,7 @@
   padding: 0 8px 0 20px;
   border-bottom: 1px solid var(--s-divider);
 }
-[data-lalala-settings-main] > header > h1 {
+[data-lalala-settings-panel] > header > h1 {
   flex: 1 1 auto;
   display: flex;
   gap: 12px;
@@ -94,13 +97,13 @@
   font: 500 14px / 20px var(--s-sans);
   white-space: nowrap;
 }
-[data-lalala-settings-main] > header > h1 > span:first-child {
+[data-lalala-settings-panel] > header > h1 > span:first-child {
   color: var(--s-fg-2);
 }
-[data-lalala-settings-main] > header > h1 > span:nth-child(2) {
+[data-lalala-settings-panel] > header > h1 > span:nth-child(2) {
   color: var(--s-fg-3);
 }
-[data-lalala-settings-main] > header > button {
+[data-lalala-settings-panel] > header > button {
   width: var(--s-control-sm);
   height: var(--s-control-sm);
   margin-left: auto;
@@ -120,10 +123,10 @@
   cursor: pointer;
 }
 /* Ghost icon buttons: the header's close and the rows' reset. */
-:is([data-lalala-settings-main] > header > button, [data-lalala-settings-reset]) {
+:is([data-lalala-settings-panel] > header > button, [data-lalala-settings-reset]) {
   color: var(--s-fg-2);
 }
-:is([data-lalala-settings-main] > header > button, [data-lalala-settings-reset]):hover {
+:is([data-lalala-settings-panel] > header > button, [data-lalala-settings-reset]):hover {
   color: var(--s-fg);
   background: var(--s-accent);
 }
@@ -136,7 +139,7 @@
   stroke-linecap: round;
   stroke-linejoin: round;
 }
-[data-lalala-settings-main] > header svg {
+[data-lalala-settings-panel] > header svg {
   width: 16px;
 }
 /* Saving the brain's model: quiet text beside the close. */
@@ -165,16 +168,9 @@
 [data-lalala-settings-back] svg {
   width: 20px;
 }
-/* T3's settings sidebar: w-60, border-e, its pages as h-8 rows with an icon, the current one filled. */
-[data-lalala-settings-main] {
-  flex: 1;
-  min-width: 0;
-  display: flex;
-  flex-direction: column;
-}
-/* T3's sidebar runs the sheet's full height on its own tint; the header sits over the page only. */
+/* T3's sidebar (w-60, border-e) runs the sheet's full height on its own tint; the header sits over the page only. */
 [data-lalala-settings-nav] {
-  flex: none;
+  grid-area: nav;
   box-sizing: border-box;
   width: 240px;
   padding: 12px 8px;
@@ -240,7 +236,7 @@
 }
 /* T3's page: px-6 pt-6 pb-12, gap-8 between sections. */
 [data-lalala-settings-body] {
-  flex: 1;
+  grid-area: body;
   min-width: 0;
   min-height: 0;
   overflow-y: auto;
@@ -356,7 +352,7 @@
   max-width: 55cqw;
 }
 /* One line, cut with an ellipsis. */
-:is([data-lalala-settings-value], [data-lalala-settings-main] > header > h1 > span:last-child) {
+:is([data-lalala-settings-value], [data-lalala-settings-panel] > header > h1 > span:last-child) {
   min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -848,7 +844,7 @@
     [data-lalala-settings-reset],
     [data-lalala-settings-segments] > button,
     [data-lalala-settings-list] [role="option"] > button,
-    [data-lalala-settings-main] > header > button,
+    [data-lalala-settings-panel] > header > button,
     [data-lalala-settings-back] > button
   )::after {
     content: "";
@@ -878,7 +874,7 @@
   content: "";
   position: absolute;
   inset-block: 6px;
-  left: 0;
+  left: 2px;
   width: 2px;
   border-radius: 1px;
   background: currentColor;
@@ -898,8 +894,6 @@
   }
   /* One column: the header on top, then the list or the page. */
   [data-lalala-settings-panel] {
-    display: grid;
-    grid-template-rows: auto minmax(0, 1fr);
     width: 100%;
     height: 100dvh;
     max-height: none;
@@ -907,14 +901,11 @@
     border: 0;
     border-radius: 0;
   }
-  [data-lalala-settings-main] {
-    display: contents;
+  [data-lalala-settings-panel] {
+    grid-template: "header" auto "body" minmax(0, 1fr) / minmax(0, 1fr);
   }
-  [data-lalala-settings-main] > header {
-    grid-row: 1;
-  }
-  :is([data-lalala-settings-nav], [data-lalala-settings-body]) {
-    grid-row: 2;
+  [data-lalala-settings-nav] {
+    grid-area: body;
   }
   /* The list: T3's phone settings, the pages as one group with their values and a chevron. */
   [data-view="list"] [data-lalala-settings-body],
@@ -978,10 +969,9 @@
   }
   [data-lalala-settings-nav] button > svg:last-child {
     width: 16px;
-    color: var(--s-fg-3);
   }
   /* The header: Back (on a page) left, the name centred (Settings, or the page), close right. */
-  [data-lalala-settings-main] > header {
+  [data-lalala-settings-panel] > header {
     display: grid;
     grid-template-columns: minmax(max-content, 1fr) auto minmax(max-content, 1fr);
     padding: 0 8px;
@@ -990,11 +980,11 @@
     grid-column: 1;
   }
   /* A long page name ellipsizes between Back and the close instead of pushing them. */
-  [data-lalala-settings-main] > header > h1 {
+  [data-lalala-settings-panel] > header > h1 {
     grid-column: 2;
     overflow: hidden;
   }
-  [data-lalala-settings-main] > header > :is([data-lalala-settings-saving], button) {
+  [data-lalala-settings-panel] > header > :is([data-lalala-settings-saving], button) {
     grid-area: 1 / 3;
     justify-self: end;
   }
@@ -1018,16 +1008,16 @@
     overflow: hidden;
     clip-path: inset(50%);
   }
-  [data-lalala-settings-main] > header > h1 > span:is(:first-child, :last-child) {
+  [data-lalala-settings-panel] > header > h1 > span:is(:first-child, :last-child) {
     color: var(--s-fg);
     font: 600 17px / 22px var(--s-sans);
     text-align: center;
   }
-  [data-lalala-settings-main] > header > [data-lalala-settings-saving] {
+  [data-lalala-settings-panel] > header > [data-lalala-settings-saving] {
     margin-right: calc(var(--s-control-sm) + 4px);
   }
   /* "Voice brain not saved" can't fit beside the title: the list and the page say it, readers hear it. */
-  [data-lalala-settings-main] > header > [data-lalala-settings-saving][data-failed] {
+  [data-lalala-settings-panel] > header > [data-lalala-settings-saving][data-failed] {
     position: absolute;
     width: 1px;
     height: 1px;

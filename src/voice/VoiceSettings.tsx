@@ -459,7 +459,40 @@ function SettingsSheet(props: {
         data-rail={rail ? "" : undefined}
         onClick={(event) => event.stopPropagation()}
       >
-        {/* The sidebar first, as T3's: on a phone's list the rows come before the header's close (Esc closes too). */}
+        <header>
+          <div data-lalala-settings-back="">
+            <button
+              ref={backRef}
+              type="button"
+              aria-label="Back to settings"
+              aria-describedby={pageNameId}
+              onClick={backToList}
+            >
+              <Glyph d={["m15 18-6-6 6-6"]} />
+              Settings
+            </button>
+          </div>
+          <h1 id={titleId}>
+            <span>Settings</span>
+            <span>
+              <span aria-hidden="true">/</span>
+              <span data-lalala-settings-sr="">, </span>
+            </span>
+            <span id={pageNameId}>{current?.title}</span>
+          </h1>
+          <span
+            data-lalala-settings-saving=""
+            data-failed={props.failed ? "" : undefined}
+            aria-live="polite"
+          >
+            {props.status}
+          </span>
+          <button type="button" aria-label="Close settings" onClick={props.onClose}>
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <path d="M18 6 6 18M6 6l12 12" />
+            </svg>
+          </button>
+        </header>
         <nav
           ref={navRef}
           aria-label="Settings pages"
@@ -503,49 +536,13 @@ function SettingsSheet(props: {
             })}
           </ul>
         </nav>
-        <div data-lalala-settings-main="">
-          <header>
-            <div data-lalala-settings-back="">
-              <button
-                ref={backRef}
-                type="button"
-                aria-label="Back to settings"
-                aria-describedby={pageNameId}
-                onClick={backToList}
-              >
-                <Glyph d={["m15 18-6-6 6-6"]} />
-                Settings
-              </button>
+        {/* Every page stays mounted, so a check or a failed save survives a look at another page. */}
+        <div ref={bodyRef} data-lalala-settings-body="">
+          {props.pages.map((p) => (
+            <div key={p.id} hidden={p.id !== current?.id}>
+              {p.content}
             </div>
-            <h1 id={titleId}>
-              <span>Settings</span>
-              <span>
-                <span aria-hidden="true">/</span>
-                <span data-lalala-settings-sr="">, </span>
-              </span>
-              <span id={pageNameId}>{current?.title}</span>
-            </h1>
-            <span
-              data-lalala-settings-saving=""
-              data-failed={props.failed ? "" : undefined}
-              aria-live="polite"
-            >
-              {props.status}
-            </span>
-            <button type="button" aria-label="Close settings" onClick={props.onClose}>
-              <svg viewBox="0 0 24 24" aria-hidden="true">
-                <path d="M18 6 6 18M6 6l12 12" />
-              </svg>
-            </button>
-          </header>
-          {/* Every page stays mounted, so a check or a failed save survives a look at another page. */}
-          <div ref={bodyRef} data-lalala-settings-body="">
-            {props.pages.map((p) => (
-              <div key={p.id} hidden={p.id !== current?.id}>
-                {p.content}
-              </div>
-            ))}
-          </div>
+          ))}
         </div>
       </div>
     </div>
