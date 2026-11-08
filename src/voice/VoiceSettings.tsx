@@ -459,6 +459,7 @@ function SettingsSheet(props: {
         data-rail={rail ? "" : undefined}
         onClick={(event) => event.stopPropagation()}
       >
+        {/* The sidebar first, as T3's: on a phone's list the rows come before the header's close (Esc closes too). */}
         <nav
           ref={navRef}
           aria-label="Settings pages"
@@ -475,7 +476,8 @@ function SettingsSheet(props: {
                 "data-page": p.id,
                 "aria-current": p.id === current?.id && !onList ? "page" : undefined,
                 tabIndex: phone || p.id === (rove ?? current?.id) ? undefined : -1,
-                onFocus: () => setRove(p.id),
+                // The current row is the stop already; only another row moves it.
+                onFocus: () => (rove !== null || p.id !== current?.id) && setRove(p.id),
                 onClick: () => show(p.id),
               } as const;
               const content = (

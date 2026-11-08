@@ -66,6 +66,10 @@
   outline: 0;
   animation: lalala-settings-in 120ms ease-out;
 }
+/* The sheet itself holds focus as a phone's list opens: a faint ring for a keyboard. */
+[data-lalala-settings-panel]:focus-visible {
+  box-shadow: inset 0 0 0 2px color-mix(in srgb, var(--s-ring) 45%, transparent);
+}
 @keyframes lalala-settings-in {
   from {
     opacity: 0;
@@ -206,8 +210,13 @@
   text-overflow: ellipsis;
   white-space: nowrap;
 }
+/* T3's sidebar icons are muted; the current row's takes its colour. */
 [data-lalala-settings-nav] svg {
   width: 16px;
+  color: var(--s-fg-3);
+}
+[data-lalala-settings-nav] button[aria-current="page"] svg {
+  color: inherit;
 }
 [data-lalala-settings-nav] button > :is(small, svg:last-child) {
   display: none;
