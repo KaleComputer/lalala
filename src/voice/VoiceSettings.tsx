@@ -361,18 +361,25 @@ function SettingsSheet(props: {
   const bodyRef = useRef<HTMLDivElement>(null);
   // A step between the phone's list and a page: focus follows to what shows.
   const stepped = useRef(false);
+  const titleId = useId();
+  const scrolledFor = useRef<string | undefined>(page);
+  const seenView = useRef("");
   const current = props.pages.find((p) => p.id === page) ?? props.pages[0];
   // Opened on a page (the call button's Connection): a phone starts on its Back, and the page is remembered.
   const focusOnOpen = useEffectEvent(() => {
     if (opened) remember(opened);
-    (opened && isPhone() ? backRef.current : panelRef.current)?.focus({ preventScroll: true });
+    // A phone opened on a page starts on its Back, the phone's list on the sheet, a desktop on its row.
+    const target = isPhone()
+      ? opened && backRef.current
+      : navRef.current?.querySelector<HTMLElement>("[aria-current='page']");
+    (target || panelRef.current)?.focus({ preventScroll: true });
   });
 
   const show = (id: string) => {
     setPage(id);
     setListed(false);
     remember(id);
-    bodyRef.current?.scrollTo({ top: 0 });
+    setRove(null);
     stepped.current = phone;
   };
   const backToList = () => {
@@ -384,17 +391,27 @@ function SettingsSheet(props: {
 
   // oxlint-disable-next-line t3code/no-unreasoned-state-sync -- after a step between list and page, or crossing 640px under a now-hidden control, focus moves to what shows: a phone page's Back, else the current row
   useLayoutEffect(() => {
+    // Only when the view changed: a step, a page, or the 640px switch.
+    const view = `${phone}:${onList}:${current?.id}`;
+    if (view === seenView.current && !stepped.current) return;
+    seenView.current = view;
+    // A newly shown page starts at its top, once it is visible.
+    if (scrolledFor.current !== current?.id) {
+      scrolledFor.current = current?.id;
+      bodyRef.current?.scrollTo({ top: 0 });
+    }
     const at = document.activeElement;
     const lost =
-      at instanceof HTMLElement &&
-      panelRef.current?.contains(at) === true &&
-      at.getClientRects().length === 0;
+      at === document.body ||
+      (at instanceof HTMLElement &&
+        panelRef.current?.contains(at) === true &&
+        at.getClientRects().length === 0);
     if (!stepped.current && !lost) return;
     stepped.current = false;
     const target =
       phone && !onList
         ? backRef.current
-        : navRef.current?.querySelector<HTMLElement>(`[data-page="${page}"]`);
+        : navRef.current?.querySelector<HTMLElement>(`[data-page="${current?.id}"]`);
     target?.focus({ preventScroll: true });
   });
 
@@ -452,7 +469,7 @@ function SettingsSheet(props: {
         ref={panelRef}
         role="dialog"
         aria-modal="true"
-        aria-label="Voice settings"
+        aria-labelledby={titleId}
         tabIndex={-1}
         data-lalala-settings-panel=""
         data-view={onList ? "list" : "page"}
@@ -463,6 +480,9 @@ function SettingsSheet(props: {
           aria-label="Settings pages"
           data-lalala-settings-nav=""
           onKeyDown={phone ? undefined : onNavKey}
+          onBlur={(event) => {
+            if (!event.currentTarget.contains(event.relatedTarget)) setRove(null);
+          }}
         >
           <ul data-lalala-settings-pages="">
             {props.pages.map((p) => {
@@ -485,17 +505,13 @@ function SettingsSheet(props: {
                   <Glyph d={["m9 18 6-6-6-6"]} />
                 </>
               );
-              // The icon rail names its pages on hover and focus.
+              // Only the icon rail names its pages on hover and focus; the button stays mounted either way.
               return (
                 <li key={p.id}>
-                  {rail ? (
-                    <Tooltip>
-                      <TooltipTrigger render={<button {...button} />}>{content}</TooltipTrigger>
-                      <TooltipPopup side="right">{p.title}</TooltipPopup>
-                    </Tooltip>
-                  ) : (
-                    <button {...button}>{content}</button>
-                  )}
+                  <Tooltip disabled={!rail}>
+                    <TooltipTrigger render={<button {...button} />}>{content}</TooltipTrigger>
+                    <TooltipPopup side="right">{p.title}</TooltipPopup>
+                  </Tooltip>
                 </li>
               );
             })}
@@ -515,7 +531,7 @@ function SettingsSheet(props: {
               </button>
             </div>
             <h1>
-              <span>Settings</span>
+              <span id={titleId}>Settings</span>
               <span aria-hidden="true">/</span>
               <span>{current?.title}</span>
             </h1>
