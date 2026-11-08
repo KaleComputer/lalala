@@ -289,6 +289,22 @@ function lastPage(pages: ReadonlyArray<SettingsPage>): string {
   }
 }
 
+function remember(page: string) {
+  try {
+    localStorage.setItem(PAGE_KEY, page);
+  } catch {
+    // Private mode: the sheet just opens on the first page next time.
+  }
+}
+
+const phoneQuery = () => window.matchMedia(PHONE);
+function subscribePhone(onChange: () => void) {
+  const query = phoneQuery();
+  query.addEventListener("change", onChange);
+  return () => query.removeEventListener("change", onChange);
+}
+const isPhone = () => phoneQuery().matches;
+
 const Glyph = (props: { readonly d: ReadonlyArray<string> }) => (
   <svg viewBox="0 0 24 24" aria-hidden="true">
     {props.d.map((d) => (
@@ -311,15 +327,16 @@ export function useSoundValue(): string {
 export function useCanvasValue(): string {
   const streamer = useStreamerMode();
   const following = useSyncExternalStore(subscribeFollow, isFollowing, () => false);
-  return streamer ? "Streamer mode" : following ? "Following" : "";
+  return streamer ? "Streamer mode" : following ? "Following" : "Not following";
 }
 
 function SettingsSheet(props: {
   readonly pages: ReadonlyArray<SettingsPage>;
   /** The title of the page it was opened on, or "" for none. */
   readonly section: string;
-  /** Saving…, beside the close. */
+  /** Saving…, or a save that failed (`failed`), beside the close. */
   readonly status?: string | null;
+  readonly failed?: boolean;
   readonly onClose: () => void;
 }) {
   const panelRef = useRef<HTMLDivElement>(null);
@@ -328,21 +345,26 @@ function SettingsSheet(props: {
   const [page, setPage] = useState(() => opened ?? lastPage(props.pages));
   // A phone shows the list of pages first, unless the sheet was opened on one.
   const [listed, setListed] = useState(opened === undefined);
+  const phone = useSyncExternalStore(subscribePhone, isPhone, () => false);
+  const onList = phone && listed;
   const navRef = useRef<HTMLElement>(null);
   const backRef = useRef<HTMLButtonElement>(null);
+  const bodyRef = useRef<HTMLDivElement>(null);
   const focusAfter = useRef<"back" | "item" | null>(null);
   const current = props.pages.find((p) => p.id === page) ?? props.pages[0];
+  // Opened on a page (the call button's Connection): a phone starts on its Back, and the page is remembered.
+  const focusOnOpen = useEffectEvent(() => {
+    if (opened) remember(opened);
+    (opened && isPhone() ? backRef.current : panelRef.current)?.focus({ preventScroll: true });
+  });
 
   const show = (id: string) => {
     setPage(id);
     setListed(false);
-    try {
-      localStorage.setItem(PAGE_KEY, id);
-    } catch {
-      // Private mode: the sheet just opens on the first page next time.
-    }
+    remember(id);
+    bodyRef.current?.scrollTo({ top: 0 });
     // On a phone the list goes away under the finger, so focus moves to the page's Back.
-    if (window.matchMedia(PHONE).matches) focusAfter.current = "back";
+    if (phone) focusAfter.current = "back";
   };
   const backToList = () => {
     setListed(true);
@@ -356,18 +378,32 @@ function SettingsSheet(props: {
     if (target === "back") backRef.current?.focus({ preventScroll: true });
     if (target === "item")
       navRef.current
-        ?.querySelector<HTMLElement>("[aria-current='page']")
+        ?.querySelector<HTMLElement>(`[data-page="${current?.id}"]`)
         ?.focus({ preventScroll: true });
   });
 
+  // oxlint-disable-next-line t3code/no-unreasoned-state-sync -- crossing 640px hides the sidebar or Back under focus; focus moves to what shows instead
+  useLayoutEffect(() => {
+    const at = document.activeElement;
+    if (!(at instanceof HTMLElement) || at.getClientRects().length > 0) return;
+    if (!panelRef.current?.contains(at)) return;
+    const visible =
+      phone && !onList
+        ? backRef.current
+        : navRef.current?.querySelector<HTMLElement>(`[data-page="${page}"]`);
+    visible?.focus({ preventScroll: true });
+  }, [phone, onList, page]);
+
+  // T3's sidebar: one Tab stop, arrows move along it without wrapping.
   const onNavKey = (event: ReactKeyboardEvent<HTMLElement>) => {
+    if (event.altKey || event.ctrlKey || event.metaKey || event.shiftKey) return;
     const items = [...(navRef.current?.querySelectorAll<HTMLElement>("button") ?? [])];
     const at = items.indexOf(document.activeElement as HTMLElement);
     const next =
       event.key === "ArrowDown"
-        ? (at + 1) % items.length
+        ? Math.min(at + 1, items.length - 1)
         : event.key === "ArrowUp"
-          ? (at - 1 + items.length) % items.length
+          ? Math.max(at - 1, 0)
           : event.key === "Home"
             ? 0
             : event.key === "End"
@@ -381,7 +417,7 @@ function SettingsSheet(props: {
   // oxlint-disable-next-line t3code/no-unreasoned-state-sync -- takes the newest synced settings while the sheet is open; Esc closes it
   useEffect(() => {
     pullSynced();
-    panelRef.current?.focus({ preventScroll: true });
+    focusOnOpen();
     // Esc closes; Tab wraps inside the sheet so focus never reaches the canvas behind it. Not a
     // <dialog>: its top layer would cover the reset buttons' tooltips, which portal to the body.
     const onKey = (event: KeyboardEvent) => {
@@ -415,55 +451,66 @@ function SettingsSheet(props: {
         aria-label="Voice settings"
         tabIndex={-1}
         data-lalala-settings-panel=""
-        data-view={listed ? "list" : "page"}
+        data-view={onList ? "list" : "page"}
         onClick={(event) => event.stopPropagation()}
       >
-        <header>
-          <div data-lalala-settings-back="">
-            <button ref={backRef} type="button" onClick={backToList}>
-              <Glyph d={["m15 18-6-6 6-6"]} />
-              Settings
-            </button>
+        <nav
+          ref={navRef}
+          aria-label="Settings pages"
+          data-lalala-settings-nav=""
+          onKeyDown={phone ? undefined : onNavKey}
+        >
+          <div data-lalala-settings-pages="">
+            {props.pages.map((p) => (
+              <button
+                key={p.id}
+                type="button"
+                data-page={p.id}
+                aria-current={p.id === current?.id && !onList ? "page" : undefined}
+                tabIndex={phone || p.id === current?.id ? undefined : -1}
+                onClick={() => show(p.id)}
+              >
+                <Glyph d={p.icon} />
+                <span>{p.title}</span>
+                <small>{p.value}</small>
+                <Glyph d={["m9 18 6-6-6-6"]} />
+              </button>
+            ))}
           </div>
-          <h1>
-            <span>Settings</span>
-            <span aria-hidden="true">/</span>
-            <span>{current?.title}</span>
-          </h1>
-          <span data-lalala-settings-saving="" aria-live="polite">
-            {props.status}
-          </span>
-          <button type="button" aria-label="Close settings" onClick={props.onClose}>
-            <svg viewBox="0 0 24 24" aria-hidden="true">
-              <path d="M18 6 6 18M6 6l12 12" />
-            </svg>
-          </button>
-        </header>
-        <div data-lalala-settings-split="">
-          <nav
-            ref={navRef}
-            aria-label="Settings pages"
-            data-lalala-settings-nav=""
-            onKeyDown={onNavKey}
-          >
-            <div data-lalala-settings-pages="">
-              {props.pages.map((p) => (
-                <button
-                  key={p.id}
-                  type="button"
-                  aria-current={p.id === current?.id ? "page" : undefined}
-                  onClick={() => show(p.id)}
-                >
-                  <Glyph d={p.icon} />
-                  <span>{p.title}</span>
-                  <small>{p.value}</small>
-                  <Glyph d={["m9 18 6-6-6-6"]} />
-                </button>
-              ))}
+        </nav>
+        <div data-lalala-settings-main="">
+          <header>
+            <div data-lalala-settings-back="">
+              <button ref={backRef} type="button" onClick={backToList}>
+                <Glyph d={["m15 18-6-6 6-6"]} />
+                Settings
+              </button>
             </div>
-          </nav>
-          <div key={current?.id} data-lalala-settings-body="">
-            {current?.content}
+            <h1>
+              <span>Settings</span>
+              <span aria-hidden="true">/</span>
+              <span>{current?.title}</span>
+            </h1>
+            <span
+              data-lalala-settings-saving=""
+              data-failed={props.failed ? "" : undefined}
+              aria-live="polite"
+            >
+              {props.status}
+            </span>
+            <button type="button" aria-label="Close settings" onClick={props.onClose}>
+              <svg viewBox="0 0 24 24" aria-hidden="true">
+                <path d="M18 6 6 18M6 6l12 12" />
+              </svg>
+            </button>
+          </header>
+          {/* Every page stays mounted, so a check or a failed save survives a look at another page. */}
+          <div ref={bodyRef} data-lalala-settings-body="">
+            {props.pages.map((p) => (
+              <div key={p.id} hidden={p.id !== current?.id}>
+                {p.content}
+              </div>
+            ))}
           </div>
         </div>
       </div>
@@ -542,6 +589,20 @@ function AppSettings(props: { readonly section: string; readonly onClose: () => 
 
   const known = brain.kind === "ready" ? brain.brain : brain.kind === "error" ? brain.brain : null;
 
+  const [link, setLink] = useState("…");
+  const readLink = () =>
+    void fetchConnection().then((next) =>
+      setLink(
+        next.kind === "inside" || (next.kind === "ready" && next.connection.connected)
+          ? "Connected"
+          : next.kind === "ready"
+            ? "Not connected"
+            : "…",
+      ),
+    );
+  const readLinkOnOpen = useEffectEvent(readLink);
+  // oxlint-disable-next-line t3code/no-unreasoned-state-sync -- reads the bridge's link once for the Connection row's value
+  useEffect(() => readLinkOnOpen(), []);
   const selection = known?.modelSelection;
   const brainModel =
     known && selection ? findModel(known, selection.instanceId, selection.model) : undefined;
@@ -553,13 +614,21 @@ function AppSettings(props: { readonly section: string; readonly onClose: () => 
       id: "connection",
       title: "Connection",
       icon: PAGE_ICONS.connection,
-      content: <ConnectionSection onChange={() => retryBrain()} />,
+      value: link,
+      content: (
+        <ConnectionSection
+          onChange={() => {
+            retryBrain();
+            readLink();
+          }}
+        />
+      ),
     },
     {
       id: "brain",
       title: "Voice brain",
       icon: PAGE_ICONS.brain,
-      value: brain.kind === "loading" ? "" : (brainModel?.name ?? ""),
+      value: brainModel?.name ?? (brain.kind === "loading" ? "…" : "Unavailable"),
       content: (
         <BrainSection
           state={brain}
@@ -573,7 +642,7 @@ function AppSettings(props: { readonly section: string; readonly onClose: () => 
       id: "threads",
       title: "New threads",
       icon: PAGE_ICONS.threads,
-      value: delegates.model === null ? "Same as the brain" : (delegates.modelName ?? ""),
+      value: delegates.model === null ? "Same as the brain" : (delegates.modelName ?? "Custom"),
       content: <ThreadsSection brain={known} loading={brain.kind === "loading" || retrying} />,
     },
     {
@@ -592,11 +661,16 @@ function AppSettings(props: { readonly section: string; readonly onClose: () => 
     },
   ];
 
+  // A save that failed shows beside the close too, so it is seen from any page.
+  const failed = brain.kind === "error" && brain.brain !== null;
   return (
     <SettingsSheet
       pages={pages}
       section={props.section}
-      status={brain.kind === "ready" && brain.saving ? "Saving…" : null}
+      status={
+        brain.kind === "ready" && brain.saving ? "Saving…" : failed ? "Voice brain not saved" : null
+      }
+      failed={failed}
       onClose={props.onClose}
     />
   );

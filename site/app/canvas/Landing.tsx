@@ -21,6 +21,7 @@ import {
 } from "../../../src/voice/VoiceSettings";
 import "../../../src/voice/voicePage.css";
 import "./landing.css";
+import { useBrainVersion } from "./adapters";
 import { Call } from "./Call";
 import { ConnectSection } from "./ConnectSection";
 
@@ -71,6 +72,7 @@ export default function Landing() {
     }
   };
   const remove = (id: string) => () => keepHidden([...hidden, id]);
+  const linked = useBrainVersion() !== 0;
   const sound = useSoundValue();
   const canvas = useCanvasValue();
   const pages: SettingsPage[] = [
@@ -78,6 +80,7 @@ export default function Landing() {
       id: "connection",
       title: "Connection",
       icon: PAGE_ICONS.connection,
+      value: linked ? "Connected" : "Not connected",
       content: <ConnectSection />,
     },
     {
