@@ -1019,3 +1019,11 @@
   color: transparent;
   text-shadow: 0 0 7px var(--s-fg);
 }
+
+/* Dev only: the compacting simulation's buttons (VoiceSettings DevCompactRow). */
+[data-lalala-dev-compact] {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 6px;
+}

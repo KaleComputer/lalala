@@ -4,6 +4,7 @@ import { createPortal } from "react-dom";
 import type { ModelProgress } from "./adapters";
 import type { PresenceFrame } from "./presence/frame";
 import { CanvasTabs } from "./CanvasSwitcher";
+import { CompactingDefrag } from "./extras/CompactingDefrag";
 import { useUpdateReady } from "./phoneUpdate";
 import {
   mountPresenceBar,
@@ -44,6 +45,12 @@ export function VoiceBar(props: {
   /** The user's mic is muted; the mic tab shows it and `onMute` flips it. */
   readonly muted?: boolean;
   readonly onMute?: () => void;
+  /** The brain compacting its thread: the wave area shows a defrag paced by the estimate. */
+  readonly compacting?: {
+    readonly active: boolean;
+    readonly startedAt: number | null;
+    readonly estimateMs: number;
+  };
   /** The settings' pages, in place of the app's (lalala.talk shows only what a browser can do). */
   readonly settings?: ReadonlyArray<SettingsPage>;
   /** Models the call is downloading (lalala.talk's in-browser speech): a line each over the room. */
@@ -121,6 +128,9 @@ export function VoiceBar(props: {
         data-lalala-live={props.live ? "" : undefined}
         data-lalala-off={offline !== null ? "" : undefined}
       />
+      {room !== null && props.compacting
+        ? createPortal(<CompactingDefrag {...props.compacting} />, room)
+        : null}
       {room !== null && offline !== null
         ? createPortal(
             <div data-lalala-offline="">

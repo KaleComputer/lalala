@@ -19,7 +19,15 @@ const RETRY_MS = [1_000, 2_000, 5_000, 10_000];
 // How long a turn waits for a dropped link to come back before it fails.
 const SEND_WAIT_MS = 15_000;
 
-type Run = { id: string; status: string; userMessageId: string; completedAt?: string | null };
+type Run = {
+  id: string;
+  status: string;
+  userMessageId: string;
+  requestedAt?: string;
+  startedAt?: string | null;
+  workStartedAt?: string | null;
+  completedAt?: string | null;
+};
 type Usage = {
   usedTokens: number;
   maxTokens?: number | null;
@@ -35,6 +43,8 @@ const isCompaction = (message: Message) =>
 const slimRun = (run: Run) => ({
   status: run.status,
   userMessageId: run.userMessageId,
+  // T3's orchestrationV2RunWorkStartedAt: when the run began its work.
+  workStartedAt: run.workStartedAt ?? run.startedAt ?? run.requestedAt ?? null,
   completedAt: run.completedAt ?? null,
 });
 
@@ -106,11 +116,18 @@ export function browserHarness(): HarnessAdapter {
     if (state.usage === null) return null;
     let compacting = false;
     let compactedAt: number | null = null;
+    let compactStartedAt: number | null = null;
+    const compactTookMs: number[] = [];
     for (const run of state.runs.values()) {
       if (!state.compactions.has(run.userMessageId)) continue;
-      if (ACTIVE_RUN.has(run.status)) compacting = true;
-      else if (run.status === "completed" && run.completedAt !== null) {
-        compactedAt = Math.max(compactedAt ?? 0, Date.parse(run.completedAt));
+      const began = run.workStartedAt === null ? null : Date.parse(run.workStartedAt);
+      if (ACTIVE_RUN.has(run.status)) {
+        compacting = true;
+        compactStartedAt = began;
+      } else if (run.status === "completed" && run.completedAt !== null) {
+        const done = Date.parse(run.completedAt);
+        compactedAt = Math.max(compactedAt ?? 0, done);
+        if (began !== null) compactTookMs.push(done - began);
       }
     }
     return {
@@ -121,6 +138,8 @@ export function browserHarness(): HarnessAdapter {
       claude: state.claude,
       compacting,
       compactedAt,
+      compactStartedAt,
+      compactTookMs,
     };
   };
   // Newest report of the thread's active provider session.

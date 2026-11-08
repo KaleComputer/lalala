@@ -21,7 +21,8 @@ import { threadEnvironment } from "../state/threads";
 import { useOrchestrationCommand } from "../state/use-orchestration-command";
 import { useVoiceBrainContext } from "../state/voiceBrainContext";
 import { applyCardTags, takeCards } from "./brainCards";
-import { compactionDue, shareBrainThread } from "./brainCompaction";
+import { compactEstimateMs, compactionDue, shareBrainThread } from "./brainCompaction";
+import { useCompactSim } from "./compactSim";
 import { markBriefed, needsBrief, withBrief, withCanvas } from "./brief";
 import type { ModelProgress } from "./adapters";
 import { speechEngine, useSpeechEngine } from "./engine";
@@ -161,7 +162,9 @@ export function VoiceHost({
   const compactWaitersRef = useRef<Array<() => void>>([]);
   // The `/compact` on its way to T3, so words spoken meanwhile wait for it too.
   const compactSendingRef = useRef<Promise<boolean> | null>(null);
-  const tidying =
+  // Dev's pretend compaction (settings) shows in the bar unless a real one runs.
+  const compactSim = useCompactSim();
+  const compacting =
     brainContext?.compacting === true ||
     (compactSentAt !== null && (brainContext?.compactedAt ?? 0) < compactSentAt);
 
@@ -226,7 +229,7 @@ export function VoiceHost({
    * the user's next words. True while a compaction runs, so the caller waits for it.
    */
   const compactIfDue = useEffectEvent(async (why: string): Promise<boolean> => {
-    if (tidying) return true;
+    if (compacting) return true;
     if (compactSendingRef.current !== null) return compactSendingRef.current;
     if (environmentId === null || voiceThread === undefined || thinking) return false;
     if (brainContext === null || !compactionDue(brainContext, Date.now())) return false;
@@ -278,9 +281,9 @@ export function VoiceHost({
 
   // oxlint-disable-next-line t3code/no-unreasoned-state-sync -- lets the user's words that waited for a compaction go once it ended
   useEffect(() => {
-    if (tidying) return;
+    if (compacting) return;
     for (const resolve of compactWaitersRef.current.splice(0)) resolve();
-  }, [tidying]);
+  }, [compacting]);
 
   const brainThreadId = voiceThread?.id ?? null;
   // oxlint-disable-next-line t3code/no-unreasoned-state-sync -- tells the settings sheet (rendered by the bar, without the thread) which thread is the brain
@@ -593,9 +596,7 @@ export function VoiceHost({
     linkProblem ??
     (paused
       ? "Mic paused: another app took the audio. Tap to resume."
-      : tidying
-        ? "Tidying up memory…"
-        : null);
+      : null);
   const downloads = live ? loading : null;
   const state: VoiceBarState =
     problem !== null
@@ -642,6 +643,15 @@ export function VoiceHost({
           : null
       }
       muted={muted}
+      compacting={
+        compactSim !== null && !compacting
+          ? compactSim
+          : {
+              active: compacting,
+              startedAt: brainContext?.compactStartedAt ?? compactSentAt,
+              estimateMs: compactEstimateMs(brainContext),
+            }
+      }
       onMute={() => {
         sessionRef.current?.setMuted(!muted);
         setMuted(!muted);

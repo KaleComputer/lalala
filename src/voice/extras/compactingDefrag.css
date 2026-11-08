@@ -1,0 +1,41 @@
+/* CompactingDefrag fills its positioned parent's middle: the bar's room (.bar-line), or a card's mock bar. */
+[data-lalala-defrag] {
+  position: absolute;
+  inset: 7px 10px 7px calc(var(--fr-strip, 0px) + 10px);
+  z-index: 2;
+  display: grid;
+  place-items: center;
+  color: var(--lala-accent, #3dff8f);
+  --defrag-head: var(--lalala-warn, #ffc14d);
+  pointer-events: none;
+}
+[data-lalala-defrag] canvas {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+}
+/* The label is the START plate's shape, type and ink on the warn yellow (Tim, 8 Nov); this is its look
+   outside the bar (the compacting card). */
+[data-lalala-defrag] span {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  height: var(--plate-h, 30px);
+  padding: 1px 15px 0;
+  background: var(--lalala-warn, #ffc14d);
+  color: var(--hud-ink, #04170c);
+  font: 600 var(--plate-fs, 12px) / 1 var(--font-tag, ui-monospace, monospace);
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  white-space: nowrap;
+  clip-path: polygon(8px 0, 100% 0, 100% calc(100% - 8px), calc(100% - 8px) 100%, 0 100%, 0 8px);
+}
+/* In the bar the shared plate look (voiceBar.css) sets the rest; the label keeps the yellow. */
+[data-lalala-presence] [data-lalala-defrag] > [data-lalala-plate] {
+  background: var(--lalala-warn, #ffc14d);
+}
+/* The defrag takes the place of the wave or START; they come back when it is done. */
+[data-lalala-presence]:has([data-lalala-defrag]) :is(.fr-wv, .fr-idle, [data-lalala-offline]) {
+  opacity: 0;
+}

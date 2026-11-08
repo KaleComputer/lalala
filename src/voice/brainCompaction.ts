@@ -16,6 +16,10 @@ export type VoiceBrainContext = {
   readonly compacting: boolean;
   /** When the latest compaction finished (epoch ms). */
   readonly compactedAt: number | null;
+  /** When the running compaction started work (epoch ms), while one runs. */
+  readonly compactStartedAt: number | null;
+  /** How long the thread's finished compactions took (ms), oldest first. */
+  readonly compactTookMs: readonly number[];
 };
 
 // T3's COMPACTION_SUGGESTION_MIN_TOKENS and its fallback cache lifetime (ContextWindowMeter.logic).
@@ -34,6 +38,18 @@ export function compactionDue(context: VoiceBrainContext | null, nowMs: number):
     context.usedTokens >= COMPACT_FROM_TOKENS &&
     nowMs - context.reportedAt >= (context.cacheTtlMs ?? CACHE_FALLBACK_MS)
   );
+}
+
+/**
+ * How long a `/compact` should take, for the bar's defrag pace: the median of the thread's last five,
+ * else a guess from the context size (past runs took 10 s to 140 s, loosely growing with size).
+ */
+export function compactEstimateMs(context: VoiceBrainContext | null): number {
+  const past = (context?.compactTookMs ?? []).slice(-5).toSorted((a, b) => a - b);
+  const median = past[Math.floor(past.length / 2)];
+  if (median !== undefined) return median;
+  const tokens = context?.usedTokens ?? COMPACT_FROM_TOKENS;
+  return Math.min(120_000, Math.max(15_000, 10_000 + tokens / 10));
 }
 
 export const formatTokens = (tokens: number) =>

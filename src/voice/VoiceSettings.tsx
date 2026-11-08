@@ -17,6 +17,7 @@ import { Tooltip, TooltipPopup, TooltipTrigger } from "../components/ui/tooltip"
 
 import { useVoiceBrainContext } from "../state/voiceBrainContext";
 import { formatTokens, useSharedBrainThread } from "./brainCompaction";
+import { finishCompactSim, startCompactSim, useCompactSim } from "./compactSim";
 import { ConnectedRows, PairSteps } from "./ConnectFlow";
 import { isFollowing, setFollowing, subscribeFollow } from "./follow";
 import { isPairingCode, pairingLink } from "./pairing";
@@ -1287,6 +1288,7 @@ function BrainSection(props: {
         note="The brain's model is set here in the voice app. In T3 Code, use the voice thread's model picker."
       >
         <BrainContextRow />
+        {import.meta.env.DEV ? <DevCompactRow /> : null}
       </Section>
     );
   }
@@ -1358,6 +1360,7 @@ function BrainSection(props: {
         }}
       />
       <BrainContextRow />
+      {import.meta.env.DEV ? <DevCompactRow /> : null}
     </Section>
   );
 }
@@ -1369,12 +1372,41 @@ function BrainContextRow() {
   return (
     <Row
       title="Context"
-      description="Over 200k after a pause, it tidies up its memory before your next words."
+      description="Over 200k after a pause, it compacts its thread before your next words."
     >
       <span data-lalala-settings-value="">
         {context.compacting
-          ? "Tidying up…"
+          ? "Compacting…"
           : `${formatTokens(context.usedTokens)}${context.maxTokens ? ` of ${formatTokens(context.maxTokens)}` : ""} tokens`}
+      </span>
+    </Row>
+  );
+}
+
+/** Dev only: runs the bar's compacting view without sending `/compact` (compactSim). */
+function DevCompactRow() {
+  const sim = useCompactSim();
+  return (
+    <Row
+      title="Simulate compacting"
+      description="Dev only. Shows the bar's compacting state; nothing is sent to the brain."
+    >
+      <span data-lalala-dev-compact="">
+        <button type="button" data-lalala-settings-button="" onClick={() => startCompactSim(10_000)}>
+          10 s
+        </button>
+        <button type="button" data-lalala-settings-button="" onClick={() => startCompactSim(30_000)}>
+          30 s
+        </button>
+        <button
+          type="button"
+          data-lalala-settings-button=""
+          data-quiet=""
+          disabled={!sim?.active}
+          onClick={finishCompactSim}
+        >
+          Finish now
+        </button>
       </span>
     </Row>
   );
