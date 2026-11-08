@@ -846,6 +846,23 @@
     translate: -50% -50%;
   }
 }
+/* T3's middle widths (under its md, 768px): the sidebar narrows to an icon rail, names kept for readers. */
+@media (min-width: 641px) and (max-width: 767px) {
+  [data-lalala-settings-nav] {
+    width: 56px;
+  }
+  [data-lalala-settings-nav] button {
+    justify-content: center;
+    padding: 0;
+  }
+  [data-lalala-settings-nav] button > span {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+  }
+}
 /* A phone: the whole screen, square, T3's narrow page padding. */
 @media (max-width: 640px) {
   [data-lalala-settings] {
