@@ -922,7 +922,6 @@
     background: var(--s-card);
   }
   [data-lalala-settings-nav] button {
-    width: 100%;
     height: auto;
     min-height: 52px;
     gap: 12px;
@@ -943,7 +942,6 @@
   }
   [data-lalala-settings-nav] button[aria-current="page"] {
     background: none;
-    font-weight: 500;
   }
   [data-lalala-settings-nav] button > :is(small, svg:last-child) {
     display: block;
