@@ -86,10 +86,11 @@
   z-index: 50;
 }
 
-/* The tabs over the map (VoiceBar makeStatusTab; the user, 3 Nov, round 6 B2): keyboard, mic, canvases, gear
-   and the time on the top edge at the right end. The time box is Presence's state
-   tab, only the time, its left edge the map's divider carried up, so the time box and the map share one
-   edge; every bottom row is the frame's top edge. Edges in the frame's own colour only; nothing moves. */
+/* The tabs over the map (VoiceBar makeStatusTab; the user, 3 Nov, round 6 B2): gear, canvases, mic and
+   keyboard (the user, 8 Nov: the keyboard beside the time), then the time on the top edge at the right
+   end. The time box is Presence's state tab, only the time, its left edge the map's divider carried
+   up, so the time box and the map share one edge; every bottom row is the frame's top edge. Edges in
+   the frame's own colour only; nothing moves. */
 /* The row's slot on the frame's top edge (VoiceBar makeStatusTab): its bottom is the frame's top line and
    it hides what goes below, so the row slides into and out of the bar, never over it. Room above for the
    input's beam. */
@@ -822,13 +823,9 @@
   flex-direction: column;
   gap: 4px;
   --lalala-cell-w: var(--lalala-map-w);
-  /* The beam's top, from the frame's right edge: the time box, the gear (and the canvases tab on
-     /canvas) and the mic, then half the input tab. */
-  --lalala-beam-o: calc(var(--lalala-map-w) + 1px + var(--lalala-input-tab-w) * 2.5);
+  /* The beam's top, from the frame's right edge: the time box, then half the input tab beside it. */
+  --lalala-beam-o: calc(var(--lalala-map-w) + 1px + var(--lalala-input-tab-w) / 2);
   transform-origin: calc(100% - var(--lalala-beam-o)) 100%;
-}
-[data-lalala-presence]:has(.lalala-canvas-slot:not(:empty)) [data-lalala-input-panel] {
-  --lalala-beam-o: calc(var(--lalala-map-w) + 1px + var(--lalala-input-tab-w) * 3.5);
 }
 /* It materializes on the beam's top, outward from there, after the beam is up; closing runs it back
    first, then the beam sinks (VoiceInput unmounts it when the beam is down). */
