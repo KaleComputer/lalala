@@ -34,15 +34,15 @@ export const PRESENCE_STATE: Record<VoiceBarState, { line: string; voice: string
 
 // Nothing moving out of a call: the wave polls instead of drawing every frame (Presence's REST_MS).
 const REST_MS = 100;
-// The user's voice fills the listening wash (its .lalala-voice layer) and fades the quiet zero line: their
-// frame level in dB from the room's quiet to a close voice, quick to rise, slow to fall, written only when
-// it moves, as opacity and transform on those two layers (composite-only).
+// The user's voice fills the listening wash (its .lalala-voice layer): their frame level in dB
+// from the room's quiet to a close voice, quick to rise, slow to fall, written only when it moves, as
+// opacity and transform on that layer (composite-only).
 const VOICE_QUIET_DB = -50;
 const VOICE_FULL_DB = -24;
 const VOICE_RISE = 14;
 const VOICE_FALL = 2.5;
 const VOICE_STEP = 0.01;
-// Below this the room counts as quiet: no wash, the zero line shows.
+// Below this the room counts as quiet: no wash.
 const VOICE_FLOOR = 0.05;
 const VOICE_STILL = 0.6;
 const VOICE_HOLD_MS = 300;
@@ -147,9 +147,6 @@ export function mountPresenceBar(
   const voiceEl = document.createElement("i");
   voiceEl.className = "lalala-voice";
   root.querySelector("[data-wash]")?.append(voiceEl);
-  const zeroEl = document.createElement("i");
-  zeroEl.className = "lalala-zero";
-  root.querySelector(".bar-line")?.append(zeroEl);
   let voice = 0;
   let voiceSet = 0;
   let voiceAt = performance.now();
@@ -182,7 +179,6 @@ export function mountPresenceBar(
       voiceSet = shown;
       voiceEl.style.opacity = shown.toFixed(3);
       voiceEl.style.transform = `scale(${(0.45 + 0.7 * shown).toFixed(3)}, ${(0.75 + 0.4 * shown).toFixed(3)})`;
-      zeroEl.style.opacity = Math.max(0, 1 - 4 * shown).toFixed(3);
     }
     handle =
       analysis === null && light.resting

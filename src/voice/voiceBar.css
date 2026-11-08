@@ -762,9 +762,6 @@
   margin-inline: 0;
 }
 
-[data-lalala-presence] .lalala-zero {
-  display: none;
-}
 /* The user talking: the listening wash grows brighter and wider with his voice (VoiceBar writes the layer's
    opacity and transform, only while it moves). */
 [data-lalala-presence] .lalala-voice {
@@ -1245,41 +1242,10 @@
     box-shadow: inset 0 0 0 2px var(--hud);
   }
 
-  /* The room at rest draws one dashed zero line under the wave: quiet in a call (long soft dashes), muted
-     (short amber ones, 2px), no signal (danger dots, 2px). It fades as the user's voice fills the wash (VoiceBar
-     writes its opacity). */
-  & .fr:is([data-state="listening"], [data-look~="broken"]) .lalala-zero {
-    display: block;
-    position: absolute;
-    left: 14px;
-    right: 10px;
-    /* Whole periods only, so no stub of a dash at the right end; `right` is the fallback without round(). */
-    width: round(down, 100% - 24px, 12px);
-    top: 50%;
-    height: 1px;
-    background: repeating-linear-gradient(
-      90deg,
-      var(--lalala-zero, color-mix(in srgb, var(--hud) 55%, transparent)) 0
-        var(--lalala-dash, 8px),
-      transparent var(--lalala-dash, 8px) 12px
-    );
-    pointer-events: none;
-  }
-  &:has([data-lalala-mic][data-muted]) .fr:not([data-look~="broken"]) .lalala-zero {
-    --lalala-zero: color-mix(in srgb, var(--lalala-warn) 75%, transparent);
-    --lalala-dash: 4px;
-    height: 2px;
-  }
-
-  /* No signal: the frame's edge in the danger colour instead of a torn slab, the wave gives way to the
-     zero line in danger, no green retry run along the rail (it never rested); the one jolt stays. */
+  /* No signal: the frame's edge in the danger colour instead of a torn slab, the wave gives way to a calm
+     frame, no green retry run along the rail (it never rested); the one jolt stays. */
   & .fr[data-look~="broken"] {
     --fe: color-mix(in srgb, var(--lalala-danger) 70%, var(--color-surface));
-    --lalala-zero: color-mix(in srgb, var(--lalala-danger) 75%, transparent);
-    --lalala-dash: 3px;
-  }
-  & .fr[data-look~="broken"] .lalala-zero {
-    height: 2px;
   }
   /* The accent stays for what is live: no signal dims the call's own tabs and the time; the canvases
      and the gear still work. */
