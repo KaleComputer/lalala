@@ -199,6 +199,7 @@
   padding: 0 10px;
   border-radius: 8px;
   color: var(--s-fg-2);
+  font-weight: 500;
   text-align: left;
 }
 [data-lalala-settings-nav] button > span {
@@ -223,7 +224,6 @@
 [data-lalala-settings-nav] button[aria-current="page"] {
   color: var(--s-fg);
   background: var(--s-active);
-  font-weight: 500;
 }
 /* Cyberpunk: the current page lit in neon. */
 :root:is(:not([data-lala-look]), [data-lala-look="neon"])
@@ -852,8 +852,8 @@
     translate: -50% -50%;
   }
 }
-/* T3's middle widths (under its md, 768px): the sidebar narrows to an icon rail, names kept for readers. */
-@media (min-width: 641px) and (max-width: 767px) {
+/* T3's middle widths (under its md, 768px), with a mouse: the sidebar narrows to an icon rail, names kept for readers. */
+@media (min-width: 641px) and (max-width: 767px) and (pointer: fine) {
   [data-lalala-settings-nav] {
     width: 56px;
   }
@@ -861,9 +861,15 @@
     justify-content: center;
     padding: 0;
   }
-  /* The current page marked by an edge too, not by its fill alone. */
-  [data-lalala-settings-nav] button[aria-current="page"] {
-    box-shadow: inset 2px 0 currentColor;
+  /* The current page marked by a bar too, not by its fill alone. */
+  [data-lalala-settings-nav] button[aria-current="page"]::before {
+    content: "";
+    position: absolute;
+    inset-block: 6px;
+    left: 0;
+    width: 2px;
+    border-radius: 1px;
+    background: var(--s-primary);
   }
   [data-lalala-settings-nav] button > span {
     position: absolute;

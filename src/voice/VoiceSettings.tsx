@@ -309,7 +309,8 @@ function mediaStore(query: string) {
   };
 }
 const PHONE_MEDIA = mediaStore(PHONE);
-const RAIL_MEDIA = mediaStore("(min-width: 641px) and (max-width: 767px)");
+// Only for a mouse or trackpad: a touch tablet keeps the full sidebar, its names never hover.
+const RAIL_MEDIA = mediaStore("(min-width: 641px) and (max-width: 767px) and (pointer: fine)");
 const isPhone = PHONE_MEDIA.matches;
 
 const Glyph = (props: { readonly d: ReadonlyArray<string> }) => (
@@ -362,17 +363,11 @@ function SettingsSheet(props: {
   // A step between the phone's list and a page: focus follows to what shows.
   const stepped = useRef(false);
   const titleId = useId();
-  const scrolledFor = useRef<string | undefined>(page);
-  const seenView = useRef("");
+  const opening = useRef(true);
   const current = props.pages.find((p) => p.id === page) ?? props.pages[0];
-  // Opened on a page (the call button's Connection): a phone starts on its Back, and the page is remembered.
-  const focusOnOpen = useEffectEvent(() => {
+  // Opened on a page (the call button's Connection): that page is remembered.
+  const rememberOpened = useEffectEvent(() => {
     if (opened) remember(opened);
-    // A phone opened on a page starts on its Back, the phone's list on the sheet, a desktop on its row.
-    const target = isPhone()
-      ? opened && backRef.current
-      : navRef.current?.querySelector<HTMLElement>("[aria-current='page']");
-    (target || panelRef.current)?.focus({ preventScroll: true });
   });
 
   const show = (id: string) => {
@@ -380,6 +375,8 @@ function SettingsSheet(props: {
     setListed(false);
     remember(id);
     setRove(null);
+    // A phone's hidden page has lost its scroll already; a desktop's is reset here.
+    bodyRef.current?.scrollTo({ top: 0 });
     stepped.current = phone;
   };
   const backToList = () => {
@@ -389,31 +386,27 @@ function SettingsSheet(props: {
   // A phone's page steps back to the list first, as Back would.
   const onEscape = useEffectEvent(() => (phone && !listed ? backToList() : props.onClose()));
 
-  // oxlint-disable-next-line t3code/no-unreasoned-state-sync -- after a step between list and page, or crossing 640px under a now-hidden control, focus moves to what shows: a phone page's Back, else the current row
+  // oxlint-disable-next-line t3code/no-unreasoned-state-sync -- focus as the sheet opens, after a step between list and page, or when the 640px switch hides it: a phone page's Back, else the current row
   useLayoutEffect(() => {
-    // Only when the view changed: a step, a page, or the 640px switch.
-    const view = `${phone}:${onList}:${current?.id}`;
-    if (view === seenView.current && !stepped.current) return;
-    seenView.current = view;
-    // A newly shown page starts at its top, once it is visible.
-    if (scrolledFor.current !== current?.id) {
-      scrolledFor.current = current?.id;
-      bodyRef.current?.scrollTo({ top: 0 });
-    }
+    const first = opening.current;
+    opening.current = false;
     const at = document.activeElement;
     const lost =
       at === document.body ||
       (at instanceof HTMLElement &&
         panelRef.current?.contains(at) === true &&
         at.getClientRects().length === 0);
-    if (!stepped.current && !lost) return;
+    if (!first && !stepped.current && !lost) return;
     stepped.current = false;
+    // A phone's page: its Back. The phone's list as it opens: the sheet. Otherwise the current row.
     const target =
       phone && !onList
         ? backRef.current
-        : navRef.current?.querySelector<HTMLElement>(`[data-page="${current?.id}"]`);
+        : first && onList
+          ? panelRef.current
+          : navRef.current?.querySelector<HTMLElement>(`[data-page="${current?.id}"]`);
     target?.focus({ preventScroll: true });
-  });
+  }, [phone, onList, current?.id, stepped]);
 
   // T3's sidebar: one Tab stop, arrows move along it without wrapping.
   const onNavKey = (event: ReactKeyboardEvent<HTMLElement>) => {
@@ -438,7 +431,7 @@ function SettingsSheet(props: {
   // oxlint-disable-next-line t3code/no-unreasoned-state-sync -- takes the newest synced settings while the sheet is open; Esc closes it
   useEffect(() => {
     pullSynced();
-    focusOnOpen();
+    rememberOpened();
     // Esc closes; Tab wraps inside the sheet so focus never reaches the canvas behind it. Not a
     // <dialog>: its top layer would cover the reset buttons' tooltips, which portal to the body.
     const onKey = (event: KeyboardEvent) => {
@@ -491,7 +484,7 @@ function SettingsSheet(props: {
                 "data-page": p.id,
                 "aria-current": p.id === current?.id && !onList ? "page" : undefined,
                 tabIndex: phone || p.id === (rove ?? current?.id) ? undefined : -1,
-                onFocus: () => setRove(p.id),
+                onFocus: phone ? undefined : () => setRove(p.id),
                 onClick: () => show(p.id),
               } as const;
               const content = (
