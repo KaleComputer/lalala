@@ -849,8 +849,8 @@
     translate: -50% -50%;
   }
 }
-/* T3's middle widths (under its md, 768px): with a mouse the sidebar is an icon rail (data-rail, set from
-   RAIL_MEDIA), names kept for readers and in tooltips; by touch it narrows instead, as names never hover. */
+/* T3's middle widths (under its md, 768px): by touch the sidebar narrows, as names never hover; with a mouse
+   RAIL_MEDIA (VoiceSettings.tsx, the same range) sets data-rail and it becomes an icon rail with tooltips. */
 @media (min-width: 641px) and (max-width: 767px) {
   [data-lalala-settings-nav] {
     width: 200px;
@@ -979,8 +979,10 @@
   [data-lalala-settings-back] {
     grid-column: 1;
   }
+  /* A long page name ellipsizes between Back and the close instead of pushing them. */
   [data-lalala-settings-main] > header > h1 {
     grid-column: 2;
+    max-width: calc(100vw - 256px);
   }
   [data-lalala-settings-main] > header > :is([data-lalala-settings-saving], button) {
     grid-area: 1 / 3;

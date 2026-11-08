@@ -362,7 +362,6 @@ function SettingsSheet(props: {
   const bodyRef = useRef<HTMLDivElement>(null);
   // The view focus was last placed for (phone, list or page, which page): a new one gets focus.
   const focusedView = useRef<string | null>(null);
-  const titleId = useId();
   const current = props.pages.find((p) => p.id === page) ?? props.pages[0];
 
   const show = (id: string) => {
@@ -380,19 +379,18 @@ function SettingsSheet(props: {
   // oxlint-disable-next-line t3code/no-unreasoned-state-sync -- each new view (opening, a step between list and page, a page, the 640px switch) gets focus and is remembered: a phone page's Back, else the current row
   useLayoutEffect(() => {
     const view = `${phone}/${onList}/${current?.id}`;
-    const first = focusedView.current === null;
     if (view === focusedView.current) return;
     focusedView.current = view;
-    if (!onList && current?.id) remember(current?.id);
-    // A phone's page: its Back. The phone's list as it opens: the sheet. Otherwise the current row.
+    if (!onList && current) remember(current.id);
+    // A control the user is in on the page keeps focus (a resize); otherwise a phone page's Back, else the page's row.
+    const at = document.activeElement;
+    if (at && bodyRef.current?.contains(at) && at.getClientRects().length > 0) return;
     const target =
       phone && !onList
         ? backRef.current
-        : first && onList
-          ? panelRef.current
-          : navRef.current?.querySelector<HTMLElement>(`[data-page="${current?.id}"]`);
-    target?.focus({ preventScroll: true });
-  }, [phone, onList, current?.id]);
+        : navRef.current?.querySelector<HTMLElement>(`[data-page="${current?.id}"]`);
+    if (target !== at) target?.focus({ preventScroll: true });
+  }, [phone, onList, current?.id, bodyRef]);
 
   // T3's sidebar: one Tab stop, arrows move along it without wrapping.
   const onNavKey = (event: ReactKeyboardEvent<HTMLElement>) => {
@@ -447,7 +445,7 @@ function SettingsSheet(props: {
         ref={panelRef}
         role="dialog"
         aria-modal="true"
-        aria-labelledby={titleId}
+        aria-label={onList ? "Settings" : `Settings, ${current?.title}`}
         tabIndex={-1}
         data-lalala-settings-panel=""
         data-view={onList ? "list" : "page"}
@@ -510,7 +508,7 @@ function SettingsSheet(props: {
               </button>
             </div>
             <h1>
-              <span id={titleId}>Settings</span>
+              <span>Settings</span>
               <span>
                 <span aria-hidden="true">/</span>
                 <span data-lalala-settings-sr="">, </span>
