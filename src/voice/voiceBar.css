@@ -17,20 +17,20 @@
 /* Solid edges (the user, 3 Nov): Presence's edge greens at the same strength over the frame's surface, never
    see-through, so an edge reads the same over the page as over the dark. */
 [data-lalala-presence] .fr {
-  --fe: color-mix(in srgb, #3dff8f 50%, var(--color-surface));
+  --fe: color-mix(in srgb, var(--lala-accent, #3dff8f) 50%, var(--color-surface));
 }
 [data-lalala-presence] .fr[data-look~="off"] {
-  --fe: color-mix(in srgb, #3dff8f 24%, var(--color-surface));
+  --fe: color-mix(in srgb, var(--lala-accent, #3dff8f) 24%, var(--color-surface));
 }
 [data-lalala-presence] .fr[data-look~="hot"] {
-  --fe: color-mix(in srgb, #3dff8f 85%, var(--color-surface));
+  --fe: color-mix(in srgb, var(--lala-accent, #3dff8f) 85%, var(--color-surface));
 }
 /* Connecting (the user, 5 Nov): Presence's edge fill (an animated custom property, repainted on the main
    thread) stuttered while the mic and the speech socket kept the page busy, then held until the call was
    live. Instead the dim edge carries two light sweeps, top and bottom, moved by transform alone so they
    stay smooth however busy the page is; they run only while connecting and vanish once it is live. */
 [data-lalala-presence] .fr[data-look~="draw"] {
-  --fe: color-mix(in srgb, #3dff8f 24%, var(--color-surface));
+  --fe: color-mix(in srgb, var(--lala-accent, #3dff8f) 24%, var(--color-surface));
   animation: none;
 }
 [data-lalala-presence] .fr[data-look~="draw"] .fr-body::before,
@@ -42,9 +42,7 @@
   width: 35%;
   height: 1px;
   background: linear-gradient(90deg, transparent, var(--hud), transparent);
-  box-shadow: 0 0 4px color-mix(in srgb, var(--hud) 60%, transparent);
   pointer-events: none;
-  will-change: transform;
   animation: lalala-edge-sweep 1.1s linear infinite;
 }
 [data-lalala-presence] .fr[data-look~="draw"] .fr-body::before {
@@ -62,19 +60,25 @@
     transform: translateX(290%);
   }
 }
-@media (prefers-reduced-motion: reduce) {
-  [data-lalala-presence] .fr[data-look~="draw"] .fr-body::before,
-  [data-lalala-presence] .fr[data-look~="draw"] .fr-body::after {
-    animation: none;
-    display: none;
+
+/* The one jolt on no signal (Presence's fr-glitch), by translate alone: its drop-shadow colour split
+   filtered the whole bar for each of its frames. */
+[data-lalala-presence] .bar[data-glitch] {
+  animation: lalala-jolt 480ms steps(6) 1;
+}
+@keyframes lalala-jolt {
+  0% {
+    translate: 2px 0;
   }
-}
-[data-lalala-presence] .fr-bk {
-  border-color: color-mix(in srgb, #3dff8f 34%, var(--color-surface));
-}
-[data-lalala-presence] .fr[data-look~="off"] .fr-bk {
-  border-color: color-mix(in srgb, #3dff8f 17%, var(--color-surface));
-  opacity: 1;
+  33% {
+    translate: -2px 0;
+  }
+  66% {
+    translate: 1px 0;
+  }
+  100% {
+    translate: 0 0;
+  }
 }
 
 /* Above T3's own layers. */
@@ -82,41 +86,10 @@
   z-index: 50;
 }
 
-/* The slot for small controls (the update chip): a tab on the top edge at the left, where Presence's
-   state tab was, in the timer tab's look (bar.css .fr-tmr). Nothing else sits there, so it showing or
-   going shifts nothing. Its content reads the frame's --hud colours. */
-[data-lalala-presence] .fr-slot {
-  position: absolute;
-  z-index: 4;
-  left: calc(var(--cut) + 6px);
-  bottom: calc(100% - 1px);
-  height: var(--tab-h);
-  display: flex;
-  align-items: center;
-  padding: 1px 6px 0;
-  background: var(--fe);
-  clip-path: polygon(6px 0, 100% 0, 100% 100%, 0 100%);
-  --surface: var(--color-surface);
-}
-[data-lalala-presence] .fr-slot:empty {
-  display: none;
-}
-[data-lalala-presence] .fr-slot::before {
-  content: "";
-  position: absolute;
-  inset: 1px;
-  background: var(--color-surface);
-  clip-path: polygon(5.7px 0, 100% 0, 100% 100%, 0 100%);
-}
-[data-lalala-presence] .fr-slot > * {
-  position: relative;
-}
-
-/* The tabs over the map (VoiceBar makeStatusTab; the user, 3 Nov, round 6 B2): [ INPUT | 02:14 ] on the
-   top edge at the right end, UPDATE stacked on them when a build waits. The time box is Presence's state
+/* The tabs over the map (VoiceBar makeStatusTab; the user, 3 Nov, round 6 B2): keyboard, mic, canvases, gear
+   and the time on the top edge at the right end. The time box is Presence's state
    tab, only the time, its left edge the map's divider carried up, so the time box and the map share one
-   edge; every bottom row is the frame's top edge. Edges in the frame's own colour only, a faint
-   scanline in the fills; nothing moves. */
+   edge; every bottom row is the frame's top edge. Edges in the frame's own colour only; nothing moves. */
 /* The row's slot on the frame's top edge (VoiceBar makeStatusTab): its bottom is the frame's top line and
    it hides what goes below, so the row slides into and out of the bar, never over it. Room above for the
    input's beam. */
@@ -139,9 +112,9 @@
   pointer-events: none;
 }
 [data-lalala-presence] {
-  --lalala-fill:
-    repeating-linear-gradient(to bottom, rgba(255, 255, 255, 0.03) 0 1px, transparent 1px 3px),
-    var(--color-surface);
+  --lalala-fill: var(--color-surface);
+  --lalala-warn: var(--lala-warn, #ffc14d);
+  --lalala-danger: var(--lala-danger, #ff5c7a);
 }
 [data-lalala-presence] .lalala-tabs > .fr-tab {
   position: relative;
@@ -172,30 +145,28 @@
   );
 }
 /* Gear design D (the user, 6 Nov): the row always stands in one layout, so the gear never moves. Out of a call
-   (frame.js hides the timer) the call tabs keep their solid edges and corners, just empty and inert, only
-   the canvases (they work offline) and the gear live (the user, 6 Nov: no dashed slots). A call going
-   live fills them: the seam under the row lights and the content rises out of it; ending fades it out.
-   Nothing moves in between. */
-[data-lalala-presence] .lalala-tabs:has(.fr-tmr[hidden]) [data-lalala-mic][data-muted]::after {
+   (VoiceBar's data-lalala-live) the call tabs keep their solid edges and corners, just empty and inert, only
+   the canvases (the user, 7 Nov: they work offline) and the gear live (the user, 6 Nov: no dashed slots). A call
+   going live fills them: the seam under the row lights and the content rises out of it; ending fades it
+   out. Nothing moves in between. */
+[data-lalala-presence]:not([data-lalala-live]) [data-lalala-mic][data-muted] {
+  --lalala-strip: 0 0 transparent;
+}
+[data-lalala-presence]:not([data-lalala-live]) [data-lalala-mic][data-muted]::after {
   background: var(--lalala-fill);
 }
-[data-lalala-presence]
-  .lalala-tabs:has(.fr-tmr[hidden])
-  :is([data-lalala-mic], [data-lalala-input-tab]) {
+[data-lalala-presence]:not([data-lalala-live]) :is([data-lalala-mic], [data-lalala-input-tab]) {
   cursor: default;
   pointer-events: none;
 }
-[data-lalala-presence]
-  :is([data-lalala-mic] svg, [data-lalala-input-tab] svg) {
+[data-lalala-presence] :is([data-lalala-mic] svg, [data-lalala-input-tab] svg) {
   transition: opacity 200ms ease-out;
 }
-[data-lalala-presence]
-  .lalala-tabs:has(.fr-tmr[hidden])
+[data-lalala-presence]:not([data-lalala-live])
   :is([data-lalala-mic] svg, [data-lalala-input-tab] svg) {
   opacity: 0;
 }
-[data-lalala-presence]
-  .lalala-tabs:has(.fr-tmr:not([hidden]))
+[data-lalala-presence][data-lalala-live]
   :is([data-lalala-mic] svg, [data-lalala-input-tab] svg) {
   animation: lalala-content-rise 240ms cubic-bezier(0.2, 0.9, 0.3, 1);
 }
@@ -210,13 +181,6 @@
     transform: none;
   }
 }
-@media (prefers-reduced-motion: reduce) {
-  [data-lalala-presence]
-    .lalala-tabs:has(.fr-tmr:not([hidden]))
-    :is([data-lalala-mic] svg, [data-lalala-input-tab] svg) {
-    animation: none;
-  }
-}
 [data-lalala-presence] .lalala-tabs-clip::after {
   content: "";
   position: absolute;
@@ -225,11 +189,10 @@
   bottom: 0;
   height: 1px;
   background: var(--hud);
-  box-shadow: 0 0 4px var(--hud);
   opacity: 0;
   pointer-events: none;
 }
-[data-lalala-presence] .lalala-tabs-clip:has(.fr-tmr:not([hidden]))::after {
+[data-lalala-presence][data-lalala-live] .lalala-tabs-clip::after {
   animation: lalala-seam-open 260ms ease-out;
 }
 @keyframes lalala-seam-open {
@@ -244,7 +207,7 @@
   visibility: hidden;
 }
 [data-lalala-presence] .lalala-tabs > .fr-tab:has(> .fr-tmr:not([hidden])) > .fr-tmr {
-  animation: lalala-glitch-slice 300ms steps(1, end);
+  animation: lalala-glitch-in 300ms steps(1, end);
 }
 /* Only fully on or off: a half-see-through edge reads pale over the page. */
 @keyframes lalala-glitch-in {
@@ -270,33 +233,9 @@
     transform: none;
   }
 }
-@keyframes lalala-glitch-slice {
-  0% {
-    clip-path: inset(0 0 55% 0);
-    transform: translateX(-3px);
-  }
-  20% {
-    clip-path: inset(45% 0 0 0);
-    transform: translateX(3px);
-  }
-  40% {
-    clip-path: inset(20% 0 30% 0);
-    transform: translateX(-1px);
-  }
-  60%,
-  100% {
-    clip-path: none;
-    transform: none;
-  }
-}
 @keyframes lalala-fade-in {
   from {
     opacity: 0;
-  }
-}
-@media (prefers-reduced-motion: reduce) {
-  [data-lalala-presence] .lalala-tabs > .fr-tab:has(> .fr-tmr:not([hidden])) > .fr-tmr {
-    animation: lalala-fade-in 200ms ease-out;
   }
 }
 /* The time shows even through a reconnect (Presence hides it under no signal). */
@@ -315,7 +254,7 @@
   padding: 0;
   background: none;
   color: var(--hud);
-  font-size: calc(var(--tab-fs) - 1px);
+  font-size: 11px;
   font-variant-numeric: tabular-nums;
   /* The letter-spacing trails the last digit; cancel it so the time sits truly centred. */
   margin-right: -0.08em;
@@ -329,24 +268,33 @@
   display: none;
 }
 /* The lead tab at the bar's left end, on the frame's top edge just past its cut, in and out of a call
-   alike: UPDATE (the user, 5 Nov, B) when a build waits, INPUT's width (whole pixels, just room for the
-   word). A small cut at both top corners. A sibling of the tab row, so the row's clip never cuts it. */
+   alike: UPDATE (the user, 5 Nov, B) when a build waits, a tab's width, a small cut at both top corners. A
+   sibling of the tab row, so the row's clip never cuts it; its look is on its pseudos, so nothing clips
+   the update button's touch reach either. */
 [data-lalala-presence] .lalala-lead {
   position: absolute;
   z-index: 4;
+  isolation: isolate;
   left: calc(var(--cut) + 6px);
   bottom: calc(100% - 1px);
   height: var(--tab-h);
   display: flex;
-  background: var(--fe);
-  clip-path: polygon(4px 0, calc(100% - 4px) 0, 100% 4px, 100% 100%, 0 100%, 0 4px);
 }
 [data-lalala-presence] .lalala-lead:empty {
   display: none;
 }
-[data-lalala-presence] .lalala-lead::before {
+[data-lalala-presence] .lalala-lead::before,
+[data-lalala-presence] .lalala-lead::after {
   content: "";
   position: absolute;
+  z-index: -1;
+}
+[data-lalala-presence] .lalala-lead::before {
+  inset: 0;
+  background: var(--fe);
+  clip-path: polygon(4px 0, calc(100% - 4px) 0, 100% 4px, 100% 100%, 0 100%, 0 4px);
+}
+[data-lalala-presence] .lalala-lead::after {
   inset: 1px;
   background: var(--lalala-fill);
   clip-path: polygon(3.4px 0, calc(100% - 3.4px) 0, 100% 3.4px, 100% 100%, 0 100%, 0 3.4px);
@@ -379,9 +327,18 @@
   /* A fine grid under the map (R1), there before the map draws, inside the padding so no grid line
      runs beside an edge (the user, 3 Nov: never two borders side by side). */
   background:
-    linear-gradient(90deg, rgba(61, 255, 143, 0.07) 1px, transparent 0) 0 0 / 8px 8px content-box,
-    linear-gradient(rgba(61, 255, 143, 0.07) 1px, transparent 0) 0 0 / 8px 8px content-box,
-    rgba(61, 255, 143, 0.06);
+    linear-gradient(
+        90deg,
+        color-mix(in srgb, var(--lala-accent, #3dff8f) 7%, transparent) 1px,
+        transparent 0
+      )
+      0 0 / 8px 8px content-box,
+    linear-gradient(
+        color-mix(in srgb, var(--lala-accent, #3dff8f) 7%, transparent) 1px,
+        transparent 0
+      )
+      0 0 / 8px 8px content-box,
+    color-mix(in srgb, var(--lala-accent, #3dff8f) 6%, transparent);
 }
 [data-lalala-presence] .fr-map::before {
   content: "";
@@ -395,7 +352,7 @@
 [data-lalala-dock]:not([data-lalala-canvas]) .fr-map {
   display: none;
 }
-/* Nothing in the bar selects or flashes on a press or a drag across the map (Tim, 7 Nov); its text
+/* Nothing in the bar selects or flashes on a press or a drag across the map (the user, 7 Nov); its text
    fields stay selectable. */
 [data-lalala-presence] {
   -webkit-user-select: none;
@@ -420,110 +377,41 @@
   right: calc(var(--lalala-map-w) + 12px);
 }
 
-/* The mic tab (the user, 5 Nov, design A): right of the input tab, built like it, there during a call.
-   Muted it turns amber with a slashed mic, the same on desktop and phone. */
-[data-lalala-presence] .lalala-mic-slot {
+/* The row's one-icon tabs: input (VoiceInput; the user, 3 Nov, design C), mic (the user, 5 Nov, design A; muted it
+   turns amber with a slashed mic), canvases (CanvasTabs; the user, 6 Nov, design A), gear (VoiceSettings; the user,
+   6 Nov), built alike: the frame's edge (::before), the fill 1px in (::after), lit while their panel is
+   open. Only the row's first tab keeps the cut corner; each one after it starts on the seam. On touch each
+   reaches 44px tall into the row's headroom (--lalala-hit), drawn at the tab's own height. */
+[data-lalala-presence] {
+  /* A one-icon tab with room either side (the user, 5 Nov), in whole pixels so the edges stay crisp. */
+  --lalala-input-tab-w: 34px;
+  --lalala-hit: 0px;
+}
+@media (pointer: coarse) {
+  [data-lalala-presence] {
+    --lalala-hit: calc(44px - var(--tab-h));
+    --lalala-input-tab-w: 44px;
+  }
+}
+:is(.lalala-input-slot, .lalala-mic-slot, .lalala-canvas-slot, .lalala-settings-slot) {
   display: flex;
 }
-[data-lalala-presence] .lalala-mic-slot:empty {
-  display: none;
-}
-/* Only the row's first tab keeps the cut corner; each one after it starts on the seam. */
-[data-lalala-presence] .lalala-tabs > :not(:empty) ~ .lalala-mic-slot [data-lalala-mic]::before,
-[data-lalala-presence] .lalala-tabs > :not(:empty) ~ .lalala-mic-slot [data-lalala-mic]::after,
-[data-lalala-presence]
-  .lalala-tabs
-  > :not(:empty)
-  ~ .lalala-canvas-slot
-  [data-lalala-canvas-name]::before,
-[data-lalala-presence]
-  .lalala-tabs
-  > :not(:empty)
-  ~ .lalala-canvas-slot
-  [data-lalala-canvas-name]::after {
-  clip-path: none;
-}
-[data-lalala-presence] [data-lalala-mic] {
-  position: relative;
-  isolation: isolate;
-  display: grid;
-  place-items: center;
-  width: var(--lalala-input-tab-w);
-  border: 0;
-  padding: 0;
-  color: var(--hud);
-  background: none;
-  cursor: pointer;
-  pointer-events: auto;
-  touch-action: manipulation;
-  -webkit-tap-highlight-color: transparent;
-}
-[data-lalala-presence] [data-lalala-mic]::before,
-[data-lalala-presence] [data-lalala-mic]::after {
-  content: "";
-  position: absolute;
-  z-index: -1;
-}
-[data-lalala-presence] [data-lalala-mic]::before {
-  inset: 0;
-  background: var(--fe);
-  clip-path: polygon(4px 0, 100% 0, 100% 100%, 0 100%, 0 4px);
-}
-[data-lalala-presence] [data-lalala-mic]::after {
-  inset: 1px 0 1px 1px;
-  background: var(--lalala-fill);
-  clip-path: polygon(3.4px 0, 100% 0, 100% 100%, 0 100%, 0 3.4px);
-}
-[data-lalala-presence] [data-lalala-mic] svg {
-  width: 12px;
-  fill: none;
-  stroke: currentColor;
-  stroke-width: 1.5;
-  stroke-linecap: round;
-  opacity: 0.75;
-}
-[data-lalala-presence] [data-lalala-mic]:focus-visible {
-  outline: 0;
-}
-[data-lalala-presence] [data-lalala-mic]:is(:hover, :focus-visible)::after {
-  background:
-    linear-gradient(rgba(61, 255, 143, 0.14), rgba(61, 255, 143, 0.14)), var(--lalala-fill);
-}
-[data-lalala-presence] [data-lalala-mic]:is(:hover, :focus-visible) svg,
-[data-lalala-presence] [data-lalala-mic][data-muted] svg {
-  opacity: 1;
-}
-[data-lalala-presence] [data-lalala-mic][data-muted] {
-  color: #ffb02e;
-}
-[data-lalala-presence] [data-lalala-mic][data-muted]::after {
-  background:
-    linear-gradient(rgba(255, 176, 46, 0.12), rgba(255, 176, 46, 0.12)), var(--lalala-fill);
-}
-[data-lalala-presence] [data-lalala-mic][data-muted]:is(:hover, :focus-visible)::after {
-  background:
-    linear-gradient(rgba(255, 176, 46, 0.2), rgba(255, 176, 46, 0.2)), var(--lalala-fill);
-}
-
-/* The canvases tab (CanvasTabs; the user, 6 Nov, design A), between the mic and the gear, built like
-   the mic; live in and out of a call, like the gear. */
-[data-lalala-presence] .lalala-canvas-slot {
-  display: flex;
-}
-[data-lalala-presence] .lalala-canvas-slot:empty {
+:is(.lalala-input-slot, .lalala-mic-slot, .lalala-canvas-slot, .lalala-settings-slot):empty {
   display: none;
 }
 [data-lalala-presence] [data-lalala-canvas-tabs] {
   display: flex;
 }
-[data-lalala-presence] [data-lalala-canvas-name] {
+[data-lalala-presence] [data-lalala-tab] {
   position: relative;
   isolation: isolate;
-  display: flex;
-  align-items: center;
-  justify-content: center;
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: var(--lalala-input-tab-w);
+  margin-top: calc(-1 * var(--lalala-hit));
+  padding: var(--lalala-hit) 0 0;
   border: 0;
-  padding: 0;
   color: var(--hud);
   background: none;
   cursor: pointer;
@@ -531,60 +419,106 @@
   touch-action: manipulation;
   -webkit-tap-highlight-color: transparent;
 }
-[data-lalala-presence] [data-lalala-canvas-name]::before,
-[data-lalala-presence] [data-lalala-canvas-name]::after {
+[data-lalala-presence] [data-lalala-tab]::before,
+[data-lalala-presence] [data-lalala-tab]::after {
   content: "";
   position: absolute;
   z-index: -1;
 }
-[data-lalala-presence] [data-lalala-canvas-name]::before {
-  inset: 0;
+[data-lalala-presence] [data-lalala-tab]::before {
+  inset: var(--lalala-hit) 0 0;
   background: var(--fe);
-}
-[data-lalala-presence] [data-lalala-canvas-name]::after {
-  inset: 1px 0 1px 1px;
-  background: var(--lalala-fill);
-}
-[data-lalala-presence] [data-lalala-canvas-name]::before {
   clip-path: polygon(4px 0, 100% 0, 100% 100%, 0 100%, 0 4px);
 }
-[data-lalala-presence] [data-lalala-canvas-name]::after {
+[data-lalala-presence] [data-lalala-tab]::after {
+  inset: calc(var(--lalala-hit) + 1px) 0 1px 1px;
+  background: var(--lalala-fill);
   clip-path: polygon(3.4px 0, 100% 0, 100% 100%, 0 100%, 0 3.4px);
 }
-/* A one-icon tab, stacked layers (the user, 7 Nov): the open canvas's name heads its list instead. */
-[data-lalala-presence] [data-lalala-canvas-name] {
-  width: var(--lalala-input-tab-w);
+[data-lalala-presence] .lalala-tabs > :not(:empty) ~ * [data-lalala-tab]::before,
+[data-lalala-presence] .lalala-tabs > :not(:empty) ~ * [data-lalala-tab]::after {
+  clip-path: none;
 }
-[data-lalala-presence] [data-lalala-canvas-name] svg {
+[data-lalala-presence] :is([data-lalala-tab], [data-lalala-update]) svg {
   width: 13px;
   fill: none;
   stroke: currentColor;
   stroke-width: 1.5;
   stroke-linecap: round;
   stroke-linejoin: round;
+  opacity: 0.85;
 }
-[data-lalala-presence] [data-lalala-canvas-name]:focus-visible {
+@media (pointer: coarse) {
+  [data-lalala-presence] [data-lalala-tab] svg {
+    width: 15px;
+  }
+}
+@media (hover: hover) {
+  [data-lalala-presence] [data-lalala-tab]:hover::after {
+    background:
+      linear-gradient(
+        color-mix(in srgb, var(--hud) 14%, transparent),
+        color-mix(in srgb, var(--hud) 14%, transparent)
+      ),
+      var(--lalala-fill);
+  }
+}
+[data-lalala-presence]
+  [data-lalala-tab]:is(:hover, :focus-visible, [data-open], [data-muted])
+  svg {
+  opacity: 1;
+}
+/* The drawn tab carries two marks as inset layers: focus is a ring, not a tint (accent 1px in, a dark
+   1px inside it, so it shows on a lit tab too), and a muted mic's amber strip along the bottom, drawn
+   below the ring's 2px when both show. */
+[data-lalala-presence] :is([data-lalala-tab], [data-lalala-update])::after {
+  box-shadow: var(--lalala-ring, 0 0 transparent), var(--lalala-strip, 0 0 transparent);
+}
+[data-lalala-presence] :is([data-lalala-tab], [data-lalala-update]):focus-visible {
+  --lalala-ring: inset 0 0 0 1px var(--hud), inset 0 0 0 2px var(--color-surface);
+  --lalala-ring-w: 2px;
   outline: 0;
 }
-[data-lalala-presence] [data-lalala-canvas-name]:is(:hover, :focus-visible)::after {
-  background:
-    linear-gradient(rgba(61, 255, 143, 0.14), rgba(61, 255, 143, 0.14)), var(--lalala-fill);
-}
-/* Lit like "+" while its list is up. */
-[data-lalala-presence] [data-lalala-canvas-name][data-open] {
+[data-lalala-presence] [data-lalala-tab][data-open] {
   color: var(--hud-ink);
 }
-[data-lalala-presence] [data-lalala-canvas-name][data-open]::after {
+[data-lalala-presence] [data-lalala-tab][data-open]::after {
   background: var(--hud);
 }
+[data-lalala-presence]
+  :is([data-lalala-mic][data-muted], [data-lalala-input-tab][data-failed]:not([data-open])) {
+  color: var(--lalala-warn);
+}
+[data-lalala-presence] [data-lalala-mic][data-muted] {
+  --lalala-strip: inset 0 calc(-2px - var(--lalala-ring-w, 0px)) 0 var(--lalala-warn);
+}
+[data-lalala-presence] [data-lalala-mic][data-muted]::after {
+  background:
+    linear-gradient(
+      color-mix(in srgb, var(--lalala-warn) 12%, transparent),
+      color-mix(in srgb, var(--lalala-warn) 12%, transparent)
+    ),
+    var(--lalala-fill);
+}
+@media (hover: hover) {
+  [data-lalala-presence] [data-lalala-mic][data-muted]:hover::after {
+    background:
+      linear-gradient(
+        color-mix(in srgb, var(--lalala-warn) 20%, transparent),
+        color-mix(in srgb, var(--lalala-warn) 20%, transparent)
+      ),
+      var(--lalala-fill);
+  }
+}
+
 /* The list, risen over the name tab, built like the frame: the edge 1px around, the canvases (the open
    one's square lit), then New, Rename, Tidy and Delete as one row of cells. It glitches in once. */
 [data-lalala-presence] [data-lalala-canvas-panel] {
   position: absolute;
   z-index: 6;
-  right: max(0px, min(var(--lalala-canvas-at), calc(100% - 200px)));
-  bottom: calc(100% + var(--tab-h) + 6px);
-  width: min(200px, 100%);
+  right: max(0px, min(var(--lalala-canvas-at), calc(100% - 240px)));
+  bottom: calc(100% + var(--tab-h) + max(6px, var(--lalala-hit)));
+  width: min(240px, 100%);
   display: flex;
   flex-direction: column;
   gap: 1px;
@@ -593,15 +527,10 @@
   clip-path: polygon(6px 0, calc(100% - 6px) 0, 100% 6px, 100% 100%, 0 100%, 0 6px);
   animation: lalala-glitch-in 180ms steps(1, end);
 }
-@media (prefers-reduced-motion: reduce) {
-  [data-lalala-presence] [data-lalala-canvas-panel] {
-    animation: none;
-  }
-}
 [data-lalala-presence] [data-lalala-canvas-panel] > ul {
   max-height: 40vh;
   margin: 0;
-  padding: 4px 0;
+  padding: 0;
   overflow-y: auto;
   list-style: none;
   background: var(--lalala-fill);
@@ -614,11 +543,9 @@
   width: 100%;
   padding: 5px 10px;
   border: 0;
-  color: var(--hud-2);
+  color: var(--lala-ink-dim, var(--hud-2));
   background: none;
-  font: 400 var(--tab-fs) / 1.2 var(--font-mono);
-  letter-spacing: 0.1em;
-  text-transform: uppercase;
+  font: 400 12px / 1.3 var(--font-sans);
   text-align: left;
   cursor: pointer;
   -webkit-tap-highlight-color: transparent;
@@ -628,7 +555,7 @@
   flex: none;
   width: 7px;
   height: 7px;
-  background: var(--hud-3);
+  box-shadow: inset 0 0 0 1px var(--lala-ink-dim, var(--hud-2));
 }
 [data-lalala-presence] [data-lalala-canvas-panel] li > button > span {
   min-width: 0;
@@ -640,6 +567,7 @@
 [data-lalala-presence] [data-lalala-canvas-panel] li[data-active] > button {
   color: var(--hud);
   background: var(--hud-4);
+  box-shadow: inset 0 0 0 1px var(--hud);
 }
 [data-lalala-presence] [data-lalala-canvas-panel] li[data-active] > button::before {
   display: none;
@@ -657,7 +585,12 @@
 [data-lalala-presence] [data-lalala-canvas-panel] li > button:is(:hover, :focus-visible) {
   outline: 0;
   color: var(--hud);
-  background: var(--hud-4);
+}
+[data-lalala-presence]
+  [data-lalala-canvas-panel]
+  li:not([data-active])
+  > button:is(:hover, :focus-visible) {
+  background: color-mix(in srgb, var(--hud) 7%, transparent);
 }
 [data-lalala-presence] [data-lalala-canvas-panel] li > input {
   display: block;
@@ -670,8 +603,7 @@
   outline: 0;
   color: var(--hud);
   background: var(--color-surface);
-  font: 400 var(--tab-fs) / 1 var(--font-mono);
-  letter-spacing: 0.06em;
+  font: 400 12px / 1 var(--font-sans);
 }
 [data-lalala-presence] [data-lalala-canvas-actions] {
   display: grid;
@@ -685,7 +617,7 @@
   border: 0;
   color: var(--hud);
   background: var(--lalala-fill);
-  font: 400 calc(var(--tab-fs) - 1px) / 1 var(--font-mono);
+  font: 600 11px / 1 var(--font-tag);
   letter-spacing: 0.12em;
   text-transform: uppercase;
   cursor: pointer;
@@ -695,99 +627,106 @@
 [data-lalala-presence] [data-lalala-canvas-actions] > button:is(:hover, :focus-visible) {
   outline: 0;
   background:
-    linear-gradient(rgba(61, 255, 143, 0.14), rgba(61, 255, 143, 0.14)), var(--lalala-fill);
+    linear-gradient(
+      color-mix(in srgb, var(--lala-accent, #3dff8f) 14%, transparent),
+      color-mix(in srgb, var(--lala-accent, #3dff8f) 14%, transparent)
+    ),
+    var(--lalala-fill);
 }
+/* Delete as the cards' CLOSE: danger text in a danger outline. */
 [data-lalala-presence] [data-lalala-canvas-actions] > [data-danger] {
-  color: #ffb02e;
+  color: var(--lalala-danger);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--lalala-danger) 60%, transparent);
+}
+[data-lalala-presence]
+  [data-lalala-canvas-panel]
+  :is(li > button, [data-lalala-canvas-actions] > button):focus-visible {
+  box-shadow: inset 0 0 0 1px var(--hud);
+}
+/* The current row is already outlined: focus adds a dark line and a second accent one inside it. */
+[data-lalala-presence] [data-lalala-canvas-panel] li[data-active] > button:focus-visible {
+  box-shadow:
+    inset 0 0 0 1px var(--hud),
+    inset 0 0 0 2px var(--color-surface),
+    inset 0 0 0 3px var(--hud);
+}
+[data-lalala-presence]
+  [data-lalala-canvas-panel]
+  [data-lalala-canvas-actions]
+  > button[data-danger]:focus-visible {
+  box-shadow:
+    inset 0 0 0 1px var(--lalala-danger),
+    inset 0 0 0 2px var(--color-surface);
+}
+@media (pointer: coarse) {
+  [data-lalala-presence] [data-lalala-canvas-panel] {
+    width: min(320px, 100%);
+    right: max(0px, min(var(--lalala-canvas-at), calc(100% - 320px)));
+  }
+  [data-lalala-presence] [data-lalala-canvas-panel] li > button {
+    min-height: 44px;
+    font-size: 14px;
+  }
+  [data-lalala-presence] [data-lalala-canvas-panel] li > input {
+    height: 44px;
+    font-size: 16px;
+  }
+  [data-lalala-presence] .fr-tab .fr-tmr {
+    font-size: 12px;
+  }
+  [data-lalala-presence] [data-lalala-canvas-actions] > button {
+    height: 44px;
+  }
 }
 
 /* A newer phone build is ready: a tap applies it (it never reloads by itself during a call). It fills
-   the UPDATE tab: a lit dot and UPDATE, the whole tab the tap target. */
+   the update tab with a refresh icon (the user, 7 Nov), the whole tab the tap target. */
 [data-lalala-presence] [data-lalala-update] {
   position: relative;
   flex: none;
-  width: var(--lalala-update-w);
+  width: var(--lalala-input-tab-w);
   display: flex;
   align-items: center;
   justify-content: center;
-  /* INPUT's and the time's type, centred between the edges. */
-  padding: 0 4px;
+  margin-top: calc(-1 * var(--lalala-hit));
+  padding: var(--lalala-hit) 0 0;
   border: 0;
   color: var(--hud);
   background: none;
+  cursor: pointer;
+  pointer-events: auto;
+  -webkit-tap-highlight-color: transparent;
+}
+@media (hover: hover) {
+  [data-lalala-presence] .lalala-lead:has([data-lalala-update]:hover)::after {
+    background:
+      linear-gradient(
+        color-mix(in srgb, var(--hud) 14%, transparent),
+        color-mix(in srgb, var(--hud) 14%, transparent)
+      ),
+      var(--lalala-fill);
+  }
+}
+/* Its edge and fill are the lead tab's; this layer at the drawn height carries the tabs' focus ring. */
+[data-lalala-presence] [data-lalala-update]::after {
+  content: "";
+  position: absolute;
+  inset: var(--lalala-hit) 0 0;
+  pointer-events: none;
+}
+
+/* lalala's UPDATE is a word, not an icon: wider, in the time's type, centred between the edges. */
+[data-lalala-presence] [data-lalala-update] {
+  width: 48px;
+  padding-inline: 4px;
   font: 400 calc(var(--tab-fs) - 1px) / 1 var(--font-mono);
   letter-spacing: 0.12em;
   text-transform: uppercase;
   white-space: nowrap;
-  cursor: pointer;
-  pointer-events: auto;
-  -webkit-tap-highlight-color: transparent;
 }
-[data-lalala-presence] [data-lalala-update]:focus-visible {
-  outline: 0;
-  color: var(--hud-ink);
-  background: var(--hud);
-}
-/* The settings gear (VoiceSettings; the user, 6 Nov): between the canvases tab and the time, built like
-   the mic, in the same spot in and out of a call (design D). Lit while the settings are open. */
-[data-lalala-presence] .lalala-settings-slot {
-  display: flex;
-}
-[data-lalala-presence] .lalala-settings-slot:empty {
-  display: none;
-}
-[data-lalala-presence] [data-lalala-settings-tab] {
-  position: relative;
-  isolation: isolate;
-  display: grid;
-  place-items: center;
-  width: var(--lalala-input-tab-w);
-  border: 0;
-  padding: 0;
-  color: var(--hud);
-  background: none;
-  cursor: pointer;
-  pointer-events: auto;
-  touch-action: manipulation;
-  -webkit-tap-highlight-color: transparent;
-}
-[data-lalala-presence] [data-lalala-settings-tab]::before,
-[data-lalala-presence] [data-lalala-settings-tab]::after {
-  content: "";
-  position: absolute;
-  z-index: -1;
-}
-[data-lalala-presence] [data-lalala-settings-tab]::before {
-  inset: 0;
-  background: var(--fe);
-}
-[data-lalala-presence] [data-lalala-settings-tab]::after {
-  inset: 1px 0 1px 1px;
-  background: var(--lalala-fill);
-}
-[data-lalala-presence] [data-lalala-settings-tab] svg {
-  width: 12px;
-  fill: none;
-  stroke: currentColor;
-  stroke-width: 1.5;
-  stroke-linecap: round;
-  opacity: 0.75;
-}
-[data-lalala-presence] [data-lalala-settings-tab]:focus-visible {
-  outline: 0;
-}
-[data-lalala-presence] [data-lalala-settings-tab]:is(:hover, :focus-visible)::after {
-  background:
-    linear-gradient(rgba(61, 255, 143, 0.14), rgba(61, 255, 143, 0.14)), var(--lalala-fill);
-}
-[data-lalala-presence] [data-lalala-settings-tab]:is(:hover, :focus-visible, [data-open]) svg {
-  opacity: 1;
-}
-[data-lalala-presence] [data-lalala-settings-tab][data-open] {
-  color: var(--hud-ink);
-}
-[data-lalala-presence] [data-lalala-settings-tab][data-open]::after {
-  background: var(--hud);
+/* The letter-spacing trails the last letter; cancel it so the word sits truly centred. */
+[data-lalala-presence] [data-lalala-update] > span {
+  margin-right: -0.12em;
 }
 
 /* The dock (VoiceDock): the bottom edge of the main content, beside an open desktop sidebar, never
@@ -823,55 +762,23 @@
   margin-inline: 0;
 }
 
-/* the user talking: the listening wash grows brighter and wider with his voice (VoiceBar writes
-   --lalala-voice, 0..1, only while it moves). His microphone no longer moves the tab's bars. */
-[data-lalala-presence] .bar-wash::after {
-  content: "";
+[data-lalala-presence] .lalala-zero {
+  display: none;
+}
+/* The user talking: the listening wash grows brighter and wider with his voice (VoiceBar writes the layer's
+   opacity and transform, only while it moves). */
+[data-lalala-presence] .lalala-voice {
   position: absolute;
   inset: 0;
   background: radial-gradient(
     farthest-side at 50% 55%,
-    rgba(170, 255, 200, 0.5),
-    rgba(86, 214, 140, 0.3) 45%,
-    rgba(86, 214, 140, 0)
+    color-mix(in srgb, var(--hud) 55%, transparent),
+    color-mix(in srgb, var(--hud) 28%, transparent) 45%,
+    transparent
   );
-  opacity: var(--lalala-voice, 0);
-  transform: scale(
-    calc(0.45 + 0.7 * var(--lalala-voice, 0)),
-    calc(0.75 + 0.4 * var(--lalala-voice, 0))
-  );
-}
-[data-lalala-presence] .g-bars:not(.amb)[data-live] i {
-  transform: scaleY(0.5) !important;
+  opacity: 0;
 }
 
-/* "› INPUT" (VoiceInput; the user, 3 Nov, design C): the first tab in the row over the map, left of UPDATE
-   and the time: a small cut at its top left, the frame's edge (::before) and the scanline fill
-   (::after) 1px in, and a projector on its top edge (below). One 1px seam between neighbours: the
-   time box or UPDATE draws it; alone (no call, no update) it closes its own right edge. Lit while the
-   field is open. */
-[data-lalala-presence] {
-  /* A one-icon tab (input, mic, gear) with room either side, UPDATE's word with a small
-     inset (the user, 5 Nov), in whole pixels so the edges stay crisp. */
-  --lalala-input-tab-w: 34px;
-  --lalala-update-w: 48px;
-}
-/* The letter-spacing trails the last letter; cancel it so the word sits truly centred. */
-[data-lalala-presence] [data-lalala-update] > span {
-  margin-right: -0.12em;
-}
-/* Only a keyboard in the input tab, the field has the paperclip (the user, 6 Nov), line icons like the mic's. */
-[data-lalala-presence] [data-lalala-input-tab] svg {
-  width: 13px;
-  fill: none;
-  stroke: currentColor;
-  stroke-width: 1.5;
-  stroke-linecap: round;
-  stroke-linejoin: round;
-}
-[data-lalala-presence] [data-lalala-input-tab]:not([data-open], :hover, :focus-visible) svg {
-  opacity: 0.75;
-}
 /* Uploads running: a bar along the tab's bottom edge fills with them; one failed, it turns amber
    like a muted mic until its tile is removed. */
 [data-lalala-presence] [data-lalala-upload-bar] {
@@ -883,52 +790,10 @@
   background: var(--hud);
   pointer-events: none;
 }
-[data-lalala-presence] [data-lalala-input-tab][data-failed] {
-  color: #ffb02e;
-}
-[data-lalala-presence] .lalala-input-slot {
-  display: flex;
-}
-[data-lalala-presence] .lalala-input-slot:empty {
-  display: none;
-}
-[data-lalala-presence] [data-lalala-input-tab] {
-  position: relative;
-  isolation: isolate;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 6px;
-  /* Whole pixels, so its left edge never lands between two. */
-  width: var(--lalala-input-tab-w);
-  padding: 0;
-  border: 0;
-  color: var(--hud);
-  background: none;
-  /* The time's own type and size, on its line (the user, 5 Nov): side by side they read as one row. */
-  font: 400 calc(var(--tab-fs) - 1px) / 1 var(--font-mono);
-  letter-spacing: 0.12em;
-  text-transform: uppercase;
-  white-space: nowrap;
-  cursor: pointer;
-  pointer-events: auto;
-  -webkit-tap-highlight-color: transparent;
-}
-[data-lalala-presence] [data-lalala-input-tab]::before,
-[data-lalala-presence] [data-lalala-input-tab]::after {
-  content: "";
-  position: absolute;
-  z-index: -1;
-}
-[data-lalala-presence] [data-lalala-input-tab]::before {
-  inset: 0;
-  background: var(--fe);
-  clip-path: polygon(4px 0, 100% 0, 100% 100%, 0 100%, 0 4px);
-}
-[data-lalala-presence] [data-lalala-input-tab]::after {
-  inset: 1px 0 1px 1px;
-  background: var(--lalala-fill);
-  clip-path: polygon(3.4px 0, 100% 0, 100% 100%, 0 100%, 0 3.4px);
+/* A failed upload breaks the progress line into amber dashes (a muted mic's strip is solid). */
+[data-lalala-presence] [data-lalala-input-tab][data-failed] > [data-lalala-upload-bar] {
+  width: calc(100% - 1px);
+  background: repeating-linear-gradient(90deg, var(--lalala-warn) 0 4px, transparent 4px 7px);
 }
 /* The projector (the user, 4 Nov, design 9): while the field is open (or closing), a lit emitter strip on
    the tab's top edge and a hologram cone from it up to the field's bottom edge (the panel floats 22px
@@ -937,17 +802,16 @@
 [data-lalala-presence] [data-lalala-input-tab] > i {
   position: absolute;
   left: calc(50% - 12px);
-  bottom: calc(100% - 1px);
+  bottom: calc(100% - var(--lalala-hit) - 1px);
   width: 24px;
   height: 2px;
   background: var(--hud);
-  box-shadow: 0 0 4px color-mix(in srgb, var(--hud) 70%, transparent);
   pointer-events: none;
 }
 [data-lalala-presence] [data-lalala-beam] {
   position: absolute;
   left: calc(50% - 23px);
-  bottom: calc(100% + 1px);
+  bottom: calc(100% - var(--lalala-hit) + 1px);
   width: 46px;
   height: 21px;
   background: linear-gradient(
@@ -980,20 +844,6 @@
     transform: scaleY(0);
   }
 }
-[data-lalala-presence] [data-lalala-input-tab]:is(:hover, :focus-visible)::after {
-  background:
-    linear-gradient(rgba(61, 255, 143, 0.14), rgba(61, 255, 143, 0.14)), var(--lalala-fill);
-}
-[data-lalala-presence] [data-lalala-input-tab]:focus-visible {
-  outline: 0;
-}
-[data-lalala-presence] [data-lalala-input-tab][data-open] {
-  color: var(--hud-ink);
-}
-[data-lalala-presence] [data-lalala-input-tab][data-open]::after {
-  background: var(--hud);
-}
-
 /* The field, docked over the tab row at the frame's width: pictures on top as equal tiles (the time
    box's width), then one cut-corner field built like the frame (edge layer, room 1px in). Its send cell
    is the map's width, so its seam continues the map's divider and the time box's edge. It glitches in
@@ -1011,6 +861,7 @@
   /* The beam's top, from the frame's right edge: the time box, the gear (and the canvases tab on
      /canvas) and the mic, then half the input tab. */
   --lalala-beam-o: calc(var(--lalala-map-w) + 1px + var(--lalala-input-tab-w) * 2.5);
+  transform-origin: calc(100% - var(--lalala-beam-o)) 100%;
 }
 [data-lalala-presence]:has(.lalala-canvas-slot:not(:empty)) [data-lalala-input-panel] {
   --lalala-beam-o: calc(var(--lalala-map-w) + 1px + var(--lalala-input-tab-w) * 3.5);
@@ -1027,9 +878,7 @@
 @keyframes lalala-materialize {
   0% {
     opacity: 0;
-    clip-path: inset(
-      0 calc(var(--lalala-beam-o) - 23px) 0 calc(100% - var(--lalala-beam-o) - 23px)
-    );
+    transform: scaleX(0.12);
   }
   25% {
     opacity: 0.85;
@@ -1042,7 +891,7 @@
   }
   100% {
     opacity: 1;
-    clip-path: inset(0);
+    transform: none;
   }
 }
 [data-lalala-presence] .bar:has([data-lalala-input-panel]) .bar-incoming {
@@ -1109,7 +958,7 @@
   text-transform: uppercase;
 }
 [data-lalala-presence] [data-lalala-input-tiles] > li[data-failed] > span > span + span {
-  color: #ffb02e;
+  color: var(--lalala-warn);
 }
 [data-lalala-presence] [data-lalala-input-tiles] button {
   position: absolute;
@@ -1134,6 +983,14 @@
   inset: 1px;
   background: var(--color-surface);
 }
+/* Always there, so a reader hears a problem as it is written in; empty it takes no room. */
+[data-lalala-presence] [data-lalala-input-problem][data-empty] {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+}
 [data-lalala-presence] [data-lalala-input-problem] {
   margin: 0;
   color: var(--hud-2);
@@ -1156,21 +1013,22 @@
   padding: 1px;
   background: var(--fe);
 }
+[data-lalala-presence] [data-lalala-input-field]:has(textarea:focus-visible) {
+  background: var(--hud);
+}
 [data-lalala-presence] [data-lalala-input-field] > div {
   display: flex;
   align-items: stretch;
   min-height: 32px;
-  background:
-    repeating-linear-gradient(to bottom, rgba(255, 255, 255, 0.025) 0 1px, transparent 1px 3px),
-    var(--color-surface);
+  background: var(--color-surface);
 }
 [data-lalala-presence] [data-lalala-input-field] textarea {
   flex: 1;
   min-width: 0;
   max-height: 128px;
   margin: 0;
-  /* INPUT's and the time's type and size; the line sits midway in the 32px field. */
-  padding: 9px 6px 9px 9px;
+  /* Typed text is body text (Geist, as the cards'); the line sits midway in the 32px field. */
+  padding: 7px 6px 7px 10px;
   border: 0;
   outline: 0;
   resize: none;
@@ -1178,10 +1036,10 @@
   color: var(--hud);
   caret-color: var(--hud);
   background: none;
-  font: 400 calc(var(--tab-fs) - 1px) / 14px var(--font-mono);
+  font: 400 13px / 18px var(--font-sans);
 }
 [data-lalala-presence] [data-lalala-input-field] textarea::placeholder {
-  color: var(--hud-3);
+  color: var(--lala-ink-dim, var(--hud-2));
 }
 [data-lalala-presence] [data-lalala-input-cell] {
   position: relative;
@@ -1225,7 +1083,10 @@
 [data-lalala-presence] [data-lalala-input-cell]:is(:hover, :focus-visible):not(:disabled) {
   outline: 0;
   color: var(--hud);
-  background: rgba(61, 255, 143, 0.1);
+  background: color-mix(in srgb, var(--hud) 10%, transparent);
+}
+[data-lalala-presence] [data-lalala-input-cell]:focus-visible {
+  box-shadow: inset 0 0 0 1px var(--hud);
 }
 [data-lalala-presence] [data-lalala-input-cell][data-send]:not(:disabled) {
   color: var(--hud);
@@ -1236,23 +1097,29 @@
 }
 @media (max-width: 639px) {
   [data-lalala-presence] {
-    --lalala-input-tab-w: 40px;
-    --lalala-update-w: 56px;
-  }
-  [data-lalala-presence] [data-lalala-input-field] textarea {
-    line-height: 16px;
-  }
-  [data-lalala-presence] [data-lalala-input-field] > div {
-    min-height: 34px;
-  }
-  [data-lalala-presence] [data-lalala-input-tiles] > li {
-    height: 38px;
+    --lalala-input-tab-w: 44px;
   }
 }
-@media (prefers-reduced-motion: reduce) {
-  [data-lalala-presence] [data-lalala-input-panel][data-state],
-  [data-lalala-presence] [data-lalala-input-tab] > [data-lalala-beam] {
-    animation: none !important;
+/* Touch: 16px text (iOS zooms into anything smaller), 44px field, cells and tiles. */
+@media (pointer: coarse) {
+  [data-lalala-presence] [data-lalala-input-field] textarea {
+    padding: 12px 6px 12px 10px;
+    font-size: 16px;
+    line-height: 20px;
+  }
+  [data-lalala-presence] [data-lalala-input-field] > div {
+    min-height: 44px;
+  }
+  [data-lalala-presence] [data-lalala-input-cell]:not([data-send]) {
+    width: 44px;
+  }
+  [data-lalala-presence] [data-lalala-input-tiles] > li {
+    height: 44px;
+  }
+  [data-lalala-presence] [data-lalala-input-tiles] button::after {
+    content: "";
+    position: absolute;
+    inset: 0 0 -30px -30px;
   }
 }
 
@@ -1288,7 +1155,7 @@
   color: rgba(245, 238, 226, 0.6);
 }
 
-/* T3 Code not connected, out of a call (design K): START CALL and its tap target give way to
+/* T3 Code not connected, out of a call (design K, the user 7 Nov): START CALL and its tap target give way to
    one compact CONNECT TO T3 CODE button filled with the look's warning colour. */
 [data-lalala-presence][data-lalala-off] .fr-plate,
 [data-lalala-presence][data-lalala-off] .bar-talk {
@@ -1304,34 +1171,189 @@
   pointer-events: none;
 }
 [data-lalala-offline] button {
-  --lalala-warn: var(--lala-warn, #ffc14d);
+  position: relative;
+  isolation: isolate;
   display: inline-flex;
   align-items: center;
-  height: var(--plate-h);
+  height: var(--bar-row);
   padding: 1px 12px 0 13px;
   border: 0;
-  background: var(--lalala-warn);
+  background: none;
   color: var(--color-surface);
   font: 600 var(--plate-fs) / 1 var(--font-tag);
   letter-spacing: 0.12em;
   text-transform: uppercase;
   white-space: nowrap;
-  clip-path: polygon(7px 0, 100% 0, 100% calc(100% - 7px), calc(100% - 7px) 100%, 0 100%, 0 7px);
   cursor: pointer;
   pointer-events: auto;
   touch-action: manipulation;
 }
-[data-lalala-offline] button:hover {
-  background: color-mix(in srgb, var(--lalala-warn) 85%, white);
+/* The plate is drawn at --plate-h; the button is the room's full height, so a thumb finds it. */
+[data-lalala-offline] button::before {
+  content: "";
+  position: absolute;
+  z-index: -1;
+  inset: calc((100% - var(--plate-h)) / 2) 0;
+  background: var(--lalala-warn);
+  clip-path: polygon(7px 0, 100% 0, 100% calc(100% - 7px), calc(100% - 7px) 100%, 0 100%, 0 7px);
+}
+@media (hover: hover) {
+  [data-lalala-offline] button:hover::before {
+    background: color-mix(in srgb, var(--lalala-warn) 85%, white);
+  }
 }
 [data-lalala-offline] button:focus-visible {
   outline: 0;
+}
+[data-lalala-offline] button:focus-visible::before {
   box-shadow: inset 0 0 0 2px var(--color-surface);
 }
-@media (max-width: 639px) {
-  [data-lalala-offline] button {
-    padding: 1px 9px 0 10px;
-    font-size: 10px;
-    letter-spacing: 0.08em;
+
+/* The committee's cyberpunk pass (8 Nov), against the canvas's own look: the canvas's surface, flat fills,
+   no texture or brackets, START CALL a filled primary like the cards' KEEP, an error that reads as one.
+   Cyberpunk only (neon, the default look): paper and T3 dress the bar themselves. */
+:where(:root:not([data-lala-look]), :root[data-lala-look="neon"]) [data-lalala-presence] {
+  --color-surface: var(--lala-surface-solid, #121110);
+
+  & .fr-in::after,
+  & :is(.fr-hatch, .fr-bk) {
+    display: none;
+  }
+  & .fr-in {
+    background: var(--color-surface);
+  }
+  /* Only the user's voice lights the room: Presence's own listening wash stays dark. */
+  & .bar-wash {
+    background: none;
+  }
+  & .fr-plate {
+    background: var(--hud);
+    color: var(--hud-ink);
+    text-shadow: none;
+    box-shadow: 0 0 0 4px var(--color-surface);
+  }
+  & .fr-plate::before,
+  & .fr-plate::after {
+    display: none;
+  }
+  @media (hover: hover) {
+    & .bar-line:has(.bar-talk:hover) .fr-plate {
+      background: color-mix(in srgb, var(--hud) 85%, white);
+    }
+  }
+  & .bar-talk:focus-visible {
+    box-shadow: inset 0 0 0 2px var(--hud);
+  }
+
+  /* The room at rest draws one dashed zero line under the wave: quiet in a call (long soft dashes), muted
+     (short amber ones, 2px), no signal (danger dots, 2px). It fades as the user's voice fills the wash (VoiceBar
+     writes its opacity). */
+  & .fr:is([data-state="listening"], [data-look~="broken"]) .lalala-zero {
+    display: block;
+    position: absolute;
+    left: 14px;
+    right: 10px;
+    /* Whole periods only, so no stub of a dash at the right end; `right` is the fallback without round(). */
+    width: round(down, 100% - 24px, 12px);
+    top: 50%;
+    height: 1px;
+    background: repeating-linear-gradient(
+      90deg,
+      var(--lalala-zero, color-mix(in srgb, var(--hud) 55%, transparent)) 0
+        var(--lalala-dash, 8px),
+      transparent var(--lalala-dash, 8px) 12px
+    );
+    pointer-events: none;
+  }
+  &:has([data-lalala-mic][data-muted]) .fr:not([data-look~="broken"]) .lalala-zero {
+    --lalala-zero: color-mix(in srgb, var(--lalala-warn) 75%, transparent);
+    --lalala-dash: 4px;
+    height: 2px;
+  }
+
+  /* No signal: the frame's edge in the danger colour instead of a torn slab, the wave gives way to the
+     zero line in danger, no green retry run along the rail (it never rested); the one jolt stays. */
+  & .fr[data-look~="broken"] {
+    --fe: color-mix(in srgb, var(--lalala-danger) 70%, var(--color-surface));
+    --lalala-zero: color-mix(in srgb, var(--lalala-danger) 75%, transparent);
+    --lalala-dash: 3px;
+  }
+  & .fr[data-look~="broken"] .lalala-zero {
+    height: 2px;
+  }
+  /* The accent stays for what is live: no signal dims the call's own tabs and the time; the canvases
+     and the gear still work. */
+  &
+    .fr[data-look~="broken"]
+    :is([data-lalala-input-tab]:not([data-open]), [data-lalala-mic]:not([data-muted]), .fr-tmr) {
+    color: var(--hud-2);
+  }
+  & .fr[data-look~="broken"] :is(.fr-tear, .fr-frag, .fr-wv, .fr-rsw) {
+    display: none;
+  }
+
+  /* On touch the canvas list floats over the tabs' reach; a 2px stem hangs it from its lit tab. */
+  @media (pointer: coarse) {
+    & [data-lalala-canvas-name][data-open] {
+      --lalala-stem: color-mix(in srgb, var(--hud) 60%, transparent);
+      background: linear-gradient(var(--lalala-stem), var(--lalala-stem)) 50% 0 / 2px
+        var(--lalala-hit) no-repeat;
+    }
+  }
+
+  /* The one line over the frame on its own cut-corner plate (an edge layer, the plate 1px in), readable
+     over any card; an error in the danger colour. */
+  & .bar-incoming li {
+    position: relative;
+    isolation: isolate;
+    padding: 4px 12px;
+    color: var(--lala-ink, var(--color-ink));
+    background: var(--lalala-edge, var(--hud-3));
+    clip-path: polygon(6px 0, 100% 0, 100% calc(100% - 6px), calc(100% - 6px) 100%, 0 100%, 0 6px);
+    font-size: 12px;
+    line-height: 1.4;
+    text-shadow: none;
+  }
+  & .bar-incoming li::before {
+    content: "";
+    position: absolute;
+    z-index: -1;
+    inset: 1px;
+    background: var(--color-surface);
+    clip-path: polygon(
+      5.6px 0,
+      100% 0,
+      100% calc(100% - 5.6px),
+      calc(100% - 5.6px) 100%,
+      0 100%,
+      0 5.6px
+    );
+  }
+  & .bar-incoming[data-tone="danger"] li {
+    --lalala-edge: color-mix(in srgb, var(--lalala-danger) 70%, var(--color-surface));
+    color: var(--lalala-danger);
+  }
+}
+
+/* Reduced motion: nothing slides, rises, sweeps or materializes; things just appear. */
+@media (prefers-reduced-motion: reduce) {
+  [data-lalala-presence] .fr[data-look~="draw"] .fr-body::before,
+  [data-lalala-presence] .fr[data-look~="draw"] .fr-body::after {
+    animation: none;
+    display: none;
+  }
+  [data-lalala-presence][data-lalala-live]
+    :is([data-lalala-mic] svg, [data-lalala-input-tab] svg) {
+    animation: none;
+  }
+  [data-lalala-presence] .lalala-tabs > .fr-tab:has(> .fr-tmr:not([hidden])) > .fr-tmr {
+    animation: lalala-fade-in 200ms ease-out;
+  }
+  [data-lalala-presence] [data-lalala-canvas-panel] {
+    animation: none;
+  }
+  [data-lalala-presence] [data-lalala-input-panel][data-state],
+  [data-lalala-presence] [data-lalala-input-tab] > [data-lalala-beam] {
+    animation: none !important;
   }
 }

@@ -34,13 +34,18 @@ export const PRESENCE_STATE: Record<VoiceBarState, { line: string; voice: string
 
 // Nothing moving out of a call: the wave polls instead of drawing every frame (Presence's REST_MS).
 const REST_MS = 100;
-// The user's voice fills the listening wash (voiceBar.css --lalala-voice): their frame level in dB from the
-// room's quiet to a close voice, quick to rise, slow to fall, written only when it moves.
+// The user's voice fills the listening wash (its .lalala-voice layer) and fades the quiet zero line: their
+// frame level in dB from the room's quiet to a close voice, quick to rise, slow to fall, written only when
+// it moves, as opacity and transform on those two layers (composite-only).
 const VOICE_QUIET_DB = -50;
 const VOICE_FULL_DB = -24;
 const VOICE_RISE = 14;
 const VOICE_FALL = 2.5;
 const VOICE_STEP = 0.01;
+// Below this the room counts as quiet: no wash, the zero line shows.
+const VOICE_FLOOR = 0.05;
+const VOICE_STILL = 0.6;
+const VOICE_HOLD_MS = 300;
 
 /**
  * The tabs over the map: Presence's state tab holds only the timer (its glyph stays inside, hidden, so
@@ -52,6 +57,11 @@ function makeStatusTab(frameEl: HTMLElement) {
   const timer = frameEl.querySelector<HTMLElement>("[data-timer]");
   if (tab === null || timer === null) return;
   tab.append(timer);
+  // Presence hides both from readers; here the time is the call's visible duration (hidden out of a call).
+  tab.removeAttribute("aria-hidden");
+  timer.removeAttribute("aria-hidden");
+  timer.setAttribute("role", "timer");
+  timer.setAttribute("aria-label", "Call time");
   const lead = document.createElement("span");
   lead.className = "lalala-lead";
   // Left to right: the input (keyboard and paperclip in one tab, VoiceInput), the mic, the canvases
@@ -76,7 +86,6 @@ function makeStatusTab(frameEl: HTMLElement) {
 }
 
 export type PresenceBarHosts = {
-  readonly slot: HTMLElement | null;
   readonly lead: HTMLElement | null;
   readonly input: { readonly tab: HTMLElement; readonly panel: HTMLElement; readonly bar: HTMLElement } | null;
   readonly mic: HTMLElement | null;
@@ -127,7 +136,6 @@ export function mountPresenceBar(
   map.dataset.lalalaMap = "";
   (frameEl.querySelector(".fr-in") ?? frameEl).append(map);
   const hosts: PresenceBarHosts = {
-    slot: root.querySelector<HTMLElement>("[data-slot]"),
     lead: root.querySelector<HTMLElement>(".lalala-lead"),
     input: inputSlot === null ? null : { tab: inputSlot, panel: frameEl, bar },
     mic: root.querySelector<HTMLElement>(".lalala-mic-slot"),
@@ -136,10 +144,16 @@ export function mountPresenceBar(
     room: root.querySelector<HTMLElement>(".bar-line"),
   };
 
-  const wash = root.querySelector<HTMLElement>("[data-wash]");
+  const voiceEl = document.createElement("i");
+  voiceEl.className = "lalala-voice";
+  root.querySelector("[data-wash]")?.append(voiceEl);
+  const zeroEl = document.createElement("i");
+  zeroEl.className = "lalala-zero";
+  root.querySelector(".bar-line")?.append(zeroEl);
   let voice = 0;
   let voiceSet = 0;
   let voiceAt = performance.now();
+  let heardAt = -Infinity;
   let stopped = false;
   let handle = 0;
   const tick = () => {
@@ -151,18 +165,24 @@ export function mountPresenceBar(
     const dt = Math.min(0.05, (now - voiceAt) / 1000);
     voiceAt = now;
     const db = 20 * Math.log10((analysis?.levels.input ?? 0) / 3 + 1e-9);
-    const to =
-      input.hearing() && !reduced
+    if (input.hearing()) heardAt = now;
+    // Reduced motion: a still wash while the user talks, held a moment so a flickering voice doesn't blink it.
+    const to = reduced
+      ? now - heardAt < VOICE_HOLD_MS
+        ? VOICE_STILL
+        : 0
+      : input.hearing()
         ? Math.min(1, Math.max(0, (db - VOICE_QUIET_DB) / (VOICE_FULL_DB - VOICE_QUIET_DB)))
         : 0;
-    voice += (to - voice) * (1 - Math.exp(-(to > voice ? VOICE_RISE : VOICE_FALL) * dt));
-    const shown = voice < VOICE_STEP ? 0 : voice;
-    if (
-      wash !== null &&
-      (Math.abs(shown - voiceSet) >= VOICE_STEP || (shown === 0) !== (voiceSet === 0))
-    ) {
+    voice = reduced
+      ? to
+      : voice + (to - voice) * (1 - Math.exp(-(to > voice ? VOICE_RISE : VOICE_FALL) * dt));
+    const shown = voice < VOICE_FLOOR ? 0 : voice;
+    if (Math.abs(shown - voiceSet) >= VOICE_STEP || (shown === 0) !== (voiceSet === 0)) {
       voiceSet = shown;
-      wash.style.setProperty("--lalala-voice", shown.toFixed(3));
+      voiceEl.style.opacity = shown.toFixed(3);
+      voiceEl.style.transform = `scale(${(0.45 + 0.7 * shown).toFixed(3)}, ${(0.75 + 0.4 * shown).toFixed(3)})`;
+      zeroEl.style.opacity = Math.max(0, 1 - 4 * shown).toFixed(3);
     }
     handle =
       analysis === null && light.resting
@@ -190,6 +210,8 @@ export function showPresenceState(
   frame: PresenceFrame | null,
   input: {
     readonly state: VoiceBarState;
+    /** A call is on: an error then is Presence's reconnecting, so the call's clock keeps running. */
+    readonly live: boolean;
     readonly label: string;
     readonly disabled: boolean;
     readonly message: string | null;
@@ -197,7 +219,11 @@ export function showPresenceState(
     readonly streamer: boolean;
   },
 ) {
-  frame?.state(PRESENCE_STATE[input.state]);
+  frame?.state(
+    input.state === "error" && input.live
+      ? { line: "error", voice: "reconnecting" }
+      : PRESENCE_STATE[input.state],
+  );
   showSweep(PRESENCE_STATE[input.state].line === "thinking");
   const talk = root.querySelector<HTMLButtonElement>("[data-talk]");
   if (talk) {
@@ -207,7 +233,10 @@ export function showPresenceState(
   // One quiet line over the frame, only for something the user must know (Presence's .bar-incoming).
   const incoming = root.querySelector<HTMLElement>("[data-incoming]");
   if (incoming) {
+    incoming.setAttribute("role", "status");
     incoming.hidden = input.message === null;
+    if (input.state === "error") incoming.dataset.tone = "danger";
+    else delete incoming.dataset.tone;
     const line = document.createElement("li");
     const text = document.createElement("span");
     if (input.streamer) text.dataset.streamerText = "";

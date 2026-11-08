@@ -1,4 +1,4 @@
-import { type ReactNode, useEffect, useEffectEvent, useRef, useState } from "react";
+import { useEffect, useEffectEvent, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 
 import type { ModelProgress } from "./adapters";
@@ -23,8 +23,7 @@ export type { VoiceBarAnalysis, VoiceBarState };
 
 /**
  * The voice control: Presence's call frame itself (presence/, green instead of red), driven by lalala's state and audio.
- * The room is the one tap target (no key: T3's composer is right there); `toggle` sits in a small
- * tab on the top edge at the left.
+ * The room is the one tap target (no key: T3's composer is right there).
  */
 export function VoiceBar(props: {
   readonly state: VoiceBarState;
@@ -32,8 +31,6 @@ export function VoiceBar(props: {
   readonly disabled: boolean;
   readonly label: string;
   readonly onPress: () => void;
-  /** Small controls for the slot tab on the top edge. */
-  readonly toggle?: ReactNode;
   /** This frame's audio for the wave; null while voice is off. */
   readonly analysis?: () => VoiceBarAnalysis | null;
   /** Bump to show Presence's "stopped" look (a reply cut off by the user). */
@@ -92,19 +89,19 @@ export function VoiceBar(props: {
     if (root === null) return;
     showPresenceState(root, frameRef.current, {
       state: props.state,
+      live: props.live ?? false,
       label: props.label,
       disabled: props.disabled,
       message: message ?? null,
       streamer,
     });
-  }, [props.state, props.label, props.disabled, message, streamer]);
+  }, [props.state, props.live, props.label, props.disabled, message, streamer]);
 
   // oxlint-disable-next-line t3code/no-unreasoned-state-sync -- Presence's stopped look when the user cuts a reply off
   useEffect(() => {
     if (props.stoppedAt) frameRef.current?.stopped();
   }, [props.stoppedAt]);
 
-  const slot = hosts?.slot ?? null;
   const lead = hosts?.lead ?? null;
   const micHost = hosts?.mic ?? null;
   const inputHosts = hosts?.input ?? null;
@@ -120,6 +117,8 @@ export function VoiceBar(props: {
         data-lalala-presence=""
         // PhoneBuildReload reads this: no reload unless voice is off.
         data-voice-state={props.state}
+        // The call's tabs (input, mic) are live by this, not by Presence's timer.
+        data-lalala-live={props.live ? "" : undefined}
         data-lalala-off={offline !== null ? "" : undefined}
       />
       {room !== null && offline !== null
@@ -132,7 +131,6 @@ export function VoiceBar(props: {
             room,
           )
         : null}
-      {slot !== null ? createPortal(props.toggle, slot) : null}
       {inputHosts !== null && props.downloads
         ? createPortal(<Downloads models={props.downloads} />, inputHosts.panel)
         : null}
@@ -154,11 +152,12 @@ export function VoiceBar(props: {
             <button
               type="button"
               data-lalala-mic=""
+              data-lalala-tab=""
               aria-hidden={!props.live}
               tabIndex={props.live ? undefined : -1}
               data-muted={props.muted ? "" : undefined}
               aria-pressed={props.muted ?? false}
-              aria-label={props.muted ? "Unmute microphone" : "Mute microphone"}
+              aria-label="Mute microphone"
               onClick={props.onMute}
             >
               <svg viewBox="0 0 24 24" aria-hidden="true">

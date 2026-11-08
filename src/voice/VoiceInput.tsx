@@ -8,6 +8,9 @@ import { createPortal } from "react-dom";
 import { prepareImageForAttachment } from "~/lib/imageCompression";
 import { randomUUID } from "~/lib/utils";
 
+import { liftOverKeyboard } from "./keyboardLift";
+import { StreamerText } from "./streamerMode";
+
 /** A file T3 already holds as a pending upload; the send claims it for the voice thread. */
 export type VoiceFileRef = {
   readonly type: "file";
@@ -69,6 +72,7 @@ export function VoiceInput(props: {
   const [busy, setBusy] = useState(false);
   const [problem, setProblem] = useState<string | null>(null);
   const fieldRef = useRef<HTMLTextAreaElement>(null);
+  const tabRef = useRef<HTMLButtonElement>(null);
   const fileRef = useRef<HTMLInputElement>(null);
   // Every tile's object URL and running upload, freed when its tile goes or the bar does.
   const [urls] = useState(() => new Set<string>());
@@ -154,7 +158,11 @@ export function VoiceInput(props: {
     const still = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
     setPhase((current) => (current === "closed" || still ? "closed" : "closing"));
   };
-  const closeByKey = useEffectEvent(() => close());
+  // Esc from the field hands focus back to the tab that opened it.
+  const closeByKey = useEffectEvent(() => {
+    close();
+    tabRef.current?.focus();
+  });
 
   // The call ending closes an open field (played back) before the tabs empty.
   const [wasLive, setWasLive] = useState(props.live);
@@ -186,6 +194,9 @@ export function VoiceInput(props: {
     for (const item of picked) if (item.kind === "image") free(item);
     setPicked([]);
     setText("");
+    // The field goes away under a keyboard's focus: hand it to the tab.
+    if (fieldRef.current?.closest("[data-lalala-input-panel]")?.contains(document.activeElement))
+      tabRef.current?.focus();
     close();
   };
 
@@ -224,34 +235,15 @@ export function VoiceInput(props: {
   // oxlint-disable-next-line t3code/no-unreasoned-state-sync -- while open: Esc closes from anywhere, and the phone keyboard (visual viewport) lifts the bar over itself
   useEffect(() => {
     if (!open) return;
-    // The field's text is under 16px, which makes iOS zoom in on focus; capping the page's scale while
-    // the field is open stops that (iOS still lets the user pinch-zoom).
-    const viewportMeta = document.querySelector<HTMLMetaElement>('meta[name="viewport"]');
-    const viewportBefore = viewportMeta?.content ?? null;
-    if (viewportMeta && !/maximum-scale/.test(viewportMeta.content))
-      viewportMeta.content = `${viewportMeta.content}, maximum-scale=1`;
     fieldRef.current?.focus();
-    const bar = props.bar;
     const onKey = (event: KeyboardEvent) => {
       if (event.key === "Escape") closeByKey();
     };
-    const viewport = window.visualViewport;
-    const lift = () => {
-      if (!viewport) return;
-      const keyboard = Math.round(window.innerHeight - viewport.height - viewport.offsetTop);
-      if (keyboard > 40) bar.style.setProperty("--kb", `${keyboard}px`);
-      else bar.style.removeProperty("--kb");
-    };
     document.addEventListener("keydown", onKey);
-    viewport?.addEventListener("resize", lift);
-    viewport?.addEventListener("scroll", lift);
-    lift();
+    const drop = liftOverKeyboard(props.bar);
     return () => {
       document.removeEventListener("keydown", onKey);
-      viewport?.removeEventListener("resize", lift);
-      viewport?.removeEventListener("scroll", lift);
-      bar.style.removeProperty("--kb");
-      if (viewportMeta && viewportBefore !== null) viewportMeta.content = viewportBefore;
+      drop();
     };
   }, [open, props.bar]);
 
@@ -265,11 +257,22 @@ export function VoiceInput(props: {
       ? null
       : uploading.reduce((sum, item) => sum + item.progress, 0) / uploading.length;
 
+  const tabLabel =
+    uploadProgress !== null
+      ? `Uploading, ${Math.round(uploadProgress * 100)}%`
+      : failed
+        ? "An upload failed"
+        : open
+          ? "Close input"
+          : "Type or attach for the voice thread";
+
   const tabs = (
     <>
       <button
         type="button"
+        ref={tabRef}
         data-lalala-input-tab=""
+        data-lalala-tab=""
         data-open={open ? "" : undefined}
         data-state={phase}
         data-failed={failed ? "" : undefined}
@@ -281,15 +284,7 @@ export function VoiceInput(props: {
         aria-expanded={open}
         aria-hidden={!props.live}
         tabIndex={props.live ? undefined : -1}
-        aria-label={
-          uploadProgress !== null
-            ? `Uploading, ${Math.round(uploadProgress * 100)}%`
-            : failed
-              ? "An upload failed"
-              : open
-                ? "Close input"
-                : "Type or attach for the voice thread"
-        }
+        aria-label={tabLabel}
         onClick={() => (open ? close() : setPhase("open"))}
       >
         <i aria-hidden="true" />
@@ -305,7 +300,9 @@ export function VoiceInput(props: {
           <rect x="2.5" y="5.5" width="19" height="13" rx="1.5" />
           <path d="M6.5 9.5h.01M10 9.5h.01M13.5 9.5h.01M17 9.5h.01M6.5 12.5h.01M17 12.5h.01M10 12.5h4M8 15.5h8" />
         </svg>
-        {uploadProgress !== null ? <s data-lalala-upload-bar="" aria-hidden="true" /> : null}
+        {props.live && (uploadProgress !== null || failed) ? (
+          <s data-lalala-upload-bar="" aria-hidden="true" />
+        ) : null}
       </button>
       {/* Outside the field, so it stays mounted while the field plays back. */}
       <input
@@ -342,7 +339,9 @@ export function VoiceInput(props: {
                   <img src={item.url} alt="" />
                 ) : (
                   <span>
-                    <span>{item.name}</span>
+                    <span>
+                      <StreamerText text={item.name} />
+                    </span>
                     <span>
                       {item.failed
                         ? "failed"
@@ -363,7 +362,14 @@ export function VoiceInput(props: {
             ))}
           </ul>
         ) : null}
-        {problem !== null ? <p data-lalala-input-problem="">{problem}</p> : null}
+        {/* Mounted with the field, so a reader hears a problem as it appears. */}
+        <p
+          data-lalala-input-problem=""
+          data-empty={problem === null ? "" : undefined}
+          role="status"
+        >
+          {problem}
+        </p>
         <div data-lalala-input-field="">
           <div>
             <textarea

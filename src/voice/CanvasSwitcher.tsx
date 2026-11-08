@@ -1,5 +1,12 @@
 import { useLocation } from "@tanstack/react-router";
-import { type CSSProperties, useEffect, useRef, useState, useSyncExternalStore } from "react";
+import {
+  type CSSProperties,
+  type MouseEvent as ReactMouseEvent,
+  useEffect,
+  useRef,
+  useState,
+  useSyncExternalStore,
+} from "react";
 import { createPortal } from "react-dom";
 
 import { ensureLocalApi } from "../localApi";
@@ -28,11 +35,16 @@ export function CanvasTabs(props: {
   // Open: the list's right edge, px in from the frame's, so it rises over the name tab.
   const [openAt, setOpenAt] = useState<number | null>(null);
   const [renaming, setRenaming] = useState(false);
+  // Opened from the keyboard: focus starts on the open canvas's row.
+  const [byKey, setByKey] = useState(false);
   const tabsRef = useRef<HTMLSpanElement>(null);
+  const tabRef = useRef<HTMLButtonElement>(null);
   const panelRef = useRef<HTMLDivElement>(null);
   const open = openAt !== null;
   const editing = renaming && open;
+  // Focus inside the list goes back to the tab, never to the page.
   const close = () => {
+    if (panelRef.current?.contains(document.activeElement)) tabRef.current?.focus();
     setOpenAt(null);
     setRenaming(false);
   };
@@ -49,6 +61,7 @@ export function CanvasTabs(props: {
     };
     const onKey = (event: KeyboardEvent) => {
       if (event.key !== "Escape") return;
+      if (panelRef.current?.contains(document.activeElement)) tabRef.current?.focus();
       setOpenAt(null);
       setRenaming(false);
     };
@@ -67,10 +80,11 @@ export function CanvasTabs(props: {
   if (!onCanvas || canvases === null || api === undefined) return null;
   const current = canvases.list.find((canvas) => canvas.id === canvases.active);
 
-  const toggle = () => {
+  const toggle = (event: ReactMouseEvent) => {
     if (open) return close();
     const tabs = tabsRef.current;
     if (tabs === null) return;
+    setByKey(event.detail === 0);
     const frame = props.panelHost.getBoundingClientRect();
     setOpenAt(Math.max(0, Math.round(frame.right - tabs.getBoundingClientRect().right)));
   };
@@ -78,8 +92,10 @@ export function CanvasTabs(props: {
   const tabs = (
     <span ref={tabsRef} data-lalala-canvas-tabs="">
       <button
+        ref={tabRef}
         type="button"
         data-lalala-canvas-name=""
+        data-lalala-tab=""
         data-open={open ? "" : undefined}
         aria-expanded={open}
         aria-label={`Canvases (${current?.name ?? "none"})`}
@@ -115,6 +131,8 @@ export function CanvasTabs(props: {
                   }}
                   onFocus={(event) => event.currentTarget.select()}
                   onKeyDown={(event) => {
+                    // Finished from the keyboard: the row that replaces the field takes focus.
+                    if (event.key === "Enter" || event.key === "Escape") setByKey(true);
                     if (event.key === "Enter") event.currentTarget.blur();
                     if (event.key === "Escape") {
                       // Leaves the list open: Esc here only drops the edit.
@@ -128,6 +146,7 @@ export function CanvasTabs(props: {
                 <button
                   type="button"
                   aria-current={canvas.id === canvases.active}
+                  autoFocus={byKey && canvas.id === canvases.active}
                   onClick={() => {
                     api.select(canvas.id);
                     close();

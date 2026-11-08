@@ -187,6 +187,7 @@ export function VoiceSettings(props: {
           ref={tabRef}
           type="button"
           data-lalala-settings-tab=""
+          data-lalala-tab=""
           data-open={open ? "" : undefined}
           aria-expanded={open}
           aria-label="Voice settings"
