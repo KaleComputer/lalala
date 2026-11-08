@@ -15,7 +15,7 @@ const snapshot = () => globalThis.__lalalaCanvases?.snapshot() ?? null;
 
 /**
  * The canvas's tab in the device bar's row: a stacked-layers icon, which raises its list over the bar
- * (the open canvas named on top, switch, New, Rename, Tidy, Delete). On /canvas, live in and out of a
+ * (switch, New, Rename, Tidy, Delete). On /canvas, live in and out of a
  * call and offline too, like the gear. Follow lives in the settings.
  */
 export function CanvasTabs(props: {
@@ -100,14 +100,6 @@ export function CanvasTabs(props: {
       data-lalala-canvas-panel=""
       style={{ "--lalala-canvas-at": `${openAt}px` } as CSSProperties}
     >
-      {current ? (
-        <p data-lalala-canvas-head="">
-          <span>Canvas</span>
-          <span>
-            <StreamerText text={current.name} />
-          </span>
-        </p>
-      ) : null}
       {canvases.list.length > 0 ? (
         <ul>
           {canvases.list.map((canvas) => (

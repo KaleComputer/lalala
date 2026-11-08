@@ -607,9 +607,6 @@
   background: var(--lalala-fill);
   clip-path: polygon(5.4px 0, calc(100% - 5.4px) 0, 100% 5.4px, 100% 100%, 0 100%, 0 5.4px);
 }
-[data-lalala-presence] [data-lalala-canvas-head] + ul {
-  clip-path: none;
-}
 [data-lalala-presence] [data-lalala-canvas-panel] li > button {
   display: flex;
   align-items: center;
@@ -656,32 +653,6 @@
   stroke-width: 3;
   stroke-linecap: round;
   stroke-linejoin: round;
-}
-/* The open canvas's name, heading the list (the tab itself only shows the icon). */
-[data-lalala-presence] [data-lalala-canvas-head] {
-  display: flex;
-  align-items: baseline;
-  gap: 8px;
-  margin: 0;
-  padding: 6px 10px 5px;
-  color: var(--hud);
-  background: var(--lalala-fill);
-  font: 400 var(--tab-fs) / 1.2 var(--font-mono);
-  letter-spacing: 0.1em;
-  text-transform: uppercase;
-  white-space: nowrap;
-  clip-path: polygon(5.4px 0, calc(100% - 5.4px) 0, 100% 5.4px, 100% 100%, 0 100%, 0 5.4px);
-}
-[data-lalala-presence] [data-lalala-canvas-head] > span:first-child {
-  flex: none;
-  color: var(--hud-3);
-  font-size: calc(var(--tab-fs) - 2px);
-  letter-spacing: 0.14em;
-}
-[data-lalala-presence] [data-lalala-canvas-head] > span + span {
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
 }
 [data-lalala-presence] [data-lalala-canvas-panel] li > button:is(:hover, :focus-visible) {
   outline: 0;
