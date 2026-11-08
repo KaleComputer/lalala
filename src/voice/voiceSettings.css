@@ -900,12 +900,7 @@
     padding: env(safe-area-inset-top) 0 0;
     border: 0;
     border-radius: 0;
-  }
-  [data-lalala-settings-panel] {
     grid-template: "header" auto "body" minmax(0, 1fr) / minmax(0, 1fr);
-  }
-  [data-lalala-settings-nav] {
-    grid-area: body;
   }
   /* The list: T3's phone settings, the pages as one group with their values and a chevron. */
   [data-view="list"] [data-lalala-settings-body],
@@ -913,15 +908,13 @@
     display: none;
   }
   [data-lalala-settings-nav] {
-    flex: 1;
+    grid-area: body;
     width: auto;
-    gap: 0;
     padding: 16px var(--s-page) calc(48px + env(safe-area-inset-bottom));
     border: 0;
     background: none;
   }
   [data-lalala-settings-pages] {
-    flex-shrink: 0;
     display: block;
     overflow: hidden;
     border: 1px solid var(--s-border);
@@ -961,6 +954,7 @@
   }
   [data-lalala-settings-nav] button > small {
     max-width: 45%;
+    margin-right: 4px;
     overflow: hidden;
     color: var(--s-fg-2);
     font: 400 var(--s-text-sm) / 20px var(--s-sans);

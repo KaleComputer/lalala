@@ -331,11 +331,10 @@ export function useSoundValue(): string {
       : soundTitle(topicSound);
 }
 
-/** Streamer mode or following, beside Canvas in the phone's list. */
+/** Whether the canvas follows the voice, beside Canvas in the phone's list. */
 export function useCanvasValue(): string {
-  const streamer = useStreamerMode();
   const following = useSyncExternalStore(subscribeFollow, isFollowing, () => false);
-  return streamer ? "Streamer mode" : following ? "Following" : "Not following";
+  return following ? "Following the voice" : "Not following";
 }
 
 function SettingsSheet(props: {
