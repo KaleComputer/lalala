@@ -106,6 +106,13 @@ export function pairWithLink(link) {
   return exchange(url.origin, token, "link");
 }
 
+/** Pairs with this machine's T3 (the one `t3Origin` finds) using a bare code from T3 Code's Copy code. */
+export function pairWithCode(code) {
+  const token = String(code).trim();
+  if (!token) throw new Error("The code is empty");
+  return exchange(localOrigin(), token, "local");
+}
+
 /** Forgets the stored session; T3 Code's Connections settings can revoke it on the server. */
 export function forgetSession() {
   NodeFS.rmSync(SESSION_FILE, { force: true });

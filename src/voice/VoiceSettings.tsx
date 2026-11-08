@@ -17,7 +17,7 @@ import { useVoiceBrainContext } from "../state/voiceBrainContext";
 import { formatTokens, useSharedBrainThread } from "./brainCompaction";
 import { ConnectedRows, PairSteps } from "./ConnectFlow";
 import { isFollowing, setFollowing, subscribeFollow } from "./follow";
-import { pairingLink } from "./pairing";
+import { isPairingCode, pairingLink } from "./pairing";
 import { StreamerText, useStreamerMode } from "./streamerMode";
 import { topicChime } from "./player";
 import {
@@ -832,7 +832,8 @@ function ConnectionSection(props: { readonly onChange: () => void }) {
           problem={problem}
           onPair={(input) => {
             try {
-              pair({ link: pairingLink(input) });
+              // A bare code is for the T3 the app's server already talks to, whatever its port.
+              pair(isPairingCode(input) ? { code: input.trim() } : { link: pairingLink(input) });
             } catch (cause) {
               setProblem(describe(cause));
             }

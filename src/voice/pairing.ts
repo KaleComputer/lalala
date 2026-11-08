@@ -7,9 +7,12 @@ const DEFAULT_ORIGIN = "http://127.0.0.1:3773";
  * its hosted form (`…/pair?host=…#token=…`), a `t3code://pair?pairingUrl=…` link, or the desktop's own
  * `t3code://app/pair#token=…`, which names no server: codes and those go to T3's default address.
  */
+/** A bare code (T3 Code's Copy code), with no server named in it. */
+export const isPairingCode = (input: string) => /^[A-Za-z0-9_-]{6,}$/.test(input.trim());
+
 export function readPairing(input: string): { origin: string; token: string } {
   const value = input.trim();
-  if (/^[A-Za-z0-9_-]{6,}$/.test(value)) return { origin: DEFAULT_ORIGIN, token: value };
+  if (isPairingCode(value)) return { origin: DEFAULT_ORIGIN, token: value };
   let url: URL;
   try {
     url = new URL(value);

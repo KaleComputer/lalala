@@ -10,6 +10,7 @@ import {
   canPairLocal,
   forgetSession,
   pair,
+  pairWithCode,
   pairWithLink,
   sessionInfo,
   t3Origin,
@@ -385,8 +386,9 @@ export function t3BridgePlugin({ threadId: configuredThreadId, workspaceRoot }) 
 
   async function pairAndConnect(body) {
     if (typeof body?.link === "string") await pairWithLink(body.link);
+    else if (typeof body?.code === "string") await pairWithCode(body.code);
     else if (body?.local === true) await pair();
-    else throw new Error("Give a pairing link");
+    else throw new Error("Give a pairing link or code");
     const settled = new Promise((resolve) => {
       helloWaiters.add(resolve);
       setTimeout(resolve, 8_000);
