@@ -207,6 +207,7 @@ function isInterruption(heard: string, spoken: ReadonlyArray<string>): boolean {
 export class VoiceSession {
   private stream: MediaStream | null = null;
   private context: AudioContext | null = null;
+  private sessionBefore: string | null = null;
   private capture: AudioWorkletNode | null = null;
   private microphone: MediaStreamAudioSourceNode | null = null;
   private windCut: BiquadFilterNode | null = null;
@@ -484,7 +485,10 @@ export class VoiceSession {
     this.context = context;
     void context.resume();
     const audioSession = (navigator as { audioSession?: { type: string } }).audioSession;
-    if (audioSession !== undefined) audioSession.type = "play-and-record";
+    if (audioSession !== undefined) {
+      this.sessionBefore = audioSession.type;
+      audioSession.type = "play-and-record";
+    }
     this.engine = speechEngine();
     this.stt.warm();
     this.stream = await this.openMic();
@@ -569,6 +573,12 @@ export class VoiceSession {
     if (this.capture !== null) this.capture.port.onmessage = null;
     for (const track of this.stream?.getTracks() ?? []) track.stop();
     void this.context?.close();
+    // iOS keeps a play-and-record session after the call, and other audio on the page then plays distorted.
+    const audioSession = (navigator as { audioSession?: { type: string } }).audioSession;
+    if (audioSession?.type === "play-and-record" && this.sessionBefore !== null) {
+      audioSession.type = this.sessionBefore;
+    }
+    this.sessionBefore = null;
     this.stream = null;
     this.context = null;
     this.capture = null;
