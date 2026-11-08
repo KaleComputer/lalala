@@ -94,7 +94,7 @@ export function VoiceBar(props: {
       state: props.state,
       label: props.label,
       disabled: props.disabled,
-      message,
+      message: message ?? null,
       streamer,
     });
   }, [props.state, props.label, props.disabled, message, streamer]);

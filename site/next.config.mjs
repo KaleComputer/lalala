@@ -34,6 +34,7 @@ const config = {
       // The browser speech adapter's workers (src/voice/adapters/speech) use the site's packages.
       "kokoro-js": "./node_modules/kokoro-js/dist/kokoro.js",
       "parakeet.js": "./node_modules/parakeet.js/src/index.js",
+      "@base-ui/react/*": "./node_modules/@base-ui/react/*",
     },
   },
   env: { LALALA_TOPIC_SOUNDS: topicSounds.join(",") },

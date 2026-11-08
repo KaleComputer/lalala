@@ -74,6 +74,9 @@
       "tailwind-merge": [
         "./node_modules/tailwind-merge"
       ],
+      "@base-ui/react/*": [
+        "./node_modules/@base-ui/react/*"
+      ],
       "heic-to/csp": [
         "./node_modules/heic-to/dist/csp/heic-to.d.ts"
       ]

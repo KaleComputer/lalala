@@ -232,7 +232,7 @@ export const closeVoiceSettings = () => setOpenAt(null);
 /** How long a fresh pairing shows Connected before the sheet closes and the call starts. */
 export const CONNECTED_HOLD_MS = 1500;
 /** Calls `listener` whenever the settings sheet closes. */
-export const onVoiceSettingsClosed = (listener: () => void) =>
+export const onVoiceSettingsClosed = (listener: () => void): (() => void) =>
   subscribeOpen(() => {
     if (openAt === null) listener();
   });
