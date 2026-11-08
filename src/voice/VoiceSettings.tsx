@@ -4,6 +4,8 @@ import {
   type ReactNode,
   useCallback,
   useEffect,
+  useEffectEvent,
+  useLayoutEffect,
   useId,
   useRef,
   useState,
@@ -130,6 +132,20 @@ function carryOptions(model: Model | undefined, from: Record<string, OptionValue
   );
 }
 
+const OPTION_TITLES: Record<string, string> = {
+  effort: "Reasoning",
+  reasoningEffort: "Reasoning",
+  fastMode: "Fast Mode",
+  serviceTier: "Service Tier",
+};
+const optionText = (value: OptionValue) =>
+  typeof value === "boolean"
+    ? value
+      ? "On"
+      : "Off"
+    : value.charAt(0).toUpperCase() + value.slice(1);
+const soundTitle = (name: string) => optionText(name.replaceAll("-", " "));
+
 const modelKey = (instanceId: string, slug: string) => `${instanceId}\n${slug}`;
 const splitKey = (key: string) => {
   const [instanceId = "", slug = ""] = key.split("\n");
@@ -239,15 +255,17 @@ function SettingsSheet(props: {
   readonly children: ReactNode;
 }) {
   const panelRef = useRef<HTMLDivElement>(null);
-  const onClose = props.onClose;
+  const onClose = useEffectEvent(props.onClose);
 
   // oxlint-disable-next-line t3code/no-unreasoned-state-sync -- scrolls the sheet (DOM) to the section it was opened at
   useEffect(() => {
     if (props.section === "") return;
-    const headings = panelRef.current?.querySelectorAll("[data-lalala-settings-section] > h2") ?? [];
+    const headings =
+      panelRef.current?.querySelectorAll("[data-lalala-settings-heading] > h2") ?? [];
     [...headings]
       .find((heading) => heading.textContent === props.section)
-      ?.parentElement?.scrollIntoView({ block: "start" });
+      ?.closest("[data-lalala-settings-section]")
+      ?.scrollIntoView({ block: "start" });
   }, [props.section]);
 
   // oxlint-disable-next-line t3code/no-unreasoned-state-sync -- takes the newest synced settings while the sheet is open; Esc closes it
@@ -276,10 +294,10 @@ function SettingsSheet(props: {
     };
     document.addEventListener("keydown", onKey);
     return () => document.removeEventListener("keydown", onKey);
-  }, [onClose]);
+  }, []);
 
   return (
-    <div data-lalala-settings="" onClick={onClose}>
+    <div data-lalala-settings="" onClick={props.onClose}>
       <div
         ref={panelRef}
         role="dialog"
@@ -295,7 +313,7 @@ function SettingsSheet(props: {
             <span aria-hidden="true">/</span>
             <span>Voice</span>
           </h1>
-          <button type="button" aria-label="Close settings" onClick={onClose}>
+          <button type="button" aria-label="Close settings" onClick={props.onClose}>
             <svg viewBox="0 0 24 24" aria-hidden="true">
               <path d="M18 6 6 18M6 6l12 12" />
             </svg>
@@ -310,6 +328,10 @@ function SettingsSheet(props: {
 /** The app's sections: the harness connection, the brain's and new threads' models, sound, canvas. */
 function AppSections() {
   const [brain, setBrain] = useState<BrainState>({ kind: "loading" });
+  const savingRef = useRef(false);
+  const brainRevision = useRef(0);
+  const retryGroup = useRef<HTMLElement | null>(null);
+  const [retrying, setRetrying] = useState(false);
 
   // oxlint-disable-next-line t3code/no-unreasoned-state-sync -- reads the brain thread's model and T3's models from the dev server while the sheet is open
   useEffect(() => {
@@ -322,9 +344,36 @@ function AppSections() {
     };
   }, []);
 
-  const configureBrain = (selection: Selection) => {
+  // oxlint-disable-next-line t3code/no-unreasoned-state-sync -- transfer focus from the retry row only if it still held focus when the request finished
+  useLayoutEffect(() => {
     if (brain.kind !== "ready") return;
+    retryGroup.current
+      ?.querySelector<HTMLElement>("[data-lalala-settings-pick]:not(:disabled)")
+      ?.focus({ preventScroll: true });
+    retryGroup.current = null;
+  }, [brain.kind]);
+
+  const retryBrain = (control?: HTMLButtonElement) => {
+    if (savingRef.current || retrying || (brain.kind !== "error" && brain.kind !== "missing"))
+      return;
+    setRetrying(true);
+    const revision = brainRevision.current;
+    void fetchBrain().then((next) => {
+      setRetrying(false);
+      if (revision !== brainRevision.current) return;
+      if (next.kind === "ready" && control?.matches(":focus")) {
+        retryGroup.current = control.closest("[data-lalala-settings-group]");
+      }
+      setBrain(next);
+    });
+  };
+
+  const configureBrain = (selection: Selection) => {
+    if (brain.kind !== "ready" && brain.kind !== "error") return;
     const before = brain.brain;
+    if (before === null || savingRef.current) return;
+    savingRef.current = true;
+    brainRevision.current++;
     setBrain({ kind: "ready", brain: { ...before, modelSelection: selection }, saving: true });
     void fetch(BRAIN_ROUTE, {
       method: "POST",
@@ -339,18 +388,24 @@ function AppSections() {
             : { kind: "error", message: body.error ?? "T3 refused the change", brain: before },
         );
       })
-      .catch((cause: unknown) =>
-        setBrain({ kind: "error", message: String(cause), brain: before }),
-      );
+      .catch((cause: unknown) => setBrain({ kind: "error", message: String(cause), brain: before }))
+      .finally(() => {
+        savingRef.current = false;
+      });
   };
 
   const known = brain.kind === "ready" ? brain.brain : brain.kind === "error" ? brain.brain : null;
 
   return (
     <>
-      <ConnectionSection onChange={() => void fetchBrain().then(setBrain)} />
-      <BrainSection state={brain} onConfigure={configureBrain} />
-      <ThreadsSection brain={known} />
+      <ConnectionSection onChange={() => retryBrain()} />
+      <BrainSection
+        state={brain}
+        onConfigure={configureBrain}
+        retrying={retrying}
+        onRetry={retryBrain}
+      />
+      <ThreadsSection brain={known} loading={brain.kind === "loading" || retrying} />
       <SoundSection />
       <CanvasRows />
     </>
@@ -360,17 +415,29 @@ function AppSections() {
 /** T3 Code's settings section: a title, then its rows in one group. A note stands in for the rows. */
 export function Section(props: {
   readonly title: string;
+  readonly status?: string | null;
+  readonly ungrouped?: boolean;
   readonly note?: ReactNode;
   readonly children?: ReactNode;
 }) {
   const id = useId();
+  const content = (
+    <>
+      {props.note ? <p data-lalala-settings-info="">{props.note}</p> : null}
+      {props.children}
+    </>
+  );
   return (
     <section data-lalala-settings-section="" aria-labelledby={id}>
-      <h2 id={id}>{props.title}</h2>
-      <div data-lalala-settings-group="">
-        {props.note ? <p data-lalala-settings-info="">{props.note}</p> : null}
-        {props.children}
+      <div data-lalala-settings-heading="">
+        <h2 id={id}>{props.title}</h2>
+        <span aria-live="polite">{props.status}</span>
       </div>
+      {props.ungrouped ? (
+        content
+      ) : props.note || props.children ? (
+        <div data-lalala-settings-group="">{content}</div>
+      ) : null}
     </section>
   );
 }
@@ -383,11 +450,12 @@ export function Row(props: {
   readonly title: string;
   readonly description?: ReactNode;
   readonly onReset?: (() => void) | undefined;
+  readonly error?: boolean;
   readonly children: ReactNode | ((describedBy: string | undefined) => ReactNode);
-  readonly below?: ReactNode;
 }) {
   const id = useId();
   const describedBy = props.description ? id : undefined;
+  const controlRef = useRef<HTMLDivElement>(null);
   return (
     <div data-lalala-settings-row="">
       <div>
@@ -401,7 +469,12 @@ export function Row(props: {
                     type="button"
                     aria-label={`Reset ${props.title} to default`}
                     data-lalala-settings-reset=""
-                    onClick={props.onReset}
+                    onClick={() => {
+                      controlRef.current
+                        ?.querySelector<HTMLElement>("[data-lalala-settings-pick], input")
+                        ?.focus({ preventScroll: true });
+                      props.onReset?.();
+                    }}
                   />
                 }
               >
@@ -413,12 +486,19 @@ export function Row(props: {
             </Tooltip>
           ) : null}
         </div>
-        {props.description ? <p id={id}>{props.description}</p> : null}
+        {props.description ? (
+          <p
+            id={id}
+            role={props.error ? "alert" : undefined}
+            data-lalala-settings-error={props.error ? "" : undefined}
+          >
+            {props.description}
+          </p>
+        ) : null}
       </div>
-      <div data-lalala-settings-control="">
+      <div ref={controlRef} data-lalala-settings-control="">
         {typeof props.children === "function" ? props.children(describedBy) : props.children}
       </div>
-      {props.below}
     </div>
   );
 }
@@ -428,6 +508,7 @@ function Toggle(props: {
   readonly label: string;
   readonly describedBy: string | undefined;
   readonly disabled?: boolean | undefined;
+  readonly busy?: boolean | undefined;
   readonly onChange: (on: boolean) => void;
 }) {
   return (
@@ -438,8 +519,11 @@ function Toggle(props: {
       aria-label={props.label}
       aria-describedby={props.describedBy}
       disabled={props.disabled}
+      aria-disabled={props.busy || undefined}
       data-lalala-settings-switch=""
-      onClick={() => props.onChange(!props.on)}
+      onClick={() => {
+        if (!props.busy) props.onChange(!props.on);
+      }}
     >
       <span />
     </button>
@@ -449,6 +533,7 @@ function Toggle(props: {
 type PickOption = {
   readonly value: string;
   readonly label: string;
+  readonly detail?: string | undefined;
   /** The row gets a play button (onPlay). */
   readonly playable?: boolean;
   /** The label can identify the user (a device name, a project title): streamer mode scrambles it. */
@@ -489,11 +574,7 @@ function playTopicSound(name: string): void {
   source.start();
 }
 
-/**
- * A row whose control picks one of a list, in the panel's own look instead of the browser's select:
- * the button shows the choice, the list opens inline under the row (no popover to clip, no iOS wheel).
- * Arrows, Home/End, Enter and Esc work like a listbox.
- */
+/** A picker anchored under its trigger, with listbox keyboard navigation. */
 export function PickRow(props: {
   readonly title: string;
   readonly description?: ReactNode;
@@ -504,6 +585,7 @@ export function PickRow(props: {
   readonly onReset?: (() => void) | undefined;
   /** Plays a playable option: from its button, and as the keyboard moves onto it. */
   readonly onPlay?: (value: string) => void;
+  readonly busy?: boolean | undefined;
   readonly onChange: (value: string) => void;
 }) {
   const id = useId();
@@ -513,31 +595,44 @@ export function PickRow(props: {
   const options = props.groups.flatMap((group) => group.options);
   const selected = options.findIndex((option) => option.value === props.value);
   const optionId = (index: number) => `${id}o${index}`;
-
-  const listEl = useRef<HTMLDivElement | null>(null);
-  // Once per opening: without the React Compiler (the standalone) a new callback reruns every render.
-  const listRef = (node: HTMLDivElement | null) => {
-    if (node === null || node === listEl.current) return;
-    listEl.current = node;
-    node.focus({ preventScroll: true });
-    node.scrollIntoView({ block: "nearest" });
-    // The chosen option opens as the first one in view, whole (the list's own scroll only).
-    const chosen = node.querySelector('[aria-selected="true"]');
-    if (chosen)
-      node.scrollTop += chosen.getBoundingClientRect().top - node.getBoundingClientRect().top - 5;
+  const close = () => {
+    setOpen(false);
+    triggerRef.current?.focus({ preventScroll: true });
   };
+  const dismiss = useEffectEvent(close);
+
+  const listRef = useRef<HTMLDivElement>(null);
+  // oxlint-disable-next-line t3code/no-unreasoned-state-sync -- focus and reveal the popup on open, and dismiss pointer clicks outside its control
+  useLayoutEffect(() => {
+    const node = listRef.current;
+    if (!open || !node) return;
+    node.focus({ preventScroll: true });
+    node.querySelector('[aria-selected="true"]')?.scrollIntoView({ block: "nearest" });
+    node.scrollIntoView({ block: "nearest" });
+    const outside = (event: Event) => {
+      if (event.target instanceof Node && !node.parentElement?.contains(event.target)) {
+        event.preventDefault();
+        event.stopPropagation();
+        if (event.type !== "pointerdown") dismiss();
+      }
+    };
+    const events = ["pointerdown", "touchstart", "click"];
+    for (const type of events)
+      document.addEventListener(type, outside, { capture: true, passive: false });
+    return () => {
+      for (const type of events) document.removeEventListener(type, outside, true);
+    };
+  }, [open]);
 
   const show = () => {
     setActive(Math.max(selected, 0));
     setOpen(true);
   };
-  const close = () => {
-    setOpen(false);
-    triggerRef.current?.focus({ preventScroll: true });
-  };
   const pick = (index: number) => {
     const option = options[index];
-    if (option && option.value !== props.value) props.onChange(option.value);
+    if (option && option.value !== props.value && !props.busy) {
+      props.onChange(option.value);
+    }
     close();
   };
   const move = (index: number) => {
@@ -565,111 +660,105 @@ export function PickRow(props: {
     else if (event.key === "Escape") close();
     else if (event.key === "Tab") {
       // From the trigger, so Tab carries on to the next control instead of restarting the sheet.
-      triggerRef.current?.focus({ preventScroll: true });
-      return setOpen(false);
+      return close();
     } else return;
     event.preventDefault();
   };
 
   return (
-    <Row
-      title={props.title}
-      description={props.description}
-      onReset={props.onReset}
-      below={
-        open ? (
-          <div
-            ref={listRef}
-            role="listbox"
-            id={`${id}l`}
-            aria-label={props.label}
-            aria-activedescendant={optionId(active)}
-            tabIndex={-1}
-            data-lalala-settings-list=""
-            onKeyDown={onListKey}
-            onBlur={(event) => {
-              const to = event.relatedTarget;
-              if (to !== triggerRef.current && !event.currentTarget.contains(to)) setOpen(false);
+    <Row title={props.title} description={props.description} onReset={props.onReset}>
+      {(describedBy) => (
+        <>
+          <button
+            ref={triggerRef}
+            type="button"
+            aria-haspopup="listbox"
+            aria-expanded={open}
+            aria-controls={open ? `${id}l` : undefined}
+            aria-label={`${props.label}: ${options[selected]?.label ?? "none"}`}
+            aria-describedby={describedBy}
+            disabled={props.disabled}
+            aria-disabled={props.busy || undefined}
+            data-lalala-settings-pick=""
+            data-open={open ? "" : undefined}
+            onClick={() => !props.busy && (open ? close() : show())}
+            onKeyDown={(event) => {
+              if (props.busy || open || (event.key !== "ArrowDown" && event.key !== "ArrowUp"))
+                return;
+              event.preventDefault();
+              show();
             }}
           >
-            {props.groups.map((group, groupIndex) => (
-              <div key={group.label ?? groupIndex} role="group" aria-label={group.label}>
-                {group.label ? <div aria-hidden="true">{group.label}</div> : null}
-                {group.options.map((option) => {
-                  const at = options.indexOf(option);
-                  return (
-                    <div
-                      key={option.value}
-                      id={optionId(at)}
-                      role="option"
-                      aria-selected={at === selected}
-                      data-active={at === active ? "" : undefined}
-                      onMouseDown={(event) => event.preventDefault()}
-                      onMouseMove={() => at !== active && setActive(at)}
-                      onClick={() => pick(at)}
-                    >
-                      {props.onPlay ? (
-                        <button
-                          type="button"
-                          tabIndex={-1}
-                          aria-label={`Play ${option.label}`}
-                          disabled={!option.playable}
-                          onClick={(event) => {
-                            event.stopPropagation();
-                            setActive(at);
-                            props.onPlay?.(option.value);
-                          }}
-                        >
-                          <svg viewBox="0 0 10 10" aria-hidden="true">
-                            <path d="M2.5 1.5v7l6-3.5z" />
+            <span>
+              <PickLabel option={options[selected]} />
+            </span>
+            {!props.disabled ? (
+              <svg viewBox="0 0 24 24" aria-hidden="true">
+                <path d="m6 9 6 6 6-6" />
+              </svg>
+            ) : null}
+          </button>
+          {open ? (
+            <div
+              ref={listRef}
+              role="listbox"
+              id={`${id}l`}
+              aria-label={props.label}
+              aria-activedescendant={optionId(active)}
+              tabIndex={-1}
+              data-lalala-settings-list=""
+              onKeyDown={onListKey}
+            >
+              {props.groups.map((group, groupIndex) => (
+                <div key={group.label ?? groupIndex} role="group" aria-label={group.label}>
+                  {group.label ? <div aria-hidden="true">{group.label}</div> : null}
+                  {group.options.map((option) => {
+                    const at = options.indexOf(option);
+                    return (
+                      <div
+                        key={option.value}
+                        id={optionId(at)}
+                        role="option"
+                        aria-selected={at === selected}
+                        data-active={at === active ? "" : undefined}
+                        onMouseDown={(event) => event.preventDefault()}
+                        onMouseMove={() => at !== active && setActive(at)}
+                        onClick={() => pick(at)}
+                      >
+                        {props.onPlay ? (
+                          <button
+                            type="button"
+                            tabIndex={-1}
+                            aria-label={`Play ${option.label}`}
+                            disabled={!option.playable}
+                            onClick={(event) => {
+                              event.stopPropagation();
+                              setActive(at);
+                              props.onPlay?.(option.value);
+                            }}
+                          >
+                            <svg viewBox="0 0 10 10" aria-hidden="true">
+                              <path d="M2.5 1.5v7l6-3.5z" />
+                            </svg>
+                          </button>
+                        ) : null}
+                        <span>
+                          <PickLabel option={option} />
+                          {option.detail ? <small> · {option.detail}</small> : null}
+                        </span>
+                        {at === selected ? (
+                          <svg viewBox="0 0 12 12" aria-hidden="true">
+                            <path d="M2 6.5l2.5 2.5L10 3.5" />
                           </svg>
-                        </button>
-                      ) : null}
-                      <span>
-                        <PickLabel option={option} />
-                      </span>
-                      {at === selected ? (
-                        <svg viewBox="0 0 12 12" aria-hidden="true">
-                          <path d="M2 6.5l2.5 2.5L10 3.5" />
-                        </svg>
-                      ) : null}
-                    </div>
-                  );
-                })}
-              </div>
-            ))}
-          </div>
-        ) : null
-      }
-    >
-      {(describedBy) => (
-        <button
-          ref={triggerRef}
-          type="button"
-          aria-haspopup="listbox"
-          aria-expanded={open}
-          aria-controls={open ? `${id}l` : undefined}
-          aria-label={`${props.label}: ${options[selected]?.label ?? "none"}`}
-          aria-describedby={describedBy}
-          disabled={props.disabled}
-          data-lalala-settings-pick=""
-          data-open={open ? "" : undefined}
-          // Safari never focuses a clicked button: the list would blur shut and the click reopen it.
-          onMouseDown={(event) => open && event.preventDefault()}
-          onClick={() => (open ? setOpen(false) : show())}
-          onKeyDown={(event) => {
-            if (open || (event.key !== "ArrowDown" && event.key !== "ArrowUp")) return;
-            event.preventDefault();
-            show();
-          }}
-        >
-          <span>
-            <PickLabel option={options[selected]} />
-          </span>
-          <svg viewBox="0 0 24 24" aria-hidden="true">
-            <path d="m6 9 6 6 6-6" />
-          </svg>
-        </button>
+                        ) : null}
+                      </div>
+                    );
+                  })}
+                </div>
+              ))}
+            </div>
+          ) : null}
+        </>
       )}
     </Row>
   );
@@ -680,6 +769,7 @@ function OptionRows(props: {
   readonly model: Model | undefined;
   readonly values: Record<string, OptionValue>;
   readonly disabled?: boolean | undefined;
+  readonly busy?: boolean | undefined;
   readonly onChange: (id: string, value: OptionValue) => void;
 }) {
   return (props.model?.options ?? []).map((d) =>
@@ -691,6 +781,7 @@ function OptionRows(props: {
             label={d.label}
             describedBy={describedBy}
             disabled={props.disabled}
+            busy={props.busy}
             onChange={(on) => props.onChange(d.id, on)}
           />
         )}
@@ -706,6 +797,7 @@ function OptionRows(props: {
           { options: d.options.map((choice) => ({ value: choice.id, label: choice.label })) },
         ]}
         disabled={props.disabled}
+        busy={props.busy}
         onChange={(value) => props.onChange(d.id, value)}
       />
     ),
@@ -749,10 +841,10 @@ const PAIR_COMMAND = "npx t3 pair --scope orchestration:read --scope orchestrati
 const checkConnection = () =>
   sendConnection("/test").then((result) => {
     const { ms } = result as { ms?: number };
-    return `answered in ${ms ?? "?"} ms`;
+    return `Answered in ${ms ?? "?"} ms`;
   });
 const describe = (cause: unknown) => {
-  const message = cause instanceof Error ? cause.message : String(cause);
+  const message = (cause instanceof Error ? cause.message : String(cause)).replace(/^T3: /, "");
   return /token exchange answered 40[01]/.test(message)
     ? "That pairing link was already used or expired. Make a new one in T3 Code."
     : message;
@@ -767,7 +859,6 @@ function ConnectionSection(props: { readonly onChange: () => void }) {
   const [working, setWorking] = useState<string | null>(null);
   const [problem, setProblem] = useState<string | null>(null);
   const [checked, setChecked] = useState<string | null>(null);
-  const onChange = props.onChange;
 
   const check = () => checkConnection().then(setChecked);
 
@@ -791,8 +882,12 @@ function ConnectionSection(props: { readonly onChange: () => void }) {
   const run = (label: string, work: () => Promise<unknown>) => {
     setWorking(label);
     setProblem(null);
+    setChecked(null);
     void work()
-      .catch((cause: unknown) => setProblem(describe(cause)))
+      .catch((cause: unknown) => {
+        setChecked(null);
+        setProblem(describe(cause));
+      })
       .then(fetchConnection)
       .then((next) => {
         setState(next);
@@ -803,13 +898,12 @@ function ConnectionSection(props: { readonly onChange: () => void }) {
   /** Pairs, then checks the link: T3 Code answering is what makes it Connected. */
   const pair = (body: object) =>
     run("Pairing with T3 Code…", async () => {
-      setChecked(null);
       const result = (await sendConnection("/pair", body)) as unknown as Connection;
       if (!result.connected)
         throw new Error(result.error?.replace(/^T3: /, "") ?? "T3 Code did not answer. Is it running?");
       setWorking("Checking the connection…");
       await check();
-      onChange();
+      props.onChange();
     });
 
   const title = "Connection";
@@ -861,7 +955,7 @@ function ConnectionSection(props: { readonly onChange: () => void }) {
     <Section title={title}>
       {c.notice ? <p data-lalala-settings-info="">{c.notice}</p> : null}
       <ConnectedRows
-        ok={c.connected}
+        ok={c.connected && problem === null}
         where={[c.server ? `${c.server.label} · v${c.server.version}` : null, c.origin]
           .filter(Boolean)
           .join(" · ")}
@@ -870,13 +964,8 @@ function ConnectionSection(props: { readonly onChange: () => void }) {
         expiresAt={c.session?.expiresAt ?? null}
         renews={c.session?.renews}
         busy={working !== null}
-        onRetest={() => run("checking…", check)}
-        onDisconnect={() =>
-          run("Disconnecting…", async () => {
-            await sendConnection("/disconnect");
-            setChecked(null);
-          })
-        }
+        onRetest={() => run("Checking…", () => check().finally(props.onChange))}
+        onDisconnect={() => run("Disconnecting…", () => sendConnection("/disconnect"))}
       >
         {c.brainThread ? (
           <Row title="Thread">
@@ -893,6 +982,8 @@ function ConnectionSection(props: { readonly onChange: () => void }) {
 function BrainSection(props: {
   readonly state: BrainState;
   readonly onConfigure: (selection: Selection) => void;
+  readonly retrying: boolean;
+  readonly onRetry: (control: HTMLButtonElement) => void;
 }) {
   const { state } = props;
   const title = "Voice brain";
@@ -912,9 +1003,21 @@ function BrainSection(props: {
   if (brain === null)
     return (
       <Section title={title}>
-        <p data-lalala-settings-error="">
-          <StreamerText text={error ?? "T3 did not answer"} />
-        </p>
+        <Row
+          title="Couldn't read T3"
+          description={<StreamerText text={error ?? "T3 did not answer"} />}
+          error
+        >
+          <button
+            type="button"
+            data-lalala-settings-button=""
+            data-quiet=""
+            aria-disabled={props.retrying || undefined}
+            onClick={(event) => props.onRetry(event.currentTarget)}
+          >
+            {props.retrying ? "Reading T3…" : "Try again"}
+          </button>
+        </Row>
       </Section>
     );
   const selection = brain.modelSelection;
@@ -923,9 +1026,9 @@ function BrainSection(props: {
   const saving = state.kind === "ready" && state.saving;
 
   return (
-    <Section title={title}>
+    <Section title={title} status={saving ? "Saving…" : null}>
       {error ? (
-        <p data-lalala-settings-error="">
+        <p data-lalala-settings-error="" role="alert">
           <StreamerText text={error} />
         </p>
       ) : null}
@@ -935,7 +1038,7 @@ function BrainSection(props: {
         label="Voice brain model"
         groups={modelGroups(brain.providers)}
         value={selection ? modelKey(selection.instanceId, selection.model) : ""}
-        disabled={saving}
+        busy={saving}
         onChange={(key) => {
           const { instanceId, slug } = splitKey(key);
           const next = findModel(brain, instanceId, slug);
@@ -950,8 +1053,8 @@ function BrainSection(props: {
       <OptionRows
         model={model}
         values={values}
-
-        disabled={saving || selection === null}
+        disabled={selection === null}
+        busy={saving}
         onChange={(id, value) => {
           if (selection === null) return;
           const options = { ...values, [id]: value };
@@ -985,7 +1088,10 @@ function BrainContextRow() {
   );
 }
 
-function ThreadsSection(props: { readonly brain: Brain | null }) {
+const THREAD_MODEL_NOTE =
+  "What the brain gives the threads it delegates to. Sent with each message, on every device.";
+
+function ThreadsSection(props: { readonly brain: Brain | null; readonly loading: boolean }) {
   const { delegates } = useSyncedSettings();
   const brain = props.brain;
   // "Same as the brain" is delegate_task's own default: no provider or model given.
@@ -1009,52 +1115,54 @@ function ThreadsSection(props: { readonly brain: Brain | null }) {
       return set({
         instanceId: null,
         model: null,
+        modelName: null,
         options: carryOptions(brainModel, delegates.options),
       });
     }
     const { instanceId, slug } = splitKey(key);
+    const nextModel = brain ? findModel(brain, instanceId, slug) : undefined;
     set({
       instanceId,
       model: slug,
-      options: carryOptions(
-        brain ? findModel(brain, instanceId, slug) : undefined,
-        delegates.options,
-      ),
+      modelName: nextModel?.name ?? null,
+      options: carryOptions(nextModel, delegates.options),
     });
   };
 
   return (
     <Section title="New threads">
-      {brain ? (
+      {brain || props.loading ? (
         <PickRow
           title="Model"
-          description="What the brain gives the threads it delegates to. Sent with each message, on every device."
+          description={THREAD_MODEL_NOTE}
           label="Model for new threads"
           groups={[
             {
               options: [
                 {
                   value: "",
-                  label: `Same as the brain${brainModel ? ` (${brainModel.name})` : ""}`,
+                  label: brain ? "Same as the brain" : "Loading…",
+                  detail: brainModel?.name,
                 },
               ],
             },
-            ...modelGroups(brain.providers),
+            ...modelGroups(brain?.providers ?? []),
           ]}
-          value={newModel}
-          onReset={newModel === "" ? undefined : () => pickNew("")}
+          value={brain ? newModel : ""}
+          disabled={!brain}
+          onReset={!brain || newModel === "" ? undefined : () => pickNew("")}
           onChange={(key) => pickNew(key)}
         />
       ) : (
-        <Row title="Model">
-          <span data-lalala-settings-value="">{delegates.model ?? "Same as the brain"}</span>
+        // The brain failed to load: a plain value like the option rows below, not a dead picker.
+        <Row title="Model" description={THREAD_MODEL_NOTE}>
+          <span data-lalala-settings-value="">{delegates.modelName ?? "Unavailable"}</span>
         </Row>
       )}
       {model ? (
         <OptionRows
           model={model}
           values={delegates.options}
-
           onChange={(id, value) =>
             set({
               ...delegates,
@@ -1064,11 +1172,8 @@ function ThreadsSection(props: { readonly brain: Brain | null }) {
         />
       ) : (
         Object.entries(delegates.options).map(([id, value]) => (
-          <Row
-            key={id}
-            title={id === "fastMode" ? "Fast mode" : id === "effort" ? "Reasoning" : id}
-          >
-            <span data-lalala-settings-value="">{String(value)}</span>
+          <Row key={id} title={OPTION_TITLES[id] ?? id}>
+            <span data-lalala-settings-value="">{optionText(value)}</span>
           </Row>
         ))
       )}
@@ -1114,12 +1219,12 @@ export function SoundSection() {
               { value: BUILT_IN_TOPIC_SOUND, label: "Chime (built in)", playable: true },
               {
                 value: DEFAULT_TOPIC_SOUND,
-                label: `${DEFAULT_TOPIC_SOUND.replaceAll("-", " ")} (default)`,
+                label: `${soundTitle(DEFAULT_TOPIC_SOUND)} (default)`,
                 playable: true,
               },
               ...names
                 .filter((name) => name !== DEFAULT_TOPIC_SOUND)
-                .map((name) => ({ value: name, label: name.replaceAll("-", " "), playable: true })),
+                .map((name) => ({ value: name, label: soundTitle(name), playable: true })),
             ],
           },
         ]}

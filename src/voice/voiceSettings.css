@@ -1,9 +1,6 @@
-/* The voice settings: T3 Code's settings page (settingsLayout.tsx, ui/switch, select, input, button,
-   .settings-slider) at its metrics, in the canvas's palette. Edges are neutral like T3's; green marks
-   only what is on, focused or live, plus the frame. Touch sizes first, T3's desktop ones from 641px. */
+/* T3's settings layout and control metrics, using the canvas look's tokens. */
 [data-lalala-settings] {
-  /* Colours and fonts read the --lala-* tokens when a page sets them; the fallbacks are the neon look.
-     Every tone is the ink over the surface, so a light page follows without its own values. */
+  /* The --lala-* tokens when a page sets them; the fallbacks are the neon look's values. */
   --s-bg: var(--lala-raise-2, #121110);
   --s-fg: var(--lala-settings-ink, rgb(245, 238, 226));
   --s-fg-2: color-mix(in srgb, var(--s-fg) 62%, transparent);
@@ -13,16 +10,15 @@
   --s-frame: color-mix(in srgb, var(--s-primary) 32%, var(--s-bg));
   --s-border: color-mix(in srgb, var(--s-fg) 7.5%, transparent);
   --s-divider: color-mix(in srgb, var(--s-fg) 6%, transparent);
-  --s-input: color-mix(in srgb, var(--s-fg) 11%, transparent);
+  --s-input: color-mix(in srgb, var(--s-fg) 18%, transparent);
   --s-input-bg: color-mix(in srgb, var(--s-fg) 3.5%, transparent);
   --s-accent: color-mix(in srgb, var(--s-fg) 6%, transparent);
   --s-active: color-mix(in srgb, var(--s-fg) 8%, transparent);
   --s-primary: var(--lala-accent, #3dff8f);
-  --s-primary-ink: var(--lala-accent-ink, #04170c);
-  --s-ring: color-mix(in srgb, var(--s-primary) 24%, transparent);
-  /* Tuned for the dark surface (neon's own warn and danger are louder); a light look sets its own. */
-  --s-warn: #ffb02e;
-  --s-danger: #f87171;
+  --s-primary-ink: var(--lala-accent-ink, #0b0f0d);
+  --s-ring: var(--s-primary);
+  --s-warn: var(--lala-warn, #ffc14d);
+  --s-danger: var(--lala-danger, #ff5c7a);
   --s-shadow: 0 18px 44px -18px rgb(0 0 0 / 80%);
   --s-mono: var(--lala-font-mono, "Geist Mono", ui-monospace, "SF Mono", Menlo, monospace);
   --s-sans: var(--lala-font-sans, "Geist", -apple-system, system-ui, "Helvetica Neue", sans-serif);
@@ -83,7 +79,7 @@
   display: flex;
   align-items: center;
   gap: 12px;
-  padding: 0 8px 0 20px;
+  padding: 0 8px 0 var(--s-page);
   border-bottom: 1px solid var(--s-divider);
 }
 [data-lalala-settings-panel] > header > h1 {
@@ -152,23 +148,36 @@
 }
 /* A section: its title (h2 text-base semibold, min-h-7, the rows' inset), 10px, then the group. */
 [data-lalala-settings-section] {
+  container-type: inline-size;
   display: grid;
   gap: 10px;
 }
-[data-lalala-settings-section] > h2 {
+[data-lalala-settings-section]:has([data-lalala-settings-pick][data-open]) {
+  z-index: 1;
+}
+[data-lalala-settings-heading] {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 0 calc(var(--s-inset) + 1px);
+}
+[data-lalala-settings-heading] > h2 {
   margin: 0;
-  padding: 0 var(--s-inset);
   font: 600 16px / 28px var(--s-sans);
+}
+[data-lalala-settings-heading] > span {
+  color: var(--s-fg-2);
+  font: 500 12px / 16px var(--s-sans);
 }
 /* The group: rounded-xl, a faint edge and card, rows divided by a hairline. */
 [data-lalala-settings-group] {
-  container-type: inline-size;
   border: 1px solid var(--s-border);
   border-radius: 12px;
   background: var(--s-card);
 }
 [data-lalala-settings-group] > * + * {
-  border-top: 1px solid var(--s-divider);
+  box-shadow: inset 0 1px var(--s-divider);
 }
 /* A row: px-4 py-3. Under 32rem it stacks, its control full width; wider, the control sits right. */
 [data-lalala-settings-row] {
@@ -176,16 +185,6 @@
   flex-direction: column;
   gap: 12px;
   padding: 12px var(--s-inset);
-}
-/* A switch or a plain value stays beside its title, however narrow. */
-[data-lalala-settings-row]:has(
-  > [data-lalala-settings-control]
-    > :is([data-lalala-settings-switch], [data-lalala-settings-value])
-) {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
-  align-items: center;
-  gap: 12px 16px;
 }
 [data-lalala-settings-title] {
   display: flex;
@@ -200,6 +199,7 @@
 /* Every description and note: T3's text-xs muted, at its max-w-2xl. */
 :where(
   [data-lalala-settings-row] > div > p,
+  [data-lalala-settings-row] [aria-live] > p,
   [data-lalala-settings-info],
   [data-lalala-settings-error],
   [data-lalala-settings-shots] p
@@ -209,9 +209,19 @@
   color: var(--s-fg-2);
   font-size: 12px;
   line-height: 1.5;
+  overflow-wrap: anywhere;
 }
 [data-lalala-settings-row] > div > p {
+  align-self: start;
   margin-top: 4px;
+}
+[data-lalala-settings-row] [aria-live] > p {
+  margin-top: 2px;
+  padding: 0;
+}
+:is([data-lalala-settings-row] > div > p, [data-lalala-settings-info]) > code {
+  font: 400 11px / 1 var(--s-mono);
+  white-space: nowrap;
 }
 [data-lalala-settings-control] {
   display: flex;
@@ -229,20 +239,24 @@
 :is([data-lalala-settings-info], [data-lalala-settings-error]) {
   padding: 10px var(--s-inset);
 }
+[data-lalala-settings-section] > [data-lalala-settings-info] {
+  padding: 0 calc(var(--s-inset) + 1px);
+}
 :is([data-lalala-settings-error], [data-lalala-settings-status]) {
   color: var(--s-warn);
 }
+[data-lalala-settings-row] > div > [data-lalala-settings-error] {
+  padding: 0;
+}
 [data-lalala-settings-value] {
-  max-width: 55cqw;
+  max-width: 100%;
   color: var(--s-fg-2);
 }
+[data-lalala-settings-row]:not(:has(> div > p)) [data-lalala-settings-value] {
+  max-width: 55cqw;
+}
 /* One line, cut with an ellipsis. */
-:is(
-  [data-lalala-settings-value],
-  [data-lalala-settings-pick] > span,
-  [data-lalala-settings-list] [role="option"] > span,
-  [data-lalala-settings-panel] > header > h1 > span:last-child
-) {
+:is([data-lalala-settings-value], [data-lalala-settings-panel] > header > h1 > span:last-child) {
   min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -258,6 +272,8 @@
   gap: 6px;
   font: 500 12px / 16px var(--s-sans);
   white-space: nowrap;
+  justify-content: flex-end;
+  flex: none;
 }
 [data-lalala-settings-status]::before {
   content: "";
@@ -285,7 +301,13 @@
   background: var(--s-input-bg);
   font: 400 var(--s-text) / 1 var(--s-sans);
 }
-:is([data-lalala-settings-pick], [data-lalala-settings-button]):hover:not(:disabled),
+@media (hover: hover) {
+  :is([data-lalala-settings-pick], [data-lalala-settings-button]):hover:not(:disabled):not(
+      [aria-disabled="true"]
+    ) {
+    background: var(--s-active);
+  }
+}
 [data-lalala-settings-pick][data-open] {
   background: var(--s-active);
 }
@@ -295,11 +317,21 @@
 :is([data-lalala-settings-pick], [data-lalala-settings-control] input[type="text"]) {
   width: 100%;
 }
+[data-lalala-settings-control]:has(> [data-lalala-settings-pick]) {
+  position: relative;
+}
 [data-lalala-settings-pick] {
   display: flex;
   align-items: center;
   gap: 8px;
   text-align: left;
+}
+[data-lalala-settings-pick] > span {
+  overflow-wrap: anywhere;
+}
+[data-lalala-settings-list] small {
+  color: var(--s-fg-2);
+  font: inherit;
 }
 [data-lalala-settings-pick] > svg {
   width: 14px;
@@ -334,21 +366,34 @@
   border-color: color-mix(in srgb, var(--s-danger) 34%, transparent);
   color: var(--s-danger);
 }
-[data-lalala-settings-button][data-danger]:hover:not(:disabled) {
-  border-color: color-mix(in srgb, var(--s-danger) 50%, transparent);
-  background: color-mix(in srgb, var(--s-danger) 6%, transparent);
+@media (hover: hover) {
+  [data-lalala-settings-button][data-danger]:hover:not(:disabled) {
+    border-color: color-mix(in srgb, var(--s-danger) 50%, transparent);
+    background: color-mix(in srgb, var(--s-danger) 6%, transparent);
+  }
 }
-[data-lalala-settings-control] :disabled {
+[data-lalala-settings] :disabled {
   opacity: 0.64;
   cursor: default;
 }
-/* The open list: T3's select popup, in flow under its trigger (nothing clips it), scrolling itself. */
+[data-lalala-settings-control] [aria-disabled="true"] {
+  opacity: 0.64;
+  cursor: progress;
+}
 [data-lalala-settings-list] {
+  position: absolute;
+  z-index: 1;
+  top: calc(100% + 6px);
+  right: 0;
   max-height: 18rem;
   overflow-y: auto;
   overscroll-behavior: contain;
   scroll-padding-block: 4px;
-  margin-bottom: 4px;
+  scroll-margin-block: 12px;
+  width: max-content;
+  min-width: 100%;
+  max-width: min(22rem, calc(100cqw - 2 * var(--s-inset) - 2px));
+  box-sizing: border-box;
   padding: 4px;
   border: 1px solid var(--s-input);
   border-radius: 8px;
@@ -380,6 +425,14 @@
 [data-lalala-settings-list] [role="option"][data-active] {
   background: var(--s-active);
 }
+[data-lalala-settings-list]:focus-visible [role="option"][data-active] {
+  outline: 2px solid var(--s-primary);
+  outline-offset: -2px;
+}
+[data-lalala-settings-list] [role="option"] > span {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
 [data-lalala-settings-list] [role="option"] > svg {
   stroke: var(--s-primary);
   stroke-width: 1.75;
@@ -400,34 +453,78 @@
   fill: currentColor;
   stroke: none;
 }
-/* Wide rows: the control sits right, a trigger sizes to its choice, the list opens under it. */
-@container (min-width: 32rem) {
-  [data-lalala-settings-row] {
+@container (max-width: 31.99rem) {
+  /* Switches and short values stay beside the title; descriptions keep their full width on phones. */
+  [data-lalala-settings-row]:has(
+    > [data-lalala-settings-control] > [data-lalala-settings-switch]
+  ),
+  [data-lalala-settings-row]:not(:has(> div > p)):has(
+      > [data-lalala-settings-control] > [data-lalala-settings-value]
+    ) {
     display: grid;
     grid-template-columns: minmax(0, 1fr) auto;
     align-items: center;
-    gap: 12px 32px;
+    gap: 12px 16px;
+  }
+
+  [data-lalala-settings-row]:has(> div > p) [data-lalala-settings-value] {
+    width: 100%;
+  }
+  [data-lalala-settings-step] > [data-lalala-settings-control] {
+    padding-left: 30px;
+  }
+}
+[data-lalala-settings-pairing-copy] {
+  display: grid;
+  margin-top: 4px;
+}
+[data-lalala-settings-pairing-copy] > p {
+  grid-area: 1 / 1;
+  margin: 0;
+  color: var(--s-fg-2);
+  font-size: 12px;
+  line-height: 1.5;
+}
+[data-lalala-settings-pairing-copy] > p[data-inactive] {
+  visibility: hidden;
+}
+/* A shared control column keeps every trigger aligned within its group. */
+@container (min-width: 32rem) {
+  [data-lalala-settings-row] {
+    box-sizing: border-box;
+    min-height: 56px;
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    align-items: center;
+    gap: 6px 32px;
   }
   [data-lalala-settings-control] {
     justify-content: flex-end;
   }
-  [data-lalala-settings-pick] {
-    width: auto;
+  [data-lalala-settings-status] {
+    width: 108px;
+  }
+  [data-lalala-settings-group]:has([data-lalala-settings-pick]) {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) fit-content(14rem);
+  }
+  [data-lalala-settings-group]:has([data-lalala-settings-pick]) > * {
+    grid-column: 1 / -1;
+    grid-template-columns: subgrid;
+  }
+  [data-lalala-settings-row]:has([data-lalala-settings-pick]) > div:first-child {
+    grid-area: 1 / 1;
+  }
+  [data-lalala-settings-control]:has(> [data-lalala-settings-pick]) {
+    grid-area: 1 / 2;
     min-width: 160px;
-    max-width: 280px;
   }
   [data-lalala-settings-control] input[type="text"] {
     width: 220px;
   }
-  [data-lalala-settings-list] {
-    grid-column: 1 / -1;
-    justify-self: end;
-    width: max-content;
-    min-width: 240px;
-    max-width: 100%;
-  }
-  [data-lalala-settings-slider] {
-    width: 208px;
+  [data-lalala-settings-pairing] > [data-lalala-settings-control] {
+    flex-direction: row-reverse;
+    justify-content: flex-start;
   }
 }
 /* T3's switch: a pill, the thumb sliding; primary on, the input tone off. */
@@ -436,6 +533,7 @@
   height: calc(var(--s-thumb) + 2px);
   border-radius: 999px;
   background: color-mix(in srgb, var(--s-fg) 13%, transparent);
+  box-shadow: inset 0 0 0 1px var(--s-input);
   transition: background-color 150ms;
 }
 [data-lalala-settings-switch] > span {
@@ -450,6 +548,7 @@
 }
 [data-lalala-settings-switch][aria-checked="true"] {
   background: var(--s-primary);
+  box-shadow: none;
 }
 [data-lalala-settings-switch][aria-checked="true"] > span {
   background: var(--s-bg);
@@ -473,14 +572,15 @@
   font-variant-numeric: tabular-nums;
   text-align: center;
 }
+@container (min-width: 32rem) {
+  [data-lalala-settings-slider] {
+    width: 208px;
+  }
+}
 /* --value (0–100) from the row; the fill ends under the thumb's centre, which travels 1rem less. */
 [data-lalala-settings-slider] > input {
   --fill: calc(var(--value) * 1% + (50 - var(--value)) * 0.01rem);
-  --track: linear-gradient(
-    to right,
-    var(--s-primary) var(--fill),
-    color-mix(in srgb, var(--s-fg-2) 22%, transparent) var(--fill)
-  );
+  --track: linear-gradient(to right, var(--s-primary) var(--fill), var(--s-input) var(--fill));
   flex: 1;
   min-width: 0;
   height: 24px;
@@ -492,7 +592,7 @@
   cursor: pointer;
 }
 [data-lalala-settings-slider] > input:focus-visible {
-  --thumb-ring: 0 0 0 3px color-mix(in srgb, var(--s-primary) 40%, transparent);
+  --thumb-ring: 0 0 0 3px var(--s-primary);
 }
 [data-lalala-settings-slider] > input::-webkit-slider-runnable-track {
   height: 6px;
@@ -595,17 +695,32 @@
   border-radius: 8px;
   background: var(--s-input-bg);
   font: 400 12px / 1.5 var(--s-mono);
-  overflow-wrap: anywhere;
+  overflow-wrap: normal;
   user-select: all;
+}
+[data-lalala-settings-code] > span {
+  white-space: nowrap;
+}
+@container (max-width: 22rem) {
+  [data-lalala-settings-command] {
+    flex-direction: column;
+  }
+  [data-lalala-settings-code] {
+    box-sizing: border-box;
+    width: 100%;
+  }
 }
 /* Two ways to do one thing: T3's segmented toggle group. */
 [data-lalala-settings-segments] {
   display: flex;
   gap: 2px;
-  padding: 2px;
+  padding: 4px;
+  max-width: 100%;
 }
 [data-lalala-settings-segments] > button {
-  padding: 0 10px;
+  flex: 1 1 auto;
+  min-width: 44px;
+  padding: 0 8px;
   border-radius: 6px;
   color: var(--s-fg-2);
 }
@@ -615,9 +730,19 @@
 }
 [data-lalala-settings-segments] > button[aria-checked="true"] {
   background: color-mix(in srgb, var(--s-fg) 10%, transparent);
+  box-shadow: inset 0 0 0 1px var(--s-primary);
+}
+[data-lalala-settings] [data-lalala-settings-segments] > button:focus-visible {
+  outline-offset: -2px;
 }
 /* Fingers: every small control gets T3's 44px hit area. */
 @media (pointer: coarse) {
+  [data-lalala-settings] {
+    --s-option: 44px;
+  }
+  [data-lalala-settings-slider] > input {
+    height: 44px;
+  }
   :is(
     [data-lalala-settings-button],
     [data-lalala-settings-pick],
@@ -641,6 +766,10 @@
     padding: 0;
     place-items: stretch;
   }
+  [data-lalala-settings-heading],
+  [data-lalala-settings-section] > [data-lalala-settings-info] {
+    padding: 0;
+  }
   [data-lalala-settings-panel] {
     width: 100%;
     height: 100dvh;
@@ -648,13 +777,6 @@
     padding: env(safe-area-inset-top) 0 0;
     border: 0;
     border-radius: 0;
-  }
-  /* Header, section titles and groups share one left edge, the page padding. */
-  [data-lalala-settings-panel] > header {
-    padding-left: var(--s-page);
-  }
-  [data-lalala-settings-section] > h2 {
-    padding: 0;
   }
 }
 @media (prefers-reduced-motion: reduce) {

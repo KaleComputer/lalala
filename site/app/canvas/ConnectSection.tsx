@@ -37,7 +37,7 @@ const CREATED = `Created a "${LALALA_PROJECT}" project in your home folder for y
 const SEP = "\u0000";
 
 const describe = (cause: unknown) => (cause instanceof Error ? cause.message : String(cause));
-const answered = (ms: number) => `answered in ${ms} ms`;
+const answered = (ms: number) => `Answered in ${ms} ms`;
 
 const modelValue = (selection: { instanceId: string; model: string } | null | undefined) =>
   selection ? `${selection.instanceId}${SEP}${selection.model}` : "";
@@ -228,7 +228,7 @@ export function ConnectSection() {
         expiresAt={session.expiresAt}
         busy={busy}
         onRetest={() =>
-          run("checking…", async () => {
+          run("Checking…", async () => {
             setChecked(null);
             setChecked(answered(await pingServer(socket)));
           })

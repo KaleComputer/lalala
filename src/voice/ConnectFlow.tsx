@@ -1,4 +1,4 @@
-import { type ReactNode, useEffect, useRef, useState } from "react";
+import { type ReactNode, useEffect, useId, useLayoutEffect, useRef, useState } from "react";
 
 import step1 from "./connect/step1.png";
 import step2 from "./connect/step2.png";
@@ -42,6 +42,8 @@ export function browserSupport(reach: Reach): { readonly ok: boolean; readonly l
     line: `${name} can't reach T3 Code on your computer, so the T3 Code connection doesn't work here. Open this page in Chrome or Edge on the computer running T3 Code, or paste an https pairing link (Tailscale, NetBird).`,
   };
 }
+
+const PAIR_WAYS = ["app", "terminal"] as const;
 
 const untilDate = (at: number) =>
   new Date(at).toLocaleDateString(undefined, { weekday: "short", day: "numeric", month: "short" });
@@ -105,22 +107,43 @@ export function PairSteps(props: {
           <p>{support.ok ? support.line : "Not available in this browser."}</p>
         </div>
         <div data-lalala-settings-control="">
-          <span data-lalala-settings-status="">Not connected</span>
+          <span aria-live="polite" data-lalala-settings-status="">
+            Not connected
+          </span>
         </div>
       </div>
-      {support.ok ? null : <p data-lalala-settings-error="">{support.line}</p>}
+      {support.ok ? null : (
+        <p data-lalala-settings-error="" role="alert">
+          {support.line}
+        </p>
+      )}
       <Step
         n={1}
         title="Make a pairing link"
         state={busy ? "done" : undefined}
         control={
-          <div role="radiogroup" aria-label="Where to make it" data-lalala-settings-segments="">
-            {(["app", "terminal"] as const).map((option) => (
+          <div
+            role="radiogroup"
+            aria-label="Where to make it"
+            data-lalala-settings-segments=""
+            onKeyDown={(event) => {
+              const delta = { ArrowRight: 1, ArrowDown: 1, ArrowLeft: -1, ArrowUp: -1 }[event.key];
+              if (delta === undefined) return;
+              event.preventDefault();
+              const index = (PAIR_WAYS.indexOf(way) + delta + PAIR_WAYS.length) % PAIR_WAYS.length;
+              setWay(PAIR_WAYS[index]!);
+              const radios =
+                event.currentTarget.querySelectorAll<HTMLButtonElement>('[role="radio"]');
+              radios[index]?.focus();
+            }}
+          >
+            {PAIR_WAYS.map((option) => (
               <button
                 key={option}
                 type="button"
                 role="radio"
                 aria-checked={way === option}
+                tabIndex={way === option ? 0 : -1}
                 onClick={() => setWay(option)}
               >
                 {option === "app" ? "In T3 Code" : "Terminal"}
@@ -170,7 +193,12 @@ export function PairSteps(props: {
           </ol>
         ) : (
           <div data-lalala-settings-command="">
-            <code data-lalala-settings-code="">{props.command}</code>
+            <code data-lalala-settings-code="">
+              {props.command.split(/(--[\w-]+)/).map((part, index) =>
+                // oxlint-disable-next-line react/no-array-index-key -- command tokens have fixed order and no state
+                part.startsWith("--") ? <span key={index}>{part}</span> : part,
+              )}
+            </code>
             <button
               type="button"
               data-lalala-settings-button=""
@@ -218,9 +246,13 @@ export function PairSteps(props: {
           state={busy ? "now" : undefined}
         />
       ) : null}
-      {props.working ? <p data-lalala-settings-info="">{props.working}</p> : null}
+      {props.working ? (
+        <p data-lalala-settings-info="" role="status">
+          {props.working}
+        </p>
+      ) : null}
       {props.problem ? (
-        <p data-lalala-settings-error="">
+        <p data-lalala-settings-error="" role="alert">
           <StreamerText text={props.problem} />
         </p>
       ) : null}
@@ -250,19 +282,42 @@ export function ConnectedRows(props: {
   useEffect(() => {
     rowRef.current?.scrollIntoView({ block: "nearest" });
   }, []);
+  const [confirming, setConfirming] = useState(false);
+  const consequenceId = useId();
+  const disconnectRef = useRef<HTMLButtonElement>(null);
+  const cancelRef = useRef<HTMLButtonElement>(null);
+  // oxlint-disable-next-line t3code/no-unreasoned-state-sync -- focus the inline confirmation's safe action when it appears
+  useLayoutEffect(() => {
+    if (confirming) cancelRef.current?.focus({ preventScroll: true });
+  }, [confirming]);
+  const cancel = () => {
+    setConfirming(false);
+    disconnectRef.current?.focus({ preventScroll: true });
+  };
   return (
     <>
       <div data-lalala-settings-row="" ref={rowRef}>
         <div>
           <h3>T3 Code</h3>
-          <p>
-            {props.where ? <StreamerText text={props.where} /> : null}
-            {props.where && props.checked ? " · " : null}
-            {props.checked}
-          </p>
+          {props.where ? (
+            <p>
+              <StreamerText text={props.where} />
+            </p>
+          ) : null}
+          <div aria-live="polite">
+            {props.problem || props.checked ? (
+              <p data-lalala-settings-error={props.problem ? "" : undefined}>
+                {props.problem ? <StreamerText text={props.problem} /> : props.checked}
+              </p>
+            ) : null}
+          </div>
         </div>
         <div data-lalala-settings-control="">
-          <span data-lalala-settings-status="" data-ok={props.ok ? "" : undefined}>
+          <span
+            aria-live="polite"
+            data-lalala-settings-status=""
+            data-ok={props.ok ? "" : undefined}
+          >
             {props.ok ? "Connected" : "Not connected"}
           </span>
           <button
@@ -276,39 +331,69 @@ export function ConnectedRows(props: {
           </button>
         </div>
       </div>
-      {props.problem ? (
-        <p data-lalala-settings-error="">
-          <StreamerText text={props.problem} />
-        </p>
-      ) : null}
       {props.children}
-      <div data-lalala-settings-row="">
+      <div
+        data-lalala-settings-row=""
+        data-lalala-settings-pairing=""
+        onBlur={(event) => {
+          if (!event.currentTarget.contains(event.relatedTarget)) setConfirming(false);
+        }}
+        onKeyDown={(event) => {
+          if (confirming && event.key === "Escape") {
+            event.preventDefault();
+            cancel();
+          }
+        }}
+      >
         <div>
           <h3>Pairing</h3>
-          <p>
-            {props.expiresAt === null ? (
-              "Forget it to pair again."
-            ) : (
-              <>
-                Valid until <StreamerText text={untilDate(props.expiresAt)} />.{" "}
-                {props.renews ? "Renews itself a week before." : "Pair again after that."}
-              </>
-            )}
-          </p>
+          <div data-lalala-settings-pairing-copy="">
+            <p data-inactive={confirming || undefined}>
+              {props.expiresAt === null ? (
+                "Forget it to pair again."
+              ) : (
+                <>
+                  Valid until <StreamerText text={untilDate(props.expiresAt)} />.{" "}
+                  {props.renews ? "Renews itself a week before." : "Pair again after that."}
+                </>
+              )}
+            </p>
+            <p id={consequenceId} data-inactive={!confirming || undefined}>
+              Disconnect? The voice stops until you pair again.
+            </p>
+          </div>
         </div>
         <div data-lalala-settings-control="">
           <button
+            ref={disconnectRef}
             type="button"
+            aria-describedby={confirming ? consequenceId : undefined}
             data-lalala-settings-button=""
+            data-quiet=""
             data-danger=""
             disabled={props.busy}
+            onMouseDown={(event) => confirming && event.preventDefault()}
             onClick={() => {
-              if (window.confirm("Disconnect from T3 Code? The voice stops until you pair again."))
-                props.onDisconnect();
+              if (!confirming) return setConfirming(true);
+              setConfirming(false);
+              props.onDisconnect();
             }}
           >
             Disconnect
           </button>
+          {confirming ? (
+            <button
+              ref={cancelRef}
+              type="button"
+              aria-describedby={consequenceId}
+              data-lalala-settings-button=""
+              data-quiet=""
+              onMouseDown={(event) => event.preventDefault()}
+              onClick={cancel}
+            >
+              Cancel
+            </button>
+          ) : null}
         </div>
       </div>
     </>

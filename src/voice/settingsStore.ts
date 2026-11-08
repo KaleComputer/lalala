@@ -10,6 +10,7 @@ export type OptionValue = string | boolean;
 export type Delegates = {
   readonly instanceId: string | null;
   readonly model: string | null;
+  readonly modelName: string | null;
   readonly options: Readonly<Record<string, OptionValue>>;
 };
 
@@ -22,7 +23,7 @@ export type SyncedSettings = {
 
 // The brain's model with its own defaults: options are per provider (Claude's `effort`, Codex's
 // `reasoningEffort`), and T3 refuses a delegate whose options its model doesn't have.
-const DEFAULT_DELEGATES: Delegates = { instanceId: null, model: null, options: {} };
+const DEFAULT_DELEGATES: Delegates = { instanceId: null, model: null, modelName: null, options: {} };
 export const DEFAULT_TOPIC_SOUND = "soft-ping";
 /** The topic sound the player renders itself instead of loading a file. */
 export const BUILT_IN_TOPIC_SOUND = "chime";
@@ -58,6 +59,7 @@ function parseSynced(value: unknown): SyncedSettings | null {
     delegates: {
       instanceId: typeof delegates.instanceId === "string" ? delegates.instanceId : null,
       model: typeof delegates.model === "string" ? delegates.model : null,
+      modelName: typeof delegates.modelName === "string" ? delegates.modelName : null,
       options,
     },
     topicSound: typeof value.topicSound === "string" ? value.topicSound : DEFAULT_TOPIC_SOUND,
