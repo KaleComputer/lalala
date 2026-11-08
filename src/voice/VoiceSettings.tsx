@@ -297,13 +297,20 @@ function remember(page: string) {
   }
 }
 
-const phoneQuery = () => window.matchMedia(PHONE);
-function subscribePhone(onChange: () => void) {
-  const query = phoneQuery();
-  query.addEventListener("change", onChange);
-  return () => query.removeEventListener("change", onChange);
+/** A media query as a store: the phone's list layout, and T3's icon rail under its md. */
+function mediaStore(query: string) {
+  return {
+    matches: () => window.matchMedia(query).matches,
+    subscribe(onChange: () => void) {
+      const list = window.matchMedia(query);
+      list.addEventListener("change", onChange);
+      return () => list.removeEventListener("change", onChange);
+    },
+  };
 }
-const isPhone = () => phoneQuery().matches;
+const PHONE_MEDIA = mediaStore(PHONE);
+const RAIL_MEDIA = mediaStore("(min-width: 641px) and (max-width: 767px)");
+const isPhone = PHONE_MEDIA.matches;
 
 const Glyph = (props: { readonly d: ReadonlyArray<string> }) => (
   <svg viewBox="0 0 24 24" aria-hidden="true">
@@ -340,12 +347,14 @@ function SettingsSheet(props: {
   readonly onClose: () => void;
 }) {
   const panelRef = useRef<HTMLDivElement>(null);
-  const onClose = useEffectEvent(props.onClose);
   const opened = props.pages.find((p) => p.title === props.section)?.id;
   const [page, setPage] = useState(() => opened ?? lastPage(props.pages));
   // A phone shows the list of pages first, unless the sheet was opened on one.
   const [listed, setListed] = useState(opened === undefined);
-  const phone = useSyncExternalStore(subscribePhone, isPhone, () => false);
+  const phone = useSyncExternalStore(PHONE_MEDIA.subscribe, isPhone, () => false);
+  const rail = useSyncExternalStore(RAIL_MEDIA.subscribe, RAIL_MEDIA.matches, () => false);
+  // The sidebar's one Tab stop follows keyboard focus, as T3's tree does.
+  const [rove, setRove] = useState<string | null>(null);
   const onList = phone && listed;
   const navRef = useRef<HTMLElement>(null);
   const backRef = useRef<HTMLButtonElement>(null);
@@ -370,6 +379,8 @@ function SettingsSheet(props: {
     setListed(true);
     focusAfter.current = "item";
   };
+  // A phone's page steps back to the list first, as Back would.
+  const onEscape = useEffectEvent(() => (phone && !listed ? backToList() : props.onClose()));
 
   // oxlint-disable-next-line t3code/no-unreasoned-state-sync -- moves focus between the phone's list and a page once the new view has rendered
   useLayoutEffect(() => {
@@ -421,7 +432,7 @@ function SettingsSheet(props: {
     // Esc closes; Tab wraps inside the sheet so focus never reaches the canvas behind it. Not a
     // <dialog>: its top layer would cover the reset buttons' tooltips, which portal to the body.
     const onKey = (event: KeyboardEvent) => {
-      if (event.key === "Escape" && !event.defaultPrevented) onClose();
+      if (event.key === "Escape" && !event.defaultPrevented) onEscape();
       const panel = panelRef.current;
       if (event.key !== "Tab" || panel === null) return;
       const stops = [
@@ -461,21 +472,38 @@ function SettingsSheet(props: {
           onKeyDown={phone ? undefined : onNavKey}
         >
           <div data-lalala-settings-pages="">
-            {props.pages.map((p) => (
-              <button
-                key={p.id}
-                type="button"
-                data-page={p.id}
-                aria-current={p.id === current?.id && !onList ? "page" : undefined}
-                tabIndex={phone || p.id === current?.id ? undefined : -1}
-                onClick={() => show(p.id)}
-              >
-                <Glyph d={p.icon} />
-                <span>{p.title}</span>
-                <small>{p.value}</small>
-                <Glyph d={["m9 18 6-6-6-6"]} />
-              </button>
-            ))}
+            {props.pages.map((p) => {
+              const button = {
+                type: "button",
+                "data-page": p.id,
+                "aria-current": p.id === current?.id && !onList ? "page" : undefined,
+                tabIndex: phone || p.id === (rove ?? current?.id) ? undefined : -1,
+                onFocus: () => setRove(p.id),
+                onClick: () => show(p.id),
+              } as const;
+              const content = (
+                <>
+                  <Glyph d={p.icon} />
+                  <span>{p.title}</span>
+                  <small>
+                    <span data-lalala-settings-sr="">, </span>
+                    {p.value}
+                  </small>
+                  <Glyph d={["m9 18 6-6-6-6"]} />
+                </>
+              );
+              // The icon rail names its pages on hover and focus.
+              return rail ? (
+                <Tooltip key={p.id}>
+                  <TooltipTrigger render={<button {...button} />}>{content}</TooltipTrigger>
+                  <TooltipPopup side="right">{p.title}</TooltipPopup>
+                </Tooltip>
+              ) : (
+                <button key={p.id} {...button}>
+                  {content}
+                </button>
+              );
+            })}
           </div>
         </nav>
         <div data-lalala-settings-main="">
@@ -589,20 +617,13 @@ function AppSettings(props: { readonly section: string; readonly onClose: () => 
 
   const known = brain.kind === "ready" ? brain.brain : brain.kind === "error" ? brain.brain : null;
 
-  const [link, setLink] = useState("…");
-  const readLink = () =>
-    void fetchConnection().then((next) =>
-      setLink(
-        next.kind === "inside" || (next.kind === "ready" && next.connection.connected)
-          ? "Connected"
-          : next.kind === "ready"
-            ? "Not connected"
-            : "…",
-      ),
-    );
-  const readLinkOnOpen = useEffectEvent(readLink);
-  // oxlint-disable-next-line t3code/no-unreasoned-state-sync -- reads the bridge's link once for the Connection row's value
-  useEffect(() => readLinkOnOpen(), []);
+  const [connection, setConnection] = useState<ConnectionState>({ kind: "loading" });
+  const link =
+    connection.kind === "inside" || (connection.kind === "ready" && connection.connection.connected)
+      ? "Connected"
+      : connection.kind === "ready"
+        ? "Not connected"
+        : "…";
   const selection = known?.modelSelection;
   const brainModel =
     known && selection ? findModel(known, selection.instanceId, selection.model) : undefined;
@@ -616,19 +637,17 @@ function AppSettings(props: { readonly section: string; readonly onClose: () => 
       icon: PAGE_ICONS.connection,
       value: link,
       content: (
-        <ConnectionSection
-          onChange={() => {
-            retryBrain();
-            readLink();
-          }}
-        />
+        <ConnectionSection onChange={() => retryBrain()} onState={setConnection} />
       ),
     },
     {
       id: "brain",
       title: "Voice brain",
       icon: PAGE_ICONS.brain,
-      value: brainModel?.name ?? (brain.kind === "loading" ? "…" : "Unavailable"),
+      value:
+        brain.kind === "error" && brain.brain !== null
+          ? "Not saved"
+          : (brainModel?.name ?? (brain.kind === "loading" ? "…" : "Unavailable")),
       content: (
         <BrainSection
           state={brain}
@@ -1116,8 +1135,16 @@ const describe = (cause: unknown) => {
  * The harness the voice works through: T3 Code today, the one the app's bridge pairs with. Paste a
  * pairing link and it pairs, checks the link and shows it connected; nothing else to click.
  */
-function ConnectionSection(props: { readonly onChange: () => void }) {
-  const [state, setState] = useState<ConnectionState>({ kind: "loading" });
+function ConnectionSection(props: {
+  readonly onChange: () => void;
+  /** Every new reading, for the Connection row's value in the phone's list. */
+  readonly onState?: (state: ConnectionState) => void;
+}) {
+  const [state, setRawState] = useState<ConnectionState>({ kind: "loading" });
+  const setState = (next: ConnectionState) => {
+    setRawState(next);
+    props.onState?.(next);
+  };
   const [working, setWorking] = useState<string | null>(null);
   const [problem, setProblem] = useState<string | null>(null);
   const [checked, setChecked] = useState<string | null>(null);
