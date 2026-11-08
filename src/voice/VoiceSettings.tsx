@@ -359,7 +359,8 @@ function SettingsSheet(props: {
   const navRef = useRef<HTMLElement>(null);
   const backRef = useRef<HTMLButtonElement>(null);
   const bodyRef = useRef<HTMLDivElement>(null);
-  const focusAfter = useRef<"back" | "item" | null>(null);
+  // A step between the phone's list and a page: focus follows to what shows.
+  const stepped = useRef(false);
   const current = props.pages.find((p) => p.id === page) ?? props.pages[0];
   // Opened on a page (the call button's Connection): a phone starts on its Back, and the page is remembered.
   const focusOnOpen = useEffectEvent(() => {
@@ -372,38 +373,30 @@ function SettingsSheet(props: {
     setListed(false);
     remember(id);
     bodyRef.current?.scrollTo({ top: 0 });
-    // On a phone the list goes away under the finger, so focus moves to the page's Back.
-    if (phone) focusAfter.current = "back";
+    stepped.current = phone;
   };
   const backToList = () => {
     setListed(true);
-    focusAfter.current = "item";
+    stepped.current = true;
   };
   // A phone's page steps back to the list first, as Back would.
   const onEscape = useEffectEvent(() => (phone && !listed ? backToList() : props.onClose()));
 
-  // oxlint-disable-next-line t3code/no-unreasoned-state-sync -- moves focus between the phone's list and a page once the new view has rendered
-  useLayoutEffect(() => {
-    const target = focusAfter.current;
-    focusAfter.current = null;
-    if (target === "back") backRef.current?.focus({ preventScroll: true });
-    if (target === "item")
-      navRef.current
-        ?.querySelector<HTMLElement>(`[data-page="${current?.id}"]`)
-        ?.focus({ preventScroll: true });
-  });
-
-  // oxlint-disable-next-line t3code/no-unreasoned-state-sync -- crossing 640px hides the sidebar or Back under focus; focus moves to what shows instead
+  // oxlint-disable-next-line t3code/no-unreasoned-state-sync -- after a step between list and page, or crossing 640px under a now-hidden control, focus moves to what shows: a phone page's Back, else the current row
   useLayoutEffect(() => {
     const at = document.activeElement;
-    if (!(at instanceof HTMLElement) || at.getClientRects().length > 0) return;
-    if (!panelRef.current?.contains(at)) return;
-    const visible =
+    const lost =
+      at instanceof HTMLElement &&
+      panelRef.current?.contains(at) === true &&
+      at.getClientRects().length === 0;
+    if (!stepped.current && !lost) return;
+    stepped.current = false;
+    const target =
       phone && !onList
         ? backRef.current
         : navRef.current?.querySelector<HTMLElement>(`[data-page="${page}"]`);
-    visible?.focus({ preventScroll: true });
-  }, [phone, onList, page]);
+    target?.focus({ preventScroll: true });
+  });
 
   // T3's sidebar: one Tab stop, arrows move along it without wrapping.
   const onNavKey = (event: ReactKeyboardEvent<HTMLElement>) => {
@@ -471,7 +464,7 @@ function SettingsSheet(props: {
           data-lalala-settings-nav=""
           onKeyDown={phone ? undefined : onNavKey}
         >
-          <div data-lalala-settings-pages="">
+          <ul data-lalala-settings-pages="">
             {props.pages.map((p) => {
               const button = {
                 type: "button",
@@ -493,23 +486,30 @@ function SettingsSheet(props: {
                 </>
               );
               // The icon rail names its pages on hover and focus.
-              return rail ? (
-                <Tooltip key={p.id}>
-                  <TooltipTrigger render={<button {...button} />}>{content}</TooltipTrigger>
-                  <TooltipPopup side="right">{p.title}</TooltipPopup>
-                </Tooltip>
-              ) : (
-                <button key={p.id} {...button}>
-                  {content}
-                </button>
+              return (
+                <li key={p.id}>
+                  {rail ? (
+                    <Tooltip>
+                      <TooltipTrigger render={<button {...button} />}>{content}</TooltipTrigger>
+                      <TooltipPopup side="right">{p.title}</TooltipPopup>
+                    </Tooltip>
+                  ) : (
+                    <button {...button}>{content}</button>
+                  )}
+                </li>
               );
             })}
-          </div>
+          </ul>
         </nav>
         <div data-lalala-settings-main="">
           <header>
             <div data-lalala-settings-back="">
-              <button ref={backRef} type="button" onClick={backToList}>
+              <button
+                ref={backRef}
+                type="button"
+                aria-label="Back to settings"
+                onClick={backToList}
+              >
                 <Glyph d={["m15 18-6-6 6-6"]} />
                 Settings
               </button>

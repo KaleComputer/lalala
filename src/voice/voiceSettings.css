@@ -183,6 +183,12 @@
 }
 [data-lalala-settings-pages] {
   display: contents;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+[data-lalala-settings-pages] > li {
+  display: contents;
 }
 [data-lalala-settings-nav] button {
   display: flex;
@@ -920,7 +926,10 @@
     color: var(--s-fg);
     font: 500 var(--s-text) / 20px var(--s-sans);
   }
-  [data-lalala-settings-nav] button + button {
+  [data-lalala-settings-pages] > li {
+    display: block;
+  }
+  [data-lalala-settings-pages] > li + li > button {
     box-shadow: inset 0 1px var(--s-divider);
   }
   /* The group clips its rows, so their focus ring sits inside. */
