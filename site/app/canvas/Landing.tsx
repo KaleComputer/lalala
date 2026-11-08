@@ -11,9 +11,13 @@ import { StreamerFilter } from "../../../src/voice/streamerMode";
 import {
   CanvasRows,
   openVoiceSettings,
+  PAGE_ICONS,
   Row,
   Section,
+  type SettingsPage,
   SoundSection,
+  useCanvasValue,
+  useSoundValue,
 } from "../../../src/voice/VoiceSettings";
 import "../../../src/voice/voicePage.css";
 import "./landing.css";
@@ -67,6 +71,56 @@ export default function Landing() {
     }
   };
   const remove = (id: string) => () => keepHidden([...hidden, id]);
+  const sound = useSoundValue();
+  const canvas = useCanvasValue();
+  const pages: SettingsPage[] = [
+    {
+      id: "connection",
+      title: "Connection",
+      icon: PAGE_ICONS.connection,
+      content: <ConnectSection />,
+    },
+    {
+      id: "sound",
+      title: "Sound & mic",
+      icon: PAGE_ICONS.sound,
+      value: sound,
+      content: <SoundSection />,
+    },
+    {
+      id: "canvas",
+      title: "Canvas",
+      icon: PAGE_ICONS.canvas,
+      value: canvas,
+      content: <CanvasRows />,
+    },
+    ...(hidden.length > 0
+      ? [
+          {
+            id: "cards",
+            title: "Cards",
+            icon: PAGE_ICONS.cards,
+            value: `${hidden.length} removed`,
+            content: (
+              <Section title="Cards">
+                <Row
+                  title="Removed cards"
+                  description="Puts the cards you closed back on the canvas."
+                >
+                  <button
+                    type="button"
+                    data-lalala-settings-button=""
+                    onClick={() => keepHidden([])}
+                  >
+                    Restore
+                  </button>
+                </Row>
+              </Section>
+            ),
+          },
+        ]
+      : []),
+  ];
 
   return (
     <>
@@ -84,28 +138,7 @@ export default function Landing() {
         </div>
       </main>
       <div data-lalala-dock="" data-lalala-canvas="">
-        <Call
-          settings={
-            <>
-              <ConnectSection />
-              <SoundSection />
-              <CanvasRows />
-              {hidden.length > 0 ? (
-                <Section title="Cards">
-                  <Row title="Removed cards" description="Puts the cards you closed back on the canvas.">
-                    <button
-                      type="button"
-                      data-lalala-settings-button=""
-                      onClick={() => keepHidden([])}
-                    >
-                      Restore
-                    </button>
-                  </Row>
-                </Section>
-              ) : null}
-            </>
-          }
-        />
+        <Call settings={pages} />
       </div>
       <StreamerFilter />
     </>

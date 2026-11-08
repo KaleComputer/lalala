@@ -153,13 +153,14 @@ const splitKey = (key: string) => {
 };
 
 /**
- * The voice's settings: the gear tab in the bar's row, there in and out of a call, opens
- * them over the page as one page of grouped rows (so few options need no sub-pages). `children`
- * replaces the app's sections (lalala.talk shows only what works in a browser).
+ * The voice's settings: the gear tab in the bar's row, there in and out of a call, opens them over
+ * the page in T3 Code's layout: a sidebar of pages on desktop; on a phone a list of the pages, each
+ * opening on its own with Back. `pages` replaces the app's (lalala.talk shows only what works in a
+ * browser).
  */
 export function VoiceSettings(props: {
   readonly tabHost: HTMLElement;
-  readonly children?: ReactNode;
+  readonly pages?: ReadonlyArray<SettingsPage> | undefined;
 }) {
   const at = useSyncExternalStore(subscribeOpen, readOpen, readOpen);
   const open = at !== null;
@@ -200,9 +201,11 @@ export function VoiceSettings(props: {
       )}
       {open
         ? createPortal(
-            <SettingsSheet section={at} onClose={close}>
-              {props.children ?? <AppSections />}
-            </SettingsSheet>,
+            props.pages ? (
+              <SettingsSheet pages={props.pages} section={at} onClose={close} />
+            ) : (
+              <AppSettings section={at} onClose={close} />
+            ),
             document.body,
           )
         : null}
@@ -223,7 +226,7 @@ function setOpenAt(next: string | null) {
   openAt = next;
   for (const listener of openListeners) listener();
 }
-/** Opens the settings sheet, scrolled to the section with this title. */
+/** Opens the settings sheet on the page with this title ("": a phone's list, a desktop's last page). */
 export const openVoiceSettings = (section = "") => setOpenAt(section);
 export const closeVoiceSettings = () => setOpenAt(null);
 /** How long a fresh pairing shows Connected before the sheet closes and the call starts. */
@@ -249,24 +252,131 @@ const fetchBrain = () =>
       brain: null,
     }));
 
+/** A settings page: its place in the sidebar or list, its current value there, and its rows. */
+export type SettingsPage = {
+  readonly id: string;
+  readonly title: string;
+  readonly icon: ReadonlyArray<string>;
+  readonly value?: string | undefined;
+  readonly content: ReactNode;
+};
+
+/** The pages' icons, Lucide's paths. */
+export const PAGE_ICONS = {
+  connection: ["M12 22v-5", "M9 8V2", "M15 8V2", "M18 8v5a4 4 0 0 1-4 4h-4a4 4 0 0 1-4-4V8Z"],
+  brain: [
+    "M9.9 15.5a2 2 0 0 0-1.4-1.4l-6.1-1.6a.5.5 0 0 1 0-1l6.1-1.6a2 2 0 0 0 1.4-1.4l1.6-6.1a.5.5 0 0 1 1 0l1.6 6.1a2 2 0 0 0 1.4 1.4l6.1 1.6a.5.5 0 0 1 0 1l-6.1 1.6a2 2 0 0 0-1.4 1.4l-1.6 6.1a.5.5 0 0 1-1 0z",
+  ],
+  threads: ["M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z", "M12 7v6", "M9 10h6"],
+  sound: [
+    "M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z",
+    "M19 10v2a7 7 0 0 1-14 0v-2",
+    "M12 19v3",
+  ],
+  canvas: ["M3 3h7v7H3z", "M14 3h7v7h-7z", "M14 14h7v7h-7z", "M3 14h7v7H3z"],
+  cards: ["M12 2 2 7l10 5 10-5-10-5z", "m2 17 10 5 10-5", "m2 12 10 5 10-5"],
+} as const;
+
+const PAGE_KEY = "lalala:settings-page";
+const PHONE = "(max-width: 640px)";
+
+function lastPage(pages: ReadonlyArray<SettingsPage>): string {
+  try {
+    const stored = localStorage.getItem(PAGE_KEY);
+    return pages.find((page) => page.id === stored)?.id ?? pages[0]?.id ?? "";
+  } catch {
+    return pages[0]?.id ?? "";
+  }
+}
+
+const Glyph = (props: { readonly d: ReadonlyArray<string> }) => (
+  <svg viewBox="0 0 24 24" aria-hidden="true">
+    {props.d.map((d) => (
+      <path key={d} d={d} />
+    ))}
+  </svg>
+);
+
+/** The topic sound, beside Sound & mic in the phone's list. */
+export function useSoundValue(): string {
+  const { topicSound } = useSyncedSettings();
+  return topicSound === "none"
+    ? "No sound"
+    : topicSound === BUILT_IN_TOPIC_SOUND
+      ? "Chime"
+      : soundTitle(topicSound);
+}
+
+/** Streamer mode or following, beside Canvas in the phone's list. */
+export function useCanvasValue(): string {
+  const streamer = useStreamerMode();
+  const following = useSyncExternalStore(subscribeFollow, isFollowing, () => false);
+  return streamer ? "Streamer mode" : following ? "Following" : "";
+}
+
 function SettingsSheet(props: {
+  readonly pages: ReadonlyArray<SettingsPage>;
+  /** The title of the page it was opened on, or "" for none. */
   readonly section: string;
+  /** Saving…, beside the close. */
+  readonly status?: string | null;
   readonly onClose: () => void;
-  readonly children: ReactNode;
 }) {
   const panelRef = useRef<HTMLDivElement>(null);
   const onClose = useEffectEvent(props.onClose);
+  const opened = props.pages.find((p) => p.title === props.section)?.id;
+  const [page, setPage] = useState(() => opened ?? lastPage(props.pages));
+  // A phone shows the list of pages first, unless the sheet was opened on one.
+  const [listed, setListed] = useState(opened === undefined);
+  const navRef = useRef<HTMLElement>(null);
+  const backRef = useRef<HTMLButtonElement>(null);
+  const focusAfter = useRef<"back" | "item" | null>(null);
+  const current = props.pages.find((p) => p.id === page) ?? props.pages[0];
 
-  // oxlint-disable-next-line t3code/no-unreasoned-state-sync -- scrolls the sheet (DOM) to the section it was opened at
-  useEffect(() => {
-    if (props.section === "") return;
-    const headings =
-      panelRef.current?.querySelectorAll("[data-lalala-settings-heading] > h2") ?? [];
-    [...headings]
-      .find((heading) => heading.textContent === props.section)
-      ?.closest("[data-lalala-settings-section]")
-      ?.scrollIntoView({ block: "start" });
-  }, [props.section]);
+  const show = (id: string) => {
+    setPage(id);
+    setListed(false);
+    try {
+      localStorage.setItem(PAGE_KEY, id);
+    } catch {
+      // Private mode: the sheet just opens on the first page next time.
+    }
+    // On a phone the list goes away under the finger, so focus moves to the page's Back.
+    if (window.matchMedia(PHONE).matches) focusAfter.current = "back";
+  };
+  const backToList = () => {
+    setListed(true);
+    focusAfter.current = "item";
+  };
+
+  // oxlint-disable-next-line t3code/no-unreasoned-state-sync -- moves focus between the phone's list and a page once the new view has rendered
+  useLayoutEffect(() => {
+    const target = focusAfter.current;
+    focusAfter.current = null;
+    if (target === "back") backRef.current?.focus({ preventScroll: true });
+    if (target === "item")
+      navRef.current
+        ?.querySelector<HTMLElement>("[aria-current='page']")
+        ?.focus({ preventScroll: true });
+  });
+
+  const onNavKey = (event: ReactKeyboardEvent<HTMLElement>) => {
+    const items = [...(navRef.current?.querySelectorAll<HTMLElement>("button") ?? [])];
+    const at = items.indexOf(document.activeElement as HTMLElement);
+    const next =
+      event.key === "ArrowDown"
+        ? (at + 1) % items.length
+        : event.key === "ArrowUp"
+          ? (at - 1 + items.length) % items.length
+          : event.key === "Home"
+            ? 0
+            : event.key === "End"
+              ? items.length - 1
+              : -1;
+    if (next < 0) return;
+    event.preventDefault();
+    items[next]?.focus();
+  };
 
   // oxlint-disable-next-line t3code/no-unreasoned-state-sync -- takes the newest synced settings while the sheet is open; Esc closes it
   useEffect(() => {
@@ -305,28 +415,64 @@ function SettingsSheet(props: {
         aria-label="Voice settings"
         tabIndex={-1}
         data-lalala-settings-panel=""
+        data-view={listed ? "list" : "page"}
         onClick={(event) => event.stopPropagation()}
       >
         <header>
+          <div data-lalala-settings-back="">
+            <button ref={backRef} type="button" onClick={backToList}>
+              <Glyph d={["m15 18-6-6 6-6"]} />
+              Settings
+            </button>
+          </div>
           <h1>
             <span>Settings</span>
             <span aria-hidden="true">/</span>
-            <span>Voice</span>
+            <span>{current?.title}</span>
           </h1>
+          <span data-lalala-settings-saving="" aria-live="polite">
+            {props.status}
+          </span>
           <button type="button" aria-label="Close settings" onClick={props.onClose}>
             <svg viewBox="0 0 24 24" aria-hidden="true">
               <path d="M18 6 6 18M6 6l12 12" />
             </svg>
           </button>
         </header>
-        <div data-lalala-settings-body="">{props.children}</div>
+        <div data-lalala-settings-split="">
+          <nav
+            ref={navRef}
+            aria-label="Settings pages"
+            data-lalala-settings-nav=""
+            onKeyDown={onNavKey}
+          >
+            <div data-lalala-settings-pages="">
+              {props.pages.map((p) => (
+                <button
+                  key={p.id}
+                  type="button"
+                  aria-current={p.id === current?.id ? "page" : undefined}
+                  onClick={() => show(p.id)}
+                >
+                  <Glyph d={p.icon} />
+                  <span>{p.title}</span>
+                  <small>{p.value}</small>
+                  <Glyph d={["m9 18 6-6-6-6"]} />
+                </button>
+              ))}
+            </div>
+          </nav>
+          <div key={current?.id} data-lalala-settings-body="">
+            {current?.content}
+          </div>
+        </div>
       </div>
     </div>
   );
 }
 
-/** The app's sections: the harness connection, the brain's and new threads' models, sound, canvas. */
-function AppSections() {
+/** The app's pages: the harness connection, the brain's and new threads' models, sound, canvas. */
+function AppSettings(props: { readonly section: string; readonly onClose: () => void }) {
   const [brain, setBrain] = useState<BrainState>({ kind: "loading" });
   const savingRef = useRef(false);
   const brainRevision = useRef(0);
@@ -396,26 +542,69 @@ function AppSections() {
 
   const known = brain.kind === "ready" ? brain.brain : brain.kind === "error" ? brain.brain : null;
 
+  const selection = known?.modelSelection;
+  const brainModel =
+    known && selection ? findModel(known, selection.instanceId, selection.model) : undefined;
+  const { delegates } = useSyncedSettings();
+  const sound = useSoundValue();
+  const canvas = useCanvasValue();
+  const pages: SettingsPage[] = [
+    {
+      id: "connection",
+      title: "Connection",
+      icon: PAGE_ICONS.connection,
+      content: <ConnectionSection onChange={() => retryBrain()} />,
+    },
+    {
+      id: "brain",
+      title: "Voice brain",
+      icon: PAGE_ICONS.brain,
+      value: brain.kind === "loading" ? "" : (brainModel?.name ?? ""),
+      content: (
+        <BrainSection
+          state={brain}
+          onConfigure={configureBrain}
+          retrying={retrying}
+          onRetry={retryBrain}
+        />
+      ),
+    },
+    {
+      id: "threads",
+      title: "New threads",
+      icon: PAGE_ICONS.threads,
+      value: delegates.model === null ? "Same as the brain" : (delegates.modelName ?? ""),
+      content: <ThreadsSection brain={known} loading={brain.kind === "loading" || retrying} />,
+    },
+    {
+      id: "sound",
+      title: "Sound & mic",
+      icon: PAGE_ICONS.sound,
+      value: sound,
+      content: <SoundSection />,
+    },
+    {
+      id: "canvas",
+      title: "Canvas",
+      icon: PAGE_ICONS.canvas,
+      value: canvas,
+      content: <CanvasRows />,
+    },
+  ];
+
   return (
-    <>
-      <ConnectionSection onChange={() => retryBrain()} />
-      <BrainSection
-        state={brain}
-        onConfigure={configureBrain}
-        retrying={retrying}
-        onRetry={retryBrain}
-      />
-      <ThreadsSection brain={known} loading={brain.kind === "loading" || retrying} />
-      <SoundSection />
-      <CanvasRows />
-    </>
+    <SettingsSheet
+      pages={pages}
+      section={props.section}
+      status={brain.kind === "ready" && brain.saving ? "Saving…" : null}
+      onClose={props.onClose}
+    />
   );
 }
 
-/** T3 Code's settings section: a title, then its rows in one group. A note stands in for the rows. */
+/** A page's one section, its title for screen readers only (the header shows it), as T3's hideTitle. */
 export function Section(props: {
   readonly title: string;
-  readonly status?: string | null;
   readonly ungrouped?: boolean;
   readonly note?: ReactNode;
   readonly children?: ReactNode;
@@ -429,10 +618,9 @@ export function Section(props: {
   );
   return (
     <section data-lalala-settings-section="" aria-labelledby={id}>
-      <div data-lalala-settings-heading="">
-        <h2 id={id}>{props.title}</h2>
-        <span aria-live="polite">{props.status}</span>
-      </div>
+      <h2 id={id} data-lalala-settings-sr="">
+        {props.title}
+      </h2>
       {props.ungrouped ? (
         content
       ) : props.note || props.children ? (
@@ -1026,7 +1214,7 @@ function BrainSection(props: {
   const saving = state.kind === "ready" && state.saving;
 
   return (
-    <Section title={title} status={saving ? "Saving…" : null}>
+    <Section title={title}>
       {error ? (
         <p data-lalala-settings-error="" role="alert">
           <StreamerText text={error} />

@@ -13,7 +13,7 @@ import {
   type VoiceBarState,
 } from "./presenceBar";
 import { type VoiceFileUpload, VoiceInput, type VoiceInputSubmit } from "./VoiceInput";
-import { VoiceSettings } from "./VoiceSettings";
+import { type SettingsPage, VoiceSettings } from "./VoiceSettings";
 import { voiceLog } from "./voiceLog";
 import { useStreamerMode, useStreamerText } from "./streamerMode";
 import "./presence/presence.css";
@@ -47,8 +47,8 @@ export function VoiceBar(props: {
   /** The user's mic is muted; the mic tab shows it and `onMute` flips it. */
   readonly muted?: boolean;
   readonly onMute?: () => void;
-  /** The settings' sections, in place of the app's (lalala.talk shows only what a browser can do). */
-  readonly settings?: ReactNode;
+  /** The settings' pages, in place of the app's (lalala.talk shows only what a browser can do). */
+  readonly settings?: ReadonlyArray<SettingsPage>;
   /** Models the call is downloading (lalala.talk's in-browser speech): a line each over the room. */
   readonly downloads?: ReadonlyArray<ModelProgress> | null;
   /**
@@ -171,7 +171,7 @@ export function VoiceBar(props: {
           )
         : null}
       {settingsHost !== null ? (
-        <VoiceSettings tabHost={settingsHost}>{props.settings}</VoiceSettings>
+        <VoiceSettings tabHost={settingsHost} pages={props.settings} />
       ) : null}
       {lead !== null && updateReady
         ? createPortal(
