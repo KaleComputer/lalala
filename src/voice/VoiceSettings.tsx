@@ -363,6 +363,7 @@ function SettingsSheet(props: {
   // The view focus was last placed for (phone, list or page, which page): a new one gets focus.
   const focusedView = useRef<string | null>(null);
   const titleId = useId();
+  const pageNameId = useId();
   const current = props.pages.find((p) => p.id === page) ?? props.pages[0];
 
   const show = (id: string) => {
@@ -377,22 +378,26 @@ function SettingsSheet(props: {
   // A phone's page steps back to the list first, as Back would.
   const onEscape = useEffectEvent(() => (phone && !listed ? backToList() : props.onClose()));
 
-  // oxlint-disable-next-line t3code/no-unreasoned-state-sync -- each new view (opening, a step between list and page, a page, the 640px switch) is remembered and, unless a showing control holds it, gets focus; panelRef is listed only because the lint asks
+  // oxlint-disable-next-line t3code/no-unreasoned-state-sync -- each new view (opening, a step between list and page, a page, the 640px switch) is remembered and, unless a showing control holds it, gets focus
   useLayoutEffect(() => {
     const view = `${phone}/${onList}/${current?.id}`;
+    const first = focusedView.current === null;
     if (view === focusedView.current) return;
     focusedView.current = view;
     if (!onList && current) remember(current.id);
-    // A control still showing keeps focus (a resize); a hidden one or none: a phone page's Back, else the page's row.
+    // A control still showing keeps focus (a resize); a hidden one or none: a phone page's Back, the phone's list as it
+    // opens the sheet (named Settings), else the page's row.
     const panel = panelRef.current;
     const at = document.activeElement;
     if (at && at !== panel && panel?.contains(at) && at.getClientRects().length > 0) return;
     const target =
       phone && !onList
         ? backRef.current
-        : navRef.current?.querySelector<HTMLElement>(`[data-page="${current?.id}"]`);
+        : onList && first
+          ? panel
+          : navRef.current?.querySelector<HTMLElement>(`[data-page="${current?.id}"]`);
     if (target !== at) target?.focus({ preventScroll: true });
-  }, [phone, onList, current?.id, panelRef]);
+  }, [phone, onList, current?.id]);
 
   // T3's sidebar: one Tab stop, arrows move along it without wrapping.
   const onNavKey = (event: ReactKeyboardEvent<HTMLElement>) => {
@@ -470,7 +475,7 @@ function SettingsSheet(props: {
                 "data-page": p.id,
                 "aria-current": p.id === current?.id && !onList ? "page" : undefined,
                 tabIndex: phone || p.id === (rove ?? current?.id) ? undefined : -1,
-                onFocus: phone ? undefined : () => setRove(p.id),
+                onFocus: () => setRove(p.id),
                 onClick: () => show(p.id),
               } as const;
               const content = (
@@ -503,7 +508,7 @@ function SettingsSheet(props: {
                 ref={backRef}
                 type="button"
                 aria-label="Back to settings"
-                aria-describedby={titleId}
+                aria-describedby={pageNameId}
                 onClick={backToList}
               >
                 <Glyph d={["m15 18-6-6 6-6"]} />
@@ -516,7 +521,7 @@ function SettingsSheet(props: {
                 <span aria-hidden="true">/</span>
                 <span data-lalala-settings-sr="">, </span>
               </span>
-              <span>{current?.title}</span>
+              <span id={pageNameId}>{current?.title}</span>
             </h1>
             <span
               data-lalala-settings-saving=""
