@@ -99,6 +99,8 @@ export function VoiceHost({
   const [stoppedAt, setStoppedAt] = useState(0);
   // The user's mic is muted for this call (the bar's mic cell); the call and its replies go on.
   const [muted, setMuted] = useState(false);
+  // The platform took the mic away mid-call (iOS: another app playing sound); a tap takes it back.
+  const [micPaused, setMicPaused] = useState(false);
   const engine = useSpeechEngine();
   // Why local speech cannot be used right now (service down or loading); null when it is ready.
   const [localProblem, setLocalProblem] = useState<string | null>(null);
@@ -388,6 +390,11 @@ export function VoiceHost({
 
   const toggle = useEffectEvent(async () => {
     const current = sessionRef.current;
+    // A tap on the paused bar brings the mic back; it never hangs up.
+    if (current?.active && current.micPausedForTap) {
+      current.revive();
+      return;
+    }
     // While a reply plays, a tap only stops the reply; on a phone its speaker sits next to the mic.
     if (current?.active && phase === "speaking") {
       current.stopSpeaking("tap");
@@ -432,6 +439,7 @@ export function VoiceHost({
         setError(message);
       },
       onStopped: () => setStoppedAt(Date.now()),
+      onMicPaused: setMicPaused,
     });
     startVoiceLogSession({ engine: speechEngine(), thread: voiceThread?.id ?? null });
     sessionRef.current = session;
@@ -577,12 +585,20 @@ export function VoiceHost({
   const live = phase !== "off" || starting;
   // In a call, a dropped link to T3 shows while it comes back (the harness retries on its own).
   const linkProblem = live ? link : null;
-  const message = problem ?? linkProblem ?? (tidying ? "Tidying up memory…" : null);
+  const paused = micPaused && phase !== "off";
+  const message =
+    problem ??
+    linkProblem ??
+    (paused
+      ? "Mic paused: another app took the audio. Tap to resume."
+      : tidying
+        ? "Tidying up memory…"
+        : null);
   const downloads = live ? loading : null;
   const state: VoiceBarState =
     problem !== null
       ? "error"
-      : starting || downloads !== null || linkProblem !== null
+      : starting || downloads !== null || linkProblem !== null || paused
         ? "connecting"
         : phase === "transcribing" || (phase === "listening" && (thinking || awaitingRun))
           ? quiet
@@ -600,7 +616,9 @@ export function VoiceHost({
       label={
         phase === "off"
           ? "Start voice (Ctrl+Option+V)"
-          : phase === "speaking"
+          : paused
+            ? "Resume the mic"
+            : phase === "speaking"
             ? "Stop the reply"
             : "Stop voice (Ctrl+Option+V)"
       }

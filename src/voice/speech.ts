@@ -30,6 +30,8 @@ export type VoiceSessionEvents = {
   readonly onError: (message: string) => void;
   /** A reply was cut off (barge-in): the bar shows Presence's stopped look. */
   readonly onStopped?: (reason: string) => void;
+  /** The platform took the mic away (iOS: another app's audio) or gave it back. */
+  readonly onMicPaused?: (paused: boolean) => void;
 };
 
 const FRAME_MS = 20;
@@ -89,6 +91,14 @@ const FOLLOW_ON_MS = 3_000;
 // a gate open without a break since the comb or new words last showed them is still them, for at most
 // this long past them. A gate that steps or a door open anew never counts.
 const GATE_CARRY_MS = 3_000;
+// Back in the foreground, a mic that still hears nothing after this is opened again.
+const REOPEN_AFTER_MS = 1_500;
+// Reopens per return to the foreground: another app still playing can take it again each time.
+const MAX_REOPENS = 3;
+// While the mic is paused and the page visible, the context is asked to run again this often.
+const REVIVE_EVERY_MS = 1_000;
+// A tap this soon after the mic came back was the tap that brought it back, not a hang-up.
+const REVIVE_TAP_MS = 1_000;
 const HESITATION =
   /(?:,|\b(?:um+|uh+|er+|erm|and|but|so|or|because|cause|like|the|a|an|to|of|for|with|that|which|if|when|then|i|my|your|is|are|was|were|we|you|it)\s*)$/i;
 // Backchannels never cut a reply off (ElevenLabs' interruption ignore terms, which Presence uses).
@@ -198,6 +208,15 @@ export class VoiceSession {
   private stream: MediaStream | null = null;
   private context: AudioContext | null = null;
   private capture: AudioWorkletNode | null = null;
+  private microphone: MediaStreamAudioSourceNode | null = null;
+  private windCut: BiquadFilterNode | null = null;
+  /** The platform took the mic away (track muted or ended, or the context not running). */
+  private micPaused = false;
+  private micBackAt = 0;
+  private pausedVisibleAt = 0;
+  private reviveTimer: number | null = null;
+  private reopening = false;
+  private reopens = 0;
   private player: SpeechPlayer | null = null;
   private sounds: VoiceSounds | null = null;
   private input: AnalyserNode | null = null;
@@ -294,6 +313,11 @@ export class VoiceSession {
     voiceLog("voice", muted ? "mic.mute" : "mic.unmute");
     for (const track of this.stream?.getAudioTracks() ?? []) track.enabled = !muted;
     if (!muted) return;
+    this.endHeardTurn();
+  }
+
+  /** The mic stops hearing the user: their turn ends (sent if it had their voice), held replies play. */
+  private endHeardTurn(): void {
     this.micLevel = 0;
     if (this.probing) {
       this.probing = false;
@@ -306,6 +330,145 @@ export class VoiceSession {
     }
     if (this.player?.holding) this.player.release();
     this.updatePhase();
+  }
+
+  /** The mic is paused by the platform now, or was until a moment ago (the tap that revived it). */
+  get micPausedForTap(): boolean {
+    return this.micPaused || performance.now() - this.micBackAt < REVIVE_TAP_MS;
+  }
+
+  /**
+   * iOS hands the audio session to another app that plays sound (a Telegram video): our track goes
+   * muted and the context "interrupted", in the background too. Nothing can hear the user until it ends.
+   */
+  private readonly checkMic = (): void => {
+    const context = this.context;
+    const stream = this.stream;
+    if (context === null || stream === null) return;
+    const tracks = stream.getAudioTracks();
+    const ended = tracks.some((track) => track.readyState === "ended");
+    const silenced = tracks.some((track) => track.muted);
+    const contextState = context.state as string;
+    const paused = ended || silenced || contextState !== "running";
+    const visible = document.visibilityState === "visible";
+    if (paused !== this.micPaused) {
+      this.micPaused = paused;
+      voiceLog("system", paused ? "mic.paused" : "mic.back", {
+        ended,
+        muted: silenced,
+        context: contextState,
+        visibility: document.visibilityState,
+      });
+      if (paused) this.endHeardTurn();
+      else this.micBackAt = performance.now();
+      this.events.onMicPaused?.(paused);
+    }
+    if (!paused || !visible) {
+      this.pausedVisibleAt = 0;
+      this.reopens = 0;
+      if (this.reviveTimer !== null) window.clearTimeout(this.reviveTimer);
+      this.reviveTimer = null;
+      return;
+    }
+    // In the foreground again: get the context running, and open the mic anew if it stays deaf.
+    this.pausedVisibleAt ||= performance.now();
+    if (contextState !== "running" && contextState !== "closed") {
+      void context.resume().catch(() => {});
+    }
+    const deaf = ended || (silenced && performance.now() - this.pausedVisibleAt >= REOPEN_AFTER_MS);
+    if (deaf && !this.reopening && this.reopens < MAX_REOPENS) {
+      this.reopens += 1;
+      void this.reopenMic();
+    }
+    this.reviveTimer ??= window.setTimeout(() => {
+      this.reviveTimer = null;
+      this.checkMic();
+    }, REVIVE_EVERY_MS);
+  };
+
+  /** The user tapped the paused bar: run the context and open the mic anew if it is still deaf. */
+  revive(): void {
+    const context = this.context;
+    if (context === null) return;
+    voiceLog("voice", "mic.revive", { context: context.state });
+    void context.resume().catch(() => {});
+    const deaf = (this.stream?.getAudioTracks() ?? []).some(
+      (track) => track.muted || track.readyState === "ended",
+    );
+    if (deaf && !this.reopening) void this.reopenMic();
+    else this.checkMic();
+  }
+
+  /** Asks for the microphone again and puts it where the old one was in the graph. */
+  private async reopenMic(): Promise<void> {
+    const context = this.context;
+    const windCut = this.windCut;
+    if (context === null || windCut === null) return;
+    this.reopening = true;
+    try {
+      const stream = await this.openMic();
+      if (this.context !== context || this.stream === null) {
+        for (const track of stream.getTracks()) track.stop();
+        return;
+      }
+      const old = this.stream;
+      this.microphone?.disconnect();
+      this.microphone = context.createMediaStreamSource(stream);
+      this.microphone.connect(windCut);
+      this.stream = stream;
+      for (const track of old.getTracks()) track.stop();
+      this.watchTracks(stream);
+      for (const track of stream.getAudioTracks()) track.enabled = !this.muted;
+      voiceLog("system", "mic.reopen", { context: context.state });
+    } catch (cause) {
+      voiceLog("system", "error", { where: "mic.reopen", message: String(cause) });
+    } finally {
+      this.reopening = false;
+      this.pausedVisibleAt = 0;
+      this.checkMic();
+    }
+  }
+
+  private openMic(): Promise<MediaStream> {
+    // Presence's microphone: echo cancellation and noise suppression on, auto gain off (it lifts far
+    // voices in the pauses and flattens the user's, the difference the gate reads), voice isolation where
+    // the platform has it.
+    const constraints: MediaTrackConstraints & { voiceIsolation?: boolean } = {
+      echoCancellation: true,
+      noiseSuppression: true,
+      autoGainControl: false,
+      voiceIsolation: true,
+    };
+    // The mic picked in the settings (per device); gone or refused, the system's default.
+    const deviceId = micDeviceId();
+    return navigator.mediaDevices
+      .getUserMedia({
+        audio: deviceId === null ? constraints : { ...constraints, deviceId: { exact: deviceId } },
+      })
+      .catch((cause: unknown) => {
+        if (deviceId === null || (cause as { name?: string }).name === "NotAllowedError") {
+          throw cause;
+        }
+        voiceLog("system", "error", { where: "mic.device", message: String(cause) });
+        return navigator.mediaDevices.getUserMedia({ audio: constraints });
+      });
+  }
+
+  private watchTracks(stream: MediaStream): void {
+    for (const track of stream.getAudioTracks()) {
+      track.addEventListener("ended", () => {
+        voiceLog("system", "mic.ended", { label: track.label });
+        this.checkMic();
+      });
+      track.addEventListener("mute", () => {
+        voiceLog("system", "mic.muted");
+        this.checkMic();
+      });
+      track.addEventListener("unmute", () => {
+        voiceLog("system", "mic.unmuted");
+        this.checkMic();
+      });
+    }
   }
 
   /** The brain is working on a reply: the user needs a little more to cut in (Presence's "think" bar). */
@@ -324,28 +487,7 @@ export class VoiceSession {
     if (audioSession !== undefined) audioSession.type = "play-and-record";
     this.engine = speechEngine();
     this.stt.warm();
-    // Presence's microphone: echo cancellation and noise suppression on, auto gain off (it lifts far
-    // voices in the pauses and flattens the user's, the difference the gate reads), voice isolation where
-    // the platform has it.
-    const constraints: MediaTrackConstraints & { voiceIsolation?: boolean } = {
-      echoCancellation: true,
-      noiseSuppression: true,
-      autoGainControl: false,
-      voiceIsolation: true,
-    };
-    // The mic picked in the settings (per device); gone or refused, the system's default.
-    const deviceId = micDeviceId();
-    this.stream = await navigator.mediaDevices
-      .getUserMedia({
-        audio: deviceId === null ? constraints : { ...constraints, deviceId: { exact: deviceId } },
-      })
-      .catch((cause: unknown) => {
-        if (deviceId === null || (cause as { name?: string }).name === "NotAllowedError") {
-          throw cause;
-        }
-        voiceLog("system", "error", { where: "mic.device", message: String(cause) });
-        return navigator.mediaDevices.getUserMedia({ audio: constraints });
-      });
+    this.stream = await this.openMic();
     const moduleUrl = URL.createObjectURL(
       new Blob([CAPTURE_WORKLET], { type: "application/javascript" }),
     );
@@ -359,6 +501,8 @@ export class VoiceSession {
     windCut.type = "highpass";
     windCut.frequency.value = WIND_CUT_HZ;
     microphone.connect(windCut);
+    this.microphone = microphone;
+    this.windCut = windCut;
     windCut.connect(capture);
     this.input = context.createAnalyser();
     this.input.fftSize = 2048;
@@ -386,18 +530,16 @@ export class VoiceSession {
     });
     // iOS: opening the microphone switches the audio session and can leave the context suspended.
     if ((context.state as string) !== "running") void context.resume().catch(() => {});
-    // The one microphone stream lives for the whole call; if the platform ends it, say so.
-    for (const track of this.stream.getAudioTracks()) {
-      track.addEventListener("ended", () =>
-        voiceLog("system", "mic.ended", { label: track.label }),
-      );
-      track.addEventListener("mute", () => voiceLog("system", "mic.muted"));
-      track.addEventListener("unmute", () => voiceLog("system", "mic.unmuted"));
-    }
+    // The platform can take the mic away mid-call (iOS: another app's audio); say so and take it back.
+    this.watchTracks(this.stream);
+    context.addEventListener("statechange", this.checkMic);
+    document.addEventListener("visibilitychange", this.checkMic);
+    window.addEventListener("pageshow", this.checkMic);
     // A touch anywhere is the surest way to get a stalled iOS context running again.
     document.addEventListener("touchend", this.onTouch, { passive: true });
     this.updatePhase();
     this.sounds.connected();
+    this.checkMic();
   }
 
   private readonly onTouch = (): void => {
@@ -406,6 +548,7 @@ export class VoiceSession {
       voiceLog("voice", "audio.context.touch", { state: context.state });
       void context.resume().catch(() => {});
     }
+    this.checkMic();
   };
 
   stop(): void {
@@ -415,6 +558,13 @@ export class VoiceSession {
     this.player?.dispose();
     this.sounds?.silence();
     document.removeEventListener("touchend", this.onTouch);
+    this.context?.removeEventListener("statechange", this.checkMic);
+    document.removeEventListener("visibilitychange", this.checkMic);
+    window.removeEventListener("pageshow", this.checkMic);
+    if (this.reviveTimer !== null) window.clearTimeout(this.reviveTimer);
+    this.reviveTimer = null;
+    if (this.micPaused) this.events.onMicPaused?.(false);
+    this.micPaused = false;
     this.stt.close();
     if (this.capture !== null) this.capture.port.onmessage = null;
     for (const track of this.stream?.getTracks() ?? []) track.stop();
@@ -422,6 +572,8 @@ export class VoiceSession {
     this.stream = null;
     this.context = null;
     this.capture = null;
+    this.microphone = null;
+    this.windCut = null;
     this.player = null;
     this.sounds = null;
     this.input = null;
