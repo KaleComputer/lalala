@@ -390,7 +390,7 @@
 @media (pointer: coarse) {
   [data-lalala-presence] {
     --lalala-hit: calc(44px - var(--tab-h));
-    --lalala-input-tab-w: 44px;
+    --lalala-input-tab-w: 40px;
   }
 }
 :is(.lalala-input-slot, .lalala-mic-slot, .lalala-canvas-slot, .lalala-settings-slot) {
@@ -512,13 +512,13 @@
 }
 
 /* The list, risen over the name tab, built like the frame: the edge 1px around, the canvases (the open
-   one's square lit), then New, Rename, Tidy and Delete as one row of cells. It glitches in once. */
+   one's row lit), then New, Rename, Tidy and Delete as one row of cells. It glitches in once. */
 [data-lalala-presence] [data-lalala-canvas-panel] {
   position: absolute;
   z-index: 6;
-  right: max(0px, min(var(--lalala-canvas-at), calc(100% - 240px)));
+  right: max(0px, min(var(--lalala-canvas-at), calc(100% - 200px)));
   bottom: calc(100% + var(--tab-h) + max(6px, var(--lalala-hit)));
-  width: min(240px, 100%);
+  width: min(200px, 100%);
   display: flex;
   flex-direction: column;
   gap: 1px;
@@ -530,7 +530,7 @@
 [data-lalala-presence] [data-lalala-canvas-panel] > ul {
   max-height: 40vh;
   margin: 0;
-  padding: 0;
+  padding: 4px 0;
   overflow-y: auto;
   list-style: none;
   background: var(--lalala-fill);
@@ -543,9 +543,11 @@
   width: 100%;
   padding: 5px 10px;
   border: 0;
-  color: var(--lala-ink-dim, var(--hud-2));
+  color: var(--hud-2);
   background: none;
-  font: 400 12px / 1.3 var(--font-sans);
+  font: 400 var(--tab-fs) / 1.2 var(--font-mono);
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
   text-align: left;
   cursor: pointer;
   -webkit-tap-highlight-color: transparent;
@@ -555,7 +557,7 @@
   flex: none;
   width: 7px;
   height: 7px;
-  box-shadow: inset 0 0 0 1px var(--lala-ink-dim, var(--hud-2));
+  background: var(--hud-3);
 }
 [data-lalala-presence] [data-lalala-canvas-panel] li > button > span {
   min-width: 0;
@@ -603,7 +605,8 @@
   outline: 0;
   color: var(--hud);
   background: var(--color-surface);
-  font: 400 12px / 1 var(--font-sans);
+  font: 400 var(--tab-fs) / 1 var(--font-mono);
+  letter-spacing: 0.06em;
 }
 [data-lalala-presence] [data-lalala-canvas-actions] {
   display: grid;
@@ -617,7 +620,7 @@
   border: 0;
   color: var(--hud);
   background: var(--lalala-fill);
-  font: 600 11px / 1 var(--font-tag);
+  font: 400 calc(var(--tab-fs) - 1px) / 1 var(--font-mono);
   letter-spacing: 0.12em;
   text-transform: uppercase;
   cursor: pointer;
@@ -633,10 +636,8 @@
     ),
     var(--lalala-fill);
 }
-/* Delete as the cards' CLOSE: danger text in a danger outline. */
 [data-lalala-presence] [data-lalala-canvas-actions] > [data-danger] {
-  color: var(--lalala-danger);
-  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--lalala-danger) 60%, transparent);
+  color: var(--lalala-warn);
 }
 [data-lalala-presence]
   [data-lalala-canvas-panel]
@@ -650,32 +651,23 @@
     inset 0 0 0 2px var(--color-surface),
     inset 0 0 0 3px var(--hud);
 }
-[data-lalala-presence]
-  [data-lalala-canvas-panel]
-  [data-lalala-canvas-actions]
-  > button[data-danger]:focus-visible {
-  box-shadow:
-    inset 0 0 0 1px var(--lalala-danger),
-    inset 0 0 0 2px var(--color-surface);
-}
 @media (pointer: coarse) {
   [data-lalala-presence] [data-lalala-canvas-panel] {
-    width: min(320px, 100%);
-    right: max(0px, min(var(--lalala-canvas-at), calc(100% - 320px)));
+    width: min(240px, 100%);
+    right: max(0px, min(var(--lalala-canvas-at), calc(100% - 240px)));
   }
   [data-lalala-presence] [data-lalala-canvas-panel] li > button {
-    min-height: 44px;
-    font-size: 14px;
+    min-height: 36px;
   }
   [data-lalala-presence] [data-lalala-canvas-panel] li > input {
-    height: 44px;
+    height: 36px;
     font-size: 16px;
   }
   [data-lalala-presence] .fr-tab .fr-tmr {
     font-size: 12px;
   }
   [data-lalala-presence] [data-lalala-canvas-actions] > button {
-    height: 44px;
+    height: 32px;
   }
 }
 
@@ -1094,7 +1086,7 @@
 }
 @media (max-width: 639px) {
   [data-lalala-presence] {
-    --lalala-input-tab-w: 44px;
+    --lalala-input-tab-w: 40px;
   }
 }
 /* Touch: 16px text (iOS zooms into anything smaller), 44px field, cells and tiles. */
@@ -1219,9 +1211,11 @@
   & .fr-in {
     background: var(--color-surface);
   }
-  /* Only the user's voice lights the room: Presence's own listening wash stays dark. */
-  & .bar-wash {
-    background: none;
+  /* The canvas list keeps its scanlines (the user, 8 Nov: the flat list lost its cyberpunk). */
+  & [data-lalala-canvas-panel] {
+    --lalala-fill:
+      repeating-linear-gradient(to bottom, rgba(255, 255, 255, 0.03) 0 1px, transparent 1px 3px),
+      var(--color-surface);
   }
   & .fr-plate {
     background: var(--hud);
