@@ -1,13 +1,6 @@
 import { type ReactNode, useEffect, useId, useLayoutEffect, useRef, useState } from "react";
 
-import step1 from "./connect/step1.png";
-import step2 from "./connect/step2.png";
-import step3 from "./connect/step3.png";
 import { StreamerText, useStreamerMode } from "./streamerMode";
-
-// Vite imports an image as its URL, Next (lalala.talk) as an object holding it.
-type Image = string | { readonly src: string };
-const url = (image: Image) => (typeof image === "string" ? image : image.src);
 
 /**
  * Where T3 Code is reached from: the app's own server (any browser works), or this tab itself
@@ -153,42 +146,18 @@ export function PairSteps(props: {
         }
       >
         {way === "app" ? (
-          <ol data-lalala-settings-shots="">
+          <ol data-lalala-settings-how="">
             <li>
               <p>Open Settings → Sharing &amp; access and click Create link.</p>
-              <img
-                src={url(step1)}
-                width={500}
-                height={26}
-                alt="T3 Code's Authorized clients row with its Create link button"
-                loading="lazy"
-                decoding="async"
-              />
             </li>
             <li>
               <p>
                 Name it {props.label}, keep View environment and Operate tasks ticked, then click Create
                 link.
               </p>
-              <img
-                src={url(step2)}
-                width={360}
-                height={178}
-                alt="T3 Code's Create pairing link dialog with View environment and Operate tasks ticked"
-                loading="lazy"
-                decoding="async"
-              />
             </li>
             <li>
               <p>Click Copy link. Where T3 Code shows only Copy code, copy that.</p>
-              <img
-                src={url(step3)}
-                width={460}
-                height={146}
-                alt="The new pairing in T3 Code: its link with Copy link, Copy code only, and a QR code"
-                loading="lazy"
-                decoding="async"
-              />
             </li>
           </ol>
         ) : (

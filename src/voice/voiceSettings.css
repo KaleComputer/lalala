@@ -296,7 +296,7 @@
   [data-lalala-settings-row] [aria-live] > p,
   [data-lalala-settings-info],
   [data-lalala-settings-error],
-  [data-lalala-settings-shots] p
+  [data-lalala-settings-how] p
 ) {
   max-width: 42rem;
   margin: 0;
@@ -741,35 +741,26 @@
 }
 :is(
   [data-lalala-settings-step] h3 + p,
-  [data-lalala-settings-shots],
+  [data-lalala-settings-how],
   [data-lalala-settings-command]
 ) {
   grid-column: 1 / -1;
   padding-left: 30px;
 }
-/* What to click in T3 Code: a short line over a cropped screenshot of its UI, per sub-step. */
-[data-lalala-settings-shots] {
+/* What to click in T3 Code, one short line per sub-step. */
+[data-lalala-settings-how] {
   display: grid;
-  gap: 14px;
+  gap: 6px;
   margin: 0 0 4px;
   list-style: none;
   counter-reset: shot;
 }
-[data-lalala-settings-shots] > li {
-  display: grid;
-  gap: 6px;
+[data-lalala-settings-how] > li {
   counter-increment: shot;
 }
-[data-lalala-settings-shots] p::before {
+[data-lalala-settings-how] p::before {
   content: counter(shot, lower-alpha) ". ";
   color: var(--s-fg-3);
-}
-[data-lalala-settings-shots] img {
-  display: block;
-  max-width: 100%;
-  height: auto;
-  border: 1px solid var(--s-divider);
-  border-radius: 6px;
 }
 /* The terminal's pairing command, with its Copy button beside it. */
 [data-lalala-settings-command] {
