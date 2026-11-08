@@ -93,7 +93,7 @@
 [data-lalala-settings-main] > header > h1 > span:first-child {
   color: var(--s-fg-2);
 }
-[data-lalala-settings-main] > header > h1 > span[aria-hidden] {
+[data-lalala-settings-main] > header > h1 > span:nth-child(2) {
   color: var(--s-fg-3);
 }
 [data-lalala-settings-main] > header > button {
@@ -173,24 +173,21 @@
   flex: none;
   box-sizing: border-box;
   width: 240px;
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
   padding: 12px 8px;
   overflow-y: auto;
   border-right: 1px solid var(--s-divider);
   background: color-mix(in srgb, var(--s-fg) 2.5%, var(--s-bg));
 }
 [data-lalala-settings-pages] {
-  display: contents;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
   margin: 0;
   padding: 0;
   list-style: none;
 }
-[data-lalala-settings-pages] > li {
-  display: contents;
-}
 [data-lalala-settings-nav] button {
+  width: 100%;
   display: flex;
   justify-content: flex-start;
   align-items: center;
@@ -852,32 +849,36 @@
     translate: -50% -50%;
   }
 }
-/* T3's middle widths (under its md, 768px), with a mouse: the sidebar narrows to an icon rail, names kept for readers. */
-@media (min-width: 641px) and (max-width: 767px) and (pointer: fine) {
+/* T3's middle widths (under its md, 768px): with a mouse the sidebar is an icon rail (data-rail, set from
+   RAIL_MEDIA), names kept for readers and in tooltips; by touch it narrows instead, as names never hover. */
+@media (min-width: 641px) and (max-width: 767px) {
   [data-lalala-settings-nav] {
-    width: 56px;
+    width: 200px;
   }
-  [data-lalala-settings-nav] button {
-    justify-content: center;
-    padding: 0;
-  }
-  /* The current page marked by a bar too, not by its fill alone. */
-  [data-lalala-settings-nav] button[aria-current="page"]::before {
-    content: "";
-    position: absolute;
-    inset-block: 6px;
-    left: 0;
-    width: 2px;
-    border-radius: 1px;
-    background: var(--s-primary);
-  }
-  [data-lalala-settings-nav] button > span {
-    position: absolute;
-    width: 1px;
-    height: 1px;
-    overflow: hidden;
-    clip-path: inset(50%);
-  }
+}
+[data-rail] [data-lalala-settings-nav] {
+  width: 56px;
+}
+[data-rail] [data-lalala-settings-nav] button {
+  justify-content: center;
+  padding: 0;
+}
+/* The current page marked by a bar too, not by its fill alone; it takes the row's colour. */
+[data-rail] [data-lalala-settings-nav] button[aria-current="page"]::before {
+  content: "";
+  position: absolute;
+  inset-block: 6px;
+  left: 0;
+  width: 2px;
+  border-radius: 1px;
+  background: currentColor;
+}
+[data-rail] [data-lalala-settings-nav] button > span {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
 }
 /* A phone: the whole screen, square, T3's narrow page padding. */
 @media (max-width: 640px) {

@@ -360,44 +360,30 @@ function SettingsSheet(props: {
   const navRef = useRef<HTMLElement>(null);
   const backRef = useRef<HTMLButtonElement>(null);
   const bodyRef = useRef<HTMLDivElement>(null);
-  // A step between the phone's list and a page: focus follows to what shows.
-  const stepped = useRef(false);
+  // The view focus was last placed for (phone, list or page, which page): a new one gets focus.
+  const focusedView = useRef<string | null>(null);
   const titleId = useId();
-  const opening = useRef(true);
   const current = props.pages.find((p) => p.id === page) ?? props.pages[0];
-  // Opened on a page (the call button's Connection): that page is remembered.
-  const rememberOpened = useEffectEvent(() => {
-    if (opened) remember(opened);
-  });
 
   const show = (id: string) => {
+    if (id === current?.id && !onList) return;
     setPage(id);
     setListed(false);
-    remember(id);
     setRove(null);
     // A phone's hidden page has lost its scroll already; a desktop's is reset here.
     bodyRef.current?.scrollTo({ top: 0 });
-    stepped.current = phone;
   };
-  const backToList = () => {
-    setListed(true);
-    stepped.current = true;
-  };
+  const backToList = () => setListed(true);
   // A phone's page steps back to the list first, as Back would.
   const onEscape = useEffectEvent(() => (phone && !listed ? backToList() : props.onClose()));
 
-  // oxlint-disable-next-line t3code/no-unreasoned-state-sync -- focus as the sheet opens, after a step between list and page, or when the 640px switch hides it: a phone page's Back, else the current row
+  // oxlint-disable-next-line t3code/no-unreasoned-state-sync -- each new view (opening, a step between list and page, a page, the 640px switch) gets focus and is remembered: a phone page's Back, else the current row
   useLayoutEffect(() => {
-    const first = opening.current;
-    opening.current = false;
-    const at = document.activeElement;
-    const lost =
-      at === document.body ||
-      (at instanceof HTMLElement &&
-        panelRef.current?.contains(at) === true &&
-        at.getClientRects().length === 0);
-    if (!first && !stepped.current && !lost) return;
-    stepped.current = false;
+    const view = `${phone}/${onList}/${current?.id}`;
+    const first = focusedView.current === null;
+    if (view === focusedView.current) return;
+    focusedView.current = view;
+    if (!onList && current?.id) remember(current?.id);
     // A phone's page: its Back. The phone's list as it opens: the sheet. Otherwise the current row.
     const target =
       phone && !onList
@@ -406,7 +392,7 @@ function SettingsSheet(props: {
           ? panelRef.current
           : navRef.current?.querySelector<HTMLElement>(`[data-page="${current?.id}"]`);
     target?.focus({ preventScroll: true });
-  }, [phone, onList, current?.id, stepped]);
+  }, [phone, onList, current?.id]);
 
   // T3's sidebar: one Tab stop, arrows move along it without wrapping.
   const onNavKey = (event: ReactKeyboardEvent<HTMLElement>) => {
@@ -431,7 +417,6 @@ function SettingsSheet(props: {
   // oxlint-disable-next-line t3code/no-unreasoned-state-sync -- takes the newest synced settings while the sheet is open; Esc closes it
   useEffect(() => {
     pullSynced();
-    rememberOpened();
     // Esc closes; Tab wraps inside the sheet so focus never reaches the canvas behind it. Not a
     // <dialog>: its top layer would cover the reset buttons' tooltips, which portal to the body.
     const onKey = (event: KeyboardEvent) => {
@@ -466,6 +451,7 @@ function SettingsSheet(props: {
         tabIndex={-1}
         data-lalala-settings-panel=""
         data-view={onList ? "list" : "page"}
+        data-rail={rail ? "" : undefined}
         onClick={(event) => event.stopPropagation()}
       >
         <nav
@@ -525,7 +511,10 @@ function SettingsSheet(props: {
             </div>
             <h1>
               <span id={titleId}>Settings</span>
-              <span aria-hidden="true">/</span>
+              <span>
+                <span aria-hidden="true">/</span>
+                <span data-lalala-settings-sr="">, </span>
+              </span>
               <span>{current?.title}</span>
             </h1>
             <span
