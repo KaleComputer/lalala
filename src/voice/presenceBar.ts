@@ -84,6 +84,11 @@ function makeStatusTab(frameEl: HTMLElement) {
   frameEl.append(clip, lead);
 }
 
+const cyberpunkLook = () => {
+  const look = document.documentElement.dataset.lalaLook;
+  return look === undefined || look === "neon";
+};
+
 export type PresenceBarHosts = {
   readonly lead: HTMLElement | null;
   readonly input: { readonly tab: HTMLElement; readonly panel: HTMLElement; readonly bar: HTMLElement } | null;
@@ -122,7 +127,13 @@ export function mountPresenceBar(
   const light = createCallWave(canvas, {
     reduced,
     wash: root.querySelector("[data-wash]"),
-    state: () => ({ look: frame.look, audio: frame.audio, reading: false, open: false }),
+    // The cyberpunk look hides Presence's no-signal line (voiceBar.css): then the wave draws nothing.
+    state: () => ({
+      look: frame.look,
+      audio: frame.audio,
+      reading: false,
+      open: frame.look === "nosignal" && cyberpunkLook(),
+    }),
     // The glyph is hidden: no level bars to move.
     bars: () => null,
   });
