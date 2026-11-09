@@ -16,7 +16,7 @@
 //   speaking     the big amber voice wave: her playback
 //   quiet        listening: no line at all, only the warm wash; his microphone never moves it (the user, 23 Oct)
 //   stopped      the wave cut by a red tick, its tail knocked loose
-//   no signal    the split glitch line: a cyan and a red copy apart, jumping (the one error look)
+//   no signal    Presence's shader glitch (glitchline.js; the split line without WebGL), the one error look
 //   reading      (a reading in parts) the voice wave, softer
 //   learning his voice: her voice while she speaks (frame.audio), else no line (quiet)
 //   none         typing: the field takes the room
@@ -39,6 +39,7 @@
 
 import { WAVE_N, WAVE_EASE, SCOPE_GAIN, bandsFrom, soften, scopeFrom } from "./wave.js";
 import { createAsciiLine } from "./asciiline.js";
+import { createGlitchLine } from "./glitchline.js";
 
 const AMB = "170, 255, 200";
 const GLOW = "rgba(80, 255, 150,.9)";
@@ -145,6 +146,7 @@ export function createCallWave(canvas, { reduced = false, wash = null, state = (
   let fill = null; // a model download's progress (0..1) for the ASCII line, or null
   let moving = false; // her line or its ghost still off the middle
   let resting = false; // nothing here moves without sound: the page may poll instead of drawing every frame
+  let glitchGl; // Presence's shader glitch (glitchline.js), made on the first no-signal frame; null without WebGL
   let asciiGl; // the restored ASCII shader (asciiline.mjs), made on the first connecting frame; null without WebGL
   let asciiBy = ""; // what drew the connecting line last: "webgl2", "webgl" or "2d" (checks)
   const start = performance.now();
@@ -336,6 +338,13 @@ export function createCallWave(canvas, { reduced = false, wash = null, state = (
       return;
     }
     if (k === "glitch") {
+      if (glitchGl === undefined) glitchGl = createGlitchLine();
+      const img = glitchGl?.draw({ width: W, height: H, dpr, y: cy, now: performance.now(), reduced });
+      if (img) {
+        ctx.drawImage(img, 0, 0, W, H);
+        return;
+      }
+      // Without WebGL: the split line.
       const ph = Math.floor(t * 14);
       const base = (u) => (rnd(Math.floor(u * 24) + ph * 31) - 0.5) * 12 * (rnd(ph * 7 + Math.floor(u * 6)) > 0.55 ? 1 : 0.1);
       ctx.save();

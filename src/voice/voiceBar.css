@@ -714,6 +714,10 @@
   white-space: nowrap;
 }
 
+/* No signal is the glitch alone: no torn cut through the frame, no fragments over it (9 Nov). */
+[data-lalala-presence] .fr[data-look~="broken"] :is(.fr-tear, .fr-frag) {
+  display: none;
+}
 /* What the bar has to say (VoiceBar's RoomNote; 9 Nov: nothing floats over the bar): on the frame, exactly
    over the room (the wave breaks out of the room, so a note in it would sit under the wave). */
 [data-lalala-presence] .bar-incoming {
@@ -1544,10 +1548,13 @@
     text-underline-offset: 3px;
   }
 
-  /* No signal: Presence's torn frame, its glitch line and retry run (9 Nov: the glitch the user loves),
-     the frame's edge in the danger colour. */
+  /* No signal: Presence's shader glitch in its own cyan and magenta (9 Nov), the frame's edge in the
+     danger colour. */
   & .fr[data-look~="broken"] {
     --fe: var(--lalala-danger);
+  }
+  & .fr[data-look~="broken"] .fr-wv {
+    filter: none;
   }
   /* The accent stays for what is live: no signal dims the call's own tabs and the time; the canvases
      and the gear still work. */
