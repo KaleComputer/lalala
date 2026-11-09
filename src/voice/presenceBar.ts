@@ -84,11 +84,6 @@ function makeStatusTab(frameEl: HTMLElement) {
   frameEl.append(clip, lead);
 }
 
-const cyberpunkLook = () => {
-  const look = document.documentElement.dataset.lalaLook;
-  return look === undefined || look === "neon";
-};
-
 export type PresenceBarHosts = {
   readonly lead: HTMLElement | null;
   readonly input: { readonly tab: HTMLElement; readonly panel: HTMLElement; readonly bar: HTMLElement } | null;
@@ -111,6 +106,8 @@ export function mountPresenceBar(
     readonly hearing: () => boolean;
     /** A model download's progress (0..1) for the connecting line, or null. */
     readonly fill?: () => number | null;
+    /** The compacting defrag covers the wave. */
+    readonly compacting?: () => boolean;
   },
 ): { readonly frame: PresenceFrame; readonly hosts: PresenceBarHosts; readonly dispose: () => void } | null {
   root.innerHTML = BAR_HTML;
@@ -124,16 +121,26 @@ export function mountPresenceBar(
   const reduced = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
   const frame = createFrame({ bar, frame: frameEl, reduced });
   startSweepClock(reduced);
+  const hiddenFor = { key: "", hidden: false };
   const light = createCallWave(canvas, {
     reduced,
     wash: root.querySelector("[data-wash]"),
-    // The cyberpunk look hides Presence's no-signal line (voiceBar.css): then the wave draws nothing.
-    state: () => ({
-      look: frame.look,
-      audio: frame.audio,
-      reading: false,
-      open: frame.look === "nosignal" && cyberpunkLook(),
-    }),
+    // A look may hide the wave for some states (voiceBar.css decides; the cyberpunk look shows only the
+    // agent's voice, and a model download's filling ASCII line), and the compacting defrag covers it:
+    // then the wave draws nothing at all. Read once per state, not every frame.
+    state: () => {
+      const key = `${frame.look}|${(input.fill?.() ?? null) !== null}`;
+      if (key !== hiddenFor.key) {
+        hiddenFor.key = key;
+        hiddenFor.hidden = getComputedStyle(canvas).visibility === "hidden";
+      }
+      return {
+        look: frame.look,
+        audio: frame.audio,
+        reading: false,
+        open: (input.compacting?.() ?? false) || hiddenFor.hidden,
+      };
+    },
     // The glyph is hidden: no level bars to move.
     bars: () => null,
   });
@@ -158,7 +165,8 @@ export function mountPresenceBar(
 
   const voiceEl = document.createElement("i");
   voiceEl.className = "lalala-voice";
-  root.querySelector("[data-wash]")?.append(voiceEl);
+  // In the room, beside Presence's wash (which a look may fade), not inside it.
+  root.querySelector(".bar-line")?.append(voiceEl);
   let voice = 0;
   let voiceSet = 0;
   let voiceAt = performance.now();

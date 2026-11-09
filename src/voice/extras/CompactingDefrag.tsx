@@ -3,6 +3,7 @@ import { createDisk, defragProgress, drawDisk } from "./defrag";
 import "./compactingDefrag.css";
 
 const STEP_MS = 150;
+const REDUCED_POLL_MS = 1_000;
 const FINISH_FRAME_MS = 33;
 const DONE_HOLD_MS = 450;
 
@@ -28,6 +29,8 @@ export function CompactingDefrag(props: {
     const canvas = canvasRef.current;
     if (!view.shown || canvas === null) return;
     const openedAt = Date.now();
+    // Reduced motion: one still grid while it runs, done at once when it ends.
+    const reduced = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
     const disk = createDisk(read().startedAt ?? openedAt);
     const style = getComputedStyle(canvas);
     const colors = {
@@ -49,14 +52,16 @@ export function CompactingDefrag(props: {
       const now = Date.now();
       const { active, startedAt, estimateMs } = read();
       if (active && finish === null) {
-        show(Math.floor(defragProgress(now - (startedAt ?? openedAt), estimateMs) * disk.steps));
-        timer = window.setTimeout(tick, STEP_MS);
+        show(
+          reduced ? 0 : Math.floor(defragProgress(now - (startedAt ?? openedAt), estimateMs) * disk.steps),
+        );
+        timer = window.setTimeout(tick, reduced ? REDUCED_POLL_MS : STEP_MS);
         return;
       }
       finish ??= {
         from: Math.max(0, step),
         at: now,
-        ms: 250 + 650 * (1 - Math.max(0, step) / disk.steps),
+        ms: reduced ? 0 : 250 + 650 * (1 - Math.max(0, step) / disk.steps),
       };
       const t = Math.min(1, (now - finish.at) / finish.ms);
       if (t < 1) {

@@ -69,8 +69,20 @@ type QueuedSentence = {
   wake: (() => void) | null;
 };
 
+/** The bar's NEW TOPIC label listens for this (VoiceBar). */
+export const TOPIC_EVENT = "lalala:topic";
+
+const rms = (analyser: AnalyserNode, frame: Float32Array<ArrayBuffer>) => {
+  analyser.getFloatTimeDomainData(frame);
+  let sum = 0;
+  for (const sample of frame) sum += sample * sample;
+  return Math.sqrt(sum / frame.length);
+};
+
 export class SpeechPlayer {
   private readonly output: AnalyserNode;
+  /** The voice alone, for the bar's wave: the topic sound is heard but never moves the wave. */
+  private readonly wave: AnalyserNode;
   private readonly frame: Float32Array<ArrayBuffer>;
   private queue: QueuedSentence[] = [];
   private pieces = new Set<ScheduledPiece>();
@@ -120,6 +132,13 @@ export class SpeechPlayer {
     this.output.fftSize = 2048;
     this.output.smoothingTimeConstant = 0.8;
     this.output.connect(context.destination);
+    this.wave = context.createAnalyser();
+    this.wave.fftSize = 2048;
+    this.wave.smoothingTimeConstant = 0.8;
+    // Silent, but pulled by the graph so it keeps analysing.
+    const mute = context.createGain();
+    mute.gain.value = 0;
+    this.wave.connect(mute).connect(context.destination);
     this.frame = new Float32Array(this.output.fftSize);
     context.addEventListener("statechange", this.onContextState);
     this.loadTopicSound();
@@ -200,9 +219,9 @@ export class SpeechPlayer {
     attempt();
   }
 
-  /** What is being played, for the bar's wave. */
+  /** The voice being played, for the bar's wave (not the topic sound). */
   get analyser(): AnalyserNode {
-    return this.output;
+    return this.wave;
   }
 
   get speaking(): boolean {
@@ -214,12 +233,14 @@ export class SpeechPlayer {
     return this.endsAt;
   }
 
-  /** RMS of what is being played right now. */
+  /** RMS of what is being played right now (the echo guard's level: the topic sound counts). */
   level(): number {
-    this.output.getFloatTimeDomainData(this.frame);
-    let sum = 0;
-    for (const sample of this.frame) sum += sample * sample;
-    return Math.sqrt(sum / this.frame.length);
+    return rms(this.output, this.frame);
+  }
+
+  /** RMS of the voice alone, for the bar's wave. */
+  voiceLevel(): number {
+    return rms(this.wave, this.frame);
   }
 
   recentlySpoken(withinMs = 15_000): ReadonlyArray<string> {
@@ -451,6 +472,11 @@ export class SpeechPlayer {
               // From the sentence being queued to its first audio being scheduled.
               waitMs: Math.round(performance.now() - sentence.queuedAt),
             });
+            if (sentence.newTopic) {
+              // The bar shows NEW TOPIC as the sentence starts playing.
+              const inMs = Math.max(0, this.playhead - this.context.currentTime) * 1000;
+              window.setTimeout(() => document.dispatchEvent(new Event(TOPIC_EVENT)), inMs);
+            }
             if (sentence.newTopic && this.topicSound !== null) {
               const gain = soundGain();
               const sound = this.topicSound;
@@ -593,6 +619,8 @@ export class SpeechPlayer {
     const source = this.context.createBufferSource();
     source.buffer = buffer;
     source.connect(this.output);
+    // The topic sound (index -1) is heard, not drawn.
+    if (index !== -1) source.connect(this.wave);
     const startAt = Math.max(this.playhead, this.context.currentTime + SCHEDULE_AHEAD_S);
     const piece: ScheduledPiece = {
       source,

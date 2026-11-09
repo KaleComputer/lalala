@@ -652,7 +652,7 @@ export class VoiceSession {
     player.analyser.getByteFrequencyData(spectrum.output);
     player.analyser.getFloatTimeDomainData(spectrum.outputWave);
     return {
-      levels: { input: Math.min(1, this.micLevel * 3), output: Math.min(1, player.level() * 3) },
+      levels: { input: Math.min(1, this.micLevel * 3), output: Math.min(1, player.voiceLevel() * 3) },
       spectrum,
     };
   }

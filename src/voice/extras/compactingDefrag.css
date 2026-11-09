@@ -31,10 +31,6 @@
   white-space: nowrap;
   clip-path: polygon(8px 0, 100% 0, 100% calc(100% - 8px), calc(100% - 8px) 100%, 0 100%, 0 8px);
 }
-/* In the bar the shared plate look (voiceBar.css) sets the rest; the label keeps the yellow. */
-[data-lalala-presence] [data-lalala-defrag] > [data-lalala-plate] {
-  background: var(--lalala-warn, #ffc14d);
-}
 /* The defrag takes the place of the wave or START; they come back when it is done. */
 [data-lalala-presence]:has([data-lalala-defrag]) :is(.fr-wv, .fr-idle, [data-lalala-offline]) {
   opacity: 0;

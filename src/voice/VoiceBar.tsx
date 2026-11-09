@@ -6,6 +6,7 @@ import type { PresenceFrame } from "./presence/frame";
 import { CanvasTabs } from "./CanvasSwitcher";
 import { CompactingDefrag } from "./extras/CompactingDefrag";
 import { useUpdateReady } from "./phoneUpdate";
+import { TOPIC_EVENT } from "./player";
 import {
   mountPresenceBar,
   type PresenceBarHosts,
@@ -72,12 +73,21 @@ export function VoiceBar(props: {
   const readAnalysis = useEffectEvent(() => props.analysis?.() ?? null);
   const hearing = useEffectEvent(() => props.state === "hearing");
   const fill = useEffectEvent(() => downloadFill(props.downloads));
+  const compacting = useEffectEvent(() => props.compacting?.active === true);
+  // A new topic starts playing: NEW TOPIC shows on the frame for a moment (the sound no longer moves the wave).
+  const [newTopic, setNewTopic] = useState(false);
 
   // oxlint-disable-next-line t3code/no-unreasoned-state-sync -- mounts Presence's own DOM-driven frame and wave once; they live outside React
   useEffect(() => {
     const root = rootRef.current;
     if (root === null) return;
-    const bar = mountPresenceBar(root, { onPress: press, analysis: readAnalysis, hearing, fill });
+    const bar = mountPresenceBar(root, {
+      onPress: press,
+      analysis: readAnalysis,
+      hearing,
+      fill,
+      compacting,
+    });
     if (bar === null) return;
     frameRef.current = bar.frame;
     setHosts(bar.hosts);
@@ -117,6 +127,21 @@ export function VoiceBar(props: {
   const room = hosts?.room ?? null;
   const offline = props.offline ?? null;
 
+  // oxlint-disable-next-line t3code/no-unreasoned-state-sync -- the player (outside React) announces a new topic as it starts playing
+  useEffect(() => {
+    let timer = 0;
+    const show = () => {
+      window.clearTimeout(timer);
+      setNewTopic(true);
+      timer = window.setTimeout(() => setNewTopic(false), TOPIC_LABEL_MS);
+    };
+    document.addEventListener(TOPIC_EVENT, show);
+    return () => {
+      document.removeEventListener(TOPIC_EVENT, show);
+      window.clearTimeout(timer);
+    };
+  }, []);
+
   return (
     <>
       <div
@@ -128,6 +153,23 @@ export function VoiceBar(props: {
         data-lalala-live={props.live ? "" : undefined}
         data-lalala-off={offline !== null ? "" : undefined}
       />
+      {/* A look may show connecting and thinking only as a word drawn in CSS; readers hear it here. */}
+      <span data-lalala-sr="" role="status">
+        {props.state === "connecting"
+          ? "Connecting"
+          : props.state === "thinking" || props.state === "transcribing"
+            ? "Thinking"
+            : ""}
+      </span>
+      {inputHosts !== null && newTopic
+        ? createPortal(
+            // On the frame, not in the room, so it sits over the wave (which breaks out of the room).
+            <span data-lalala-topic="" role="status">
+              New topic
+            </span>,
+            inputHosts.panel,
+          )
+        : null}
       {room !== null && props.compacting
         ? createPortal(<CompactingDefrag {...props.compacting} />, room)
         : null}
@@ -199,6 +241,9 @@ export function VoiceBar(props: {
     </>
   );
 }
+
+/** How long NEW TOPIC shows on the frame. */
+const TOPIC_LABEL_MS = 2_400;
 
 /** All the models' bytes so far against all their sizes, for the connecting line's green fill. */
 function downloadFill(models: ReadonlyArray<ModelProgress> | null | undefined) {
