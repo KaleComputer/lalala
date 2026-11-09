@@ -81,6 +81,17 @@ export function readSavedAddress() {
 export const saveAddress = (address: string) =>
   address === "" ? localStorage.removeItem(ADDRESS_KEY) : localStorage.setItem(ADDRESS_KEY, address);
 
+/** Nothing answered at `origin` (the pairing code is still unused); `blocked` when Chrome's local network permission stopped it. */
+export class Unreachable extends Error {
+  readonly origin: string;
+  readonly blocked: boolean;
+  constructor(origin: string, problem: string | null) {
+    super(problem ?? unreachable(origin));
+    this.origin = origin;
+    this.blocked = problem !== null;
+  }
+}
+
 /** What to say when nothing answers at `origin`. */
 const unreachable = (origin: string) =>
   isLocalOrigin(origin)
@@ -113,14 +124,18 @@ export async function pairWithLink(input: string, via?: string): Promise<Session
     client_label: "lalala.talk",
     client_device_type: "desktop",
   });
+  const permission = isLocalOrigin(origin) ? await localNetworkPermission() : null;
   let response: Response;
   try {
-    response = await localFetch(`${origin}/oauth/token`, { method: "POST", body });
+    response = await localFetch(`${origin}/oauth/token`, {
+      method: "POST",
+      body,
+      // A LAN address that isn't there hangs for a minute; Chrome's permission prompt waits on the user.
+      ...(permission?.state === "prompt" ? {} : { signal: AbortSignal.timeout(10_000) }),
+    });
   } catch {
-    throw new Error(
-      (isLocalOrigin(origin) ? localNetworkProblem(await localNetworkPermission()) : null) ??
-        unreachable(origin),
-    );
+    const local = isLocalOrigin(origin) ? await localNetworkPermission() : null;
+    throw new Unreachable(origin, localNetworkProblem(local));
   }
   const result = await response.json().catch(() => ({}));
   if (!response.ok || typeof result.access_token !== "string") {

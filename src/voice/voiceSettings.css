@@ -295,8 +295,7 @@
   [data-lalala-settings-row] > div > p,
   [data-lalala-settings-row] [aria-live] > p,
   [data-lalala-settings-info],
-  [data-lalala-settings-error],
-  [data-lalala-settings-how] p
+  [data-lalala-settings-error]
 ) {
   max-width: 42rem;
   margin: 0;
@@ -385,7 +384,6 @@
 :where(
   [data-lalala-settings-pick],
   [data-lalala-settings-button],
-  [data-lalala-settings-segments],
   [data-lalala-settings-control] input[type="text"]
 ) {
   min-width: 0;
@@ -444,7 +442,7 @@
   outline: 2px solid var(--s-primary);
   outline-offset: 2px;
 }
-:is([data-lalala-settings-button], [data-lalala-settings-segments] > button) {
+[data-lalala-settings-button] {
   font-weight: 500;
   white-space: nowrap;
 }
@@ -560,9 +558,6 @@
 
   [data-lalala-settings-row]:has(> div > p) [data-lalala-settings-value] {
     width: 100%;
-  }
-  [data-lalala-settings-step] > [data-lalala-settings-control] {
-    padding-left: 30px;
   }
 }
 [data-lalala-settings-pairing-copy] {
@@ -715,107 +710,96 @@
   background: var(--s-bg);
   box-shadow: var(--thumb-ring, none);
 }
-/* Connection's steps: a numbered circle, lit on the step to act on, ticked once it is behind. */
-[data-lalala-settings-step] h3 {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-}
-[data-lalala-settings-step-n] {
-  flex: none;
-  display: grid;
-  place-items: center;
-  width: 20px;
-  height: 20px;
-  border-radius: 50%;
-  color: var(--s-fg-2);
-  background: var(--s-accent);
-  font: 500 11px / 1 var(--s-sans);
-}
-[data-lalala-settings-step="now"] [data-lalala-settings-step-n] {
-  color: var(--s-primary-ink);
-  background: var(--s-primary);
-}
-[data-lalala-settings-step="done"] [data-lalala-settings-step-n] {
-  color: var(--s-primary);
-}
-:is(
-  [data-lalala-settings-step] h3 + p,
-  [data-lalala-settings-how],
-  [data-lalala-settings-command]
-) {
+/* Pairing: one field across the row for whatever T3 Code gave, a quiet line under it. */
+:is([data-lalala-pair-field], [data-lalala-pair-alt]) {
   grid-column: 1 / -1;
-  padding-left: 30px;
 }
-/* What to click in T3 Code, one short line per sub-step. */
-[data-lalala-settings-how] {
-  display: grid;
-  gap: 6px;
-  margin: 0 0 4px;
-  list-style: none;
-  counter-reset: shot;
-}
-[data-lalala-settings-how] > li {
-  counter-increment: shot;
-}
-[data-lalala-settings-how] p::before {
-  content: counter(shot, lower-alpha) ". ";
-  color: var(--s-fg-3);
-}
-/* The terminal's pairing command, with its Copy button beside it. */
-[data-lalala-settings-command] {
+[data-lalala-pair-field] {
+  --cut: 9px;
   display: flex;
-  align-items: flex-start;
-  gap: 8px;
-  margin-bottom: 4px;
+  padding: 1px;
+  border-radius: 9px;
+  background: var(--s-input);
 }
-[data-lalala-settings-code] {
+[data-lalala-pair-field]:focus-within {
+  background: var(--s-ring);
+}
+[data-lalala-pair-field] > input {
   flex: 1;
   min-width: 0;
-  padding: 7px 11px;
-  border: 1px solid var(--s-divider);
+  height: 40px;
+  border: 0;
   border-radius: 8px;
-  background: var(--s-input-bg);
-  font: 400 12px / 1.5 var(--s-mono);
-  overflow-wrap: normal;
-  user-select: all;
+  padding: 0 12px;
+  color: var(--s-fg);
+  background: color-mix(in srgb, var(--s-fg) 3.5%, var(--s-bg));
+  font: 400 var(--s-text) / 1 var(--s-sans);
+  outline: 0;
 }
-[data-lalala-settings-code] > span {
-  white-space: nowrap;
-}
-@container (max-width: 22rem) {
-  [data-lalala-settings-command] {
-    flex-direction: column;
-  }
-  [data-lalala-settings-code] {
-    box-sizing: border-box;
-    width: 100%;
-  }
-}
-/* Two ways to do one thing: T3's segmented toggle group. */
-[data-lalala-settings-segments] {
-  display: flex;
-  gap: 2px;
-  padding: 4px;
-  max-width: 100%;
-}
-[data-lalala-settings-segments] > button {
-  flex: 1 1 auto;
-  min-width: 44px;
-  padding: 0 8px;
-  border-radius: 6px;
+[data-lalala-pair-field] > input::placeholder {
   color: var(--s-fg-2);
 }
-[data-lalala-settings-segments] > button:hover,
-[data-lalala-settings-segments] > button[aria-checked="true"] {
+[data-lalala-pair-field] > input:disabled {
+  color: var(--s-fg-2);
+}
+[data-lalala-pair-field] > input[data-streamer-input] {
+  color: transparent;
+  text-shadow: 0 0 7px var(--s-fg);
+}
+[data-lalala-pair-alt] {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 8px;
+  margin: 0;
+  color: var(--s-fg-2);
+  font-size: 12px;
+  line-height: 1.5;
+}
+[data-lalala-pair-alt] > code {
+  font: 400 12px / 1.5 var(--s-mono);
   color: var(--s-fg);
+  user-select: all;
 }
-[data-lalala-settings-segments] > button[aria-checked="true"] {
-  background: color-mix(in srgb, var(--s-fg) 10%, transparent);
-  box-shadow: inset 0 0 0 1px var(--s-primary);
+[data-lalala-pair-alt] > button {
+  height: 24px;
+  padding: 0 8px;
+  font-size: 12px;
 }
-[data-lalala-settings] [data-lalala-settings-segments] > button:focus-visible {
-  outline-offset: -2px;
+/* Cyberpunk: the voice bar's cut plate in its chrome red, cyan on focus, mono text; no green here. */
+:root:is(:not([data-lala-look]), [data-lala-look="neon"]) [data-lalala-pair] {
+  --pair-red: #ff5e54;
+  & [data-lalala-pair-field],
+  & [data-lalala-pair-field] > input {
+    border-radius: 0;
+    clip-path: polygon(
+      var(--cut) 0,
+      100% 0,
+      100% calc(100% - var(--cut)),
+      calc(100% - var(--cut)) 100%,
+      0 100%,
+      0 var(--cut)
+    );
+  }
+  & [data-lalala-pair-field] {
+    background: color-mix(in srgb, var(--pair-red) 65%, var(--s-bg));
+  }
+  & [data-lalala-pair-field]:focus-within {
+    background: #26f3ec;
+  }
+  & [data-lalala-pair-field] > input {
+    color: #ffd8d2;
+    background: color-mix(in srgb, var(--pair-red) 6%, var(--s-bg));
+    caret-color: #26f3ec;
+    font-family: var(--s-mono);
+  }
+  & [data-lalala-pair-field] > input::placeholder {
+    color: color-mix(in srgb, var(--pair-red) 70%, transparent);
+    letter-spacing: 0.04em;
+  }
+  & [data-lalala-pair-alt] > code {
+    color: color-mix(in srgb, var(--pair-red) 85%, white);
+  }
 }
 /* Fingers: every small control gets T3's 44px hit area. */
 @media (pointer: coarse) {
@@ -833,7 +817,6 @@
     [data-lalala-settings-pick],
     [data-lalala-settings-switch],
     [data-lalala-settings-reset],
-    [data-lalala-settings-segments] > button,
     [data-lalala-settings-list] [role="option"] > button,
     [data-lalala-settings-panel] > header > button,
     [data-lalala-settings-back] > button

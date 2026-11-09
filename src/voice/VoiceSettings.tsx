@@ -1121,7 +1121,7 @@ const fetchConnection = () =>
       },
     }));
 
-const PAIR_COMMAND = "npx t3 pair --scope orchestration:read --scope orchestration:operate --label lalala";
+const PAIR_COMMAND = "npx t3 pair --label lalala";
 /** Asks T3 Code for one small answer through the bridge: what makes the link count as working. */
 const checkConnection = () =>
   sendConnection("/test").then((result) => {
@@ -1212,8 +1212,6 @@ function ConnectionSection(props: {
     return (
       <Section title={title}>
         <PairSteps
-          reach="server"
-          label="lalala"
           command={PAIR_COMMAND}
           working={working}
           problem={problem}

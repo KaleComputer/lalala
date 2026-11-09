@@ -16,8 +16,9 @@ import {
   readSession,
   readWorkspace,
   saveAddress,
+  Unreachable,
 } from "../../../src/voice/adapters/harness/t3";
-import { browserSupport, ConnectedRows, PairSteps } from "../../../src/voice/ConnectFlow";
+import { ConnectedRows, isPhone, PairSteps } from "../../../src/voice/ConnectFlow";
 import { isLocalOrigin, readAddress, readPairing } from "../../../src/voice/pairing";
 import {
   closeVoiceSettings,
@@ -32,8 +33,7 @@ import { disconnectBrain, followBrainThread } from "./adapters";
 type Workspace = Awaited<ReturnType<typeof readWorkspace>>;
 type Connected = { readonly session: Session; readonly socket: T3Socket; readonly workspace: Workspace };
 
-const PAIR_COMMAND =
-  "npx t3 pair --scope orchestration:read --scope orchestration:operate --label lalala.talk";
+const PAIR_COMMAND = "npx t3 pair --label lalala.talk";
 const NEW_THREAD = "";
 const CREATED = `Created a "${LALALA_PROJECT}" project in your home folder for your voice thread.`;
 const SEP = "\u0000";
@@ -69,7 +69,7 @@ export function ConnectSection() {
   const [model, setModel] = useState("");
   const [notice, setNotice] = useState<string | null>(null);
   const [choosing, setChoosing] = useState(false);
-  const [address, setAddress] = useState(readSavedAddress);
+  const [ask, setAsk] = useState<{ input: string; address: string } | null>(null);
   const [target, setTarget] = useState<string | null>(null);
   const socketRef = useRef<T3Socket | null>(null);
 
@@ -151,38 +151,74 @@ export function ConnectSection() {
     return () => socketRef.current?.close();
   }, []);
 
-  function pair(input: string) {
-    run("Pairing with T3 Code…", async () => {
-      const { origin: linked } = readPairing(input);
-      const via = address.trim() === "" ? null : readAddress(address);
-      if (address.trim() !== "" && via === null)
-        throw new Error("Your T3 address should be an https address, like https://….t3coderelay.com.");
-      saveAddress(via ?? "");
-      // A local link (or a bare code) goes through the T3 Connect address when there is one.
-      const origin = via && isLocalOrigin(linked) ? via : linked;
-      setTarget(origin);
-      const support = browserSupport("tab");
-      const local = isLocalOrigin(origin);
-      if (local && !support.ok)
-        throw new Error(`This browser can't reach ${linked}. Fill in your T3 Connect address above.`);
-      if (local && (await localNetworkPermission())?.state === "prompt")
-        setWorking("Chrome is asking to reach your local network: click Allow.");
-      let session: Session;
-      try {
-        session = await pairWithLink(input, origin);
-      } catch (cause) {
-        // Waiting on Chrome's local network permission: pair as soon as the user allows it.
-        const permission = local ? await localNetworkPermission() : null;
-        if (permission && localNetworkProblem(permission))
-          permission.onchange = () => {
-            if (permission.state !== "granted") return;
-            permission.onchange = null;
-            pair(input);
-          };
-        throw cause;
+  /** Trades the pasted code for a session at `origin`; a plain-http T3 first needs Chrome's local network permission. */
+  async function pairAt(input: string, origin: string) {
+    setTarget(origin);
+    const local = isLocalOrigin(origin);
+    if (local && (await localNetworkPermission())?.state === "prompt")
+      setWorking("Chrome is asking to reach your local network: click Allow.");
+    try {
+      return await pairWithLink(input, origin);
+    } catch (cause) {
+      // Waiting on Chrome's local network permission: pair as soon as the user allows it.
+      const permission = local ? await localNetworkPermission() : null;
+      if (permission?.state === "prompt") {
+        permission.onchange = () => {
+          if (permission.state === "denied") permission.onchange = null;
+          if (permission.state !== "granted") return;
+          permission.onchange = null;
+          pair(input);
+        };
+        throw new Error(localNetworkProblem(permission)!);
       }
-      await finish(await open(session));
+      throw cause;
+    }
+  }
+
+  /**
+   * Pairs with whatever was pasted. A local link goes through the remembered T3 Connect address, else
+   * straight to the computer (not from a phone, which never is it); when neither answers, it asks for
+   * the address and pairs through that with the same, still unused, code.
+   */
+  function pair(input: string, via?: string) {
+    run("Pairing with T3 Code…", async () => {
+      if (via === undefined) setAsk(null);
+      const { origin: linked } = readPairing(input);
+      const saved = via ?? (readSavedAddress() || null);
+      const routes = !isLocalOrigin(linked)
+        ? [linked]
+        : [...(saved ? [saved] : []), ...(via || isPhone() ? [] : [linked])];
+      let missed: Unreachable | null = null;
+      for (const origin of routes) {
+        let session: Session;
+        try {
+          session = await pairAt(input, origin);
+        } catch (cause) {
+          if (!(cause instanceof Unreachable)) throw cause;
+          missed = cause;
+          continue;
+        } finally {
+          // An address that answered is the user's T3: remembered for the next pairing.
+          if (origin === via && missed?.origin !== via) saveAddress(via);
+        }
+        setAsk(null);
+        return await finish(await open(session));
+      }
+      if (!isLocalOrigin(linked)) throw missed!;
+      setAsk({ input, address: saved ?? "" });
+      // Said only when there is something to fix: the address didn't answer, or Chrome blocks the local network.
+      if (missed && (missed.origin === saved || missed.blocked))
+        throw new Error(missed.message);
     });
+  }
+
+  function pairVia(value: string) {
+    const via = readAddress(value);
+    if (via === null || ask === null) {
+      setProblem("That isn't an https address. Copy the MCP URL again.");
+      return;
+    }
+    pair(ask.input, via);
   }
 
   const title = "Connection";
@@ -193,13 +229,20 @@ export function ConnectSection() {
     return (
       <Section title={title} note={note}>
         <PairSteps
-          reach="tab"
-          label="lalala.talk"
           command={PAIR_COMMAND}
           working={working}
           problem={problem}
-          onPair={pair}
-          address={{ value: address, onChange: setAddress }}
+          onPair={(input) => pair(input)}
+          ask={
+            ask && {
+              address: ask.address,
+              onAddress: pairVia,
+              onBack: () => {
+                setAsk(null);
+                setProblem(null);
+              },
+            }
+          }
           target={target}
         />
       </Section>

@@ -15,7 +15,8 @@ export function readPairing(input: string): { origin: string; token: string } {
   if (isPairingCode(value)) return { origin: DEFAULT_ORIGIN, token: value };
   let url: URL;
   try {
-    url = new URL(value);
+    // The link alone, or whatever was copied around it.
+    url = new URL(/(?:https?|t3code):\/\/\S+/i.exec(value)?.[0] ?? value);
   } catch {
     throw new Error("That is neither a pairing code nor a link. Copy it again from T3 Code.");
   }

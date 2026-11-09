@@ -2,117 +2,67 @@ import { type ReactNode, useEffect, useId, useLayoutEffect, useRef, useState } f
 
 import { StreamerText, useStreamerMode } from "./streamerMode";
 
-/**
- * Where T3 Code is reached from: the app's own server (any browser works), or this tab itself
- * (lalala.talk), which needs a browser that may reach the computer's local network.
- */
-export type Reach = "server" | "tab";
-
-const SUPPORTED =
-  "Works in Chrome and Edge on the computer running T3 Code; anywhere else through your T3 Connect address.";
-const CONNECT_ADDRESS = "https://….t3coderelay.com";
-
-/** Whether this browser can reach T3 Code, in one line the settings show as is. */
-export function browserSupport(reach: Reach): { readonly ok: boolean; readonly line: string } {
-  if (reach === "server") return { ok: true, line: "Works in any browser: the app's server talks to T3 Code." };
-  const nav = navigator as Navigator & {
-    userAgentData?: { readonly mobile: boolean; readonly brands: ReadonlyArray<{ brand: string }> };
-  };
-  const ua = navigator.userAgent;
+/** A phone or tablet: never the computer T3 Code runs on. */
+export function isPhone() {
+  const nav = navigator as Navigator & { userAgentData?: { readonly mobile: boolean } };
   // iPadOS Safari calls itself a Mac.
-  const touchMac = /Macintosh/.test(ua) && navigator.maxTouchPoints > 1;
-  const phone = nav.userAgentData?.mobile ?? (touchMac || /iPhone|iPad|iPod|Android|Mobile/.test(ua));
-  const chromium = nav.userAgentData?.brands.some((b) => b.brand === "Chromium") ?? false;
-  if (chromium && !phone) return { ok: true, line: SUPPORTED };
-  const name = phone
-    ? "A phone or tablet browser"
-    : /Firefox\//.test(ua)
-      ? "Firefox"
-      : /Safari\//.test(ua)
-        ? "Safari"
-        : "This browser";
-  return {
-    ok: false,
-    line: `${name} can't reach T3 Code on your computer directly: add your T3 Connect address, or paste an https pairing link (Tailscale, NetBird).`,
-  };
+  const touchMac = /Macintosh/.test(navigator.userAgent) && navigator.maxTouchPoints > 1;
+  return nav.userAgentData?.mobile ?? (touchMac || /iPhone|iPad|iPod|Android|Mobile/.test(navigator.userAgent));
 }
-
-const PAIR_WAYS = ["app", "terminal"] as const;
 
 const untilDate = (at: number) =>
   new Date(at).toLocaleDateString(undefined, { weekday: "short", day: "numeric", month: "short" });
 
-function Step(props: {
-  readonly n: number;
-  readonly title: string;
-  readonly description?: ReactNode;
-  readonly state?: "done" | "now" | undefined;
-  readonly control?: ReactNode;
-  readonly children?: ReactNode;
-}) {
-  return (
-    <div data-lalala-settings-row="" data-lalala-settings-step={props.state ?? ""}>
-      <div>
-        <h3>
-          <span data-lalala-settings-step-n="" aria-hidden="true">
-            {props.state === "done" ? "✓" : props.n}
-          </span>
-          {props.title}
-        </h3>
-        {props.description ? <p>{props.description}</p> : null}
-      </div>
-      {props.control ? <div data-lalala-settings-control="">{props.control}</div> : null}
-      {props.children}
-    </div>
-  );
-}
+const hostOf = (origin: string) => origin.replace(/^\w+:\/\//, "");
 
 /**
- * Not connected yet: make a pairing link in T3 Code (or with the terminal), paste it, and everything
- * after that runs by itself (`onPair`), saying what it does in `working` and what to fix in `problem`.
+ * Not connected yet: one field for whatever T3 Code's Create link gave (the link, its code, or the
+ * whole copied text), and everything after that runs by itself (`onPair`). Only when this device
+ * can't reach the address in it (`ask`) does it ask for the one thing missing: the T3 Connect address.
  */
 export function PairSteps(props: {
-  readonly reach: Reach;
-  /** The name the pairing gets in T3 Code. */
-  readonly label: string;
   readonly command: string;
   readonly working: string | null;
   readonly problem: string | null;
   readonly onPair: (input: string) => void;
-  /** lalala.talk: the T3 Connect address to pair through instead of a link's local one, remembered by the caller. */
-  readonly address?: { readonly value: string; readonly onChange: (value: string) => void } | undefined;
+  /** lalala.talk: this device couldn't reach the pasted link's local address; asks for the T3 Connect address (the remembered one first). */
+  readonly ask?: {
+    readonly address: string;
+    readonly onAddress: (value: string) => void;
+    readonly onBack: () => void;
+  } | null;
   /** The address it is pairing with, shown while it works. */
   readonly target?: string | null | undefined;
-  /** Another way to pair, under the steps (the app: the T3 Code on this computer). */
+  /** Another way to pair, under the field (the app: the T3 Code on this computer). */
   readonly children?: ReactNode;
 }) {
-  const [way, setWay] = useState<"app" | "terminal">("app");
+  const ask = props.ask ?? null;
   const [link, setLink] = useState("");
+  // Starts as the remembered address, once asked.
+  const [address, setAddress] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
-  const support = browserSupport(props.reach);
   const streamer = useStreamerMode();
   const busy = props.working !== null;
-  const pair = (input: string) => {
+  const submit = (input: string) => {
     const value = input.trim();
-    if (value !== "" && !busy) props.onPair(value);
+    if (value === "" || busy) return;
+    if (ask) ask.onAddress(value);
+    else props.onPair(value);
   };
-  const address = props.address;
-  // A browser that can't reach a local T3 still pairs through a T3 Connect address.
-  const usable = support.ok || address !== undefined;
-  const needsAddress = !support.ok && address !== undefined && address.value.trim() === "";
-  let n = 1;
+  const value = ask ? (address ?? ask.address) : link;
+  const setValue = ask ? setAddress : setLink;
 
   return (
     <>
-      <div data-lalala-settings-row="">
+      <div data-lalala-settings-row="" data-lalala-pair="">
         <div>
           <h3>T3 Code</h3>
           <p>
-            {support.ok
-              ? support.line
-              : address
-                ? "Works here through your T3 Connect address."
-                : "Not available in this browser."}
+            {ask ? (
+              `${isPhone() ? "Your phone" : "This browser"} can't reach T3 Code's local address. Paste your T3 Connect address instead: T3 Code → Settings → Environments → ⋯ → Copy MCP URL.`
+            ) : (
+              "T3 Code → Settings → Sharing & access → Create link, then paste the link or code here."
+            )}
           </p>
         </div>
         <div data-lalala-settings-control="">
@@ -120,155 +70,68 @@ export function PairSteps(props: {
             Not connected
           </span>
         </div>
-      </div>
-      {usable ? null : (
-        <p data-lalala-settings-error="" role="alert">
-          {support.line}
-        </p>
-      )}
-      <Step
-        n={n++}
-        title="Make a pairing link"
-        state={busy ? "done" : undefined}
-        control={
-          <div
-            role="radiogroup"
-            aria-label="Where to make it"
-            data-lalala-settings-segments=""
-            onKeyDown={(event) => {
-              const delta = { ArrowRight: 1, ArrowDown: 1, ArrowLeft: -1, ArrowUp: -1 }[event.key];
-              if (delta === undefined) return;
-              event.preventDefault();
-              const index = (PAIR_WAYS.indexOf(way) + delta + PAIR_WAYS.length) % PAIR_WAYS.length;
-              setWay(PAIR_WAYS[index]!);
-              const radios =
-                event.currentTarget.querySelectorAll<HTMLButtonElement>('[role="radio"]');
-              radios[index]?.focus();
-            }}
-          >
-            {PAIR_WAYS.map((option) => (
-              <button
-                key={option}
-                type="button"
-                role="radio"
-                aria-checked={way === option}
-                tabIndex={way === option ? 0 : -1}
-                onClick={() => setWay(option)}
-              >
-                {option === "app" ? "In T3 Code" : "Terminal"}
-              </button>
-            ))}
-          </div>
-        }
-      >
-        {way === "app" ? (
-          <ol data-lalala-settings-how="">
-            <li>
-              <p>Open Settings → Sharing &amp; access and click Create link.</p>
-            </li>
-            <li>
-              <p>
-                Name it {props.label}, keep View environment and Operate tasks ticked, then click Create
-                link.
-              </p>
-            </li>
-            <li>
-              <p>Click Copy link. Where T3 Code shows only Copy code, copy that.</p>
-            </li>
-          </ol>
-        ) : (
-          <div data-lalala-settings-command="">
-            <code data-lalala-settings-code="">
-              {props.command.split(/(--[\w-]+)/).map((part, index) =>
-                // oxlint-disable-next-line react/no-array-index-key -- command tokens have fixed order and no state
-                part.startsWith("--") ? <span key={index}>{part}</span> : part,
-              )}
-            </code>
-            <button
-              type="button"
-              data-lalala-settings-button=""
-              onClick={() => void navigator.clipboard.writeText(props.command).then(() => setCopied(true))}
-            >
-              {copied ? "Copied" : "Copy"}
-            </button>
-          </div>
-        )}
-      </Step>
-      {address ? (
-        <Step
-          n={n++}
-          title="Your T3 address"
-          description={
-            support.ok
-              ? `Away from the computer running T3 Code? Your T3 Connect address (${CONNECT_ADDRESS}). Leave it empty on that computer.`
-              : `Your T3 Connect address (${CONNECT_ADDRESS}): this browser reaches T3 Code through it, from anywhere. Asked once.`
-          }
-          state={busy ? "done" : needsAddress ? "now" : undefined}
-          control={
-            <input
-              type="url"
-              inputMode="url"
-              aria-label="Your T3 Connect address"
-              placeholder={CONNECT_ADDRESS}
-              autoComplete="off"
-              autoCapitalize="off"
-              spellCheck={false}
-              data-streamer-input={streamer ? "" : undefined}
-              value={address.value}
-              disabled={busy}
-              onChange={(event) => address.onChange(event.currentTarget.value)}
-              onKeyDown={(event) => {
-                if (event.key === "Enter") pair(link);
-              }}
-            />
-          }
-        />
-      ) : null}
-      <Step
-        n={n++}
-        title="Paste it here"
-        description="The link or code. It connects on its own."
-        state={busy ? "done" : needsAddress ? undefined : "now"}
-        control={
+        <div data-lalala-pair-field="">
           <input
-            type="text"
-            aria-label="Pairing link or code"
-            placeholder="Paste link or code"
+            key={ask ? "address" : "link"}
+            type={ask ? "url" : "text"}
+            inputMode={ask ? "url" : undefined}
+            aria-label={ask ? "Your T3 Connect address" : "Pairing link or code"}
+            placeholder={ask ? "https://….t3coderelay.com/mcp" : "Paste link or code"}
             autoComplete="off"
+            autoCapitalize="off"
             spellCheck={false}
+            // oxlint-disable-next-line jsx-a11y/no-autofocus -- the one field to fill once the address is asked for
+            autoFocus={ask !== null}
             data-streamer-input={streamer ? "" : undefined}
-            value={link}
+            value={value}
             disabled={busy}
-            onChange={(event) => setLink(event.currentTarget.value)}
+            onChange={(event) => setValue(event.currentTarget.value)}
             onPaste={(event) => {
               const pasted = event.clipboardData.getData("text").trim();
               if (pasted === "") return;
               event.preventDefault();
-              setLink(pasted);
-              pair(pasted);
+              setValue(pasted);
+              submit(pasted);
             }}
             onKeyDown={(event) => {
-              if (event.key === "Enter") pair(link);
+              if (event.key === "Enter") submit(value);
+              if (event.key === "Escape" && ask) {
+                event.preventDefault();
+                event.stopPropagation();
+                ask.onBack();
+              }
             }}
           />
-        }
-      />
-      {props.reach === "tab" && support.ok && !address?.value.trim() ? (
-        <Step
-          n={n++}
-          title="Allow the local network"
-          description="Chrome asks once to let this page reach your computer: click Allow. Blocked it before? Click the icon left of the address bar, open Site settings, set Local network access to Allow."
-          state={busy ? "now" : undefined}
-        />
-      ) : null}
+        </div>
+        {ask ? (
+          <p data-lalala-pair-alt="">
+            <button type="button" data-lalala-settings-button="" data-quiet="" disabled={busy} onClick={ask.onBack}>
+              Back
+            </button>
+          </p>
+        ) : (
+          <p data-lalala-pair-alt="">
+            Or run <code>{props.command}</code>
+            <button
+              type="button"
+              data-lalala-settings-button=""
+              data-quiet=""
+              onClick={() => void navigator.clipboard.writeText(props.command).then(() => setCopied(true))}
+            >
+              {copied ? "Copied" : "Copy"}
+            </button>
+          </p>
+        )}
+      </div>
       {props.working ? (
         <p data-lalala-settings-info="" role="status">
           {props.working}
-        </p>
-      ) : null}
-      {busy && props.target ? (
-        <p data-lalala-settings-info="">
-          T3 Code at <StreamerText text={props.target} />
+          {props.target ? (
+            <>
+              {" · "}
+              <StreamerText text={hostOf(props.target)} />
+            </>
+          ) : null}
         </p>
       ) : null}
       {props.problem ? (
