@@ -617,11 +617,16 @@ export function VoiceHost({
   useEffect(() => {
     const session = sessionRef.current;
     if (session === null) return;
+    // The user's latest words on the thread (by message id; an older bridge's rows carry none).
     const awaited = awaitedMessageRef.current;
-    const asked = items.find(
-      ({ item }) => item.type === "user_message" && item.messageId === awaited,
-    )?.item;
-    // The bridge's rows are in update order, so "after their words" is by the server's start times.
+    const asked =
+      awaited === null
+        ? undefined
+        : items.findLast(
+            ({ item }) =>
+              item.type === "user_message" && (item.messageId ?? awaited) === awaited,
+          )?.item;
+    // By the server's start times: the bridge's rows come in update order.
     const askedAt = asked ? DateTime.toEpochMillis(asked.startedAt ?? asked.updatedAt) : undefined;
     for (const { item, visibility } of items) {
       const startedAt = DateTime.toEpochMillis(item.startedAt ?? item.updatedAt);
