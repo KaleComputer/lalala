@@ -131,6 +131,8 @@ export function VoiceHost({
   const engine = useSpeechEngine();
   // Why local speech cannot be used right now (service down or loading); null when it is ready.
   const [localProblem, setLocalProblem] = useState<string | null>(null);
+  // Asks the local service again now (a tap on "tap to retry"); the poll keeps going either way.
+  const recheckLocalRef = useRef<() => void>(() => {});
   const sessionRef = useRef<VoiceSession | null>(null);
   const sessionStartedAtRef = useRef(0);
   // When the user's last words went to the thread (performance time), for the log's reply timings.
@@ -239,22 +241,27 @@ export function VoiceHost({
           const body = (await response.json().catch(() => ({}))) as { error?: string };
           // lalala answers 503 with its reason while models load; a front door answers 502-504
           // with no reason when lalala isn't behind it.
+          // That is the link, not the models: the bar shows it as such and the models' state stands.
           if (isGatewayStatus(response.status) && body.error === undefined) {
             markLinkDown("health gateway");
-          } else markLinkUp();
+            return;
+          }
+          markLinkUp();
           if (!cancelled)
             setLocalProblem(response.ok ? null : (body.error ?? "Local speech is down"));
         })
         .catch(() => {
-          // No answer at all: the page can't reach lalala, so its words wait (voiceOutbox).
+          // No answer at all (a phone between networks, a slow link): the page can't reach lalala, so
+          // its words wait (voiceOutbox); the models aren't the problem, so the bar doesn't say they are.
           markLinkDown("health");
-          if (!cancelled) setLocalProblem("Local speech is down");
         });
+    recheckLocalRef.current = () => void check();
     void check();
     const timer = window.setInterval(check, LOCAL_HEALTH_EVERY_MS);
     return () => {
       cancelled = true;
       window.clearInterval(timer);
+      recheckLocalRef.current = () => {};
     };
   }, [engine]);
 
@@ -795,6 +802,8 @@ export function VoiceHost({
           void drain();
           return;
         }
+        // The models said they failed: ask again now (lalala starts the service when it's down).
+        if (localProblem !== null) recheckLocalRef.current();
         void toggle();
       }}
       analysis={() => sessionRef.current?.analysis() ?? null}
