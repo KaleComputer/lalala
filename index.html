@@ -32,71 +32,111 @@
     </script>
     <style>
       /* Boot screen: in the HTML so the phone never shows a bare black page; React replaces #root's
-         contents on mount, which removes it. */
+         contents on mount, which removes it. The device bar's connecting look without the bar: its plate,
+         the ASCII line's two glyph rows and a cyan light sweeping through (transform only). */
       #lala-boot {
         position: fixed;
         inset: 0;
         z-index: 2147483647;
         display: grid;
         place-items: center;
-        padding: 24px;
         background: #0b0608;
-        color: #ffd8d2;
-        font: 500 12px/1.5 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
-        letter-spacing: 0.14em;
-        text-transform: uppercase;
       }
       #lala-boot .plate {
         position: relative;
-        width: min(300px, 100%);
-        padding: 18px 20px 16px;
-        background: #190d12;
-        border: 1px solid rgba(255, 94, 84, 0.45);
-        border-left: 3px solid #ff5e54;
-        clip-path: polygon(0 0, calc(100% - 12px) 0, 100% 12px, 100% 100%, 0 100%);
+        display: grid;
+        place-items: center;
+        width: min(360px, calc(100vw - 48px));
+        height: 46px;
+        background:
+          repeating-linear-gradient(to bottom, rgba(255, 94, 84, 0.04) 0 1px, transparent 1px 3px),
+          #190d12;
+        clip-path: polygon(10px 0, calc(100% - 10px) 0, 100% 10px, 100% calc(100% - 10px), calc(100% - 10px) 100%, 10px 100%, 0 calc(100% - 10px), 0 10px);
       }
-      #lala-boot .mark { color: #ff5e54; font-weight: 700; font-size: 15px; letter-spacing: 0.3em; }
-      #lala-boot .track {
+      /* The edge as its own ring (cutFrame.css): a border would be sliced off along the cuts. */
+      #lala-boot .plate::after {
+        content: "";
+        position: absolute;
+        inset: 0;
+        background: #af423d;
+        pointer-events: none;
+        clip-path: polygon(evenodd, 10px 0, calc(100% - 10px) 0, 100% 10px, 100% calc(100% - 10px), calc(100% - 10px) 100%, 10px 100%, 0 calc(100% - 10px), 0 10px, 10px 0, 10.41px 1px, calc(100% - 10.41px) 1px, calc(100% - 1px) 10.41px, calc(100% - 1px) calc(100% - 10.41px), calc(100% - 10.41px) calc(100% - 1px), 10.41px calc(100% - 1px), 1px calc(100% - 10.41px), 1px 10.41px, 10.41px 1px);
+      }
+      #lala-boot .plate > * { grid-area: 1 / 1; }
+      #lala-boot .rows {
         position: relative;
-        height: 3px;
-        margin: 14px 0 12px;
+        width: calc(100% - 24px);
         overflow: hidden;
-        background: rgba(255, 94, 84, 0.16);
+        -webkit-mask-image: linear-gradient(90deg, transparent, #000 12%, #000 88%, transparent);
+        mask-image: linear-gradient(90deg, transparent, #000 12%, #000 88%, transparent);
       }
-      #lala-boot .track i {
+      #lala-boot pre {
+        margin: 0;
+        color: #ffd8d2;
+        font: 700 9px / 10px ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+        letter-spacing: 3.6px;
+        text-align: center;
+        white-space: pre;
+      }
+      #lala-boot pre b { display: block; font-weight: inherit; opacity: 0.62; }
+      #lala-boot pre b + b { opacity: 0.42; }
+      #lala-boot .sweep {
         position: absolute;
         inset: 0 auto 0 0;
-        width: 34%;
-        background: #ff5e54;
-        animation: lala-boot-sweep 1.4s cubic-bezier(0.6, 0, 0.4, 1) infinite;
+        width: 26%;
+        overflow: hidden;
+        -webkit-mask-image: linear-gradient(90deg, transparent, #000 40%, #000 60%, transparent);
+        mask-image: linear-gradient(90deg, transparent, #000 40%, #000 60%, transparent);
+        animation: lala-boot-sweep 2.2s linear infinite;
       }
-      #lala-boot p { margin: 0; color: rgba(255, 216, 210, 0.66); text-transform: none; letter-spacing: 0.02em; }
-      #lala-boot .status { color: #ffd8d2; text-transform: uppercase; letter-spacing: 0.14em; }
-      #lala-boot .failed { display: none; }
-      #lala-boot .slow { visibility: hidden; max-height: 0; overflow: hidden; animation: lala-boot-show 0s 15s forwards; }
-      #lala-boot .slow p, #lala-boot .why { margin-top: 8px; }
-      #lala-boot button {
-        margin-top: 12px;
-        padding: 8px 16px;
-        border: 0;
-        background: #ff5e54;
+      /* The lit copy moves back as far as its window moves on, so its glyphs stay over the rows'. */
+      #lala-boot .sweep pre {
+        position: absolute;
+        inset: 0 auto 0 0;
+        width: 384.62%;
+        color: #26f3ec;
+        text-shadow: 0 0 6px rgba(38, 243, 236, 0.55);
+        animation: lala-boot-unsweep 2.2s linear infinite;
+      }
+      #lala-boot .sweep pre b { opacity: 1; }
+      #lala-boot .sweep pre b + b { opacity: 0.8; }
+      #lala-boot .tag {
+        display: inline-grid;
+        gap: 3px;
+        padding: 4px 9px 4px 8px;
+        background: #ffd8d2;
         color: #190d12;
-        font: inherit;
-        font-weight: 700;
+        font: 600 9.5px / 1 "Oxanium", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
         letter-spacing: 0.14em;
         text-transform: uppercase;
-        clip-path: polygon(6px 0, 100% 0, 100% calc(100% - 6px), calc(100% - 6px) 100%, 0 100%, 0 6px);
+        white-space: nowrap;
+        clip-path: polygon(5px 0, 100% 0, 100% calc(100% - 5px), calc(100% - 5px) 100%, 0 100%, 0 5px);
+      }
+      #lala-boot .slow { visibility: hidden; animation: lala-boot-show 0s 15s forwards; }
+      #lala-boot button {
+        display: none;
+        padding: 6px;
+        border: 0;
+        background: none;
         cursor: pointer;
       }
-      #lala-boot.is-failed .loading, #lala-boot.is-failed .slow, #lala-boot.is-failed .track { display: none; }
-      #lala-boot.is-failed .failed { display: block; }
+      #lala-boot button .tag { background: #ff5e54; padding: 5px 10px 5px 9px; font-size: 10.5px; }
+      #lala-boot button small { font-size: 8.5px; opacity: 0.78; }
+      #lala-boot button:focus-visible { outline: 1px solid #26f3ec; outline-offset: 0; }
+      #lala-boot.is-failed .sweep, #lala-boot.is-failed .slow { display: none; }
+      #lala-boot.is-failed .rows { opacity: 0.4; }
+      #lala-boot.is-failed button { display: block; }
       @keyframes lala-boot-sweep {
         from { transform: translateX(-100%); }
-        to { transform: translateX(300%); }
+        80%, to { transform: translateX(384.62%); }
       }
-      @keyframes lala-boot-show { to { visibility: visible; max-height: 240px; } }
+      @keyframes lala-boot-unsweep {
+        from { transform: translateX(26%); }
+        80%, to { transform: translateX(-100%); }
+      }
+      @keyframes lala-boot-show { to { visibility: visible; } }
       @media (prefers-reduced-motion: reduce) {
-        #lala-boot .track i { animation: none; width: 100%; opacity: 0.6; }
+        #lala-boot .sweep { display: none; }
       }
     </style>
     <script>
@@ -108,9 +148,9 @@
           const fromScript = event.target instanceof HTMLScriptElement;
           if (!fromScript && !(event instanceof ErrorEvent)) return;
           boot.classList.add("is-failed");
-          const why = boot.querySelector(".why");
-          if (why && !why.textContent)
-            why.textContent = fromScript
+          const button = boot.querySelector("button");
+          if (button && !button.title)
+            button.title = fromScript
               ? "Part of the app didn't arrive. The connection may have dropped, or the computer is mid-update."
               : `It stopped with an error: ${event.message}`;
         };
@@ -120,20 +160,14 @@
   </head>
   <body>
     <div id="root">
-      <div id="lala-boot" role="status" aria-live="polite">
+      <div id="lala-boot" role="status" aria-live="polite" aria-label="Loading">
         <div class="plate">
-          <div class="mark">LALALA</div>
-          <div class="track"><i></i></div>
-          <p class="status loading">Loading…</p>
-          <div class="slow">
-            <p>This is taking longer than it should. The connection may be slow.</p>
-            <button type="button" onclick="location.reload()">Reload</button>
+          <div class="rows" aria-hidden="true">
+            <pre><b>+o8##8###@##8#9###8##@#8###9##8#@##8###9#8##o+</b><b>+o98898&amp;89o988*98&amp;9898899&amp;9889o98898&amp;989o89o+</b></pre>
+            <div class="sweep"><pre><b>+o8##8###@##8#9###8##@#8###9##8#@##8###9#8##o+</b><b>+o98898&amp;89o988*98&amp;9898899&amp;9889o98898&amp;989o89o+</b></pre></div>
           </div>
-          <div class="failed">
-            <p class="status">Didn't load</p>
-            <p class="why"></p>
-            <button type="button" onclick="location.reload()">Reload</button>
-          </div>
+          <span class="tag slow">Slow connection</span>
+          <button type="button" onclick="location.reload()"><span class="tag">Didn't load<small>Tap to reload</small></span></button>
         </div>
       </div>
     </div>
