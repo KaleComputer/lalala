@@ -13,6 +13,7 @@ import {
 } from "./settingsStore";
 import { soundGain } from "./extras/soundVolume";
 import { voiceLog } from "./voiceLog";
+import { fetchLalala, isGatewayStatus, readJson, voiceErrorText, VoiceUnreachable } from "./voiceErrors";
 
 const TTS_SAMPLE_RATE = 24_000;
 
@@ -395,14 +396,15 @@ export class SpeechPlayer {
         }
         return;
       }
-      const response = await fetch(`/__lalala/tts?engine=${this.engine()}`, {
+      const response = await fetchLalala(`/__lalala/tts?engine=${this.engine()}`, {
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({ text: sentence.text, format: "pcm" }),
         signal,
       });
+      if (isGatewayStatus(response.status)) throw new VoiceUnreachable();
       if (!response.ok || response.body === null) {
-        const body = (await response.json().catch(() => ({}))) as { error?: unknown };
+        const body = await readJson<{ error: unknown }>(response);
         throw new Error(
           typeof body.error === "string" ? body.error : `speech failed (${response.status})`,
         );
@@ -437,7 +439,7 @@ export class SpeechPlayer {
       if (!signal.aborted) {
         const message = error instanceof Error ? error.message : String(error);
         voiceLog("system", "error", { where: "tts", engine: this.engine(), message });
-        this.onError(message);
+        this.onError(voiceErrorText(error));
       }
     } finally {
       sentence.done = true;

@@ -5,6 +5,7 @@
  */
 import type { SpeechAdapter } from "./adapters";
 import { type SpeechEngine, speechEngine, subscribeSpeechEngine } from "./engine";
+import { fetchLalala, isGatewayStatus, readJson, VoiceUnreachable } from "./voiceErrors";
 
 export const STT_SAMPLE_RATE = 16_000;
 // Five 20 ms frames: the most audio one message carries.
@@ -12,6 +13,8 @@ const FRAMES_PER_MESSAGE = 5;
 
 const COMMIT_TIMEOUT_MS = 3_000;
 const CONNECT_TIMEOUT_MS = 4_000;
+const BATCH_RETRIES = 5;
+const BATCH_RETRY_MS = 2_000;
 
 function base64OfPcm(chunks: ReadonlyArray<Int16Array>): string {
   let length = 0;
@@ -60,14 +63,25 @@ async function transcribeBatch(
   chunks: ReadonlyArray<Int16Array>,
   engine: SpeechEngine,
 ): Promise<string> {
-  const response = await fetch(`/__lalala/stt?engine=${engine}`, {
-    method: "POST",
-    headers: { "content-type": "audio/wav" },
-    body: wavOfPcm(chunks),
-  });
-  const body = (await response.json()) as { text?: string; error?: string };
-  if (!response.ok) throw new Error(body.error ?? `transcription failed (${response.status})`);
-  return body.text?.trim() ?? "";
+  const wav = wavOfPcm(chunks);
+  // A dropped socket is often lalala restarting: the utterance waits a little for it to come back.
+  for (let attempt = 0; ; attempt += 1) {
+    try {
+      const response = await fetchLalala(`/__lalala/stt?engine=${engine}`, {
+        method: "POST",
+        headers: { "content-type": "audio/wav" },
+        body: wav,
+      });
+      if (isGatewayStatus(response.status)) throw new VoiceUnreachable();
+      const body = await readJson<{ text: string; error: string }>(response);
+      if (!response.ok) throw new Error(body.error ?? `transcription failed (${response.status})`);
+      if (typeof body.text !== "string") throw new VoiceUnreachable();
+      return body.text.trim();
+    } catch (cause) {
+      if (!(cause instanceof VoiceUnreachable) || attempt >= BATCH_RETRIES) throw cause;
+      await new Promise((resolve) => window.setTimeout(resolve, BATCH_RETRY_MS));
+    }
+  }
 }
 
 async function socketUrl(_engine: SpeechEngine): Promise<string> {

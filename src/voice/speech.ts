@@ -18,6 +18,7 @@ import {
 } from "./speechText";
 import { VoiceComb } from "./voiceComb";
 import { micDeviceId } from "./settingsStore";
+import { voiceErrorText } from "./voiceErrors";
 import { voiceLog } from "./voiceLog";
 import { VoiceSounds } from "./voiceSounds";
 import { soundOutput } from "./extras/soundVolume";
@@ -1020,7 +1021,7 @@ export class VoiceSession {
       .catch((error: unknown) => {
         const message = error instanceof Error ? error.message : String(error);
         voiceLog("system", "error", { where: "stt", engine: this.engine, message });
-        this.events.onError(message);
+        this.events.onError(voiceErrorText(error));
       })
       .finally(() => {
         this.pendingTranscriptions -= 1;

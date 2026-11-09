@@ -451,7 +451,13 @@
   outline: 0;
 }
 [data-lalala-presence] [data-lalala-tab][data-open] {
+  z-index: 5;
   color: var(--lalala-live-ink);
+}
+/* An open tab's edge covers the seam to its right (the next tab's, or the time box's at 4), so its outline
+   is whole. */
+[data-lalala-presence] [data-lalala-tab][data-open]::before {
+  right: -1px;
 }
 [data-lalala-presence] [data-lalala-tab][data-open]::after {
   background: var(--lalala-live);
@@ -708,13 +714,14 @@
   white-space: nowrap;
 }
 
-/* NEW TOPIC (VoiceBar): a small info plate at the room's top left while a new topic starts playing, on
-   the frame over the wave (6, like the panels); the topic sound itself no longer moves the wave. */
+/* NEW TOPIC (VoiceBar): a small info plate centred in the room (9 Nov) while a new topic starts playing,
+   on the frame over the wave (6, like the panels); the topic sound itself no longer moves the wave. */
 [data-lalala-presence] [data-lalala-topic] {
   position: absolute;
   z-index: 6;
-  left: 12px;
-  top: 6px;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
   display: inline-flex;
   align-items: center;
   height: 18px;
@@ -729,6 +736,15 @@
   pointer-events: none;
   clip-path: polygon(5px 0, 100% 0, 100% calc(100% - 5px), calc(100% - 5px) 100%, 0 100%, 0 5px);
   animation: lalala-fade-in 150ms ease-out;
+}
+/* The room ends at the map; with the input panel open it is the frame's bottom row. */
+[data-lalala-canvas] [data-lalala-presence] [data-lalala-topic] {
+  left: calc((100% - var(--lalala-map-w)) / 2);
+}
+[data-lalala-presence] .fr[data-open] [data-lalala-topic] {
+  top: auto;
+  bottom: calc(var(--bar-row) / 2);
+  transform: translate(-50%, 50%);
 }
 
 /* lalala's UPDATE is a word, not an icon: wider, in the time's type, centred between the edges. */
@@ -1023,8 +1039,9 @@
   padding: 1px;
   background: var(--fe);
 }
+/* Focus lights the field's edge in the bar's own colour, like everything inside it (9 Nov). */
 [data-lalala-presence] [data-lalala-input-field]:has(textarea:focus-visible) {
-  background: var(--lalala-live);
+  background: var(--hud);
 }
 [data-lalala-presence] [data-lalala-input-field] > div {
   display: flex;
@@ -1326,7 +1343,8 @@
     border-color: var(--lalala-red);
     opacity: 1;
   }
-  /* One line of mono micro-text as texture, desktop only, out of the accessibility tree. */
+  /* One line of mono micro-text as texture at rest, desktop only, out of the accessibility tree. No state
+     label in a call (9 Nov: the VOX LINK tags were never asked for). */
   & .bar-line::before {
     content: "SYS 0x1F · VOX LINK" / "";
     position: absolute;
@@ -1338,14 +1356,7 @@
     letter-spacing: 0.08em;
     pointer-events: none;
   }
-  /* In a quiet call it says the link is open, so an empty room never reads as a dead one. */
-  & .fr[data-state="listening"] .bar-line::before {
-    content: "VOX LINK · RX OPEN" / "";
-  }
-  & .fr[data-state="listening"]:has([data-lalala-mic][data-muted]) .bar-line::before {
-    content: "VOX LINK · MIC MUTED" / "";
-  }
-  & .fr:not([data-state="idle"], [data-state="listening"]) .bar-line::before,
+  & .fr:not([data-state="idle"]) .bar-line::before,
   &[data-lalala-off] .bar-line::before {
     content: none;
   }
@@ -1360,16 +1371,22 @@
   & .fr-wv {
     filter: hue-rotate(37deg) saturate(1.4) brightness(1.2);
   }
-  /* No resting wash: only the user's voice lights the room. */
+  /* The user talking as before the committee overshot (9 Nov): a soft resting wash, their voice a wide glow
+     inside it. */
   & .bar-wash {
-    background: none;
+    background: radial-gradient(
+      farthest-side at 55% 55%,
+      color-mix(in srgb, var(--lalala-yellow) 18%, transparent),
+      color-mix(in srgb, var(--lalala-yellow) 8%, transparent) 55%,
+      transparent
+    );
   }
   & .lalala-voice {
     background: radial-gradient(
       farthest-side at 50% 55%,
-      color-mix(in srgb, var(--lalala-yellow) 85%, transparent),
-      color-mix(in srgb, var(--lalala-yellow) 30%, transparent) 38%,
-      transparent 72%
+      color-mix(in srgb, var(--lalala-yellow) 46%, transparent),
+      color-mix(in srgb, var(--lalala-yellow) 20%, transparent) 45%,
+      transparent
     );
   }
   & [data-lalala-defrag] {
@@ -1379,16 +1396,6 @@
   /* Muted, the user isn't heard; under the defrag, COMPACTING is the only yellow. */
   & .fr:is(:has([data-lalala-mic][data-muted]), :has([data-lalala-defrag])) .lalala-voice {
     visibility: hidden;
-  }
-  @media (max-width: 480px) {
-    & .lalala-voice {
-      background: radial-gradient(
-        farthest-side at 50% 55%,
-        color-mix(in srgb, var(--lalala-yellow) 56%, transparent),
-        color-mix(in srgb, var(--lalala-yellow) 24%, transparent) 42%,
-        transparent 72%
-      );
-    }
   }
   /* The open tab is the selected tile: a cyan edge on a light cyan fill, a cyan icon. */
   & [data-lalala-tab][data-open] {
@@ -1405,30 +1412,15 @@
   & .lalala-tabs > .fr-tab:has(> .fr-tmr:not([hidden])) > .fr-tmr {
     animation: lalala-fade-in 150ms ease-out;
   }
-  /* Connecting and thinking say so in one steady cyan word instead of Presence's scrambling characters and
-     row of beads (the wave draws nothing then, VoiceBar). */
-  /* The wave shows only the agent's voice: hidden while connecting, thinking, in a quiet call and with no
-     signal (VoiceBar reads this visibility and stops drawing). */
-  &
-    .fr:is(
-      [data-state="connecting"],
-      [data-state="working"],
-      [data-state="listening"],
-      [data-look~="broken"]
-    )
-    .fr-wv {
+  /* Connecting says so in one steady word instead of Presence's scrambling characters; thinking keeps
+     Presence's row of beads (9 Nov). No signal hides the wave. VoiceBar reads this visibility and stops
+     drawing. */
+  & .fr:is([data-state="connecting"], [data-look~="broken"]) .fr-wv {
     visibility: hidden;
   }
-  & .fr[data-state="working"] .bar-line::after {
-    content: "Thinking";
-    color: var(--lalala-cyan);
-  }
-  /* Connecting is information (warm white); thinking is the agent at work (cyan). */
   & .fr[data-state="connecting"] .bar-line::after {
     content: "Connecting";
     color: var(--lalala-info);
-  }
-  & .fr:is([data-state="connecting"], [data-state="working"]) .bar-line::after {
     position: absolute;
     inset: 0;
     display: grid;

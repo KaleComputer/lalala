@@ -32,6 +32,7 @@ import { takeSentences } from "./speechText";
 import { VoiceBar, type VoiceBarState } from "./VoiceBar";
 import { closeVoiceSettings, CONNECTED_HOLD_MS, onVoiceSettingsClosed, openVoiceSettings } from "./VoiceSettings";
 import { endVoiceLogSession, startVoiceLogSession, voiceLog } from "./voiceLog";
+import { UNREACHABLE_TEXT, voiceErrorText } from "./voiceErrors";
 import { syncVoiceTheme } from "./voiceThemeSync";
 
 // A LALALA_MODEL test run gets its own thread, so it never becomes the user's voice thread.
@@ -51,6 +52,7 @@ const TALK_ITEMS = new Set([
   "checkpoint",
 ]);
 const LOCAL_HEALTH_EVERY_MS = 10_000;
+const RECONNECT_EVERY_MS = 2_000;
 /** The brain puts this before outside material, at the start or after its answer to the user (brain.md). */
 const NEW_TOPIC_TAG = /\s*\[new topic\]\s*/gi;
 // The marker becomes a paragraph break plus this invisible mark, so the material after it is its
@@ -221,6 +223,26 @@ export function VoiceHost({
     return () => window.clearInterval(timer);
   }, [phase, starting]);
 
+  // oxlint-disable-next-line t3code/no-unreasoned-state-sync -- polls lalala while the bar says it is unreachable, and clears that once it answers again
+  useEffect(() => {
+    if (error !== UNREACHABLE_TEXT) return;
+    let cancelled = false;
+    const timer = window.setInterval(() => {
+      (harness
+        ? harness.config().then(() => true)
+        : fetch("/__lalala/config", { cache: "no-store" }).then((response) => response.ok)
+      )
+        .then((ok) => {
+          if (!cancelled && ok) setError((now) => (now === UNREACHABLE_TEXT ? null : now));
+        })
+        .catch(() => {});
+    }, RECONNECT_EVERY_MS);
+    return () => {
+      cancelled = true;
+      window.clearInterval(timer);
+    };
+  }, [error, harness]);
+
   // oxlint-disable-next-line t3code/no-unreasoned-state-sync -- installs the brain-edited theme file as T3's "Voice" theme
   useEffect(() => syncVoiceTheme(), []);
 
@@ -379,7 +401,7 @@ export function VoiceHost({
     if (result._tag === "Failure") {
       if (existingThreadId === null) pendingThreadIdRef.current = null;
       const failure = squashAtomCommandFailure(result);
-      setError(failure instanceof Error ? failure.message : String(failure));
+      setError(voiceErrorText(failure));
       return false;
     }
     if (briefed) markBriefed(threadId);
@@ -455,7 +477,7 @@ export function VoiceHost({
       if (muted) session.setMuted(true);
     } catch (cause) {
       sessionRef.current = null;
-      setError(cause instanceof Error ? cause.message : String(cause));
+      setError(voiceErrorText(cause));
     } finally {
       setStarting(false);
     }

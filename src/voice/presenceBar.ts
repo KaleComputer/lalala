@@ -125,8 +125,8 @@ export function mountPresenceBar(
   const light = createCallWave(canvas, {
     reduced,
     wash: root.querySelector("[data-wash]"),
-    // A look may hide the wave for some states (voiceBar.css decides; the cyberpunk look shows only the
-    // agent's voice, and a model download's filling ASCII line), and the compacting defrag covers it:
+    // A look may hide the wave for some states (voiceBar.css decides; the cyberpunk look while connecting
+    // and with no signal, and a model download's filling ASCII line), and the compacting defrag covers it:
     // then the wave draws nothing at all. Read once per state, not every frame.
     state: () => {
       const key = `${frame.look}|${(input.fill?.() ?? null) !== null}`;
@@ -165,8 +165,8 @@ export function mountPresenceBar(
 
   const voiceEl = document.createElement("i");
   voiceEl.className = "lalala-voice";
-  // In the room, beside Presence's wash (which a look may fade), not inside it.
-  root.querySelector(".bar-line")?.append(voiceEl);
+  // Inside Presence's wash: the user's voice glows within the room's resting light (9 Nov).
+  root.querySelector("[data-wash]")?.append(voiceEl);
   let voice = 0;
   let voiceSet = 0;
   let voiceAt = performance.now();
