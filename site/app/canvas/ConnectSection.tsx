@@ -12,11 +12,13 @@ import {
   pairWithLink,
   pingServer,
   readBrainThread,
+  readSavedAddress,
   readSession,
   readWorkspace,
+  saveAddress,
 } from "../../../src/voice/adapters/harness/t3";
 import { browserSupport, ConnectedRows, PairSteps } from "../../../src/voice/ConnectFlow";
-import { readPairing } from "../../../src/voice/pairing";
+import { isLocalOrigin, readAddress, readPairing } from "../../../src/voice/pairing";
 import {
   closeVoiceSettings,
   CONNECTED_HOLD_MS,
@@ -67,6 +69,8 @@ export function ConnectSection() {
   const [model, setModel] = useState("");
   const [notice, setNotice] = useState<string | null>(null);
   const [choosing, setChoosing] = useState(false);
+  const [address, setAddress] = useState(readSavedAddress);
+  const [target, setTarget] = useState<string | null>(null);
   const socketRef = useRef<T3Socket | null>(null);
 
   async function open(session: Session): Promise<Connected & Pick> {
@@ -149,18 +153,26 @@ export function ConnectSection() {
 
   function pair(input: string) {
     run("Pairing with T3 Code…", async () => {
-      const { origin } = readPairing(input);
+      const { origin: linked } = readPairing(input);
+      const via = address.trim() === "" ? null : readAddress(address);
+      if (address.trim() !== "" && via === null)
+        throw new Error("Your T3 address should be an https address, like https://….t3coderelay.com.");
+      saveAddress(via ?? "");
+      // A local link (or a bare code) goes through the T3 Connect address when there is one.
+      const origin = via && isLocalOrigin(linked) ? via : linked;
+      setTarget(origin);
       const support = browserSupport("tab");
-      const local = !origin.startsWith("https:");
-      if (local && !support.ok) throw new Error(support.line);
+      const local = isLocalOrigin(origin);
+      if (local && !support.ok)
+        throw new Error(`This browser can't reach ${linked}. Fill in your T3 Connect address above.`);
       if (local && (await localNetworkPermission())?.state === "prompt")
         setWorking("Chrome is asking to reach your local network: click Allow.");
       let session: Session;
       try {
-        session = await pairWithLink(input);
+        session = await pairWithLink(input, origin);
       } catch (cause) {
         // Waiting on Chrome's local network permission: pair as soon as the user allows it.
-        const permission = await localNetworkPermission();
+        const permission = local ? await localNetworkPermission() : null;
         if (permission && localNetworkProblem(permission))
           permission.onchange = () => {
             if (permission.state !== "granted") return;
@@ -187,6 +199,8 @@ export function ConnectSection() {
           working={working}
           problem={problem}
           onPair={pair}
+          address={{ value: address, onChange: setAddress }}
+          target={target}
         />
       </Section>
     );

@@ -1,6 +1,7 @@
 // lalala.talk's harness: the tab itself follows the brain thread on the visitor's own T3 Code
 // (paired in the settings' Connection section) and sends turns to it, speaking the same events as vite/t3bridge.mjs.
 import type { HarnessAdapter } from "..";
+import { isLocalOrigin } from "../../pairing";
 import {
   SOCKET_CLOSED,
   T3Socket,
@@ -204,8 +205,11 @@ export function browserHarness(): HarnessAdapter {
     if (connecting || socket !== null) return;
     connecting = true;
     try {
-      permission ??= await localNetworkPermission();
-      if (permission) permission.onchange = now;
+      // Only a plain-http T3 on this network needs Chrome's local network permission.
+      if (isLocalOrigin(brain.session.origin)) {
+        permission ??= await localNetworkPermission();
+        if (permission) permission.onchange = now;
+      }
       const problem = localNetworkProblem(permission);
       // Blocked in Chrome: nothing to try until the user allows it (onchange retries).
       if (permission?.state === "denied") return fail(problem!);

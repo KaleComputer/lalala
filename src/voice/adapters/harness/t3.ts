@@ -2,7 +2,7 @@
 // ticket, and the Effect RPC JSON protocol T3's own clients speak on /ws. T3 already answers
 // cross-origin bearer requests (CORS `*`), so no helper or server change is needed.
 
-import { readPairing } from "../../pairing";
+import { isLocalOrigin, readPairing } from "../../pairing";
 
 const PROTOCOL = 2;
 const SESSION_KEY = "lalala.t3.session";
@@ -68,6 +68,24 @@ export const forgetSession = () => {
 };
 
 const THREAD_KEY = "lalala.t3.thread";
+const ADDRESS_KEY = "lalala.t3.address";
+
+/** The T3 address (T3 Connect) this browser pairs through instead of a link's local one; kept on disconnect. */
+export function readSavedAddress() {
+  try {
+    return localStorage.getItem(ADDRESS_KEY) ?? "";
+  } catch {
+    return "";
+  }
+}
+export const saveAddress = (address: string) =>
+  address === "" ? localStorage.removeItem(ADDRESS_KEY) : localStorage.setItem(ADDRESS_KEY, address);
+
+/** What to say when nothing answers at `origin`. */
+const unreachable = (origin: string) =>
+  isLocalOrigin(origin)
+    ? `Could not reach ${origin}. Is T3 Code running?`
+    : `Could not reach ${origin}. Check the address, and that T3 Code is running with T3 Connect on.`;
 
 /** The thread this browser talks to (the app's brain thread), for the paired T3 at `origin`. */
 export function readBrainThread(origin: string): string | null {
@@ -82,9 +100,11 @@ export function readBrainThread(origin: string): string | null {
 export const saveBrainThread = (origin: string, threadId: string) =>
   localStorage.setItem(THREAD_KEY, JSON.stringify({ origin, threadId }));
 
-/** Trades a T3 pairing code or link for a bearer session. */
-export async function pairWithLink(input: string): Promise<Session> {
-  const { origin, token } = readPairing(input);
+/** Trades a T3 pairing code or link for a bearer session, at `via` instead of the link's own address when given. */
+export async function pairWithLink(input: string, via?: string): Promise<Session> {
+  const pairing = readPairing(input);
+  const origin = via ?? pairing.origin;
+  const { token } = pairing;
   const body = new URLSearchParams({
     grant_type: "urn:ietf:params:oauth:grant-type:token-exchange",
     subject_token: token,
@@ -98,8 +118,8 @@ export async function pairWithLink(input: string): Promise<Session> {
     response = await localFetch(`${origin}/oauth/token`, { method: "POST", body });
   } catch {
     throw new Error(
-      localNetworkProblem(await localNetworkPermission()) ??
-        `Could not reach ${origin}. Is T3 Code running?`,
+      (isLocalOrigin(origin) ? localNetworkProblem(await localNetworkPermission()) : null) ??
+        unreachable(origin),
     );
   }
   const result = await response.json().catch(() => ({}));
@@ -148,9 +168,10 @@ export class T3Socket {
         ...(timeoutMs ? { signal: AbortSignal.timeout(timeoutMs) } : {}),
       });
     } catch {
+      const { origin } = this.session;
       throw new Error(
-        localNetworkProblem(await localNetworkPermission()) ??
-          `Could not reach ${this.session.origin}. Is T3 Code running?`,
+        (isLocalOrigin(origin) ? localNetworkProblem(await localNetworkPermission()) : null) ??
+          unreachable(origin),
       );
     }
     if (ticketResponse.status === 401) throw new Error("T3 no longer accepts this pairing: pair again in the settings.");

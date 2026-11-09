@@ -9,7 +9,8 @@ import { StreamerText, useStreamerMode } from "./streamerMode";
 export type Reach = "server" | "tab";
 
 const SUPPORTED =
-  "Works in Chrome and Edge on the computer running T3 Code. Safari, Firefox and phones only work with an https pairing link (Tailscale, NetBird).";
+  "Works in Chrome and Edge on the computer running T3 Code; anywhere else through your T3 Connect address.";
+const CONNECT_ADDRESS = "https://….t3coderelay.com";
 
 /** Whether this browser can reach T3 Code, in one line the settings show as is. */
 export function browserSupport(reach: Reach): { readonly ok: boolean; readonly line: string } {
@@ -32,7 +33,7 @@ export function browserSupport(reach: Reach): { readonly ok: boolean; readonly l
         : "This browser";
   return {
     ok: false,
-    line: `${name} can't reach T3 Code on your computer, so the T3 Code connection doesn't work here. Open this page in Chrome or Edge on the computer running T3 Code, or paste an https pairing link (Tailscale, NetBird).`,
+    line: `${name} can't reach T3 Code on your computer directly: add your T3 Connect address, or paste an https pairing link (Tailscale, NetBird).`,
   };
 }
 
@@ -78,6 +79,10 @@ export function PairSteps(props: {
   readonly working: string | null;
   readonly problem: string | null;
   readonly onPair: (input: string) => void;
+  /** lalala.talk: the T3 Connect address to pair through instead of a link's local one, remembered by the caller. */
+  readonly address?: { readonly value: string; readonly onChange: (value: string) => void } | undefined;
+  /** The address it is pairing with, shown while it works. */
+  readonly target?: string | null | undefined;
   /** Another way to pair, under the steps (the app: the T3 Code on this computer). */
   readonly children?: ReactNode;
 }) {
@@ -91,13 +96,24 @@ export function PairSteps(props: {
     const value = input.trim();
     if (value !== "" && !busy) props.onPair(value);
   };
+  const address = props.address;
+  // A browser that can't reach a local T3 still pairs through a T3 Connect address.
+  const usable = support.ok || address !== undefined;
+  const needsAddress = !support.ok && address !== undefined && address.value.trim() === "";
+  let n = 1;
 
   return (
     <>
       <div data-lalala-settings-row="">
         <div>
           <h3>T3 Code</h3>
-          <p>{support.ok ? support.line : "Not available in this browser."}</p>
+          <p>
+            {support.ok
+              ? support.line
+              : address
+                ? "Works here through your T3 Connect address."
+                : "Not available in this browser."}
+          </p>
         </div>
         <div data-lalala-settings-control="">
           <span aria-live="polite" data-lalala-settings-status="">
@@ -105,13 +121,13 @@ export function PairSteps(props: {
           </span>
         </div>
       </div>
-      {support.ok ? null : (
+      {usable ? null : (
         <p data-lalala-settings-error="" role="alert">
           {support.line}
         </p>
       )}
       <Step
-        n={1}
+        n={n++}
         title="Make a pairing link"
         state={busy ? "done" : undefined}
         control={
@@ -178,11 +194,41 @@ export function PairSteps(props: {
           </div>
         )}
       </Step>
+      {address ? (
+        <Step
+          n={n++}
+          title="Your T3 address"
+          description={
+            support.ok
+              ? `Away from the computer running T3 Code? Your T3 Connect address (${CONNECT_ADDRESS}). Leave it empty on that computer.`
+              : `Your T3 Connect address (${CONNECT_ADDRESS}): this browser reaches T3 Code through it, from anywhere. Asked once.`
+          }
+          state={busy ? "done" : needsAddress ? "now" : undefined}
+          control={
+            <input
+              type="url"
+              inputMode="url"
+              aria-label="Your T3 Connect address"
+              placeholder={CONNECT_ADDRESS}
+              autoComplete="off"
+              autoCapitalize="off"
+              spellCheck={false}
+              data-streamer-input={streamer ? "" : undefined}
+              value={address.value}
+              disabled={busy}
+              onChange={(event) => address.onChange(event.currentTarget.value)}
+              onKeyDown={(event) => {
+                if (event.key === "Enter") pair(link);
+              }}
+            />
+          }
+        />
+      ) : null}
       <Step
-        n={2}
+        n={n++}
         title="Paste it here"
         description="The link or code. It connects on its own."
-        state={busy ? "done" : "now"}
+        state={busy ? "done" : needsAddress ? undefined : "now"}
         control={
           <input
             type="text"
@@ -207,9 +253,9 @@ export function PairSteps(props: {
           />
         }
       />
-      {props.reach === "tab" && support.ok ? (
+      {props.reach === "tab" && support.ok && !address?.value.trim() ? (
         <Step
-          n={3}
+          n={n++}
           title="Allow the local network"
           description="Chrome asks once to let this page reach your computer: click Allow. Blocked it before? Click the icon left of the address bar, open Site settings, set Local network access to Allow."
           state={busy ? "now" : undefined}
@@ -218,6 +264,11 @@ export function PairSteps(props: {
       {props.working ? (
         <p data-lalala-settings-info="" role="status">
           {props.working}
+        </p>
+      ) : null}
+      {busy && props.target ? (
+        <p data-lalala-settings-info="">
+          T3 Code at <StreamerText text={props.target} />
         </p>
       ) : null}
       {props.problem ? (

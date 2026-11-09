@@ -47,6 +47,24 @@ function serverOrigin(value: string | null): string | null {
   return null;
 }
 
+/**
+ * An https page reaches plain-http T3 (loopback, LAN, `.local`) only from Chrome on that network; a
+ * phone needs the T3 Connect address (or another https route) instead.
+ */
+export const isLocalOrigin = (origin: string) => !origin.startsWith("https:");
+
+/** The https origin a typed T3 address names (a bare host, a URL, or any link on it), or null. */
+export function readAddress(input: string): string | null {
+  const value = input.trim();
+  if (value === "") return null;
+  try {
+    const url = new URL(/^[a-z][a-z\d+.-]*:\/\//i.test(value) ? value : `https://${value}`);
+    return url.protocol === "https:" && url.hostname.includes(".") ? url.origin : null;
+  } catch {
+    return null;
+  }
+}
+
 /** The pairing as one http(s) link, the form the app's bridge takes. */
 export function pairingLink(input: string) {
   const { origin, token } = readPairing(input);
