@@ -9,11 +9,13 @@
   -webkit-tap-highlight-color: transparent;
   pointer-events: auto;
 }
+/* Its own layer, so a pan or zoom moves drawn pixels instead of repainting every card in view. */
 [data-lalala-world] {
   position: absolute;
   left: 0;
   top: 0;
   transform-origin: 0 0;
+  will-change: transform;
 }
 
 /* A card (CanvasCard): its header moves it, its corner resizes it, its body scrolls by itself. */

@@ -18,7 +18,7 @@ type Gesture =
   | { kind: "pinch"; distance: number; mid: Point; camera: { x: number; y: number; z: number } }
   | { kind: "move" | "resize"; id: string; from: Point; rect: Rect };
 
-/** Text is re-rasterised at the new scale once a zoom has been still this long. */
+/** A zoom redraws the cards sharp at its new scale once it has been still this long. */
 const SETTLE_MS = 180;
 
 const wheelPixels = (event: WheelEvent, delta: number) =>
@@ -42,15 +42,23 @@ export function CanvasSurface({ children }: { readonly children: ReactNode }) {
     if (surface === null || world === null) return;
 
     let settle = 0;
-    let lastZ = getCamera().z;
+    let frame = 0;
+    let sharpZ = getCamera().z;
+    const snap = (v: number) => Math.round(v * devicePixelRatio) / devicePixelRatio;
     const apply = () => {
       const { x, y, z } = getCamera();
-      world.style.transform = `translate(${x}px, ${y}px) scale(${z})`;
-      if (z === lastZ) return;
-      lastZ = z;
-      world.style.willChange = "transform";
+      // Whole device pixels: the world is its own layer, and one at a fractional offset blurs.
+      world.style.transform = `translate(${snap(x)}px, ${snap(y)}px) scale(${z})`;
+      if (z === sharpZ) return;
       window.clearTimeout(settle);
-      settle = window.setTimeout(() => (world.style.willChange = ""), SETTLE_MS);
+      settle = window.setTimeout(() => {
+        sharpZ = getCamera().z;
+        // A layer keeps the scale it was drawn at; dropping it for one frame redraws it sharp.
+        world.style.willChange = "auto";
+        frame = requestAnimationFrame(() => {
+          frame = requestAnimationFrame(() => (world.style.willChange = ""));
+        });
+      }, SETTLE_MS);
     };
     apply();
     const unsubscribe = subscribe(apply);
@@ -326,6 +334,7 @@ export function CanvasSurface({ children }: { readonly children: ReactNode }) {
       unsubscribe();
       resize.disconnect();
       window.clearTimeout(settle);
+      cancelAnimationFrame(frame);
       surface.removeEventListener("pointerdown", down);
       surface.removeEventListener("pointermove", move);
       surface.removeEventListener("pointerup", up);
