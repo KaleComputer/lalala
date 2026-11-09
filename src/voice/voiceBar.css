@@ -637,6 +637,16 @@
 [data-lalala-presence] [data-lalala-canvas-actions] > [data-danger] {
   color: var(--lalala-warn);
 }
+/* DELETE asks in the list itself: the question on the panel, then Cancel and Delete in the actions row. */
+[data-lalala-presence] [data-lalala-canvas-confirm] {
+  margin: 0;
+  padding: 7px 10px 8px;
+  color: var(--hud);
+  background: var(--lalala-fill);
+  font: 400 calc(var(--tab-fs) - 1px) / 1.45 var(--font-mono);
+  letter-spacing: 0.06em;
+  overflow-wrap: anywhere;
+}
 [data-lalala-presence]
   [data-lalala-canvas-panel]
   :is(li > button, [data-lalala-canvas-actions] > button):focus-visible {
@@ -1560,6 +1570,14 @@
     & [data-lalala-canvas-actions] > [data-danger]:hover {
       box-shadow: inset 0 0 0 2px #120406;
     }
+  }
+  /* The delete question in warm white behind a red edge, the canvas's name lit. */
+  & [data-lalala-canvas-confirm] {
+    color: var(--lalala-info);
+    box-shadow: inset 2px 0 0 var(--lalala-red);
+  }
+  & [data-lalala-canvas-confirm] > b {
+    color: var(--lalala-red);
   }
   & [data-lalala-canvas-panel] [data-lalala-canvas-actions] > button[data-danger]:focus-visible {
     box-shadow:

@@ -4,13 +4,14 @@ import {
   type MouseEvent as ReactMouseEvent,
   useEffect,
   useEffectEvent,
+  useId,
+  useLayoutEffect,
   useRef,
   useState,
   useSyncExternalStore,
 } from "react";
 import { createPortal } from "react-dom";
 
-import { ensureLocalApi } from "../localApi";
 import { liftOverKeyboard } from "./keyboardLift";
 import { StreamerText } from "./streamerMode";
 
@@ -38,6 +39,13 @@ export function CanvasTabs(props: {
   // "closing" plays the hologram back (list, then beam) before the list unmounts.
   const [closing, setClosing] = useState(false);
   const [renaming, setRenaming] = useState(false);
+  // Delete asks inside the list, on the canvas it was pressed for, even if the open one changes meanwhile.
+  const [deleting, setDeleting] = useState<{ readonly id: string; readonly name: string } | null>(
+    null,
+  );
+  const confirmId = useId();
+  const deleteRef = useRef<HTMLButtonElement>(null);
+  const cancelRef = useRef<HTMLButtonElement>(null);
   // Opened from the keyboard: focus starts on the open canvas's row.
   const [byKey, setByKey] = useState(false);
   const tabsRef = useRef<HTMLSpanElement>(null);
@@ -48,6 +56,7 @@ export function CanvasTabs(props: {
   const editing = renaming && open;
   const hide = () => {
     setRenaming(false);
+    setDeleting(null);
     if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) setOpenAt(null);
     else setClosing(true);
   };
@@ -87,6 +96,19 @@ export function CanvasTabs(props: {
 
   // oxlint-disable-next-line t3code/no-unreasoned-state-sync -- the phone keyboard (visual viewport) lifts the bar over itself while a name is typed
   useEffect(() => (editing ? liftOverKeyboard(props.bar) : undefined), [editing, props.bar]);
+
+  // Backing out with Cancel hands focus back to DELETE, as it came from there.
+  const refocusDelete = useRef(false);
+  // oxlint-disable-next-line t3code/no-unreasoned-state-sync -- focus moves between DELETE and the confirmation's safe action as one replaces the other
+  useLayoutEffect(() => {
+    if (deleting !== null) cancelRef.current?.focus({ preventScroll: true });
+    else if (refocusDelete.current) deleteRef.current?.focus({ preventScroll: true });
+    refocusDelete.current = false;
+  }, [deleting]);
+  const cancelDelete = () => {
+    refocusDelete.current = true;
+    setDeleting(null);
+  };
 
   const api = globalThis.__lalalaCanvases;
   if (!onCanvas) return null;
@@ -194,47 +216,81 @@ export function CanvasTabs(props: {
           ))}
         </ul>
       ) : null}
-      <div data-lalala-canvas-actions="">
-        <button
-          type="button"
-          onClick={() => {
-            api.create();
-            setRenaming(true);
-          }}
-        >
-          New
-        </button>
-        {current ? (
-          <>
-            <button type="button" onClick={() => setRenaming(true)}>
-              Rename
-            </button>
-            <button
-              type="button"
-              onClick={() => {
-                api.tidy();
-                close();
-              }}
-            >
-              Tidy
+      {deleting !== null ? (
+        <>
+          <p id={confirmId} data-lalala-canvas-confirm="">
+            Delete the canvas{" "}
+            <b>
+              “<StreamerText text={deleting.name} />”
+            </b>{" "}
+            and its layout? Its cards stay in the code.
+          </p>
+          <div
+            data-lalala-canvas-actions=""
+            role="group"
+            aria-labelledby={confirmId}
+            onKeyDown={(event) => {
+              if (event.key !== "Escape") return;
+              // Esc backs out of the delete only; the list stays open.
+              event.stopPropagation();
+              cancelDelete();
+            }}
+          >
+            <button ref={cancelRef} type="button" onClick={cancelDelete}>
+              Cancel
             </button>
             <button
               type="button"
               data-danger=""
               onClick={() => {
+                api.remove(deleting.id);
                 close();
-                void ensureLocalApi()
-                  .dialogs.confirm(
-                    `Delete the canvas "${current.name}" and its layout? Its cards stay in the code and can be put on another canvas.`,
-                  )
-                  .then((confirmed) => confirmed && api.remove(current.id));
               }}
             >
               Delete
             </button>
-          </>
-        ) : null}
-      </div>
+          </div>
+        </>
+      ) : (
+        <div data-lalala-canvas-actions="">
+          <button
+            type="button"
+            onClick={() => {
+              api.create();
+              setRenaming(true);
+            }}
+          >
+            New
+          </button>
+          {current ? (
+            <>
+              <button type="button" onClick={() => setRenaming(true)}>
+                Rename
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  api.tidy();
+                  close();
+                }}
+              >
+                Tidy
+              </button>
+              <button
+                ref={deleteRef}
+                type="button"
+                data-danger=""
+                onClick={() => {
+                  setRenaming(false);
+                  setDeleting({ id: current.id, name: current.name });
+                }}
+              >
+                Delete
+              </button>
+            </>
+          ) : null}
+        </div>
+      )}
     </div>
   );
 
