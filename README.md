@@ -208,6 +208,8 @@ Set in `.env` (see `.env.example`).
 - `.lalala/logs` holds a log of your calls (transcripts and timings, never audio). Delete it
   whenever you like.
 - lalala's T3 Code session can read threads and start turns, nothing more. Revoke it in T3 Code.
+- On lalala.talk, a card's pictures, scripts and stylesheets from sites that don't allow embedding
+  load through lalala.talk itself (`/x/`), fetched without cookies and cached; nothing else is kept.
 
 ## Limits
 
