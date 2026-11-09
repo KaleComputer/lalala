@@ -18,8 +18,9 @@ type Gesture =
   | { kind: "pinch"; distance: number; mid: Point; camera: { x: number; y: number; z: number } }
   | { kind: "move" | "resize"; id: string; from: Point; rect: Rect };
 
-/** A zoom redraws the cards sharp at its new scale once it has been still this long. */
-const SETTLE_MS = 180;
+/** A zoom redraws the cards sharp at its new scale once it has been still this long; shorter, and
+ * quick zooming in and out would redraw between every move. */
+const SETTLE_MS = 400;
 
 const wheelPixels = (event: WheelEvent, delta: number) =>
   event.deltaMode === 1 ? delta * 16 : event.deltaMode === 2 ? delta * 400 : delta;
