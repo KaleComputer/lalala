@@ -74,9 +74,30 @@ export class TopicHold {
     return topic;
   }
 
+  /** A topic cut off by the user goes back to the front, whole, to play after their answer. */
+  requeue(sentences: ReadonlyArray<TopicSentence>): void {
+    this.held.unshift(...sentences);
+    this.playing = null;
+  }
+
   clear(): void {
     this.held = [];
     this.awaitingSince = null;
     this.playing = null;
   }
+}
+
+/**
+ * A reply silenced because the user's voice came over it: quiet again within `releaseMs` it was a cough
+ * and goes on; still talking `maxMs` after the hold, it is their turn and the reply stops.
+ */
+export function heldReply(
+  now: number,
+  heldAt: number,
+  voiceAt: number,
+  releaseMs: number,
+  maxMs: number,
+): "wait" | "release" | "stop" {
+  if (now - Math.max(voiceAt, heldAt) >= releaseMs) return "release";
+  return now - heldAt >= maxMs ? "stop" : "wait";
 }

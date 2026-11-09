@@ -325,8 +325,11 @@ export class SpeechPlayer {
     this.wakeSettled();
   }
 
-  /** Stops the reply now; `reason` goes to the session log (tap, barge-in, end of call). */
-  stop(reason = "stop"): void {
+  /**
+   * Stops the reply now; `reason` goes to the session log (tap, barge-in, end of call). Returns the
+   * sentences that were cut or not yet heard.
+   */
+  stop(reason = "stop"): string[] {
     if (this.running || this.queue.length > 0) {
       voiceLog("voice", "playback.stop", {
         reason,
@@ -336,6 +339,7 @@ export class SpeechPlayer {
     }
     const wasRunning = this.running;
     const cut = this.current;
+    const unheard = [...(cut === null ? [] : [cut]), ...this.queue.map((sentence) => sentence.text)];
     this.current = null;
     this.endsAt = 0;
     this.generation += 1;
@@ -349,6 +353,7 @@ export class SpeechPlayer {
       this.logEnd(reason.startsWith("barge") ? "barge" : reason, { reason, cut });
     }
     this.setRunning(false);
+    return unheard;
   }
 
   /** Stops and forgets every scheduled piece (ours, so their `ended` is not an early end). */
