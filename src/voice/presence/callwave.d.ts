@@ -13,6 +13,7 @@ export interface CallWaveSpectrum {
 export interface CallWave {
   frame(levels?: CallWaveLevels, spectrum?: CallWaveSpectrum | null): void;
   readonly resting: boolean;
+  readonly fading: boolean;
   setFill(fill: number | null): void;
 }
 export function createCallWave(

@@ -48,6 +48,8 @@ const CYAN = "78,240,238";
 const HUD = "61, 255, 143";
 const ASCII = " .:-=+*#";
 const N = 160; // samples along the line
+/** How long one look takes to turn into the next (ms): quick, never a hard cut. */
+const FADE_MS = 200;
 /** The wash in the room per look (the mockup's): listening (the user talking or not, one look), stopped, learning. */
 export const WASH = Object.freeze({ listening: 0.7, stopped: 0.35, learning: 0.55 });
 /** Her line at full voice, of the canvas's height above the middle. */
@@ -126,6 +128,10 @@ export function createCallWave(canvas, { reduced = false, wash = null, state = (
   let dpr = 1;
   let kind = "";
   let kindAt = 0;
+  // One device changing modes (9 Nov: "smooth states, not hard cuts"): the kind before a change fades
+  // out while the new one fades in over FADE_MS, then only the new one draws.
+  let fromKind = "";
+  let fromLt = 9;
   let drawn = ""; // reduced motion: what the canvas holds (kind and size)
   let cleared = false;
   let out = 0; // her voice, eased 0..1
@@ -244,12 +250,27 @@ export function createCallWave(canvas, { reduced = false, wash = null, state = (
     ctx.clearRect(0, 0, W, H);
     drawnAmp = 0;
     span = null;
-    if (k === "none") return;
+    const p = fadeOf(performance.now());
+    if (p < 1) layer(fromKind, t, fromLt, 1 - p);
+    layer(k, t, lt, p);
+  }
+
+  function layer(k, t, lt, alpha) {
+    if (k === "none" || k === "" || alpha <= 0) return;
     ctx.save();
+    ctx.globalAlpha = alpha;
     roomPath(k === "voice" || k === "voice-soft");
     ctx.clip();
     paint(k, t, lt);
     ctx.restore();
+  }
+
+  /** How far the change into the current kind has come (eased 0..1); 1 when settled or reduced. */
+  function fadeOf(now) {
+    if (reduced || fromKind === "") return 1;
+    const x = Math.min(1, (now - kindAt) / FADE_MS);
+    if (x >= 1) fromKind = "";
+    return x * x * (3 - 2 * x);
   }
 
   function paint(k, t, lt) {
@@ -325,7 +346,7 @@ export function createCallWave(canvas, { reduced = false, wash = null, state = (
       const amp = 0.26 * H, cutX = 0.58;
       stroke(a, a + L * cutX, (u) => voiceAt(u * cutX, 1.7, amp, fakeEnv(u * cutX, 1.7)) * (1 - u * 0.6), 1.6, 0.7, 8);
       ctx.save();
-      ctx.globalAlpha = 0.5;
+      ctx.globalAlpha *= 0.5;
       ctx.translate(6, 7);
       stroke(a + L * cutX, b, (u) => voiceAt(cutX + u * (1 - cutX), 1.7, amp, fakeEnv(cutX + u * (1 - cutX), 1.7)) * 0.4, 1.2, 0.35, 0, RED);
       ctx.restore();
@@ -400,7 +421,14 @@ export function createCallWave(canvas, { reduced = false, wash = null, state = (
     const t = (now - start) / 1000 + 1.3;
     const st = state();
     const k = waveKind(st);
-    if (k !== kind) (kind = k), (kindAt = now), (cleared = false);
+    if (k !== kind) {
+      fromKind = reduced ? "" : kind;
+      fromLt = (now - kindAt) / 1000;
+      kind = k;
+      kindAt = now;
+      cleared = false;
+    }
+    const fading = fromKind !== "" && now - kindAt < FADE_MS;
     const lt = (now - kindAt) / 1000;
 
     // The real audio: her playback (our analyser's spectrum, else the session's output level) and the user's
@@ -434,10 +462,10 @@ export function createCallWave(canvas, { reduced = false, wash = null, state = (
 
     paintWash(st, t, dt);
     paintBars();
-    resting = (kind === "idle" || kind === "none") && !moving && out < 0.002 && inp < 0.002 && Math.abs(washNow - washOf(st)) < 0.002;
+    resting = !fading && (kind === "idle" || kind === "none") && !moving && out < 0.002 && inp < 0.002 && Math.abs(washNow - washOf(st)) < 0.002;
 
     if (W < 2 || H < 2) return;
-    if (kind === "none") {
+    if (kind === "none" && !fading) {
       drawnAmp = 0;
       if (!cleared) ctx.setTransform(1, 0, 0, 1, 0, 0), ctx.clearRect(0, 0, canvas.width, canvas.height), (cleared = true);
       return;
@@ -464,6 +492,10 @@ export function createCallWave(canvas, { reduced = false, wash = null, state = (
     /** The kind drawn now, her and the user's eased levels, the voice line's highest point drawn (CSS px), the line's ends and the room (CSS px), the wash's opacity (checks). */
     get kind() {
       return kind;
+    },
+    /** A change of kind is still fading through (the page keeps drawing every frame meanwhile). */
+    get fading() {
+      return fromKind !== "" && performance.now() - kindAt < FADE_MS;
     },
     get levels() {
       return { out, input: inp, spec, specIn, rms: { ...rms } };
