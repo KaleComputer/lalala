@@ -221,7 +221,8 @@
   padding: 0;
   background: none;
   color: var(--lalala-live);
-  font-size: 11px;
+  /* Small, as it was before the committee (9 Nov): a size under the tabs' type, 9px on a desktop, 10.5px on a phone. */
+  font-size: calc(var(--tab-fs) - 1px);
   font-variant-numeric: tabular-nums;
   /* The letter-spacing trails the last digit; cancel it so the time sits truly centred. */
   margin-right: -0.08em;
@@ -669,9 +670,6 @@
   [data-lalala-presence] [data-lalala-canvas-panel] li > input {
     height: 36px;
     font-size: 16px;
-  }
-  [data-lalala-presence] .fr-tab .fr-tmr {
-    font-size: 12px;
   }
   [data-lalala-presence] [data-lalala-canvas-actions] > button {
     height: 32px;

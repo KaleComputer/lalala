@@ -103,7 +103,8 @@ export function VoiceBar(props: {
   useLayoutEffect(() => {
     const root = rootRef.current;
     if (root === null) return;
-    const page = document.documentElement;
+    // The bar's own document: the states card renders it into a frame of its own width.
+    const page = root.ownerDocument.documentElement;
     const measure = () => root.toggleAttribute("data-lalala-compact", page.offsetWidth < 640);
     measure();
     const observer = new ResizeObserver(measure);
