@@ -16,6 +16,7 @@ import {
   speakableText,
   stripEcho,
 } from "./speechText";
+import { TopicHold } from "./topicHold";
 import { VoiceComb } from "./voiceComb";
 import { micDeviceId } from "./settingsStore";
 import { voiceErrorText } from "./voiceErrors";
@@ -283,6 +284,8 @@ export class VoiceSession {
     readonly topic: string | undefined;
     readonly switching: boolean;
   }> = [];
+  /** `[new topic]` parts that wait for the user's turn and its answer to be over. */
+  private readonly topics = new TopicHold();
   /** The user muted their mic: the call goes on, and nothing waits for their turn. */
   private muted = false;
   private phase: VoicePhase = "off";
@@ -558,6 +561,7 @@ export class VoiceSession {
 
   stop(): void {
     this.waiting = [];
+    this.topics.clear();
     this.muted = false;
     this.player?.stop("call ended");
     this.player?.dispose();
@@ -596,15 +600,25 @@ export class VoiceSession {
 
   /**
    * Queues one sentence of a reply (`opensReply` on its first and on one the brain marked
-   * `[new topic]`, which is `switching`); empty or markdown-only text stays silent.
+   * `[new topic]`, which is `switching`); empty or markdown-only text stays silent. `part` names
+   * the `[new topic]` part it belongs to, held while the user's own turn is open (topicHold).
    */
-  speak(text: string, opensReply = false, switching = false): void {
+  speak(text: string, opensReply = false, switching = false, part?: string): void {
     const spoken = speakableText(text);
     if (spoken === "") return;
     // Replies bringing in something from outside open with a label ("Kokoro: ...", a thread title): brain.md.
     const topic = opensReply
       ? /^([^:.!?]{1,80}):\s/.exec(spoken)?.[1]?.trim().toLowerCase()
       : undefined;
+    const now = performance.now();
+    if (part !== undefined) {
+      const wasHeld = this.topics.count;
+      if (this.topics.hold({ text: spoken, topic, switching, part }, this.topicBusy(now), now)) {
+        if (this.topics.count > wasHeld)
+          voiceLog("voice", "topic.held", { text: spoken, held: this.topics.count });
+        return;
+      }
+    }
     // Never over the user: a reply that arrives while the user talks (or their words are still being written
     // down) waits until their turn is over (2 Nov: a reply woken by another thread talked over them).
     if (this.timHasTheFloor() || this.waiting.length > 0) {
@@ -615,6 +629,36 @@ export class VoiceSession {
     if (this.inSpeech) this.dropNoiseTurn("a reply is ready");
     this.sounds?.silence();
     this.player?.speak(spoken, topic, switching);
+  }
+
+  /** The user's words went to the brain: `[new topic]` parts wait until its answer has been heard. */
+  awaitAnswer(): void {
+    this.topics.awaitAnswer(performance.now());
+  }
+
+  /** The brain's answer to the user's words is complete; held topics follow once it has played. */
+  answered(): void {
+    this.topics.answered();
+  }
+
+  /** The user has the floor, or a reply is still waiting, playing or echoing: no held topic starts. */
+  private topicBusy(now: number): boolean {
+    const player = this.player;
+    return (
+      this.timHasTheFloor() ||
+      this.waiting.length > 0 ||
+      (player !== null && (player.speaking || now < player.audibleUntil + ECHO_TAIL_MS))
+    );
+  }
+
+  /** Plays the next held topic when its time has come (every frame). */
+  private releaseTopic(player: SpeechPlayer, now: number): void {
+    const topic = this.topics.next(this.topicBusy(now), now);
+    if (topic.length === 0) return;
+    voiceLog("voice", "topic.released", { text: topic[0]?.text, held: this.topics.count });
+    if (this.inSpeech) this.dropNoiseTurn("a topic is ready");
+    this.sounds?.silence();
+    for (const sentence of topic) player.speak(sentence.text, sentence.topic, sentence.switching);
   }
 
   /** The user talking: a turn with their voice in it, the gate open on a voice, or their words being written. */
@@ -681,6 +725,7 @@ export class VoiceSession {
       for (const sentence of this.waiting)
         player.speak(sentence.text, sentence.topic, sentence.switching);
       this.waiting = [];
+      this.releaseTopic(player, now);
       const replyAudible = player.speaking || now < player.audibleUntil + ECHO_TAIL_MS;
       this.sounds?.step(!replyAudible, false);
       return;
@@ -697,6 +742,7 @@ export class VoiceSession {
         player.speak(sentence.text, sentence.topic, sentence.switching);
       this.waiting = [];
     }
+    this.releaseTopic(player, now);
     // The reply is heard while it plays, between its sentences and for its echo's tail.
     const replyAudible = player.speaking || now < player.audibleUntil + ECHO_TAIL_MS;
     const mode: CloseTalkMode = replyAudible ? "speak" : this.thinking ? "think" : "listen";

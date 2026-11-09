@@ -14,6 +14,7 @@ export type OrchestrationV2ProjectedTurnItem = {
     readonly text: string;
     readonly streaming: boolean;
     readonly parentItemId: string | null;
+    readonly messageId?: string | null;
     readonly startedAt: string | null;
     readonly updatedAt: string;
   };

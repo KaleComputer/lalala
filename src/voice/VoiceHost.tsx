@@ -148,6 +148,10 @@ export function VoiceHost({
   // Focus tags already applied, by turn item id; and whether the user asked to be shown something.
   const focusedRef = useRef(new Map<string, number>());
   const tidiedRef = useRef(new Set<string>());
+  // How many `[new topic]` parts of each reply have started, by turn item id.
+  const topicPartsRef = useRef(new Map<string, number>());
+  // The user's latest words: a reply after them on the thread is their answer.
+  const awaitedMessageRef = useRef<string | null>(null);
   const showMeRef = useRef(false);
   // The thread this client just created, until its shell arrives.
   const pendingThreadIdRef = useRef<ThreadId | null>(null);
@@ -362,7 +366,8 @@ export function VoiceHost({
 
   /** The user's words join the outbox, which sends them in order; true once they are held. */
   const send = (text: string, images: ReadonlyArray<File> = []) => {
-    holdWords(text, images);
+    sessionRef.current?.awaitAnswer();
+    awaitedMessageRef.current = holdWords(text, images).messageId;
     if (linkIsDown()) voiceLog("user", "held", { text, held: heldWords().length });
     setNotSent(false);
     void drain();
@@ -612,6 +617,12 @@ export function VoiceHost({
   useEffect(() => {
     const session = sessionRef.current;
     if (session === null) return;
+    const awaited = awaitedMessageRef.current;
+    const asked = items.find(
+      ({ item }) => item.type === "user_message" && item.messageId === awaited,
+    )?.item;
+    // The bridge's rows are in update order, so "after their words" is by the server's start times.
+    const askedAt = asked ? DateTime.toEpochMillis(asked.startedAt ?? asked.updatedAt) : undefined;
     for (const { item, visibility } of items) {
       const startedAt = DateTime.toEpochMillis(item.startedAt ?? item.updatedAt);
       const thisTurn = sentEpochRef.current > 0 && startedAt >= sentEpochRef.current - 500;
@@ -654,7 +665,6 @@ export function VoiceHost({
       }
       const { sentences, consumed } = takeSentences(text.slice(queued), !item.streaming);
       spokenRef.current.set(item.id, queued + consumed);
-      if (!item.streaming) finishedRef.current.add(item.id);
       for (const [index, sentence] of sentences.entries()) {
         voiceLog("brain", "sentence", {
           text: sentence,
@@ -664,7 +674,17 @@ export function VoiceHost({
         });
         const switching = sentence.trimStart().startsWith(TOPIC_MARK);
         const opensReply = (queued === 0 && index === 0) || switching;
-        session.speak(sentence.replaceAll(TOPIC_MARK, ""), opensReply, switching);
+        // What follows a `[new topic]` waits while the user's turn is open (topicHold); the rest answers them.
+        const parts = (topicPartsRef.current.get(item.id) ?? 0) + (switching ? 1 : 0);
+        topicPartsRef.current.set(item.id, parts);
+        const part = parts > 0 ? `${item.id}#${parts}` : undefined;
+        session.speak(sentence.replaceAll(TOPIC_MARK, ""), opensReply, switching, part);
+      }
+      if (item.streaming) continue;
+      finishedRef.current.add(item.id);
+      // A finished reply after their words that doesn't open on `[new topic]` is their answer ("..." too).
+      if (askedAt !== undefined && startedAt >= askedAt && !text.trimStart().startsWith(TOPIC_MARK)) {
+        session.answered();
       }
     }
   }, [items]);

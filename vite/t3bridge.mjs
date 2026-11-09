@@ -40,6 +40,8 @@ const slim = (visibility, item) => ({
     text: item.type === "assistant_message" ? (item.text ?? "") : "",
     streaming: item.streaming === true,
     parentItemId: item.parentItemId ?? null,
+    // The user's message by its id: replies that start after it answer it (topicHold).
+    messageId: item.type === "user_message" ? (item.messageId ?? null) : null,
     startedAt: item.startedAt ?? null,
     updatedAt: item.updatedAt ?? item.startedAt ?? new Date(0).toISOString(),
   },
