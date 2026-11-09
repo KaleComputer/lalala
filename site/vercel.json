@@ -4,7 +4,7 @@
   "buildCommand": "npm run build",
   "outputDirectory": "out",
   "cleanUrls": true,
-  "rewrites": [{ "source": "/x/:path*", "destination": "/api/x?__x=:path*" }],
+  "rewrites": [{ "source": "/x/:path(.*)", "destination": "/api/x?__x=:path" }],
   "headers": [
     {
       "source": "/(.*)",
