@@ -18,6 +18,8 @@ const POLL_MS = 2_000;
 declare global {
   var __lalalaHost: Record<string, unknown> | undefined;
 }
+// The session log for extras/, which may not import it (CanvasCard logs a card that threw).
+globalThis.__lalalaLog = voiceLog;
 
 const importExtras = (url: string) => import(/* @vite-ignore */ url) as Promise<ExtrasModule>;
 

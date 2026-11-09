@@ -246,10 +246,50 @@ function save() {
   cameraMoved = false;
 }
 
+/**
+ * How much card stays drawn: the cards on screen or within DRAW_MARGIN screens of it, nearest the
+ * middle first, until their boxes add up to DRAW_SCREENS screens (always one). Every drawn card is
+ * a layer at full sharpness whatever the zoom, so a full canvas zoomed out, all drawn, takes more
+ * memory than a phone gives a page; the rest show as frames with their title (CanvasCard).
+ */
+const DRAW_SCREENS = 6;
+const DRAW_MARGIN = 0.5;
+let drawn: ReadonlySet<string> = new Set();
+
+function pickDrawn() {
+  const { x, y, z } = live.camera;
+  const near = [...mounted]
+    .flatMap((id) => {
+      const rect = live.cards[id];
+      if (rect === undefined) return [];
+      // How far the card is from the screen's middle, in half screens: up to 1 is on screen.
+      const far = Math.max(
+        (Math.max(rect.x * z + x - view.w / 2, view.w / 2 - (rect.x + rect.w) * z - x, 0) * 2) /
+          view.w,
+        (Math.max(rect.y * z + y - view.h / 2, view.h / 2 - (rect.y + rect.h) * z - y, 0) * 2) /
+          view.h,
+      );
+      return far > 1 + 2 * DRAW_MARGIN ? [] : [{ id, far, area: rect.w * rect.h }];
+    })
+    .toSorted((a, b) => Number(b.id === held) - Number(a.id === held) || a.far - b.far);
+  let room = DRAW_SCREENS * view.w * view.h;
+  const next = new Set<string>();
+  for (const card of near) {
+    if (next.size > 0 && card.area > room) continue;
+    next.add(card.id);
+    room -= card.area;
+  }
+  drawn = next;
+}
+
+/** Whether a card's content is drawn; every card is until the surface is measured. */
+export const isDrawn = (id: string) => view.w === 0 || view.h === 0 || drawn.has(id);
+
 function changed(persist = false) {
   if (frame === 0) {
     frame = window.requestAnimationFrame(() => {
       frame = 0;
+      if (view.w > 0 && view.h > 0) pickDrawn();
       for (const listener of listeners) listener();
     });
   }

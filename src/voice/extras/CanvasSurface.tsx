@@ -45,24 +45,20 @@ export function CanvasSurface({ children }: { readonly children: ReactNode }) {
     let settle = 0;
     let frame = 0;
     let sharpZ = getCamera().z;
-    const snap = (v: number) => Math.round(v * devicePixelRatio) / devicePixelRatio;
-    const apply = () => {
-      const { x, y, z } = getCamera();
-      // Whole device pixels: the world is its own layer, and one at a fractional offset blurs.
-      world.style.transform = `translate(${snap(x)}px, ${snap(y)}px) scale(${z})`;
+    const sharpen = () => {
+      const { z } = getCamera();
       if (z === sharpZ) return;
       window.clearTimeout(settle);
       settle = window.setTimeout(() => {
         sharpZ = getCamera().z;
-        // A layer keeps the scale it was drawn at; dropping it for one frame redraws it sharp.
-        world.style.willChange = "auto";
+        // A card's layer keeps the scale it was drawn at; dropping it for one frame redraws it sharp.
+        world.dataset.lalalaSharpen = "";
         frame = requestAnimationFrame(() => {
-          frame = requestAnimationFrame(() => (world.style.willChange = ""));
+          frame = requestAnimationFrame(() => delete world.dataset.lalalaSharpen);
         });
       }, SETTLE_MS);
     };
-    apply();
-    const unsubscribe = subscribe(apply);
+    const unsubscribe = subscribe(sharpen);
 
     const measure = () => setView(surface.clientWidth, surface.clientHeight);
     measure();

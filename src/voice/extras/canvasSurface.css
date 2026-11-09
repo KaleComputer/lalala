@@ -9,18 +9,19 @@
   -webkit-tap-highlight-color: transparent;
   pointer-events: auto;
 }
-/* Its own layer, so a pan or zoom moves drawn pixels instead of repainting every card in view. */
 [data-lalala-world] {
   position: absolute;
   left: 0;
   top: 0;
-  transform-origin: 0 0;
-  will-change: transform;
 }
 
-/* A card (CanvasCard): its header moves it, its corner resizes it, its body scrolls by itself. */
+/* A card (CanvasCard): its header moves it, its corner resizes it, its body scrolls by itself.
+   Each drawn card is its own layer, so a pan or zoom moves drawn pixels instead of repainting it. */
 [data-lalala-card] {
   position: absolute;
+  left: 0;
+  top: 0;
+  will-change: transform;
   display: flex;
   flex-direction: column;
   border: 1px solid rgba(61, 255, 143, 0.34);
@@ -29,6 +30,16 @@
   font-family: "Oxanium", ui-monospace, monospace;
   font-size: 12px;
   line-height: 1.35;
+}
+/* A card not drawn (canvasStore's pickDrawn): its frame and title only, and no layer. */
+[data-lalala-card][data-lalala-card-off],
+[data-lalala-world][data-lalala-sharpen] > [data-lalala-card] {
+  will-change: auto;
+}
+/* Not a scroller either: iOS gives every scrolling box layers of its own, drawn or not. */
+[data-lalala-card-off] > [data-lalala-card-body] {
+  content-visibility: hidden;
+  overflow: hidden;
 }
 [data-lalala-card] > header {
   flex: none;
@@ -45,6 +56,10 @@
 }
 [data-lalala-card] > header:active {
   cursor: grabbing;
+}
+[data-lalala-card-off] > header {
+  border-bottom-color: transparent;
+  font-size: max(11px, var(--lalala-card-title, 11px));
 }
 [data-lalala-card-close] {
   position: absolute;
@@ -81,6 +96,23 @@
 }
 [data-lalala-card-body]::-webkit-scrollbar {
   display: none;
+}
+[data-lalala-card-error] {
+  display: grid;
+  gap: 8px;
+  justify-items: start;
+}
+[data-lalala-card-error] > code {
+  overflow-wrap: anywhere;
+  opacity: 0.7;
+}
+[data-lalala-card-error] > button {
+  padding: 4px 10px;
+  border: 1px solid #3dff8f;
+  color: #3dff8f;
+  background: none;
+  font: inherit;
+  cursor: pointer;
 }
 [data-lalala-card-resize] {
   position: absolute;
