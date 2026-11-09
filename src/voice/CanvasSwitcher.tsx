@@ -89,13 +89,14 @@ export function CanvasTabs(props: {
   useEffect(() => (editing ? liftOverKeyboard(props.bar) : undefined), [editing, props.bar]);
 
   const api = globalThis.__lalalaCanvases;
-  if (!onCanvas || canvases === null || api === undefined) return null;
-  const current = canvases.list.find((canvas) => canvas.id === canvases.active);
+  if (!onCanvas) return null;
+  // The tab is in the row from the bar's first frame; only its list waits for the extras bundle's store.
+  const current = canvases?.list.find((canvas) => canvas.id === canvases.active);
 
   const toggle = (event: ReactMouseEvent) => {
     if (open) return close();
     const tabs = tabsRef.current;
-    if (tabs === null) return;
+    if (tabs === null || canvases === null || api === undefined) return;
     setByKey(event.detail === 0);
     const frame = props.panelHost.getBoundingClientRect();
     setClosing(false);
@@ -136,7 +137,7 @@ export function CanvasTabs(props: {
     </span>
   );
 
-  const panel = openAt === null ? null : (
+  const panel = openAt === null || canvases === null || api === undefined ? null : (
     <div
       ref={panelRef}
       data-lalala-canvas-panel=""
