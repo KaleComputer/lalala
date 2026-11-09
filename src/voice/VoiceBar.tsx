@@ -77,7 +77,7 @@ export function VoiceBar(props: {
   const hearing = useEffectEvent(() => props.state === "hearing");
   const fill = useEffectEvent(() => downloadFill(props.models));
   const compacting = useEffectEvent(() => props.compacting?.active === true);
-  // A new topic starts playing: NEW TOPIC wipes over the room for a moment, the wave running on beneath it.
+  // An update starts playing: UPDATE wipes over the room for a moment, the wave running on beneath it.
   const [newTopic, setNewTopic] = useState(false);
   // Nothing floats over the bar (9 Nov): what it has to say sits in the room, over the wave.
   const note: Note | null =
@@ -266,7 +266,7 @@ export function VoiceBar(props: {
   );
 }
 
-/** How long NEW TOPIC shows on the frame; voiceBar.css's lalala-topic-wipe runs the same 2.4 s. */
+/** How long UPDATE shows on the frame; voiceBar.css's lalala-topic-wipe runs the same 2.4 s. */
 const TOPIC_LABEL_MS = 2_400;
 
 /** All the models' bytes so far against all their sizes, for the connecting line's green fill. */
@@ -295,7 +295,7 @@ type Note =
 /**
  * What the bar has to say, in its room (on the frame, over the wave): a small tag in the room's centre
  * beside Presence's glitch (an error's few words, RECONNECTING) or its ASCII line (CONNECTING), the models loading (a line each on the connecting ASCII line,
- * which fills from the left with their bytes: the 6 Nov pick), the paused mic, NEW TOPIC.
+ * which fills from the left with their bytes: the 6 Nov pick), the paused mic, UPDATE.
  */
 function RoomNote({ note }: { readonly note: Note }) {
   return (
@@ -324,7 +324,7 @@ function RoomNote({ note }: { readonly note: Note }) {
           <span>Connecting</span>
         </b>
       ) : note.kind === "topic" ? (
-        <b>New topic</b>
+        <b>Update</b>
       ) : (
         <ol aria-label="Loading speech models">
           {note.models.map((model) => (

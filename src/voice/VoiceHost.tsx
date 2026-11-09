@@ -67,6 +67,13 @@ const NEW_TOPIC_TAG = /\s*\[new topic\]\s*/gi;
 // The marker becomes a paragraph break plus this invisible mark, so the material after it is its
 // own sentence and the topic sound plays right before it.
 const TOPIC_MARK = "\u2063";
+// An update about a card the user is looking at (`[new topic] [about: <id>]`): it still waits for their
+// turn to end, but plays as plain speech, without the UPDATE takeover and its sound. Same length as
+// TOPIC_MARK, so offsets into the text hold whichever way it was decided.
+const QUIET_TOPIC_MARK = "\u2064";
+const ABOUT_TOPIC_TAG = /\s*\[new topic\]\s*\[about:\s*([^\]]*)\]\s*/gi;
+const ABOUT_TAG = /\s*\[about:[^\]]*\]\s*/gi;
+const opensTopic = (text: string) => /^\s*[\u2063\u2064]/.test(text);
 const TIDY_TAG = /\[tidy\]\s*/gi;
 // A sent `/compact` counts as running this long at most, until its run shows on the thread.
 const COMPACT_SHOWS_MS = 10_000;
@@ -152,6 +159,8 @@ export function VoiceHost({
   const tidiedRef = useRef(new Set<string>());
   // How many `[new topic]` parts of each reply have started, by turn item id.
   const topicPartsRef = useRef(new Map<string, number>());
+  // Per `[about: …]` update (reply id and its index): whether its card was on screen when it arrived.
+  const quietTopicsRef = useRef(new Map<string, boolean>());
   // The user's latest words: a reply after them on the thread is their answer.
   const awaitedMessageRef = useRef<string | null>(null);
   const showMeRef = useRef(false);
@@ -644,9 +653,22 @@ export function VoiceHost({
       if (startedAt < sessionStartedAtRef.current - 1_000) continue;
       // Focus and card tags are never spoken, nor is the brain's `[new topic]` marker.
       const tidy = item.text.match(TIDY_TAG) !== null;
+      // Whether an update is about a card on screen is decided once, when its tag first arrives.
+      let abouts = 0;
       const { text, cards } = takeFocus(
         takeCards(item.text)
-          .text.replace(NEW_TOPIC_TAG, `\n\n${TOPIC_MARK}`)
+          .text.replace(ABOUT_TOPIC_TAG, (_tag, card: string) => {
+            const key = `${item.id}#${abouts++}`;
+            let quiet = quietTopicsRef.current.get(key);
+            if (quiet === undefined) {
+              quiet = globalThis.__lalalaCanvases?.inView?.(card) ?? false;
+              quietTopicsRef.current.set(key, quiet);
+              voiceLog("brain", "update.about", { card, inView: quiet });
+            }
+            return `\n\n${quiet ? QUIET_TOPIC_MARK : TOPIC_MARK}`;
+          })
+          .replace(NEW_TOPIC_TAG, `\n\n${TOPIC_MARK}`)
+          .replace(ABOUT_TAG, " ")
           .replace(TIDY_TAG, ""),
       );
       if (thisTurn && tidy && !tidiedRef.current.has(item.id)) {
@@ -684,18 +706,24 @@ export function VoiceHost({
           msSinceSend:
             sentAtRef.current > 0 ? Math.round(performance.now() - sentAtRef.current) : null,
         });
-        const switching = sentence.trimStart().startsWith(TOPIC_MARK);
+        const switching = opensTopic(sentence);
+        const quiet = sentence.trimStart().startsWith(QUIET_TOPIC_MARK);
         const opensReply = (queued === 0 && index === 0) || switching;
         // What follows a `[new topic]` waits while the user's turn is open (topicHold); the rest answers them.
         const parts = (topicPartsRef.current.get(item.id) ?? 0) + (switching ? 1 : 0);
         topicPartsRef.current.set(item.id, parts);
         const part = parts > 0 ? `${item.id}#${parts}` : undefined;
-        session.speak(sentence.replaceAll(TOPIC_MARK, ""), opensReply, switching, part);
+        session.speak(
+          sentence.replaceAll(TOPIC_MARK, "").replaceAll(QUIET_TOPIC_MARK, ""),
+          opensReply,
+          switching && !quiet,
+          part,
+        );
       }
       if (item.streaming) continue;
       finishedRef.current.add(item.id);
       // A finished reply after their words that doesn't open on `[new topic]` is their answer ("..." too).
-      if (askedAt !== undefined && startedAt >= askedAt && !text.trimStart().startsWith(TOPIC_MARK)) {
+      if (askedAt !== undefined && startedAt >= askedAt && !opensTopic(text)) {
         session.answered();
       }
     }

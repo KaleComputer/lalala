@@ -324,7 +324,7 @@ const Glyph = (props: { readonly d: ReadonlyArray<string> }) => (
   </svg>
 );
 
-/** The topic sound, beside Sound & mic in the phone's list. */
+/** The update sound, beside Sound & mic in the phone's list. */
 export function useSoundValue(): string {
   const { topicSound } = useSyncedSettings();
   return topicSound === "none"
@@ -1531,9 +1531,9 @@ export function SoundSection() {
   return (
     <Section title="Sound & mic">
       <PickRow
-        title="Topic sound"
-        description="Plays before the voice turns to something new, like a thread's result."
-        label="Topic sound"
+        title="Update sound"
+        description="Plays before an update, like a thread's result (not for one about the card you're looking at)."
+        label="Update sound"
         value={topicSound}
         groups={[
           {
@@ -1593,7 +1593,7 @@ function VolumeRow() {
   return (
     <Row
       title="Sounds volume"
-      description="Every sound but the voice: the topic sound, call chimes, card samples and games."
+      description="Every sound but the voice: the update sound, call chimes, card samples and games."
       onReset={percent === 100 ? undefined : () => setSoundVolume(1)}
     >
       {(describedBy) => (

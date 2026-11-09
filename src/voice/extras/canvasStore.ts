@@ -653,6 +653,28 @@ function tidyCanvas() {
   }
 }
 
+/**
+ * Whether the user is looking at a card (by id or title): the page is showing, the card is on their open
+ * canvas and at least a third of it, or half the screen, is in view. The voice host plays an update
+ * about a card they are looking at without the UPDATE takeover and its sound.
+ */
+function cardInView(name: string) {
+  if (document.visibilityState !== "visible") return false;
+  const wanted = name.trim().toLowerCase();
+  const found = [...cardsInCode].find(
+    ([id, card]) => id.toLowerCase() === wanted || card.title.toLowerCase() === wanted,
+  );
+  if (!found) return false;
+  const key = boxKey(live.canvas, found[0]);
+  const rect = live.cards[key];
+  const seen = viewport();
+  if (rect === undefined || !mounted.has(key) || seen === undefined) return false;
+  const w = Math.min(rect.x + rect.w, seen.x + seen.w) - Math.max(rect.x, seen.x);
+  const h = Math.min(rect.y + rect.h, seen.y + seen.h) - Math.max(rect.y, seen.y);
+  const shown = Math.max(0, w) * Math.max(0, h);
+  return shown >= (rect.w * rect.h) / 3 || shown >= (seen.w * seen.h) / 2;
+}
+
 /** What the top bar's canvas switcher and the voice host (outside this bundle) reach. */
 const api = {
   snapshot: getCanvases,
@@ -662,6 +684,7 @@ const api = {
   remove: deleteCanvas,
   focus: focusCard,
   tidy: tidyCanvas,
+  inView: cardInView,
 };
 export type CanvasesApi = typeof api;
 declare global {
