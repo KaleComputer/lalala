@@ -30,9 +30,113 @@
         window.addEventListener("load", apply);
       })();
     </script>
+    <style>
+      /* Boot screen: in the HTML so the phone never shows a bare black page; React replaces #root's
+         contents on mount, which removes it. */
+      #lala-boot {
+        position: fixed;
+        inset: 0;
+        z-index: 2147483647;
+        display: grid;
+        place-items: center;
+        padding: 24px;
+        background: #0b0608;
+        color: #ffd8d2;
+        font: 500 12px/1.5 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+        letter-spacing: 0.14em;
+        text-transform: uppercase;
+      }
+      #lala-boot .plate {
+        position: relative;
+        width: min(300px, 100%);
+        padding: 18px 20px 16px;
+        background: #190d12;
+        border: 1px solid rgba(255, 94, 84, 0.45);
+        border-left: 3px solid #ff5e54;
+        clip-path: polygon(0 0, calc(100% - 12px) 0, 100% 12px, 100% 100%, 0 100%);
+      }
+      #lala-boot .mark { color: #ff5e54; font-weight: 700; font-size: 15px; letter-spacing: 0.3em; }
+      #lala-boot .track {
+        position: relative;
+        height: 3px;
+        margin: 14px 0 12px;
+        overflow: hidden;
+        background: rgba(255, 94, 84, 0.16);
+      }
+      #lala-boot .track i {
+        position: absolute;
+        inset: 0 auto 0 0;
+        width: 34%;
+        background: #ff5e54;
+        animation: lala-boot-sweep 1.4s cubic-bezier(0.6, 0, 0.4, 1) infinite;
+      }
+      #lala-boot p { margin: 0; color: rgba(255, 216, 210, 0.66); text-transform: none; letter-spacing: 0.02em; }
+      #lala-boot .status { color: #ffd8d2; text-transform: uppercase; letter-spacing: 0.14em; }
+      #lala-boot .failed { display: none; }
+      #lala-boot .slow { visibility: hidden; max-height: 0; overflow: hidden; animation: lala-boot-show 0s 15s forwards; }
+      #lala-boot .slow p, #lala-boot .why { margin-top: 8px; }
+      #lala-boot button {
+        margin-top: 12px;
+        padding: 8px 16px;
+        border: 0;
+        background: #ff5e54;
+        color: #190d12;
+        font: inherit;
+        font-weight: 700;
+        letter-spacing: 0.14em;
+        text-transform: uppercase;
+        clip-path: polygon(6px 0, 100% 0, 100% calc(100% - 6px), calc(100% - 6px) 100%, 0 100%, 0 6px);
+        cursor: pointer;
+      }
+      #lala-boot.is-failed .loading, #lala-boot.is-failed .slow, #lala-boot.is-failed .track { display: none; }
+      #lala-boot.is-failed .failed { display: block; }
+      @keyframes lala-boot-sweep {
+        from { transform: translateX(-100%); }
+        to { transform: translateX(300%); }
+      }
+      @keyframes lala-boot-show { to { visibility: visible; max-height: 240px; } }
+      @media (prefers-reduced-motion: reduce) {
+        #lala-boot .track i { animation: none; width: 100%; opacity: 0.6; }
+      }
+    </style>
+    <script>
+      // A module that fails to load or throws before the app mounts leaves the boot screen up; say so.
+      (() => {
+        const fail = (event) => {
+          const boot = document.getElementById("lala-boot");
+          if (!boot) return;
+          const fromScript = event.target instanceof HTMLScriptElement;
+          if (!fromScript && !(event instanceof ErrorEvent)) return;
+          boot.classList.add("is-failed");
+          const why = boot.querySelector(".why");
+          if (why && !why.textContent)
+            why.textContent = fromScript
+              ? "Part of the app didn't arrive. The connection may have dropped, or the computer is mid-update."
+              : `It stopped with an error: ${event.message}`;
+        };
+        window.addEventListener("error", fail, true);
+      })();
+    </script>
   </head>
   <body>
-    <div id="root"></div>
+    <div id="root">
+      <div id="lala-boot" role="status" aria-live="polite">
+        <div class="plate">
+          <div class="mark">LALALA</div>
+          <div class="track"><i></i></div>
+          <p class="status loading">Loading…</p>
+          <div class="slow">
+            <p>This is taking longer than it should. The connection may be slow.</p>
+            <button type="button" onclick="location.reload()">Reload</button>
+          </div>
+          <div class="failed">
+            <p class="status">Didn't load</p>
+            <p class="why"></p>
+            <button type="button" onclick="location.reload()">Reload</button>
+          </div>
+        </div>
+      </div>
+    </div>
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>
