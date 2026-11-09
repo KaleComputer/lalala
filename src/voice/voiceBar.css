@@ -783,8 +783,7 @@
   text-transform: uppercase;
   white-space: nowrap;
 }
-/* The bar's plates in the room, START's shape: RECONNECTING in the warm white over the glitch line, the
-   paused mic's tap in the yellow of the one thing to do. */
+/* The bar's plate in the room, START's shape: the paused mic's tap in the yellow of the one thing to do. */
 [data-lalala-note] > [data-lalala-plate] {
   display: inline-flex;
   align-items: center;
@@ -799,41 +798,32 @@
   white-space: nowrap;
   clip-path: var(--lalala-plate-clip);
 }
-[data-lalala-presence] [data-lalala-note="reconnecting"] > [data-lalala-plate] {
+/* Words beside an animation (an error's few words or RECONNECTING by the glitch, CONNECTING by the ASCII
+   line) sit on a small tag at the room's left end, so the animation shows whole (9 Nov); warm white, an
+   error's in the danger colour, its hint under it. */
+[data-lalala-presence] [data-lalala-note]:is([data-lalala-note="error"], [data-lalala-note="reconnecting"], [data-lalala-note="connecting"]) {
+  justify-items: start;
+  padding-left: 12px;
+}
+[data-lalala-note] > [data-lalala-tag] {
+  display: inline-grid;
+  gap: 3px;
+  padding: 4px 9px 4px 8px;
   background: var(--lalala-info, var(--lala-ink, var(--color-ink)));
   color: var(--color-surface);
+  font: 600 9.5px / 1 var(--font-tag);
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  white-space: nowrap;
+  clip-path: polygon(5px 0, 100% 0, 100% calc(100% - 5px), calc(100% - 5px) 100%, 0 100%, 0 5px);
 }
-/* An error: its sentence on a dark cut plate edged in the danger colour, over Presence's glitch line. */
-[data-lalala-note="error"] > p {
-  position: relative;
-  isolation: isolate;
-  max-width: 100%;
-  margin: 0;
-  padding: 3px 10px;
+[data-lalala-note="error"] > [data-lalala-tag] {
   background: var(--lalala-danger, var(--color-danger, #ff5e54));
-  color: var(--lala-ink, var(--color-ink));
-  font: 400 11.5px / 1.3 var(--font-sans);
-  text-align: center;
-  clip-path: polygon(6px 0, 100% 0, 100% calc(100% - 6px), calc(100% - 6px) 100%, 0 100%, 0 6px);
-  display: -webkit-box;
-  -webkit-box-orient: vertical;
-  -webkit-line-clamp: 2;
-  overflow: hidden;
+  color: var(--hud-ink, var(--color-surface));
 }
-[data-lalala-note="error"] > p::after {
-  content: "";
-  position: absolute;
-  z-index: -1;
-  inset: 1px;
-  background: var(--color-surface);
-  clip-path: polygon(
-    5.6px 0,
-    100% 0,
-    100% calc(100% - 5.6px),
-    calc(100% - 5.6px) 100%,
-    0 100%,
-    0 5.6px
-  );
+[data-lalala-tag] > small {
+  font-size: 8.5px;
+  opacity: 0.78;
 }
 /* The models loading (6 Nov: design A's text on the ASCII line, D's fill): a line each at the room's
    left end, the connecting ASCII line running and filling with their bytes behind it; the numbers brightest. */
@@ -1468,24 +1458,6 @@
   /* The time appears plainly; glitch is for errors only. */
   & .lalala-tabs > .fr-tab:has(> .fr-tmr:not([hidden])) > .fr-tmr {
     animation: lalala-fade-in 150ms ease-out;
-  }
-  /* Connecting says so in one steady word instead of Presence's scrambling characters; thinking keeps
-     Presence's row of beads (9 Nov). VoiceBar reads this visibility and stops drawing. */
-  & .fr[data-state="connecting"] .fr-wv {
-    visibility: hidden;
-  }
-  & .fr[data-state="connecting"] .bar-line::after {
-    content: "Connecting";
-    color: var(--lalala-info);
-    position: absolute;
-    inset: 0;
-    display: grid;
-    place-items: center;
-    font: 600 11px / 1 var(--font-tag);
-    letter-spacing: 0.14em;
-    text-indent: 0.14em;
-    text-transform: uppercase;
-    pointer-events: none;
   }
   /* The field's attach and send icons at 3:1 and more. */
   & [data-lalala-input-cell] {

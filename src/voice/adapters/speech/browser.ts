@@ -8,6 +8,8 @@ type Reply =
   | { type: "audio"; id: number; samples: Float32Array; rate: number }
   | { type: "error"; id: number; message: string };
 
+const MODEL_FAILED = "The voice models didn't load.";
+
 /** One model worker: its load state for the readout, and request/reply by id. */
 function modelWorker(spawn: () => Worker) {
   let worker: Worker | null = null;
@@ -16,15 +18,33 @@ function modelWorker(spawn: () => Worker) {
   let failure: string | null = null;
   let markReady: () => void = () => {};
   let markFailed: (error: Error) => void = () => {};
-  const ready = new Promise<void>((resolve, reject) => {
-    markReady = resolve;
-    markFailed = reject;
-  });
-  ready.catch(() => {});
+  let ready = Promise.resolve();
+  const arm = () => {
+    ready = new Promise<void>((resolve, reject) => {
+      markReady = resolve;
+      markFailed = reject;
+    });
+    ready.catch(() => {});
+  };
+  arm();
   const waiting = new Map<number, { resolve: (reply: Reply) => void; reject: (error: Error) => void }>();
   let nextId = 1;
 
+  // A failed model loads again on the next call (the bar says "tap to retry"); its error says what
+  // failed in plain words, the cause stays in the console.
+  const fail = (cause: string) => {
+    console.warn("lalala: a voice model didn't load", cause);
+    failure = cause;
+    markFailed(new Error(MODEL_FAILED));
+  };
   const start = () => {
+    if (failure !== null) {
+      worker?.terminate();
+      worker = null;
+      failure = null;
+      download = null;
+      arm();
+    }
     if (worker !== null) return worker;
     worker = spawn();
     worker.onmessage = ({ data }: MessageEvent<LoadMessage | Reply>) => {
@@ -34,10 +54,7 @@ function modelWorker(spawn: () => Worker) {
       else if (data.type === "ready") {
         isReady = true;
         markReady();
-      } else if (data.type === "failed") {
-        failure = data.message;
-        markFailed(new Error(data.message));
-      } else if ("id" in data) {
+      } else if (data.type === "failed") fail(data.message); else if ("id" in data) {
         const pending = waiting.get(data.id);
         waiting.delete(data.id);
         if (data.type === "error") pending?.reject(new Error(data.message));
@@ -45,17 +62,16 @@ function modelWorker(spawn: () => Worker) {
       }
     };
     // A worker that cannot even load (its script, its runtime) fails the model, not the page.
-    worker.onerror = (event) => {
-      failure = event.message || "the model's worker failed to load";
-      markFailed(new Error(failure));
-    };
+    worker.onerror = (event) => fail(event.message || "the model's worker failed to load");
     worker.postMessage({ type: "load" });
     return worker;
   };
 
   return {
     start,
-    loaded: ready,
+    get loaded() {
+      return ready;
+    },
     failure: () => failure,
     ready: () => isReady,
     model(): ModelProgress | null {

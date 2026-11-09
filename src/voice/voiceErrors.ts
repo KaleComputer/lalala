@@ -49,3 +49,41 @@ export function voiceErrorText(cause: unknown): string {
   if (typeof cause === "string" && cause !== "") return cause;
   return UNKNOWN_TEXT;
 }
+
+/** What the bar shows for an error: a short tag, an optional hint, and the plain sentence a reader hears. */
+export type ErrorTag = { readonly tag: string; readonly hint: string | null; readonly said: string };
+
+/**
+ * The bar's words for an error message: a few plain words on its tag beside the glitch, never the raw
+ * message (it may name a script or a host; the voice log keeps it) and never a command to run. Out of a
+ * call a tap starts it again; in a call the next words try again on their own.
+ */
+export function errorTag(message: string, live: boolean): ErrorTag {
+  const retry = live ? "Retrying" : "Tap to retry";
+  const again = live ? " It tries again on its own." : " Tap to try again.";
+  if (/timed out|socket closed|didn.t answer/i.test(message))
+    return {
+      tag: "Speech didn't answer",
+      hint: retry,
+      said: `The speech service didn't answer in time.${again}`,
+    };
+  if (/local speech|speech down|models?\b.*\b(load|fail)|speech\.sh|npm run speech/i.test(message))
+    return {
+      tag: "Voice models didn't load",
+      hint: retry,
+      said: `The voice models didn't load.${again}`,
+    };
+  if (/microphone|\bmic\b|notallowed|permission/i.test(message))
+    return {
+      tag: "Mic blocked",
+      hint: "Allow it in the browser",
+      said: "The browser blocked the microphone. Allow it in the browser's site settings.",
+    };
+  if (/default model/i.test(message))
+    return { tag: "No model picked", hint: "Pick one in settings", said: message };
+  if (/elevenlabs/i.test(message))
+    return { tag: "ElevenLabs not set up", hint: null, said: "ElevenLabs isn't set up here." };
+  if (/project/i.test(message))
+    return { tag: "No voice project", hint: null, said: "There is no voice project here yet." };
+  return { tag: "No signal", hint: retry, said: `Something went wrong in the call.${again}` };
+}

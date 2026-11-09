@@ -17,8 +17,7 @@ import {
 import { type VoiceFileUpload, VoiceInput, type VoiceInputSubmit } from "./VoiceInput";
 import { type SettingsPage, VoiceSettings } from "./VoiceSettings";
 import { voiceLog } from "./voiceLog";
-import { useStreamerMode, useStreamerText } from "./streamerMode";
-import { UNREACHABLE_TEXT } from "./voiceErrors";
+import { errorTag, type ErrorTag, UNREACHABLE_TEXT } from "./voiceErrors";
 import "./presence/presence.css";
 import "./voiceBar.css";
 
@@ -74,8 +73,6 @@ export function VoiceBar(props: {
   const updateReady = useUpdateReady();
 
   const press = useEffectEvent(() => props.onPress());
-  const streamer = useStreamerMode();
-  const message = useStreamerText(props.message);
   const readAnalysis = useEffectEvent(() => props.analysis?.() ?? null);
   const hearing = useEffectEvent(() => props.state === "hearing");
   const fill = useEffectEvent(() => downloadFill(props.models));
@@ -87,14 +84,16 @@ export function VoiceBar(props: {
     props.reconnecting || (props.state === "error" && props.message === UNREACHABLE_TEXT)
       ? { kind: "reconnecting" }
       : props.state === "error"
-        ? { kind: "error", text: message ?? "" }
+        ? { kind: "error", error: errorTag(props.message ?? "", props.live ?? false) }
         : props.models
           ? { kind: "models", models: props.models }
           : props.paused
             ? { kind: "paused" }
             : newTopic
               ? { kind: "topic" }
-              : null;
+              : props.state === "connecting"
+                ? { kind: "connecting" }
+                : null;
 
   // oxlint-disable-next-line t3code/no-unreasoned-state-sync -- mounts Presence's own DOM-driven frame and wave once; they live outside React
   useEffect(() => {
@@ -179,7 +178,7 @@ export function VoiceBar(props: {
             : ""}
       </span>
       {inputHosts !== null && note !== null
-        ? createPortal(<RoomNote note={note} streamer={streamer} />, inputHosts.panel)
+        ? createPortal(<RoomNote note={note} />, inputHosts.panel)
         : null}
       {room !== null && props.compacting
         ? createPortal(<CompactingDefrag {...props.compacting} />, room)
@@ -268,27 +267,38 @@ function downloadFill(models: ReadonlyArray<ModelProgress> | null | undefined) {
 const mb = (bytes: number) => Math.round(bytes / 1e6);
 
 type Note =
-  | { readonly kind: "error"; readonly text: string }
+  | { readonly kind: "error"; readonly error: ErrorTag }
   | { readonly kind: "reconnecting" }
   | { readonly kind: "models"; readonly models: ReadonlyArray<ModelProgress> }
   | { readonly kind: "paused" }
-  | { readonly kind: "topic" };
+  | { readonly kind: "topic" }
+  | { readonly kind: "connecting" };
 
 /**
- * What the bar has to say, in its room (on the frame, over the wave): an error on a plate over
- * Presence's glitch line, RECONNECTING, the models loading (a line each on the connecting ASCII line,
+ * What the bar has to say, in its room (on the frame, over the wave): a small tag at the room's left end
+ * beside Presence's glitch (an error's few words, RECONNECTING) or its ASCII line (CONNECTING), the models loading (a line each on the connecting ASCII line,
  * which fills from the left with their bytes: the 6 Nov pick), the paused mic, NEW TOPIC.
  */
-function RoomNote({ note, streamer }: { readonly note: Note; readonly streamer: boolean }) {
+function RoomNote({ note }: { readonly note: Note }) {
   return (
     <div data-lalala-note={note.kind} role="status">
       {note.kind === "error" ? (
-        <p data-streamer-text={streamer ? "" : undefined}>{note.text}</p>
+        <b data-lalala-tag="" aria-label={note.error.said}>
+          <span>{note.error.tag}</span>
+          {note.error.hint === null ? null : <small>{note.error.hint}</small>}
+        </b>
       ) : note.kind === "reconnecting" ? (
-        <b data-lalala-plate="">Reconnecting</b>
+        <b data-lalala-tag="" aria-label="Lost the connection. Reconnecting.">
+          <span>Reconnecting</span>
+        </b>
       ) : note.kind === "paused" ? (
         <b data-lalala-plate="" aria-label="Mic paused: another app took the audio. Tap to resume.">
           Tap to resume mic
+        </b>
+      ) : note.kind === "connecting" ? (
+        // The status line under the bar already reads "Connecting" out.
+        <b data-lalala-tag="" aria-hidden="true">
+          <span>Connecting</span>
         </b>
       ) : note.kind === "topic" ? (
         <b>New topic</b>
