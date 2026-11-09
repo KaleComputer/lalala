@@ -1343,28 +1343,6 @@
     border-color: var(--lalala-red);
     opacity: 1;
   }
-  /* One line of mono micro-text as texture at rest, desktop only, out of the accessibility tree. No state
-     label in a call (9 Nov: the VOX LINK tags were never asked for). */
-  & .bar-line::before {
-    content: "SYS 0x1F · VOX LINK" / "";
-    position: absolute;
-    z-index: 1;
-    left: 14px;
-    bottom: 7px;
-    color: color-mix(in srgb, var(--lalala-red) 55%, transparent);
-    font: 400 8px / 1 var(--font-mono);
-    letter-spacing: 0.08em;
-    pointer-events: none;
-  }
-  & .fr:not([data-state="idle"]) .bar-line::before,
-  &[data-lalala-off] .bar-line::before {
-    content: none;
-  }
-  @media (max-width: 639px) {
-    & .bar-line::before {
-      content: none;
-    }
-  }
   /* Two voices, two colours (the user, 8 Nov): the agent's wave cyan (drawn mint by Presence's canvas, turned by
      one filter), the user's wash yellow, gone while his mic is muted; the defrag's blocks warm white, its head
      cyan. */
@@ -1540,17 +1518,6 @@
     --lalala-edge: var(--lalala-danger);
     color: var(--lala-ink);
     font: 400 12px / 1.4 var(--font-sans);
-  }
-  /* The one glitch: a caps prefix split cyan and red, the sentence itself plain. */
-  & .bar-incoming[data-tone="danger"] li::before {
-    content: "ERR //" / "";
-    margin-right: 6px;
-    color: var(--lalala-danger);
-    font: 600 10px / 1 var(--font-tag);
-    letter-spacing: 0.14em;
-    text-shadow:
-      -0.5px 0 var(--lalala-cyan),
-      0.5px 0 var(--lalala-danger);
   }
   /* The canvas list: red rows on the panel, the current one cyan, DELETE red outlined. */
   & [data-lalala-canvas-panel] li > button {
