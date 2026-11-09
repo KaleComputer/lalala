@@ -1,4 +1,4 @@
-import { useEffect, useEffectEvent, useRef, useState } from "react";
+import { useEffect, useEffectEvent, useLayoutEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 
 import type { ModelProgress } from "./adapters";
@@ -94,6 +94,20 @@ export function VoiceBar(props: {
               : props.state === "connecting"
                 ? { kind: "connecting" }
                 : null;
+
+  // The phone sizes follow the page's width in its own CSS px, which a viewport media query misses
+  // under CSS zoom (a 360 px page in a 1080 px window). Before paint, so a phone never sees desktop sizes.
+  // oxlint-disable-next-line t3code/no-unreasoned-state-sync -- measures the page's layout width, which React does not own
+  useLayoutEffect(() => {
+    const root = rootRef.current;
+    if (root === null) return;
+    const page = document.documentElement;
+    const measure = () => root.toggleAttribute("data-lalala-compact", page.offsetWidth < 640);
+    measure();
+    const observer = new ResizeObserver(measure);
+    observer.observe(page);
+    return () => observer.disconnect();
+  }, []);
 
   // oxlint-disable-next-line t3code/no-unreasoned-state-sync -- mounts Presence's own DOM-driven frame and wave once; they live outside React
   useEffect(() => {

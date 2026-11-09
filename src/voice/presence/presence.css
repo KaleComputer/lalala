@@ -449,10 +449,12 @@
 .mp-back .a-icon { width: 12px; height: 12px; transform: rotate(180deg); }
 
 /* ------------------------------------------------------------------ a phone (T3: under 640 px) */
+/* The bar's phone sizes follow the page's own width (VoiceBar sets data-lalala-compact), not the
+   window's: under CSS zoom a 360 px page in a 1080 px window still gets them. */
+[data-lalala-presence][data-lalala-compact] { --bar-row: 52px; --bar-wave: 104px; --key-w: 58px; --tab-h: 21px; --tab-big: 29px; --tab-fs: 11.5px; --bar-open: 168px; --rail-h: 22px; --rl-pip: 7px; --rl-fs: 10px; --rl-ls: .08em; --rl-end: 8px; --plate-h: 30px; --plate-fs: 12.5px; }
+[data-lalala-compact] .fr { --tx: 58%; }
 @media (max-width: 639px) {
-  [data-lalala-presence] { --bar-row: 52px; --bar-wave: 104px; --key-w: 58px; --tab-h: 21px; --tab-big: 29px; --tab-fs: 11.5px; --bar-open: 168px; --rail-h: 22px; --rl-pip: 7px; --rl-fs: 10px; --rl-ls: .08em; --rl-end: 8px; --plate-h: 30px; --plate-fs: 12.5px; }
   .bar { width: calc(100vw - 2 * var(--grid-edge)); }
-  .fr { --tx: 58%; }
   .cmp-body { padding: 14px 12px 0 18px; }
   .cmp-input { font-size: 16px; }
   .cmp-foot { padding: 0 6px 12px 10px; gap: 0; }

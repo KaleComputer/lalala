@@ -1242,10 +1242,8 @@
   color: var(--hud-3);
   cursor: default;
 }
-@media (max-width: 639px) {
-  [data-lalala-presence] {
-    --lalala-input-tab-w: 40px;
-  }
+[data-lalala-presence][data-lalala-compact] {
+  --lalala-input-tab-w: 40px;
 }
 /* Touch: 16px text (iOS zooms into anything smaller), 44px field, cells and tiles. */
 @media (pointer: coarse) {
@@ -1302,10 +1300,8 @@
   --lalala-plate-pad: 16px;
   --lalala-plate-drop: 0px;
 }
-@media (max-width: 639px) {
-  [data-lalala-presence] {
-    --lalala-plate-drop: 2px;
-  }
+[data-lalala-presence][data-lalala-compact] {
+  --lalala-plate-drop: 2px;
 }
 [data-lalala-offline] button {
   position: relative;
