@@ -714,37 +714,158 @@
   white-space: nowrap;
 }
 
-/* NEW TOPIC (VoiceBar): a small info plate centred in the room (9 Nov) while a new topic starts playing,
-   on the frame over the wave (6, like the panels); the topic sound itself no longer moves the wave. */
-[data-lalala-presence] [data-lalala-topic] {
+/* What the bar has to say (VoiceBar's RoomNote; 9 Nov: nothing floats over the bar): on the frame, exactly
+   over the room (the wave breaks out of the room, so a note in it would sit under the wave). */
+[data-lalala-presence] .bar-incoming {
+  display: none;
+}
+[data-lalala-presence] [data-lalala-note] {
+  --lalala-note-cut: calc(var(--cut) - 1px);
   position: absolute;
   z-index: 6;
-  left: 50%;
-  top: 50%;
-  transform: translate(-50%, -50%);
-  display: inline-flex;
-  align-items: center;
-  height: 18px;
-  padding: 0 8px;
-  background: var(--lalala-info, var(--color-ink));
-  color: var(--color-surface);
-  font: 600 9.5px / 1 var(--font-tag);
-  letter-spacing: 0.14em;
-  text-indent: 0.14em;
-  text-transform: uppercase;
-  white-space: nowrap;
+  left: 1px;
+  top: 1px;
+  height: var(--bar-row);
+  right: calc(var(--key-w) + 1px);
+  display: grid;
+  place-items: center;
+  padding: 0 10px;
   pointer-events: none;
-  clip-path: polygon(5px 0, 100% 0, 100% calc(100% - 5px), calc(100% - 5px) 100%, 0 100%, 0 5px);
+  clip-path: polygon(
+    var(--lalala-note-cut) 0,
+    100% 0,
+    100% 100%,
+    0 100%,
+    0 var(--lalala-note-cut)
+  );
   animation: lalala-fade-in 150ms ease-out;
 }
-/* The room ends at the map; with the input panel open it is the frame's bottom row. */
-[data-lalala-canvas] [data-lalala-presence] [data-lalala-topic] {
-  left: calc((100% - var(--lalala-map-w)) / 2);
+[data-lalala-canvas] [data-lalala-presence] [data-lalala-note] {
+  right: calc(var(--lalala-map-w) + 1px);
 }
-[data-lalala-presence] .fr[data-open] [data-lalala-topic] {
+/* With a panel open the room is the frame's bottom row. */
+[data-lalala-presence] .fr[data-open] [data-lalala-note] {
   top: auto;
-  bottom: calc(var(--bar-row) / 2);
-  transform: translate(-50%, 50%);
+  bottom: 1px;
+  clip-path: none;
+}
+/* Notes that take the room's place hide the wave, START and CONNECT behind them; the connecting word too. */
+[data-lalala-presence]:has(
+    [data-lalala-note]:is(
+      [data-lalala-note="paused"],
+      [data-lalala-note="topic"]
+    )
+  )
+  :is(.fr-wv, .fr-idle, [data-lalala-offline]) {
+  opacity: 0;
+}
+/* The models' lines sit on the connecting ASCII line, so only START and CONNECT give way to them. */
+[data-lalala-presence]:has([data-lalala-note="models"]) :is(.fr-idle, [data-lalala-offline]) {
+  opacity: 0;
+}
+[data-lalala-presence]:has([data-lalala-note]) .bar-line::after {
+  content: none !important;
+}
+[data-lalala-note="paused"] {
+  background: var(--color-surface);
+}
+/* NEW TOPIC fills the room in the warm white, the wave gone behind it (9 Nov): something new starts. */
+[data-lalala-note="topic"] {
+  background: var(--lalala-info, var(--lala-ink, var(--color-ink)));
+  color: var(--color-surface);
+  font: 600 var(--plate-fs) / 1 var(--font-tag);
+  letter-spacing: 0.2em;
+  text-indent: 0.2em;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+/* The bar's plates in the room, START's shape: RECONNECTING in the warm white over the glitch line, the
+   paused mic's tap in the yellow of the one thing to do. */
+[data-lalala-note] > [data-lalala-plate] {
+  display: inline-flex;
+  align-items: center;
+  height: var(--plate-h);
+  padding: var(--lalala-plate-drop) var(--lalala-plate-pad) 0;
+  background: var(--lalala-warn, var(--hud));
+  color: var(--hud-ink, var(--color-surface));
+  font: 600 var(--plate-fs) / 1 var(--font-tag);
+  letter-spacing: var(--lalala-plate-track);
+  text-indent: var(--lalala-plate-track);
+  text-transform: uppercase;
+  white-space: nowrap;
+  clip-path: var(--lalala-plate-clip);
+}
+[data-lalala-presence] [data-lalala-note="reconnecting"] > [data-lalala-plate] {
+  background: var(--lalala-info, var(--lala-ink, var(--color-ink)));
+  color: var(--color-surface);
+}
+/* An error: its sentence on a dark cut plate edged in the danger colour, over Presence's glitch line. */
+[data-lalala-note="error"] > p {
+  position: relative;
+  isolation: isolate;
+  max-width: 100%;
+  margin: 0;
+  padding: 3px 10px;
+  background: var(--lalala-danger, var(--color-danger, #ff5e54));
+  color: var(--lala-ink, var(--color-ink));
+  font: 400 11.5px / 1.3 var(--font-sans);
+  text-align: center;
+  clip-path: polygon(6px 0, 100% 0, 100% calc(100% - 6px), calc(100% - 6px) 100%, 0 100%, 0 6px);
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  overflow: hidden;
+}
+[data-lalala-note="error"] > p::after {
+  content: "";
+  position: absolute;
+  z-index: -1;
+  inset: 1px;
+  background: var(--color-surface);
+  clip-path: polygon(
+    5.6px 0,
+    100% 0,
+    100% calc(100% - 5.6px),
+    calc(100% - 5.6px) 100%,
+    0 100%,
+    0 5.6px
+  );
+}
+/* The models loading (6 Nov: design A's text on the ASCII line, D's fill): a line each at the room's
+   left end, the connecting ASCII line running and filling with their bytes behind it; the numbers brightest. */
+[data-lalala-presence] [data-lalala-note="models"] {
+  justify-items: start;
+}
+[data-lalala-note="models"] > ol {
+  display: grid;
+  grid-template-columns: auto auto;
+  column-gap: 14px;
+  row-gap: 3px;
+  margin: 0;
+  padding: 4px 8px;
+  list-style: none;
+  background: color-mix(in srgb, var(--color-surface) 80%, transparent);
+  color: var(--lalala-info, var(--lala-ink, var(--color-ink)));
+  font: 500 10px / 1.2 var(--font-mono);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+[data-lalala-note="models"] li {
+  display: contents;
+}
+[data-lalala-note="models"] li > span:first-child {
+  opacity: 0.72;
+}
+[data-lalala-note="models"] li > span:last-child {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+[data-lalala-note="models"] li[data-done] > span {
+  opacity: 0.5;
+}
+[data-lalala-presence]:has([data-lalala-note="models"]) .fr[data-state="connecting"] .fr-wv {
+  visibility: visible;
 }
 
 /* lalala's UPDATE is a word, not an icon: wider, in the time's type, centred between the edges. */
@@ -919,9 +1040,6 @@
     opacity: 1;
     transform: none;
   }
-}
-[data-lalala-presence] .bar:has([data-lalala-input-panel]) .bar-incoming {
-  display: none;
 }
 [data-lalala-presence] [data-lalala-input-tiles] {
   display: flex;
@@ -1150,49 +1268,6 @@
   }
 }
 
-/* While models download, connecting keeps Presence's ASCII line: it fills with the download. */
-:where(:root:not([data-lala-look]), :root[data-lala-look="neon"])
-  [data-lalala-presence]:has([data-lalala-downloads])
-  .fr[data-state="connecting"] {
-  & .fr-wv {
-    visibility: visible;
-  }
-  & .bar-line::after {
-    content: none;
-  }
-}
-/* lalala.talk's model download (VoiceBar's `downloads`): over the room's left end, the ASCII line
-   filling green behind it (asciiline.js uFill). A name column and a size column, a line per model. */
-[data-lalala-presence] [data-lalala-downloads] {
-  position: absolute;
-  z-index: 4;
-  left: calc(1px + var(--fr-strip) + 8px);
-  top: calc(var(--bar-h) / 2);
-  transform: translateY(-50%);
-  display: grid;
-  grid-template-columns: auto auto;
-  column-gap: 14px;
-  row-gap: 2px;
-  margin: 0;
-  padding: 4px 8px;
-  list-style: none;
-  pointer-events: none;
-  background: color-mix(in srgb, var(--color-surface) 55%, transparent);
-  color: #f5eee2;
-  font: 400 calc(var(--tab-fs) - 1px) / 1.2 var(--font-mono);
-  white-space: nowrap;
-}
-[data-lalala-presence] [data-lalala-downloads] li {
-  display: contents;
-}
-[data-lalala-presence] [data-lalala-downloads] li > span:last-child {
-  text-align: right;
-  font-variant-numeric: tabular-nums;
-}
-[data-lalala-presence] [data-lalala-downloads] li[data-done] > span {
-  color: rgba(245, 238, 226, 0.6);
-}
-
 /* T3 Code not connected, out of a call (design K, the user 7 Nov): START CALL and its tap target give way to
    one compact CONNECT TO T3 CODE button filled with the look's warning colour. */
 [data-lalala-presence][data-lalala-off] .fr-plate,
@@ -1391,9 +1466,8 @@
     animation: lalala-fade-in 150ms ease-out;
   }
   /* Connecting says so in one steady word instead of Presence's scrambling characters; thinking keeps
-     Presence's row of beads (9 Nov). No signal hides the wave. VoiceBar reads this visibility and stops
-     drawing. */
-  & .fr:is([data-state="connecting"], [data-look~="broken"]) .fr-wv {
+     Presence's row of beads (9 Nov). VoiceBar reads this visibility and stops drawing. */
+  & .fr[data-state="connecting"] .fr-wv {
     visibility: hidden;
   }
   & .fr[data-state="connecting"] .bar-line::after {
@@ -1470,8 +1544,8 @@
     text-underline-offset: 3px;
   }
 
-  /* No signal: the frame's edge in the danger colour instead of a torn slab, the wave gives way to a calm
-     frame, no green retry run along the rail (it never rested); the one jolt stays. */
+  /* No signal: Presence's torn frame, its glitch line and retry run (9 Nov: the glitch the user loves),
+     the frame's edge in the danger colour. */
   & .fr[data-look~="broken"] {
     --fe: var(--lalala-danger);
   }
@@ -1482,43 +1556,7 @@
     :is([data-lalala-input-tab]:not([data-open]), [data-lalala-mic]:not([data-muted])) {
     color: color-mix(in srgb, var(--lalala-red) 85%, var(--color-surface));
   }
-  & .fr[data-look~="broken"] :is(.fr-tear, .fr-frag, .fr-rsw) {
-    display: none;
-  }
 
-  /* The one line over the frame on its own cut-corner plate (an edge layer, the plate 1px in), readable
-     over any card; an error in the danger colour. */
-  & .bar-incoming li {
-    position: relative;
-    isolation: isolate;
-    padding: 4px 12px;
-    color: var(--lala-ink, var(--color-ink));
-    background: var(--lalala-edge, var(--hud-3));
-    clip-path: polygon(6px 0, 100% 0, 100% calc(100% - 6px), calc(100% - 6px) 100%, 0 100%, 0 6px);
-    font-size: 12px;
-    line-height: 1.4;
-    text-shadow: none;
-  }
-  & .bar-incoming li::after {
-    content: "";
-    position: absolute;
-    z-index: -1;
-    inset: 1px;
-    background: var(--color-surface);
-    clip-path: polygon(
-      5.6px 0,
-      100% 0,
-      100% calc(100% - 5.6px),
-      calc(100% - 5.6px) 100%,
-      0 100%,
-      0 5.6px
-    );
-  }
-  & .bar-incoming[data-tone="danger"] li {
-    --lalala-edge: var(--lalala-danger);
-    color: var(--lala-ink);
-    font: 400 12px / 1.4 var(--font-sans);
-  }
   /* The canvas list: red rows on the panel, the current one cyan, DELETE red outlined. */
   & [data-lalala-canvas-panel] li > button {
     color: var(--lalala-red);

@@ -18,6 +18,7 @@ import { type VoiceFileUpload, VoiceInput, type VoiceInputSubmit } from "./Voice
 import { type SettingsPage, VoiceSettings } from "./VoiceSettings";
 import { voiceLog } from "./voiceLog";
 import { useStreamerMode, useStreamerText } from "./streamerMode";
+import { UNREACHABLE_TEXT } from "./voiceErrors";
 import "./presence/presence.css";
 import "./voiceBar.css";
 
@@ -54,8 +55,13 @@ export function VoiceBar(props: {
   };
   /** The settings' pages, in place of the app's (lalala.talk shows only what a browser can do). */
   readonly settings?: ReadonlyArray<SettingsPage>;
-  /** Models the call is downloading (lalala.talk's in-browser speech): a line each over the room. */
-  readonly downloads?: ReadonlyArray<ModelProgress> | null;
+  /** Models the call is downloading (lalala.talk's in-browser speech): a line each in the room, on the
+      connecting ASCII line that fills with their bytes; null once ready. */
+  readonly models?: ReadonlyArray<ModelProgress> | null;
+  /** The platform took the mic away mid-call; a tap on the room takes it back. */
+  readonly paused?: boolean;
+  /** In a call, the link to T3 dropped and comes back on its own. */
+  readonly reconnecting?: boolean;
   /**
    * T3 Code can't be reached and no call is on: START CALL gives way to one compact amber
    * CONNECT TO T3 CODE button, which calls this. Canvases work on as they are.
@@ -72,10 +78,23 @@ export function VoiceBar(props: {
   const message = useStreamerText(props.message);
   const readAnalysis = useEffectEvent(() => props.analysis?.() ?? null);
   const hearing = useEffectEvent(() => props.state === "hearing");
-  const fill = useEffectEvent(() => downloadFill(props.downloads));
+  const fill = useEffectEvent(() => downloadFill(props.models));
   const compacting = useEffectEvent(() => props.compacting?.active === true);
-  // A new topic starts playing: NEW TOPIC shows on the frame for a moment (the sound no longer moves the wave).
+  // A new topic starts playing: NEW TOPIC fills the room for a moment (the sound no longer moves the wave).
   const [newTopic, setNewTopic] = useState(false);
+  // Nothing floats over the bar (9 Nov): what it has to say sits in the room, over the wave.
+  const note: Note | null =
+    props.reconnecting || (props.state === "error" && props.message === UNREACHABLE_TEXT)
+      ? { kind: "reconnecting" }
+      : props.state === "error"
+        ? { kind: "error", text: message ?? "" }
+        : props.models
+          ? { kind: "models", models: props.models }
+          : props.paused
+            ? { kind: "paused" }
+            : newTopic
+              ? { kind: "topic" }
+              : null;
 
   // oxlint-disable-next-line t3code/no-unreasoned-state-sync -- mounts Presence's own DOM-driven frame and wave once; they live outside React
   useEffect(() => {
@@ -109,10 +128,8 @@ export function VoiceBar(props: {
       live: props.live ?? false,
       label: props.label,
       disabled: props.disabled,
-      message: message ?? null,
-      streamer,
     });
-  }, [props.state, props.live, props.label, props.disabled, message, streamer]);
+  }, [props.state, props.live, props.label, props.disabled]);
 
   // oxlint-disable-next-line t3code/no-unreasoned-state-sync -- Presence's stopped look when the user cuts a reply off
   useEffect(() => {
@@ -161,14 +178,8 @@ export function VoiceBar(props: {
             ? "Thinking"
             : ""}
       </span>
-      {inputHosts !== null && newTopic
-        ? createPortal(
-            // On the frame, not in the room, so it sits over the wave (which breaks out of the room).
-            <span data-lalala-topic="" role="status">
-              New topic
-            </span>,
-            inputHosts.panel,
-          )
+      {inputHosts !== null && note !== null
+        ? createPortal(<RoomNote note={note} streamer={streamer} />, inputHosts.panel)
         : null}
       {room !== null && props.compacting
         ? createPortal(<CompactingDefrag {...props.compacting} />, room)
@@ -182,9 +193,6 @@ export function VoiceBar(props: {
             </div>,
             room,
           )
-        : null}
-      {inputHosts !== null && props.downloads
-        ? createPortal(<Downloads models={props.downloads} />, inputHosts.panel)
         : null}
       {inputHosts !== null && props.onSubmit ? (
         <VoiceInput
@@ -259,16 +267,47 @@ function downloadFill(models: ReadonlyArray<ModelProgress> | null | undefined) {
 
 const mb = (bytes: number) => Math.round(bytes / 1e6);
 
-/** The download readout over the room: a model's name, then its megabytes growing toward its size. */
-function Downloads({ models }: { readonly models: ReadonlyArray<ModelProgress> }) {
+type Note =
+  | { readonly kind: "error"; readonly text: string }
+  | { readonly kind: "reconnecting" }
+  | { readonly kind: "models"; readonly models: ReadonlyArray<ModelProgress> }
+  | { readonly kind: "paused" }
+  | { readonly kind: "topic" };
+
+/**
+ * What the bar has to say, in its room (on the frame, over the wave): an error on a plate over
+ * Presence's glitch line, RECONNECTING, the models loading (a line each on the connecting ASCII line,
+ * which fills from the left with their bytes: the 6 Nov pick), the paused mic, NEW TOPIC.
+ */
+function RoomNote({ note, streamer }: { readonly note: Note; readonly streamer: boolean }) {
   return (
-    <ol data-lalala-downloads="" aria-live="polite" aria-label="Downloading speech models">
-      {models.map((model) => (
-        <li key={model.name} data-done={model.done ? "" : undefined}>
-          <span>{model.name}</span>
-          <span>{model.done ? `\u2713 ${mb(model.total)} MB` : `${mb(model.loaded)} / ${mb(model.total)} MB`}</span>
-        </li>
-      ))}
-    </ol>
+    <div data-lalala-note={note.kind} role="status">
+      {note.kind === "error" ? (
+        <p data-streamer-text={streamer ? "" : undefined}>{note.text}</p>
+      ) : note.kind === "reconnecting" ? (
+        <b data-lalala-plate="">Reconnecting</b>
+      ) : note.kind === "paused" ? (
+        <b data-lalala-plate="" aria-label="Mic paused: another app took the audio. Tap to resume.">
+          Tap to resume mic
+        </b>
+      ) : note.kind === "topic" ? (
+        <b>New topic</b>
+      ) : (
+        <ol aria-label="Loading speech models">
+          {note.models.map((model) => (
+            <li key={model.name} data-done={model.done ? "" : undefined}>
+              <span>{model.name}</span>
+              <span>
+                {model.done
+                  ? `\u2713 ${model.total > 0 ? `${mb(model.total)} MB` : "ready"}`
+                  : model.total > 0
+                    ? `${mb(model.loaded)} / ${mb(model.total)} MB`
+                    : "loading"}
+              </span>
+            </li>
+          ))}
+        </ol>
+      )}
+    </div>
   );
 }

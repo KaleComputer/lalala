@@ -613,17 +613,12 @@ export function VoiceHost({
   // In a call, a dropped link to T3 shows while it comes back (the harness retries on its own).
   const linkProblem = live ? link : null;
   const paused = micPaused && phase !== "off";
-  const message =
-    problem ??
-    linkProblem ??
-    (paused
-      ? "Mic paused: another app took the audio. Tap to resume."
-      : null);
+  const message = problem;
   const downloads = live ? loading : null;
   const state: VoiceBarState =
-    problem !== null
+    problem !== null || linkProblem !== null
       ? "error"
-      : starting || downloads !== null || linkProblem !== null || paused
+      : starting || downloads !== null || paused
         ? "connecting"
         : phase === "transcribing" || (phase === "listening" && (thinking || awaitingRun))
           ? quiet
@@ -634,7 +629,9 @@ export function VoiceHost({
   return (
     <VoiceBar
       {...bar}
-      downloads={downloads}
+      models={downloads}
+      paused={paused}
+      reconnecting={linkProblem !== null}
       disabled={false}
       state={state}
       message={message}

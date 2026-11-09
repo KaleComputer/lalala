@@ -230,9 +230,6 @@ export function showPresenceState(
     readonly live: boolean;
     readonly label: string;
     readonly disabled: boolean;
-    readonly message: string | null;
-    /** Streamer mode: `message` arrives scrambled and is drawn pixelated (an error can name a host or a path). */
-    readonly streamer: boolean;
   },
 ) {
   frame?.state(
@@ -245,19 +242,5 @@ export function showPresenceState(
   if (talk) {
     talk.setAttribute("aria-label", input.label);
     talk.disabled = input.disabled;
-  }
-  // One quiet line over the frame, only for something the user must know (Presence's .bar-incoming).
-  const incoming = root.querySelector<HTMLElement>("[data-incoming]");
-  if (incoming) {
-    incoming.setAttribute("role", "status");
-    incoming.hidden = input.message === null;
-    if (input.state === "error") incoming.dataset.tone = "danger";
-    else delete incoming.dataset.tone;
-    const line = document.createElement("li");
-    const text = document.createElement("span");
-    if (input.streamer) text.dataset.streamerText = "";
-    text.textContent = input.message ?? "";
-    line.append(text);
-    incoming.replaceChildren(...(input.message === null ? [] : [line]));
   }
 }
