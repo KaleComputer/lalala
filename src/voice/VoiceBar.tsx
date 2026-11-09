@@ -77,7 +77,7 @@ export function VoiceBar(props: {
   const hearing = useEffectEvent(() => props.state === "hearing");
   const fill = useEffectEvent(() => downloadFill(props.models));
   const compacting = useEffectEvent(() => props.compacting?.active === true);
-  // A new topic starts playing: NEW TOPIC fills the room for a moment (the sound no longer moves the wave).
+  // A new topic starts playing: NEW TOPIC wipes over the room for a moment, the wave running on beneath it.
   const [newTopic, setNewTopic] = useState(false);
   // Nothing floats over the bar (9 Nov): what it has to say sits in the room, over the wave.
   const note: Note | null =
@@ -263,7 +263,7 @@ export function VoiceBar(props: {
   );
 }
 
-/** How long NEW TOPIC shows on the frame. */
+/** How long NEW TOPIC shows on the frame; voiceBar.css's lalala-topic-wipe runs the same 2.4 s. */
 const TOPIC_LABEL_MS = 2_400;
 
 /** All the models' bytes so far against all their sizes, for the connecting line's green fill. */

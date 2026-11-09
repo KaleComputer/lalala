@@ -764,12 +764,7 @@
   clip-path: none;
 }
 /* Notes that take the room's place hide the wave, START and CONNECT behind them; the connecting word too. */
-[data-lalala-presence]:has(
-    [data-lalala-note]:is(
-      [data-lalala-note="paused"],
-      [data-lalala-note="topic"]
-    )
-  )
+[data-lalala-presence]:has([data-lalala-note="paused"])
   :is(.fr-wv, .fr-idle, [data-lalala-offline]) {
   opacity: 0;
 }
@@ -783,15 +778,73 @@
 [data-lalala-note="paused"] {
   background: var(--color-surface);
 }
-/* NEW TOPIC fills the room in the warm white, the wave gone behind it (9 Nov): something new starts. */
+/* NEW TOPIC (picked 9 Nov): the HUD's red wipes over the room by the plate's notch and goes back,
+   the wave running on beneath it. One run per topic; it ends with the note (TOPIC_LABEL_MS, 2.4 s). */
 [data-lalala-note="topic"] {
-  background: var(--lalala-info, var(--lala-ink, var(--color-ink)));
-  color: var(--color-surface);
+  animation: none;
+}
+[data-lalala-note="topic"] > b {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  padding-top: var(--lalala-plate-drop);
+  background:
+    repeating-linear-gradient(
+      to bottom,
+      color-mix(in srgb, var(--hud-ink, var(--color-surface)) 7%, transparent) 0 1px,
+      transparent 1px 3px
+    ),
+    var(--hud);
+  color: var(--hud-ink, var(--color-surface));
   font: 600 var(--plate-fs) / 1 var(--font-tag);
   letter-spacing: 0.2em;
   text-indent: 0.2em;
   text-transform: uppercase;
   white-space: nowrap;
+  animation: lalala-topic-wipe 2400ms both;
+}
+/* The one live line along its foot. */
+[data-lalala-note="topic"] > b::after {
+  content: "";
+  position: absolute;
+  left: 12px;
+  right: 12px;
+  bottom: 4px;
+  height: 1px;
+  background: var(--lalala-live);
+}
+@keyframes lalala-topic-wipe {
+  0% {
+    clip-path: polygon(
+      0 0,
+      0% 0,
+      0% calc(100% - var(--lalala-plate-cut)),
+      calc(0% - var(--lalala-plate-cut)) 100%,
+      0 100%
+    );
+    animation-timing-function: cubic-bezier(0.3, 0, 0.2, 1);
+  }
+  16%,
+  84% {
+    clip-path: polygon(
+      0 0,
+      calc(100% + var(--lalala-plate-cut)) 0,
+      calc(100% + var(--lalala-plate-cut)) calc(100% - var(--lalala-plate-cut)),
+      100% 100%,
+      0 100%
+    );
+    animation-timing-function: cubic-bezier(0.6, 0, 0.8, 1);
+  }
+  100% {
+    clip-path: polygon(
+      0 0,
+      0% 0,
+      0% calc(100% - var(--lalala-plate-cut)),
+      calc(0% - var(--lalala-plate-cut)) 100%,
+      0 100%
+    );
+  }
 }
 /* The bar's plate in the room, START's shape: the paused mic's tap in the yellow of the one thing to do. */
 [data-lalala-note] > [data-lalala-plate] {
@@ -1352,7 +1405,7 @@
 /* The cyberpunk look's bar (committee, 8 Nov), in Cyberpunk 2077's UI language from round 12 (the user): one red
    for the HUD's chrome (frame, tabs, icons, map, DELETE); cyan for what is live (the agent's wave, an open tab,
    the time, the current canvas, focus, the defrag's head); yellow for the user's own voice (his wash) and the one
-   thing to do (START, CONNECT, COMPACTING); warm white for information (NEW TOPIC, the defrag's blocks).
+   thing to do (START, CONNECT, COMPACTING); warm white for information (the defrag's blocks); NEW TOPIC in the red.
    Cut plates, corner brackets, static scanlines, mono micro-text; glitch only for errors. The canvas around it
    stays green. Paper and T3 dress the bar themselves. */
 :where(:root:not([data-lala-look]), :root[data-lala-look="neon"]) [data-lalala-presence] {
@@ -1372,7 +1425,7 @@
   --hud-ink: #190d12;
   --lalala-live: var(--lalala-cyan);
   --lalala-warn: var(--lalala-yellow);
-  /* Information (NEW TOPIC, the defrag) in the warm white. */
+  /* Information (the defrag) in the warm white. */
   --lalala-info: var(--lala-ink);
   --lalala-danger: var(--lalala-red);
 
@@ -1593,5 +1646,8 @@
   [data-lalala-presence] :is([data-lalala-input-panel], [data-lalala-canvas-panel])[data-state],
   [data-lalala-presence] [data-lalala-tab] > [data-lalala-beam] {
     animation: none !important;
+  }
+  [data-lalala-note="topic"] > b {
+    animation: lalala-fade-in 150ms ease-out;
   }
 }
