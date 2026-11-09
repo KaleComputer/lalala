@@ -1172,8 +1172,9 @@
   min-width: 0;
   max-height: 128px;
   margin: 0;
-  /* Typed text is body text (Geist, as the cards'); the line sits midway in the 32px field. */
-  padding: 7px 6px 7px 10px;
+  /* Typed text is body text (Geist, as the cards'); the line sits midway in the 32px field, its line box
+     close to the text so the caret is no taller than the letters. */
+  padding: 8px 6px 8px 10px;
   border: 0;
   outline: 0;
   resize: none;
@@ -1181,10 +1182,11 @@
   color: var(--hud);
   caret-color: var(--hud);
   background: none;
-  font: 400 13px / 18px var(--font-sans);
+  font: 400 13px / 16px var(--font-sans);
 }
 [data-lalala-presence] [data-lalala-input-field] textarea::placeholder {
   color: var(--lala-ink-dim, var(--hud-2));
+  font: inherit;
 }
 [data-lalala-presence] [data-lalala-input-cell] {
   position: relative;
