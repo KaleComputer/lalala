@@ -809,12 +809,8 @@
   clip-path: var(--lalala-plate-clip);
 }
 /* Words beside an animation (an error's few words or RECONNECTING by the glitch, CONNECTING by the ASCII
-   line) sit on a small tag at the room's left end, so the animation shows whole (9 Nov); warm white, an
-   error's in the danger colour, its hint under it. */
-[data-lalala-presence] [data-lalala-note]:is([data-lalala-note="error"], [data-lalala-note="reconnecting"], [data-lalala-note="connecting"]) {
-  justify-items: start;
-  padding-left: 12px;
-}
+   line) sit on a small tag in the room's centre, like START and COMPACTING, the animation whole around it
+   (9 Nov); warm white, an error's in the danger colour, its hint under it. */
 [data-lalala-note] > [data-lalala-tag] {
   display: inline-grid;
   gap: 3px;

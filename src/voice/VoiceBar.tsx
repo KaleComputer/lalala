@@ -275,7 +275,7 @@ type Note =
   | { readonly kind: "connecting" };
 
 /**
- * What the bar has to say, in its room (on the frame, over the wave): a small tag at the room's left end
+ * What the bar has to say, in its room (on the frame, over the wave): a small tag in the room's centre
  * beside Presence's glitch (an error's few words, RECONNECTING) or its ASCII line (CONNECTING), the models loading (a line each on the connecting ASCII line,
  * which fills from the left with their bytes: the 6 Nov pick), the paused mic, NEW TOPIC.
  */
