@@ -1,0 +1,56 @@
+/* Cut-corner frame with an unbroken line (clip-path slices a border or inset shadow off along every cut):
+   the line is its own evenodd ring, one width in on every side, diagonals included. Cards, bar and settings
+   all use this file. Put data-cut on the element; in its own rule set --cut-tl/-tr/-br/-bl (0 = square),
+   --cut-line and --cut-bw (1px), and no border or clip-path. Its ::after is the ring, over the padding. */
+[data-cut] {
+  --cut-b: var(--cut-bw, 1px);
+  --cut-a: var(--cut-tl, 0px);
+  --cut-c: var(--cut-tr, 0px);
+  --cut-d: var(--cut-br, 0px);
+  --cut-e: var(--cut-bl, 0px);
+  position: relative;
+  clip-path: polygon(
+    0 var(--cut-a),
+    var(--cut-a) 0,
+    calc(100% - var(--cut-c)) 0,
+    100% var(--cut-c),
+    100% calc(100% - var(--cut-d)),
+    calc(100% - var(--cut-d)) 100%,
+    var(--cut-e) 100%,
+    0 calc(100% - var(--cut-e))
+  );
+}
+[data-cut]::after {
+  /* How far in along each edge the inner line turns: a cut c moved in by b along its normal meets the
+     edges b in at c + b(√2 − 1); a square corner turns at b. */
+  --cut-ia: max(var(--cut-b), var(--cut-a) + var(--cut-b) * 0.4142);
+  --cut-ic: max(var(--cut-b), var(--cut-c) + var(--cut-b) * 0.4142);
+  --cut-id: max(var(--cut-b), var(--cut-d) + var(--cut-b) * 0.4142);
+  --cut-ie: max(var(--cut-b), var(--cut-e) + var(--cut-b) * 0.4142);
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: var(--cut-line, currentColor);
+  pointer-events: none;
+  clip-path: polygon(
+    evenodd,
+    0 var(--cut-a),
+    var(--cut-a) 0,
+    calc(100% - var(--cut-c)) 0,
+    100% var(--cut-c),
+    100% calc(100% - var(--cut-d)),
+    calc(100% - var(--cut-d)) 100%,
+    var(--cut-e) 100%,
+    0 calc(100% - var(--cut-e)),
+    0 var(--cut-a),
+    var(--cut-b) var(--cut-ia),
+    var(--cut-ia) var(--cut-b),
+    calc(100% - var(--cut-ic)) var(--cut-b),
+    calc(100% - var(--cut-b)) var(--cut-ic),
+    calc(100% - var(--cut-b)) calc(100% - var(--cut-id)),
+    calc(100% - var(--cut-id)) calc(100% - var(--cut-b)),
+    var(--cut-ie) calc(100% - var(--cut-b)),
+    var(--cut-b) calc(100% - var(--cut-ie)),
+    var(--cut-b) var(--cut-ia)
+  );
+}

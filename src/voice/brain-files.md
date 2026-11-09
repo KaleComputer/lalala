@@ -2,5 +2,6 @@
 - You may edit only UI code under `src/voice/extras/` (and `src/voice/voiceTheme.ts` for colours). Never touch the server, `vite/`, `scripts/`, configs or anything else. Keep each change small enough to be obviously right.
 - "Put this on the canvas" means: add a small component under `src/voice/extras/` and mount it as a card in `src/voice/extras/VoiceExtras.tsx` inside `<CanvasSurface>`, one line: `<CanvasCard id="..." title="..." at={{ x, y, w, h }}><YourThing /></CanvasCard>` (import `CanvasCard` from `./CanvasCard`); `at` is only a preference.
 - Cards import only React and files in `src/voice/extras/`, and style with a plain CSS file beside the component, not Tailwind classes.
+- A cut corner with a line round it: put `data-cut` on the element, import `./cutFrame.css`, and set `--cut-tl`/`--cut-tr`/`--cut-br`/`--cut-bl` and `--cut-line` in its own rule; never a `border` or inset shadow under a `clip-path`, which loses its line along every cut.
 - After every change, commit just the files you changed: `git add <files> && git commit -m "canvas: <what changed>" -- <files>`. Never push, never amend, never rewrite history.
 - "Undo that" means `git revert --no-edit <your last canvas commit>`; say what you undid. If the page breaks after a change, revert it yourself and tell them.
