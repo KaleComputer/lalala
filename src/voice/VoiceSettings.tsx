@@ -37,6 +37,7 @@ import {
   useSyncedSettings,
 } from "./settingsStore";
 import { setSoundVolume, soundOutput, useSoundVolume, withSoundVolume } from "./extras/soundVolume";
+import { REQUEST_TIMEOUT_MS } from "./voiceErrors";
 import "./voiceSettings.css";
 
 // What the dev server's T3 bridge serves (lalala's vite/t3bridge.mjs): the brain thread's model and
@@ -240,7 +241,7 @@ export const onVoiceSettingsClosed = (listener: () => void): (() => void) =>
   });
 
 const fetchBrain = () =>
-  fetch(BRAIN_ROUTE, { cache: "no-store" })
+  fetch(BRAIN_ROUTE, { cache: "no-store", signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS) })
     .then(async (response): Promise<BrainState> => {
       if (response.status === 404) return { kind: "missing" };
       const body = (await response.json().catch(() => ({}))) as Brain & { error?: string };
@@ -1101,7 +1102,7 @@ const sendConnection = (path: string, body?: object) =>
   });
 
 const fetchConnection = () =>
-  fetch(CONNECTION_ROUTE, { cache: "no-store" })
+  fetch(CONNECTION_ROUTE, { cache: "no-store", signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS) })
     .then(async (response): Promise<ConnectionState> => {
       if (response.status === 404) return { kind: "inside" };
       return { kind: "ready", connection: (await response.json()) as Connection };

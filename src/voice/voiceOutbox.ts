@@ -1,0 +1,87 @@
+import { useSyncExternalStore } from "react";
+
+import { newMessageId, randomUUID } from "~/lib/utils";
+
+type MessageId = ReturnType<typeof newMessageId>;
+
+/**
+ * The user's words on their way to the brain, oldest first. Each keeps its message id through retries.
+ * Words without pictures are kept in sessionStorage, so a reload while offline still sends them.
+ */
+export type HeldWords = {
+  readonly id: string;
+  readonly messageId: MessageId;
+  readonly text: string;
+  readonly at: number;
+  readonly images: ReadonlyArray<File>;
+};
+
+const KEY = "lalala:outbox";
+const listeners = new Set<() => void>();
+
+function load(): ReadonlyArray<HeldWords> {
+  try {
+    const saved: unknown = JSON.parse(sessionStorage.getItem(KEY) ?? "[]");
+    if (!Array.isArray(saved)) return [];
+    return saved.flatMap((entry: Partial<HeldWords>) =>
+      typeof entry?.id === "string" &&
+      typeof entry.messageId === "string" &&
+      typeof entry.text === "string"
+        ? [
+            {
+              id: entry.id,
+              messageId: entry.messageId as MessageId,
+              text: entry.text,
+              at: typeof entry.at === "number" ? entry.at : Date.now(),
+              images: [],
+            },
+          ]
+        : [],
+    );
+  } catch {
+    return [];
+  }
+}
+
+let held: ReadonlyArray<HeldWords> = typeof window === "undefined" ? [] : load();
+
+function set(next: ReadonlyArray<HeldWords>): void {
+  held = next;
+  try {
+    const kept = next
+      .filter((words) => words.images.length === 0)
+      .map(({ images: _images, ...words }) => words);
+    if (kept.length === 0) sessionStorage.removeItem(KEY);
+    else sessionStorage.setItem(KEY, JSON.stringify(kept));
+  } catch {
+    // No storage: the words stay in this page's memory.
+  }
+  for (const listener of listeners) listener();
+}
+
+export const heldWords = () => held;
+
+export function holdWords(text: string, images: ReadonlyArray<File>): HeldWords {
+  const words = {
+    id: randomUUID(),
+    messageId: newMessageId(),
+    text,
+    at: Date.now(),
+    images,
+  };
+  set([...held, words]);
+  return words;
+}
+
+export function releaseWords(id: string): void {
+  set(held.filter((words) => words.id !== id));
+}
+
+const subscribe = (listener: () => void) => {
+  listeners.add(listener);
+  return () => listeners.delete(listener);
+};
+
+export function useHeldCount(): number {
+  return useSyncExternalStore(subscribe, () => held.length);
+}

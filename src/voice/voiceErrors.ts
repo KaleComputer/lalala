@@ -5,6 +5,12 @@
  */
 
 export const UNREACHABLE_TEXT = "Lost the connection to lalala. Reconnecting…";
+/** The link is down (voiceLink): the user's words wait in the outbox until it is back. */
+export const OFFLINE_TEXT = "Offline. Holding your words until the connection is back.";
+/** The outbox gave up on the user's words while lalala answered; a tap sends them again. */
+export const NOT_SENT_TEXT = "Your words weren't sent.";
+/** How long a plain request to lalala may go unanswered: a phone between networks queues it forever. */
+export const REQUEST_TIMEOUT_MS = 8_000;
 const UNKNOWN_TEXT = "Something went wrong in the call; the voice log has the details.";
 
 /** Lalala didn't answer, or answered with something unreadable: a restart or a dropped network. */
@@ -61,6 +67,12 @@ export type ErrorTag = { readonly tag: string; readonly hint: string | null; rea
 export function errorTag(message: string, live: boolean): ErrorTag {
   const retry = live ? "Retrying" : "Tap to retry";
   const again = live ? " It tries again on its own." : " Tap to try again.";
+  if (message === NOT_SENT_TEXT)
+    return {
+      tag: "Words not sent",
+      hint: "Tap to retry",
+      said: "Your last words weren't sent. Tap to send them again.",
+    };
   if (/timed out|socket closed|didn.t answer/i.test(message))
     return {
       tag: "Speech didn't answer",

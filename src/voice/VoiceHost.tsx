@@ -32,7 +32,16 @@ import { takeSentences } from "./speechText";
 import { VoiceBar, type VoiceBarState } from "./VoiceBar";
 import { closeVoiceSettings, CONNECTED_HOLD_MS, onVoiceSettingsClosed, openVoiceSettings } from "./VoiceSettings";
 import { endVoiceLogSession, startVoiceLogSession, voiceLog } from "./voiceLog";
-import { UNREACHABLE_TEXT, voiceErrorText } from "./voiceErrors";
+import {
+  isGatewayStatus,
+  NOT_SENT_TEXT,
+  OFFLINE_TEXT,
+  REQUEST_TIMEOUT_MS,
+  UNREACHABLE_TEXT,
+  voiceErrorText,
+} from "./voiceErrors";
+import { checkLink, linkIsDown, markLinkDown, markLinkUp, onLinkUp, useLinkDown } from "./voiceLink";
+import { type HeldWords, heldWords, holdWords, releaseWords, useHeldCount } from "./voiceOutbox";
 import { syncVoiceTheme } from "./voiceThemeSync";
 
 // A LALALA_MODEL test run gets its own thread, so it never becomes the user's voice thread.
@@ -61,6 +70,21 @@ const TOPIC_MARK = "\u2063";
 const TIDY_TAG = /\[tidy\]\s*/gi;
 // A sent `/compact` counts as running this long at most, until its run shows on the thread.
 const COMPACT_SHOWS_MS = 10_000;
+
+// Pictures go inside the send as data URLs, so a send with them may take longer.
+const SEND_WITH_IMAGES_TIMEOUT_MS = 30_000;
+// Tries for one held message while lalala answers (1, 2, 4, 8, 16 s apart); offline doesn't count.
+const SEND_TRIES = 6;
+const sendBackoffMs = (tries: number) => Math.min(16_000, 1_000 * 2 ** (tries - 1));
+
+type SendOutcome =
+  | { readonly sent: true }
+  | {
+      readonly sent: false;
+      readonly retry: boolean;
+      readonly message: string;
+      readonly timedOut?: boolean;
+    };
 
 type VoiceConfig = {
   readonly workspaceRoot: string;
@@ -127,6 +151,12 @@ export function VoiceHost({
   const showMeRef = useRef(false);
   // The thread this client just created, until its shell arrives.
   const pendingThreadIdRef = useRef<ThreadId | null>(null);
+  // The page can't reach lalala: the user's words wait in the outbox (voiceOutbox) until it can.
+  const linkDown = useLinkDown();
+  const heldCount = useHeldCount();
+  const drainingRef = useRef(false);
+  // The outbox gave up on the oldest held words; the bar says so and a tap sends them again.
+  const [notSent, setNotSent] = useState(false);
 
   const project = projects.find(
     (candidate) =>
@@ -178,7 +208,7 @@ export function VoiceHost({
     let cancelled = false;
     (harness
       ? harness.config()
-      : fetch("/__lalala/config").then((response) =>
+      : fetch("/__lalala/config", { signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS) }).then((response) =>
           response.ok ? (response.json() as Promise<VoiceConfig>) : null,
         ))
       .then((value) => {
@@ -197,13 +227,23 @@ export function VoiceHost({
     if (engine !== "local" || speech) return;
     let cancelled = false;
     const check = () =>
-      fetch("/__lalala/local/health")
+      fetch("/__lalala/local/health", {
+        cache: "no-store",
+        signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
+      })
         .then(async (response) => {
           const body = (await response.json().catch(() => ({}))) as { error?: string };
+          // lalala answers 503 with its reason while models load; a front door answers 502-504
+          // with no reason when lalala isn't behind it.
+          if (isGatewayStatus(response.status) && body.error === undefined) {
+            markLinkDown("health gateway");
+          } else markLinkUp();
           if (!cancelled)
             setLocalProblem(response.ok ? null : (body.error ?? "Local speech is down"));
         })
         .catch(() => {
+          // No answer at all: the page can't reach lalala, so its words wait (voiceOutbox).
+          markLinkDown("health");
           if (!cancelled) setLocalProblem("Local speech is down");
         });
     void check();
@@ -230,7 +270,10 @@ export function VoiceHost({
     const timer = window.setInterval(() => {
       (harness
         ? harness.config().then(() => true)
-        : fetch("/__lalala/config", { cache: "no-store" }).then((response) => response.ok)
+        : fetch("/__lalala/config", {
+            cache: "no-store",
+            signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
+          }).then((response) => response.ok)
       )
         .then((ok) => {
           if (!cancelled && ok) setError((now) => (now === UNREACHABLE_TEXT ? null : now));
@@ -317,19 +360,68 @@ export function VoiceHost({
     );
   }, [environmentId, brainThreadId]);
 
-  /** The user's words, after a compaction that is due or running (its turn re-reads less). */
-  const send = async (text: string, images: ReadonlyArray<File> = []) => {
-    if (await compactIfDue("send")) {
-      await new Promise<void>((resolve) => compactWaitersRef.current.push(resolve));
-    }
-    return sendNow(text, images);
+  /** The user's words join the outbox, which sends them in order; true once they are held. */
+  const send = (text: string, images: ReadonlyArray<File> = []) => {
+    holdWords(text, images);
+    if (linkIsDown()) voiceLog("user", "held", { text, held: heldWords().length });
+    setNotSent(false);
+    void drain();
+    return true;
   };
 
+  /**
+   * Sends the held words oldest first, each after a compaction that is due or running (its turn
+   * re-reads less). Offline they wait for the link; a failure while lalala answers retries with
+   * backoff, then the bar says they weren't sent and a tap tries again.
+   */
+  const drain = useEffectEvent(async () => {
+    if (drainingRef.current) return;
+    drainingRef.current = true;
+    try {
+      let tries = 0;
+      for (let words = heldWords()[0]; words !== undefined; words = heldWords()[0]) {
+        if (linkIsDown()) return;
+        if (await compactIfDue("send")) {
+          await new Promise<void>((resolve) => compactWaitersRef.current.push(resolve));
+        }
+        const outcome = await sendNow(words);
+        if (outcome.sent) {
+          releaseWords(words.id);
+          tries = 0;
+          continue;
+        }
+        tries += 1;
+        voiceLog("system", "send.failed", {
+          text: words.text,
+          tries,
+          message: outcome.message,
+          heldMs: Date.now() - words.at,
+          held: heldWords().length,
+        });
+        if (!outcome.retry) return;
+        // No answer at all is the outage itself; an answered failure asks whether lalala is there.
+        if (outcome.timedOut) {
+          markLinkDown("send timed out");
+          return;
+        }
+        if (!(await checkLink("send failed"))) return;
+        if (tries >= SEND_TRIES) {
+          voiceLog("system", "send.gave-up", { text: words.text, tries, held: heldWords().length });
+          setNotSent(true);
+          return;
+        }
+        await new Promise((resolve) => window.setTimeout(resolve, sendBackoffMs(tries)));
+      }
+    } finally {
+      drainingRef.current = false;
+    }
+  });
+
   /** The user's words (spoken, or typed in the bar's input with its pictures) as a turn on the voice thread, made on first use. */
-  const sendNow = useEffectEvent(async (text: string, images: ReadonlyArray<File> = []) => {
+  const sendNow = useEffectEvent(async ({ text, images, messageId }: HeldWords): Promise<SendOutcome> => {
     if (environmentId === null || project === undefined) {
       setError("No brain thread yet: pair with T3 Code in the settings.");
-      return false;
+      return { sent: false, retry: false, message: "no brain thread" };
     }
     const defaultSelection = serverSettings.defaultModelSelection;
     const modelSelection =
@@ -349,11 +441,11 @@ export function VoiceHost({
         dataUrl: await readFileAsDataUrl(file),
       })),
     );
-    const message = { messageId: newMessageId(), role: "user" as const, attachments };
+    const message = { messageId, role: "user" as const, attachments };
     const existingThreadId = voiceThread?.id ?? pendingThreadIdRef.current;
     if (existingThreadId === null && modelSelection === null) {
       setError("Pick a default model in Settings first.");
-      return false;
+      return { sent: false, retry: false, message: "no default model" };
     }
     const threadId = existingThreadId ?? newThreadId();
     if (existingThreadId === null) pendingThreadIdRef.current = threadId;
@@ -363,9 +455,17 @@ export function VoiceHost({
     const briefed =
       existingThreadId === null || needsBrief(threadId, items, brainContext?.compactedAt ?? null);
     const turnText = briefed ? withBrief(withCanvas(text)) : withCanvas(text);
-    const result =
+    // A send queued on a dead connection never fails on its own; it counts as failed after this.
+    let timer = 0;
+    const timedOut = new Promise<"timeout">((resolve) => {
+      timer = window.setTimeout(
+        () => resolve("timeout"),
+        images.length > 0 ? SEND_WITH_IMAGES_TIMEOUT_MS : REQUEST_TIMEOUT_MS,
+      );
+    });
+    const turn =
       existingThreadId !== null || modelSelection === null
-        ? await startTurn({
+        ? startTurn({
             environmentId,
             input: {
               threadId,
@@ -375,7 +475,7 @@ export function VoiceHost({
               createdAt,
             },
           })
-        : await startTurn({
+        : startTurn({
             environmentId,
             input: {
               threadId,
@@ -398,11 +498,15 @@ export function VoiceHost({
               createdAt,
             },
           });
-    if (result._tag === "Failure") {
+    const result = await Promise.race([turn, timedOut]).finally(() => window.clearTimeout(timer));
+    if (result === "timeout" || result._tag === "Failure") {
       if (existingThreadId === null) pendingThreadIdRef.current = null;
-      const failure = squashAtomCommandFailure(result);
-      setError(voiceErrorText(failure));
-      return false;
+      const failure = result === "timeout" ? null : squashAtomCommandFailure(result);
+      // The server path's send aborts itself after the same time (a TimeoutError).
+      if (result === "timeout" || (failure instanceof DOMException && failure.name === "TimeoutError")) {
+        return { sent: false, retry: true, message: "send timed out", timedOut: true };
+      }
+      return { sent: false, retry: true, message: voiceErrorText(failure) };
     }
     if (briefed) markBriefed(threadId);
     voiceLog("user", "send", { text, briefed, threadId, images: images.length });
@@ -410,8 +514,18 @@ export function VoiceHost({
     sentEpochRef.current = Date.now();
     workStartedRef.current = false;
     firstTextLoggedRef.current = false;
-    return true;
+    return { sent: true };
   });
+
+  // oxlint-disable-next-line t3code/no-unreasoned-state-sync -- sends the held words when the link (voiceLink, outside React) comes back
+  useEffect(() => onLinkUp(() => void drain()), []);
+
+  // Words held before a reload go once the voice thread is known (sooner, a new thread would start).
+  const voiceThreadKnown = voiceThread !== undefined;
+  // oxlint-disable-next-line t3code/no-unreasoned-state-sync -- sends words a reload left in the outbox (sessionStorage) once the thread is there
+  useEffect(() => {
+    if (voiceThreadKnown && heldWords().length > 0) void drain();
+  }, [voiceThreadKnown]);
 
   const toggle = useEffectEvent(async () => {
     const current = sessionRef.current;
@@ -608,7 +722,12 @@ export function VoiceHost({
 
   // Local speech needs its service up.
   const unavailable = localProblem;
-  const problem = error ?? unavailable;
+  // Offline says why everything else fails; then words that weren't sent (a tap sends them), then the rest.
+  const problem = linkDown
+    ? OFFLINE_TEXT
+    : notSent && heldCount > 0
+      ? NOT_SENT_TEXT
+      : (error ?? unavailable);
   const live = phase !== "off" || starting;
   // In a call, a dropped link to T3 shows while it comes back (the harness retries on its own).
   const linkProblem = live ? link : null;
@@ -644,7 +763,15 @@ export function VoiceHost({
             ? "Stop the reply"
             : "Stop voice (Ctrl+Option+V)"
       }
-      onPress={() => void toggle()}
+      onPress={() => {
+        // The bar says the words weren't sent: a tap sends them again, the call goes on.
+        if (message === NOT_SENT_TEXT) {
+          setNotSent(false);
+          void drain();
+          return;
+        }
+        void toggle();
+      }}
       analysis={() => sessionRef.current?.analysis() ?? null}
       stoppedAt={stoppedAt}
       // Sending out of a call starts one (the user, 8 Nov), so the reply is spoken and the talk goes on.

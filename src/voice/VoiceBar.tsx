@@ -17,7 +17,7 @@ import {
 import { type VoiceFileUpload, VoiceInput, type VoiceInputSubmit } from "./VoiceInput";
 import { type SettingsPage, VoiceSettings } from "./VoiceSettings";
 import { voiceLog } from "./voiceLog";
-import { errorTag, type ErrorTag, UNREACHABLE_TEXT } from "./voiceErrors";
+import { errorTag, type ErrorTag, OFFLINE_TEXT, UNREACHABLE_TEXT } from "./voiceErrors";
 import "./presence/presence.css";
 import "./voiceBar.css";
 
@@ -81,7 +81,9 @@ export function VoiceBar(props: {
   const [newTopic, setNewTopic] = useState(false);
   // Nothing floats over the bar (9 Nov): what it has to say sits in the room, over the wave.
   const note: Note | null =
-    props.reconnecting || (props.state === "error" && props.message === UNREACHABLE_TEXT)
+    props.state === "error" && props.message === OFFLINE_TEXT
+      ? { kind: "holding" }
+      : props.reconnecting || (props.state === "error" && props.message === UNREACHABLE_TEXT)
       ? { kind: "reconnecting" }
       : props.state === "error"
         ? { kind: "error", error: errorTag(props.message ?? "", props.live ?? false) }
@@ -283,6 +285,7 @@ const mb = (bytes: number) => Math.round(bytes / 1e6);
 type Note =
   | { readonly kind: "error"; readonly error: ErrorTag }
   | { readonly kind: "reconnecting" }
+  | { readonly kind: "holding" }
   | { readonly kind: "models"; readonly models: ReadonlyArray<ModelProgress> }
   | { readonly kind: "paused" }
   | { readonly kind: "topic" }
@@ -304,6 +307,11 @@ function RoomNote({ note }: { readonly note: Note }) {
       ) : note.kind === "reconnecting" ? (
         <b data-lalala-tag="" aria-label="Lost the connection. Reconnecting.">
           <span>Reconnecting</span>
+        </b>
+      ) : note.kind === "holding" ? (
+        <b data-lalala-tag="" aria-label={OFFLINE_TEXT}>
+          <span>Offline</span>
+          <small>Holding your words</small>
         </b>
       ) : note.kind === "paused" ? (
         <b data-lalala-plate="" aria-label="Mic paused: another app took the audio. Tap to resume.">

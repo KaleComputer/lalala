@@ -1,3 +1,5 @@
+import { REQUEST_TIMEOUT_MS } from "./voiceErrors";
+
 /**
  * lalala's session log: events go to `/__lalala/log` (vite/sessionLog.ts) within 250 ms, text
  * only. Each event is serialised alone, batches are plain fetches retried on failure (keepalive and
@@ -26,6 +28,8 @@ function send(lines: string[], hidden: boolean): void {
     body,
     keepalive: hidden && body.length < 60_000,
     cache: "no-store",
+    // One stuck on a dead connection holds the rest back; it fails and goes back in the queue.
+    signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
   })
     .then((response) => {
       if (!response.ok) throw new Error(`log ${response.status}`);
