@@ -2,8 +2,8 @@
 // shader glitch is back"; public/t3/line-gl.mjs GLITCH and light.mjs's bursts), restored for the call frame's
 // error state (9 Nov: "this awesome shader we had at some point"). The line is drawn to a texture and a
 // post pass tears it apart live: a cyan and a magenta copy split, pieces ripped up and down with a smear,
-// block tears, scanlines, a slice dropping out. Bursts of 90-300 ms follow each other with no gap, the tear
-// changing every 40-70 ms. Drawn on a detached WebGL canvas that callwave.js copies into the room.
+// block tears, scanlines, a slice dropping out. Calmer than Presence's (9 Nov: "too fast, too distracting"): a
+// burst of 0.5-1.1 s, the tear changing every 160-260 ms at about half strength, then 0.8-1.8 s of a faint split. Drawn on a detached WebGL canvas that callwave.js copies into the room.
 
 const VERT = `
 attribute vec2 aPos;
@@ -69,7 +69,7 @@ void main() {
   // Blocks: a few rectangles near the line light up cyan or magenta, grained.
   vec2 cell = floor(p / (vec2(44.0, 7.0) * uDpr));
   float near = 1.0 - smoothstep(18.0, 40.0, abs(p.y - uLineY) / uDpr);
-  float block = step(0.955, hash2(cell + uSeed * 13.0)) * near;
+  float block = step(0.975, hash2(cell + uSeed * 13.0)) * near * step(0.25, uAmt);
   if (block > 0.5) {
     vec3 tint = hash2(cell + 3.0) > 0.5 ? vec3(0.1, 0.95, 1.0) : vec3(1.0, 0.1, 0.95);
     c = max(c * tint, tint * (0.22 + 0.25 * hash2(floor(p / (3.0 * uDpr)) + uSeed)) * a);
@@ -104,10 +104,11 @@ export function createGlitchLine() {
   let lost = false;
   let last = "";
   let baseKey = "";
-  // light.mjs's bursts.
+  // The bursts and the quiet between them.
   let at = -1e9;
   let next = 0;
-  let step = 50;
+  let step = 200;
+  let calm = true;
 
   function build() {
     const sh = (type, src) => {
@@ -186,20 +187,20 @@ export function createGlitchLine() {
     if (lost || gl.isContextLost()) return null;
     const W = Math.max(1, Math.round(width * dpr));
     const H = Math.max(1, Math.round(height * dpr));
-    let amt = 0.8;
+    let amt = 0.4;
     let seed = 3.1;
     let flicker = 1;
     if (!reduced) {
       if (now > next) {
         at = now;
-        const len = 90 + Math.random() * 210;
-        step = 40 + Math.random() * 30;
-        next = now + len;
+        calm = !calm;
+        step = calm ? 600 + Math.random() * 400 : 160 + Math.random() * 100;
+        next = now + (calm ? 800 + Math.random() * 1000 : 500 + Math.random() * 600);
       }
       const tear = Math.floor((now - at) / step);
       seed = (at % 997) * 0.1 + tear * 1.37;
-      amt = 0.6 + 0.4 * fract(Math.sin(seed * 91.7) * 43758.5);
-      flicker = tear % 2 ? 0.8 : 1;
+      amt = calm ? 0.14 : 0.32 + 0.24 * fract(Math.sin(seed * 91.7) * 43758.5);
+      flicker = !calm && tear % 2 ? 0.85 : 1;
     }
     // Between tears the last frame stands.
     const key = `${W}x${H}|${y}|${seed.toFixed(3)}`;
