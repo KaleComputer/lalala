@@ -10,7 +10,13 @@ export const metadata: Metadata = {
   metadataBase: new URL("https://lalala.talk"),
   title: "lalala — talk to all your agents",
   description,
-  icons: { icon: { url: "/favicon.svg", type: "image/svg+xml" } },
+  icons: {
+    icon: [
+      { url: "/favicon.svg", type: "image/svg+xml" },
+      { url: "/favicon.ico", sizes: "48x48" },
+    ],
+    apple: "/apple-touch-icon.png",
+  },
   openGraph: {
     title: "lalala — talk to all your agents",
     description: "A voice-first canvas for coding agents. Open source, local speech.",

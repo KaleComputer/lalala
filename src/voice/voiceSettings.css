@@ -7,7 +7,7 @@
   --s-fg-3: color-mix(in srgb, var(--s-fg) 42%, transparent);
   --s-popover: color-mix(in srgb, var(--s-bg) 96%, #fff);
   --s-card: color-mix(in srgb, var(--s-fg) 1.8%, transparent);
-  --s-frame: color-mix(in srgb, var(--s-primary) 32%, var(--s-bg));
+  --s-frame: var(--s-border);
   --s-border: color-mix(in srgb, var(--s-fg) 7.5%, transparent);
   --s-divider: color-mix(in srgb, var(--s-fg) 6%, transparent);
   --s-input: color-mix(in srgb, var(--s-fg) 18%, transparent);
@@ -54,7 +54,7 @@
     --s-page: 24px;
   }
 }
-/* T3's route modal: rounded-2xl, here with the canvas's green edge. */
+/* T3's route modal: rounded-2xl with the theme's plain border, never the accent. */
 /* Header first in the DOM (close before the pages); the grid puts T3's sidebar full height on the left. */
 [data-lalala-settings-panel] {
   display: grid;
