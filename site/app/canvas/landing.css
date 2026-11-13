@@ -19,3 +19,9 @@
   letter-spacing: -0.02em;
   text-wrap: balance;
 }
+
+/* The turning logo (the app's page loader), filling its card in black. */
+[data-landing-logo] {
+  height: 100%;
+  --page-loader-font: 7px;
+}

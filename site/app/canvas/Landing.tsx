@@ -6,6 +6,7 @@ import "./adapters";
 import { useState } from "react";
 
 import { CanvasCard } from "../../../src/voice/extras/CanvasCard";
+import { PageLoader } from "../../../src/voice/extras/PageLoader";
 import { VoiceExtras } from "../../../src/voice/extras/VoiceExtras";
 import { StreamerFilter } from "../../../src/voice/streamerMode";
 import {
@@ -56,6 +57,17 @@ function talkAt() {
   };
 }
 
+/** The turning logo's card: right of the headline when the view is wide enough, else under it. */
+function logoAt() {
+  const talk = talkAt();
+  const w = 260;
+  const h = 240;
+  const beside = talk.x + talk.w + 16 + w <= window.innerWidth - 12;
+  return beside
+    ? { x: talk.x + talk.w + 16, y: talk.y, w, h }
+    : { x: Math.round((window.innerWidth - w) / 2), y: talk.y + talk.h + 16, w, h };
+}
+
 /**
  * lalala.talk: the app's own canvas (src/voice), with the page's cards on it. Visitors move, resize
  * and remove them; the layout and settings stay in this browser (the browser storage adapter).
@@ -63,6 +75,7 @@ function talkAt() {
 export default function Landing() {
   const [hidden, setHidden] = useState(readHidden);
   const [at] = useState(talkAt);
+  const [logo] = useState(logoAt);
   const keepHidden = (next: string[]) => {
     setHidden(next);
     try {
@@ -134,6 +147,13 @@ export default function Landing() {
               <CanvasCard id="talk" title="lalala" at={at} onRemove={remove("talk")}>
                 <div data-landing-talk="">
                   <h1>talk to all your agents</h1>
+                </div>
+              </CanvasCard>
+            )}
+            {hidden.includes("logo") ? null : (
+              <CanvasCard id="logo" title="logo" at={logo} onRemove={remove("logo")}>
+                <div data-landing-logo="">
+                  <PageLoader play />
                 </div>
               </CanvasCard>
             )}

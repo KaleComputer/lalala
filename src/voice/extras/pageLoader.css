@@ -1,0 +1,39 @@
+/* The page loader (PageLoader); lalala's index.html styles its boot screen the same, inline. */
+[data-lalala-page-loader] {
+  display: grid;
+  place-content: center;
+  justify-items: center;
+  gap: 10px;
+  width: 100%;
+  height: 100%;
+  background: #000;
+  color: #fff;
+}
+[data-lalala-page-loader] pre {
+  margin: 0;
+  font:
+    700 var(--page-loader-font, 7px) / 1 ui-monospace,
+    SFMono-Regular,
+    Menlo,
+    Consolas,
+    monospace;
+  white-space: pre;
+}
+[data-lalala-page-loader] button {
+  padding: 10px 12px;
+  border: 0;
+  background: none;
+  color: #fff;
+  font:
+    700 9px / 1 ui-monospace,
+    SFMono-Regular,
+    Menlo,
+    Consolas,
+    monospace;
+  letter-spacing: 0.08em;
+  cursor: pointer;
+}
+[data-lalala-page-loader] button:focus-visible {
+  outline: 1px solid #fff;
+  outline-offset: 0;
+}
