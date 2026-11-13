@@ -22,6 +22,8 @@ const hostOf = (origin: string) => origin.replace(/^\w+:\/\//, "");
  */
 export function PairSteps(props: {
   readonly command: string;
+  /** Pairs from anywhere: makes a link on the T3 Connect address, so a phone can use it too. */
+  readonly connectCommand?: string | undefined;
   readonly working: string | null;
   readonly problem: string | null;
   readonly onPair: (input: string) => void;
@@ -40,7 +42,8 @@ export function PairSteps(props: {
   const [link, setLink] = useState("");
   // Starts as the remembered address, once asked.
   const [address, setAddress] = useState<string | null>(null);
-  const [copied, setCopied] = useState(false);
+  const [copied, setCopied] = useState<string | null>(null);
+  const copy = (text: string) => void navigator.clipboard.writeText(text).then(() => setCopied(text));
   const streamer = useStreamerMode();
   const busy = props.working !== null;
   const submit = (input: string) => {
@@ -110,17 +113,29 @@ export function PairSteps(props: {
             </button>
           </p>
         ) : (
-          <p data-lalala-pair-alt="">
-            Or run <code>{props.command}</code>
-            <button
-              type="button"
-              data-lalala-settings-button=""
-              data-quiet=""
-              onClick={() => void navigator.clipboard.writeText(props.command).then(() => setCopied(true))}
-            >
-              {copied ? "Copied" : "Copy"}
-            </button>
-          </p>
+          <>
+            <p data-lalala-pair-alt="">
+              Or run <code>{props.command}</code>
+              <button type="button" data-lalala-settings-button="" data-quiet="" onClick={() => copy(props.command)}>
+                {copied === props.command ? "Copied" : "Copy"}
+              </button>
+            </p>
+            {props.connectCommand ? (
+              <p data-lalala-pair-alt="">
+                From anywhere, phone too: copy your T3 Connect address (T3 Code → Settings → Environments → ⋯ →
+                Copy MCP URL, without /mcp), run this with it, then paste the printed link here.
+                <code>{props.connectCommand}</code>
+                <button
+                  type="button"
+                  data-lalala-settings-button=""
+                  data-quiet=""
+                  onClick={() => copy(props.connectCommand!)}
+                >
+                  {copied === props.connectCommand ? "Copied" : "Copy"}
+                </button>
+              </p>
+            ) : null}
+          </>
         )}
       </div>
       {props.working ? (

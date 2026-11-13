@@ -34,6 +34,8 @@ type Workspace = Awaited<ReturnType<typeof readWorkspace>>;
 type Connected = { readonly session: Session; readonly socket: T3Socket; readonly workspace: Workspace };
 
 const PAIR_COMMAND = "npx t3 pair --label lalala.talk";
+const CONNECT_COMMAND =
+  "npx t3 auth pairing create --base-url https://<your T3 Connect address> --label lalala.talk";
 const NEW_THREAD = "";
 const CREATED = `Created a "${LALALA_PROJECT}" project in your home folder for your voice thread.`;
 const SEP = "\u0000";
@@ -230,6 +232,7 @@ export function ConnectSection() {
       <Section title={title} note={note}>
         <PairSteps
           command={PAIR_COMMAND}
+          connectCommand={CONNECT_COMMAND}
           working={working}
           problem={problem}
           onPair={(input) => pair(input)}
