@@ -32,112 +32,41 @@
     </script>
     <style>
       /* Boot screen: in the HTML so the phone never shows a bare black page; React replaces #root's
-         contents on mount, which removes it. The device bar's connecting look without the bar: its plate,
-         the ASCII line's two glyph rows and a cyan light sweeping through (transform only). */
+         contents on mount, which removes it. The lalala mark as small white ASCII, turning in 3D. */
       #lala-boot {
         position: fixed;
         inset: 0;
         z-index: 2147483647;
         display: grid;
-        place-items: center;
-        background: #0b0608;
+        place-content: center;
+        justify-items: center;
+        gap: 10px;
+        background: #000;
+        color: #fff;
+        font: 700 7px / 1 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
       }
-      #lala-boot .plate {
-        position: relative;
-        display: grid;
-        place-items: center;
-        width: min(360px, calc(100vw - 48px));
-        height: 46px;
-        background:
-          repeating-linear-gradient(to bottom, rgba(255, 94, 84, 0.04) 0 1px, transparent 1px 3px),
-          #190d12;
-        clip-path: polygon(10px 0, calc(100% - 10px) 0, 100% 10px, 100% calc(100% - 10px), calc(100% - 10px) 100%, 10px 100%, 0 calc(100% - 10px), 0 10px);
+      #lala-boot pre { margin: 0; font: inherit; white-space: pre; }
+      #lala-boot .msg { display: grid; place-items: center; min-height: 28px; }
+      #lala-boot .msg > * { grid-area: 1 / 1; }
+      #lala-boot .slow,
+      #lala-boot button {
+        font: 700 9px / 1 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+        letter-spacing: 0.08em;
+        color: #fff;
       }
-      /* The edge as its own ring (cutFrame.css): a border would be sliced off along the cuts. */
-      #lala-boot .plate::after {
-        content: "";
-        position: absolute;
-        inset: 0;
-        background: #af423d;
-        pointer-events: none;
-        clip-path: polygon(evenodd, 10px 0, calc(100% - 10px) 0, 100% 10px, 100% calc(100% - 10px), calc(100% - 10px) 100%, 10px 100%, 0 calc(100% - 10px), 0 10px, 10px 0, 10.41px 1px, calc(100% - 10.41px) 1px, calc(100% - 1px) 10.41px, calc(100% - 1px) calc(100% - 10.41px), calc(100% - 10.41px) calc(100% - 1px), 10.41px calc(100% - 1px), 1px calc(100% - 10.41px), 1px 10.41px, 10.41px 1px);
-      }
-      #lala-boot .plate > * { grid-area: 1 / 1; }
-      #lala-boot .rows {
-        position: relative;
-        width: calc(100% - 24px);
-        overflow: hidden;
-        -webkit-mask-image: linear-gradient(90deg, transparent, #000 12%, #000 88%, transparent);
-        mask-image: linear-gradient(90deg, transparent, #000 12%, #000 88%, transparent);
-      }
-      #lala-boot pre {
-        margin: 0;
-        color: #ffd8d2;
-        font: 700 9px / 10px ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
-        letter-spacing: 3.6px;
-        text-align: center;
-        white-space: pre;
-      }
-      #lala-boot pre b { display: block; font-weight: inherit; opacity: 0.62; }
-      #lala-boot pre b + b { opacity: 0.42; }
-      #lala-boot .sweep {
-        position: absolute;
-        inset: 0 auto 0 0;
-        width: 26%;
-        overflow: hidden;
-        -webkit-mask-image: linear-gradient(90deg, transparent, #000 40%, #000 60%, transparent);
-        mask-image: linear-gradient(90deg, transparent, #000 40%, #000 60%, transparent);
-        animation: lala-boot-sweep 2.2s linear infinite;
-      }
-      /* The lit copy moves back as far as its window moves on, so its glyphs stay over the rows'. */
-      #lala-boot .sweep pre {
-        position: absolute;
-        inset: 0 auto 0 0;
-        width: 384.62%;
-        color: #26f3ec;
-        text-shadow: 0 0 6px rgba(38, 243, 236, 0.55);
-        animation: lala-boot-unsweep 2.2s linear infinite;
-      }
-      #lala-boot .sweep pre b { opacity: 1; }
-      #lala-boot .sweep pre b + b { opacity: 0.8; }
-      #lala-boot .tag {
-        display: inline-grid;
-        gap: 3px;
-        padding: 4px 9px 4px 8px;
-        background: #ffd8d2;
-        color: #190d12;
-        font: 600 9.5px / 1 "Oxanium", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
-        letter-spacing: 0.14em;
-        text-transform: uppercase;
-        white-space: nowrap;
-        clip-path: polygon(5px 0, 100% 0, 100% calc(100% - 5px), calc(100% - 5px) 100%, 0 100%, 0 5px);
-      }
-      #lala-boot .slow { visibility: hidden; animation: lala-boot-show 0s 15s forwards; }
+      #lala-boot .slow { visibility: hidden; opacity: 0.6; animation: lala-boot-show 0s 15s forwards; }
       #lala-boot button {
         display: none;
-        padding: 6px;
+        padding: 10px 12px;
         border: 0;
         background: none;
         cursor: pointer;
       }
-      #lala-boot button .tag { background: #ff5e54; padding: 5px 10px 5px 9px; font-size: 10.5px; }
-      #lala-boot button small { font-size: 8.5px; opacity: 0.78; }
-      #lala-boot button:focus-visible { outline: 1px solid #26f3ec; outline-offset: 0; }
-      #lala-boot.is-failed .sweep, #lala-boot.is-failed .slow { display: none; }
-      #lala-boot.is-failed .rows { opacity: 0.4; }
+      #lala-boot button:focus-visible { outline: 1px solid #fff; outline-offset: 0; }
+      #lala-boot.is-failed .slow { display: none; }
+      #lala-boot.is-failed pre { opacity: 0.45; }
       #lala-boot.is-failed button { display: block; }
-      @keyframes lala-boot-sweep {
-        from { transform: translateX(-100%); }
-        80%, to { transform: translateX(384.62%); }
-      }
-      @keyframes lala-boot-unsweep {
-        from { transform: translateX(26%); }
-        80%, to { transform: translateX(-100%); }
-      }
       @keyframes lala-boot-show { to { visibility: visible; } }
-      @media (prefers-reduced-motion: reduce) {
-        #lala-boot .sweep { display: none; }
-      }
     </style>
     <script>
       // A module that fails to load or throws before the app mounts leaves the boot screen up; say so.
@@ -161,11 +90,86 @@
   <body>
     <div id="root">
       <div id="lala-boot" role="status" aria-live="polite" aria-label="Loading">
-        <div class="plate">
-          <div class="rows" aria-hidden="true">
-            <pre><b>+o8##8###@##8#9###8##@#8###9##8#@##8###9#8##o+</b><b>+o98898&amp;89o988*98&amp;9898899&amp;9889o98898&amp;989o89o+</b></pre>
-            <div class="sweep"><pre><b>+o8##8###@##8#9###8##@#8###9##8#@##8###9#8##o+</b><b>+o98898&amp;89o988*98&amp;9898899&amp;9889o98898&amp;989o89o+</b></pre></div>
-          </div>
+        <pre aria-hidden="true"></pre>
+        <div class="msg">
+          <span class="slow">slow connection</span>
+          <button type="button" onclick="location.reload()">didn't load · tap to reload</button>
+        </div>
+      </div>
+    </div>
+    <script>
+      // The favicon's 32×32 mark extruded into surface points, turned about Y, projected and shaded
+      // with an ASCII ramp. ~25 fps; stops once React removes the boot screen or the load fails.
+      (() => {
+        const boot = document.getElementById("lala-boot");
+        const pre = boot && boot.querySelector("pre");
+        if (!pre) return;
+        // prettier-ignore
+        const MARK = [0x007fffff,0x00ffffff,0x01ffffff,0x03ffffff,0x07e0000f,0x0fc0000f,0x1f80000f,0x3f00000f,0x7e00000f,0xfc00000f,0xf800000f,0xf000000f,0xf000000f,0xf000000f,0xf000fc0f,0xf001fc0f,0xf003fc0f,0xf003fc0f,0xf003fc0f,0xf003fc0f,0xf003f80f,0xf003f01f,0xf000003f,0xf000007e,0xf00000fc,0xf00001f8,0xf00003f0,0xf00007e0,0xffffffc0,0xffffff80,0xffffff00,0xfffffe00];
+        const W = 44, H = 24, T = 3, DIST = 72, RAMP = ".,-~:;=!*#$@";
+        const on = (x, y) => x >= 0 && x < 32 && y >= 0 && y < 32 && (MARK[y] >>> (31 - x)) & 1;
+        const p = [];
+        const add = (x, y, z, nx, ny, nz) => p.push(x - 16, 16 - y, z, nx, ny, nz);
+        for (let y = 0; y < 32; y++)
+          for (let x = 0; x < 32; x++) {
+            if (!on(x, y)) continue;
+            for (const a of [0.25, 0.75])
+              for (const b of [0.25, 0.75]) {
+                add(x + a, y + b, -T, 0, 0, -1);
+                add(x + a, y + b, T, 0, 0, 1);
+              }
+            for (let z = -T; z <= T; z += 0.5)
+              for (const a of [0.25, 0.75]) {
+                if (!on(x - 1, y)) add(x, y + a, z, -1, 0, 0);
+                if (!on(x + 1, y)) add(x + 1, y + a, z, 1, 0, 0);
+                if (!on(x, y - 1)) add(x + a, y, z, 0, 1, 0);
+                if (!on(x, y + 1)) add(x + a, y + 1, z, 0, -1, 0);
+              }
+          }
+        const pts = new Float32Array(p);
+        const zbuf = new Float32Array(W * H);
+        const cells = new Array(W * H);
+        const tc = Math.cos(-0.22), ts = Math.sin(-0.22);
+        const draw = (angle) => {
+          const c = Math.cos(angle), s = Math.sin(angle);
+          zbuf.fill(0);
+          cells.fill(" ");
+          for (let i = 0; i < pts.length; i += 6) {
+            const x = pts[i], y = pts[i + 1], z = pts[i + 2], nx = pts[i + 3], ny = pts[i + 4], nz = pts[i + 5];
+            const x1 = x * c + z * s, z1 = z * c - x * s, nx1 = nx * c + nz * s, nz1 = nz * c - nx * s;
+            const y2 = y * tc - z1 * ts, z2 = y * ts + z1 * tc;
+            const ny2 = ny * tc - nz1 * ts, nz2 = ny * ts + nz1 * tc;
+            if (nz2 >= 0) continue;
+            const k = DIST / (z2 + DIST);
+            const col = (W / 2 + x1 * k) | 0, row = (H / 2 - y2 * k * 0.6) | 0;
+            if (col < 0 || col >= W || row < 0 || row >= H) continue;
+            const j = row * W + col;
+            if (k <= zbuf[j]) continue;
+            zbuf[j] = k;
+            const lum = -0.35 * nx1 + 0.45 * ny2 - 0.82 * nz2;
+            cells[j] = RAMP[Math.max(0, Math.min(RAMP.length - 1, (lum * RAMP.length) | 0))];
+          }
+          let text = "";
+          for (let r = 0; r < H; r++) text += cells.slice(r * W, r * W + W).join("") + "\n";
+          pre.textContent = text;
+        };
+        const REST = 0.5;
+        draw(REST);
+        if (matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+        let start = 0, last = 0;
+        const tick = (now) => {
+          if (!boot.isConnected) return;
+          if (boot.classList.contains("is-failed")) return draw(REST);
+          if (!start) start = now;
+          if (now - last >= 40) {
+            last = now;
+            draw(REST + (now - start) * 0.0012);
+          }
+          requestAnimationFrame(tick);
+        };
+        requestAnimationFrame(tick);
+      })();
+    </script>
           <span class="tag slow">Slow connection</span>
           <button type="button" onclick="location.reload()"><span class="tag">Didn't load<small>Tap to reload</small></span></button>
         </div>
