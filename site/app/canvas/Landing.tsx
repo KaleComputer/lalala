@@ -45,27 +45,21 @@ function readHidden(): string[] {
   }
 }
 
-/** The headline card's first place: centred in the room above the bar. */
-function talkAt() {
-  const w = Math.min(560, window.innerWidth - 24);
-  const h = 240;
+/**
+ * The first places of the page's two cards: the turning logo on top, the headline right under it,
+ * both centred in the room above the bar; on a short screen they shrink so both fit.
+ */
+function landingAt() {
+  const gap = 16;
+  const room = window.innerHeight - BAR_ROOM - 64;
+  const h = Math.max(160, Math.min(240, Math.floor((room - gap) / 2)));
+  const top = Math.round(Math.max(64, (window.innerHeight - BAR_ROOM - (h * 2 + gap)) / 2));
+  const talkW = Math.min(560, window.innerWidth - 24);
+  const logoW = Math.min(320, window.innerWidth - 24);
   return {
-    x: Math.round((window.innerWidth - w) / 2),
-    y: Math.round(Math.max(64, (window.innerHeight - BAR_ROOM - h) / 2)),
-    w,
-    h,
+    logo: { x: Math.round((window.innerWidth - logoW) / 2), y: top, w: logoW, h },
+    talk: { x: Math.round((window.innerWidth - talkW) / 2), y: top + h + gap, w: talkW, h },
   };
-}
-
-/** The turning logo's card: right of the headline when the view is wide enough, else under it. */
-function logoAt() {
-  const talk = talkAt();
-  const w = 260;
-  const h = 240;
-  const beside = talk.x + talk.w + 16 + w <= window.innerWidth - 12;
-  return beside
-    ? { x: talk.x + talk.w + 16, y: talk.y, w, h }
-    : { x: Math.round((window.innerWidth - w) / 2), y: talk.y + talk.h + 16, w, h };
 }
 
 /**
@@ -74,8 +68,7 @@ function logoAt() {
  */
 export default function Landing() {
   const [hidden, setHidden] = useState(readHidden);
-  const [at] = useState(talkAt);
-  const [logo] = useState(logoAt);
+  const [{ talk: at, logo }] = useState(landingAt);
   const keepHidden = (next: string[]) => {
     setHidden(next);
     try {
@@ -143,17 +136,17 @@ export default function Landing() {
       <main data-lalala-page="" data-lalala-landing="">
         <div data-lalala-extras="">
           <VoiceExtras>
-            {hidden.includes("talk") ? null : (
-              <CanvasCard id="talk" title="lalala" at={at} onRemove={remove("talk")}>
-                <div data-landing-talk="">
-                  <h1>talk to all your agents</h1>
-                </div>
-              </CanvasCard>
-            )}
             {hidden.includes("logo") ? null : (
               <CanvasCard id="logo" title="logo" at={logo} onRemove={remove("logo")}>
                 <div data-landing-logo="">
                   <PageLoader play />
+                </div>
+              </CanvasCard>
+            )}
+            {hidden.includes("talk") ? null : (
+              <CanvasCard id="talk" title="lalala" at={at} onRemove={remove("talk")}>
+                <div data-landing-talk="">
+                  <h1>talk to all your agents</h1>
                 </div>
               </CanvasCard>
             )}
