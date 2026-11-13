@@ -43,6 +43,7 @@ import {
 import { checkLink, linkIsDown, markLinkDown, markLinkUp, onLinkUp, useLinkDown } from "./voiceLink";
 import { type HeldWords, heldWords, holdWords, releaseWords, useHeldCount } from "./voiceOutbox";
 import { syncVoiceTheme } from "./voiceThemeSync";
+import { setStreamerMode } from "./streamerMode";
 
 // A LALALA_MODEL test run gets its own thread, so it never becomes the user's voice thread.
 const voiceThreadTitle = (config: VoiceConfig | null) =>
@@ -75,6 +76,8 @@ const ABOUT_TOPIC_TAG = /\s*\[new topic\]\s*\[about:\s*([^\]]*)\]\s*/gi;
 const ABOUT_TAG = /\s*\[about:[^\]]*\]\s*/gi;
 const opensTopic = (text: string) => /^\s*[\u2063\u2064]/.test(text);
 const TIDY_TAG = /\[tidy\]\s*/gi;
+// `[streamer: on]` / `[streamer: off]` flips streamer mode, the same switch as in settings.
+const STREAMER_TAG = /\[streamer:\s*(on|off)\s*\]\s*/gi;
 // A sent `/compact` counts as running this long at most, until its run shows on the thread.
 const COMPACT_SHOWS_MS = 10_000;
 
@@ -669,8 +672,11 @@ export function VoiceHost({
           })
           .replace(NEW_TOPIC_TAG, `\n\n${TOPIC_MARK}`)
           .replace(ABOUT_TAG, " ")
-          .replace(TIDY_TAG, ""),
+          .replace(TIDY_TAG, "")
+          .replace(STREAMER_TAG, ""),
       );
+      const streamer = [...item.text.matchAll(STREAMER_TAG)].at(-1)?.[1]?.toLowerCase();
+      if (thisTurn && streamer) setStreamerMode(streamer === "on");
       if (thisTurn && tidy && !tidiedRef.current.has(item.id)) {
         tidiedRef.current.add(item.id);
         voiceLog("brain", "tidy", {});

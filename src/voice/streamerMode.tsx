@@ -22,6 +22,17 @@ function subscribe(onChange: () => void) {
   };
 }
 
+/** The settings switch and the brain's `[streamer: on|off]` tag both turn it on and off here. */
+export function setStreamerMode(on: boolean) {
+  if (readStreamerMode() === on) return;
+  try {
+    localStorage.setItem(STORE, on ? "on" : "off");
+  } catch {
+    return;
+  }
+  window.dispatchEvent(new Event(EVENT));
+}
+
 /** Streamer mode: thread titles and message text render scrambled and pixelated, app-wide. */
 export const useStreamerMode = () => useSyncExternalStore(subscribe, readStreamerMode, () => false);
 

@@ -21,7 +21,7 @@ import { finishCompactSim, startCompactSim, useCompactSim } from "./compactSim";
 import { ConnectedRows, PairSteps } from "./ConnectFlow";
 import { isFollowing, setFollowing, subscribeFollow } from "./follow";
 import { isPairingCode, pairingLink } from "./pairing";
-import { StreamerText, useStreamerMode } from "./streamerMode";
+import { setStreamerMode, StreamerText, useStreamerMode } from "./streamerMode";
 import { topicChime } from "./player";
 import {
   BUILT_IN_TOPIC_SOUND,
@@ -97,7 +97,6 @@ type ConnectionState =
 
 const BRAIN_ROUTE = "/__lalala/t3/brain";
 const CONNECTION_ROUTE = "/__lalala/t3/connection";
-const STREAMER_KEY = "lalala:streamer";
 
 const isReasoning = (d: Descriptor) =>
   d.type === "select" &&
@@ -1644,14 +1643,7 @@ export function CanvasRows() {
             on={streamer}
             label="Streamer mode"
             describedBy={describedBy}
-            onChange={(on) => {
-              try {
-                localStorage.setItem(STREAMER_KEY, on ? "on" : "off");
-              } catch {
-                return;
-              }
-              window.dispatchEvent(new Event(STREAMER_KEY));
-            }}
+            onChange={setStreamerMode}
           />
         )}
       </Row>
