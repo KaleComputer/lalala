@@ -63,6 +63,8 @@ export function PairSteps(props: {
           <p>
             {ask ? (
               `${isPhone() ? "Your phone" : "This browser"} can't reach T3 Code's local address. Paste your T3 Connect address instead: T3 Code → Settings → Environments → ⋯ → Copy MCP URL.`
+            ) : props.connectCommand ? (
+              "Works from any device: copy your T3 Connect address (T3 Code → Settings → Environments → ⋯ → Copy MCP URL, without /mcp), put it in this command, run it on the computer running T3 Code and paste the printed link here."
             ) : (
               "T3 Code → Settings → Sharing & access → Create link, then paste the link or code here."
             )}
@@ -73,13 +75,26 @@ export function PairSteps(props: {
             Not connected
           </span>
         </div>
+        {props.connectCommand && !ask ? (
+          <p data-lalala-pair-alt="">
+            <code>{props.connectCommand}</code>
+            <button
+              type="button"
+              data-lalala-settings-button=""
+              data-quiet=""
+              onClick={() => copy(props.connectCommand!)}
+            >
+              {copied === props.connectCommand ? "Copied" : "Copy"}
+            </button>
+          </p>
+        ) : null}
         <div data-lalala-pair-field="">
           <input
             key={ask ? "address" : "link"}
             type={ask ? "url" : "text"}
             inputMode={ask ? "url" : undefined}
             aria-label={ask ? "Your T3 Connect address" : "Pairing link or code"}
-            placeholder={ask ? "https://….t3coderelay.com/mcp" : "Paste link or code"}
+            placeholder={ask ? "https://….t3coderelay.com/mcp" : props.connectCommand ? "Paste the printed link" : "Paste link or code"}
             autoComplete="off"
             autoCapitalize="off"
             spellCheck={false}
@@ -115,24 +130,17 @@ export function PairSteps(props: {
         ) : (
           <>
             <p data-lalala-pair-alt="">
-              Or run <code>{props.command}</code>
+              {props.connectCommand
+                ? "Only if lalala runs on the same computer as T3 Code: T3 Code → Settings → Sharing & access → Create link, or run"
+                : "Or run"}
+              <code>{props.command}</code>
               <button type="button" data-lalala-settings-button="" data-quiet="" onClick={() => copy(props.command)}>
                 {copied === props.command ? "Copied" : "Copy"}
               </button>
             </p>
             {props.connectCommand ? (
               <p data-lalala-pair-alt="">
-                From anywhere, phone too: copy your T3 Connect address (T3 Code → Settings → Environments → ⋯ →
-                Copy MCP URL, without /mcp), run this with it, then paste the printed link here.
-                <code>{props.connectCommand}</code>
-                <button
-                  type="button"
-                  data-lalala-settings-button=""
-                  data-quiet=""
-                  onClick={() => copy(props.connectCommand!)}
-                >
-                  {copied === props.connectCommand ? "Copied" : "Copy"}
-                </button>
+                A localhost link won't work from another device, not even on the same Wi-Fi.
               </p>
             ) : null}
           </>
