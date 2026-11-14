@@ -35,6 +35,7 @@ import {
   setAutoRetrySeconds,
   setAutoStartCall,
   setSttModel,
+  AUTO_RETRY_CHOICES,
   DEFAULT_AUTO_RETRY_SECONDS,
   topicSoundNames,
   topicSoundUrl,
@@ -765,14 +766,29 @@ function AppSettings(props: { readonly section: string; readonly onClose: () => 
   );
 }
 
-/** A page's one section, its title for screen readers only (the header shows it), as T3's hideTitle. */
+/**
+ * A page's section. Its title is for screen readers only (the header shows the page's name) unless
+ * `about` is given: then a page with several groups names this one and says what it is for. `fine`
+ * makes the note small print under the page instead of a group of its own.
+ */
 export function Section(props: {
   readonly title: string;
+  readonly about?: ReactNode;
   readonly ungrouped?: boolean;
+  readonly fine?: boolean;
   readonly note?: ReactNode;
   readonly children?: ReactNode;
 }) {
   const id = useId();
+  if (props.fine)
+    return (
+      <section data-lalala-settings-section="" aria-labelledby={id}>
+        <h2 id={id} data-lalala-settings-sr="">
+          {props.title}
+        </h2>
+        <p data-lalala-settings-fine="">{props.note}</p>
+      </section>
+    );
   const content = (
     <>
       {props.note ? <p data-lalala-settings-info="">{props.note}</p> : null}
@@ -781,9 +797,16 @@ export function Section(props: {
   );
   return (
     <section data-lalala-settings-section="" aria-labelledby={id}>
-      <h2 id={id} data-lalala-settings-sr="">
-        {props.title}
-      </h2>
+      {props.about ? (
+        <header data-lalala-settings-heading="">
+          <h2 id={id}>{props.title}</h2>
+          <p>{props.about}</p>
+        </header>
+      ) : (
+        <h2 id={id} data-lalala-settings-sr="">
+          {props.title}
+        </h2>
+      )}
       {props.ungrouped ? (
         content
       ) : props.note || props.children ? (
@@ -988,6 +1011,9 @@ export function PickRow(props: {
     node.focus({ preventScroll: true });
     node.querySelector('[aria-selected="true"]')?.scrollIntoView({ block: "nearest" });
     node.scrollIntoView({ block: "nearest" });
+    // Where the sheet can't scroll far enough (the page's end), the list stops above the screen's edge.
+    const room = window.innerHeight - node.getBoundingClientRect().top - 16;
+    if (room < node.offsetHeight) node.style.maxHeight = `${Math.max(160, room)}px`;
     const outside = (event: Event) => {
       if (event.target instanceof Node && !node.parentElement?.contains(event.target)) {
         event.preventDefault();
@@ -1709,23 +1735,23 @@ function useGpu() {
 const COMPUTER_COPY = {
   checking: { meta: "Checking…", state: () => "Checking the computer running T3…" },
   ready: {
-    meta: "Nothing downloads here",
-    state: () => "Runs on the computer running T3; nothing loads on this device.",
+    meta: "No download",
+    state: () => "Runs on the computer running T3; nothing loads here.",
   },
   loading: {
     meta: "Still loading its models",
     state: (verb: string, standIn: string) =>
-      `The computer running T3 is still loading its models, so this browser ${verb} with ${standIn} meanwhile.`,
+      `The computer is still loading; this browser ${verb} with ${standIn} meanwhile.`,
   },
   down: {
     meta: "Not answering",
     state: (verb: string, standIn: string) =>
-      `The computer's speech service isn't answering, so this browser ${verb} with ${standIn} until it does.`,
+      `The computer isn't answering; this browser ${verb} with ${standIn} until it does.`,
   },
   absent: {
     meta: "Only in lalala opened from that computer",
     state: (verb: string, standIn: string) =>
-      `This page can't reach the computer running T3 (open lalala from it), so this browser ${verb} with ${standIn}.`,
+      `This page can't reach the computer; this browser ${verb} with ${standIn}.`,
   },
 } as const;
 
@@ -1743,16 +1769,19 @@ function TaskState(props: {
   readonly status: ModelStatus | null;
 }) {
   const { picked, auto, standIn, verb, computer, status } = props;
+  const retrying = useAutoRetrySeconds() !== null;
   const failed = status?.phase === "failed";
   let state =
     picked === "computer"
-      ? COMPUTER_COPY[computer].state(verb, standIn)
+      ? computer === "down" && !retrying
+        ? `The computer isn't answering; this browser ${verb} with ${standIn} until Settings or the page open again.`
+        : COMPUTER_COPY[computer].state(verb, standIn)
       : picked === "auto"
         ? `Automatic: ${auto}, in this browser.`
         : "Runs in this browser.";
   if (status?.phase === "ready" && picked !== "computer") state = state.replace(/\.$/, "; ready.");
   if (failed) {
-    state += status.error?.startsWith(NEEDS_WEBGPU)
+    state += status.error?.includes(NEEDS_WEBGPU)
       ? " This browser has no WebGPU for it: pick Automatic or a CPU model."
       : ` ${status.error ?? "It didn't load."}${
           status.retryAt > 0 ? " Trying again shortly." : " It tries again from the next call."
@@ -1807,16 +1836,20 @@ function SpeechSection() {
         : "kokoro-cpu";
   const earsAuto = autoEars === null ? "checking this browser" : STT_LABELS[autoEars];
   const voiceAuto = autoVoice === null ? "checking this browser" : VOICE_LABELS[autoVoice];
-  const computerOption =
+  // The computer's line in the list: its state, and how fast it is once it answers.
+  const computerOption = (speed: string) =>
     computer === "absent"
       ? { meta: COMPUTER_COPY.absent.meta, disabled: true }
-      : { meta: COMPUTER_COPY[computer].meta };
+      : { meta: computer === "ready" ? `${COMPUTER_COPY.ready.meta} · ${speed}` : COMPUTER_COPY[computer].meta };
   // On a phone the big builds have ended the tab (Tim's iPhone, 14 Nov): picking them stays allowed.
   const heavy = (detail: string) => (phone ? `${detail}, may close a phone tab` : detail);
 
 
   return (
-    <Section title="Speech">
+    <Section
+      title="Speech models"
+      about="What hears you and what speaks the answers, and where each runs: in this browser, or on the computer running T3."
+    >
       <PickRow
         title="Speech-to-text"
         description={
@@ -1867,8 +1900,8 @@ function SpeechSection() {
               {
                 value: "computer",
                 label: STT_LABELS.computer,
-                detail: "best accuracy, 0.07 s per 3.4 s",
-                ...computerOption,
+                detail: "best accuracy",
+                ...computerOption("3.4 s of speech in 0.07 s"),
               },
             ],
           },
@@ -1937,8 +1970,8 @@ function SpeechSection() {
               {
                 value: "computer",
                 label: VOICE_LABELS.computer,
-                detail: "most natural, 0.15 s per 3.8 s",
-                ...computerOption,
+                detail: "most natural",
+                ...computerOption("a 3.8 s sentence in 0.15 s"),
               },
             ],
           },
@@ -1949,7 +1982,6 @@ function SpeechSection() {
   );
 }
 
-const RETRY_CHOICES = [5, 15, 60] as const;
 
 /**
  * What happens as lalala opens on this device: whether the call starts by itself, and whether a page
@@ -1958,16 +1990,11 @@ const RETRY_CHOICES = [5, 15, 60] as const;
 function OpeningSection() {
   const seconds = useAutoRetrySeconds();
   const autoStart = useAutoStartCall();
-  const phone = isPhoneDevice();
   return (
-    <Section title="Opening lalala">
+    <Section title="Starting and loading" about="What lalala does by itself when it opens.">
       <Row
         title="Start the call when lalala opens"
-        description={
-          phone
-            ? "From the next time it opens. A phone browser starts sound and the mic only on a tap, so the first tap anywhere starts the call."
-            : "From the next time it opens. Where this browser holds sound back until a tap, the first tap anywhere starts the call."
-        }
+        description="From the next time it opens. It starts by itself where the browser allows sound without a tap; elsewhere (Safari, phones) the first tap or Enter starts it."
       >
         {(describedBy) => (
           <Toggle
@@ -1986,15 +2013,7 @@ function OpeningSection() {
             : "When the page or a speech model doesn't load, lalala tries again on its own until it does."
         }
         label="Retry when loading fails"
-        value={
-          seconds === null
-            ? "off"
-            : String(
-                RETRY_CHOICES.reduce((best, every) =>
-                  Math.abs(every - seconds) < Math.abs(best - seconds) ? every : best,
-                ),
-              )
-        }
+        value={seconds === null ? "off" : String(seconds)}
         onReset={
           seconds === DEFAULT_AUTO_RETRY_SECONDS
             ? undefined
@@ -2003,7 +2022,7 @@ function OpeningSection() {
         groups={[
           {
             options: [
-              ...RETRY_CHOICES.map((every) => ({
+              ...AUTO_RETRY_CHOICES.map((every) => ({
                 value: String(every),
                 label:
                   every === DEFAULT_AUTO_RETRY_SECONDS ? `Every ${every} s (default)` : `Every ${every} s`,
@@ -2026,6 +2045,7 @@ function CreditsSection() {
   return (
     <Section
       title="Credits"
+      fine
       note={
         <>
           Speech runs on NVIDIA Parakeet (CC-BY-4.0), Kokoro (Apache-2.0), Silero VAD (MIT) and Kale's
@@ -2091,7 +2111,7 @@ export function CanvasRows() {
       </Row>
       <Row
         title="Streamer mode"
-        description="Scrambles thread titles and message text, for screen sharing."
+        description="Scrambles thread titles and every card's text, for screen sharing. Pictures stay, except in cards and groups marked “Hide in streamer mode” (right-click or long-press a card's header or a group's name)."
       >
         {(describedBy) => (
           <Toggle
@@ -2102,6 +2122,35 @@ export function CanvasRows() {
           />
         )}
       </Row>
+      <RemovedRows />
     </Section>
   );
+}
+
+const NO_MARKS = {};
+const noMarks = () => () => undefined;
+
+/** Cards and groups taken off the canvas from their menu, each with a way back. */
+function RemovedRows() {
+  const api = globalThis.__lalalaCanvases;
+  // Re-renders on every mark change; the list itself is read from the canvas below.
+  const marks = api?.marks ?? (() => NO_MARKS);
+  useSyncExternalStore(api?.subscribeMarks ?? noMarks, marks, () => NO_MARKS);
+  const removed = api?.removed?.() ?? [];
+  return removed.map((item) => (
+    <Row
+      key={item.key}
+      title={item.kind === "group" ? "Removed group" : "Removed card"}
+      description={
+        <>
+          <StreamerText text={item.name} />
+          {item.kind === "group" ? " and its cards" : null}
+        </>
+      }
+    >
+      <button type="button" data-lalala-settings-button="" onClick={() => api?.restore(item.key)}>
+        Put back
+      </button>
+    </Row>
+  ));
 }

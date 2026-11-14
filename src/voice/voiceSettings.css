@@ -255,6 +255,41 @@
 [data-lalala-settings-section]:has([data-lalala-settings-pick][data-open]) {
   z-index: 1;
 }
+/* A page with several sections (Sound & mic) keeps them as far apart as pages' own sections. */
+[data-lalala-settings-body] > div:not([hidden]) {
+  display: grid;
+  gap: 32px;
+}
+/* A named section: its name and what it is for, over its group. */
+[data-lalala-settings-heading] {
+  display: grid;
+  gap: 2px;
+  padding-inline: 4px;
+}
+[data-lalala-settings-heading] h2 {
+  margin: 0;
+  color: var(--s-fg);
+  font: 500 14px / 20px var(--s-sans);
+}
+[data-lalala-settings-heading] p {
+  max-width: 42rem;
+  margin: 0;
+  color: var(--s-fg-2);
+  font-size: 12px;
+  line-height: 1.5;
+}
+/* Small print at a page's end (Credits): no box, quieter than a description. */
+[data-lalala-settings-fine] {
+  max-width: 42rem;
+  margin: -16px 0 0;
+  padding-inline: 4px;
+  color: var(--s-fg-2);
+  font-size: 11px;
+  line-height: 1.5;
+}
+[data-lalala-settings-fine] a {
+  color: inherit;
+}
 [data-lalala-settings-sr] {
   position: absolute;
   width: 1px;
@@ -337,10 +372,7 @@
   margin-bottom: 4px;
   padding: 0;
 }
-:is([data-lalala-settings-error], [data-lalala-settings-status]) {
-  color: var(--s-warn);
-}
-[data-lalala-settings-state="problem"] {
+:is([data-lalala-settings-error], [data-lalala-settings-status], [data-lalala-settings-state="problem"]) {
   color: var(--s-warn);
 }
 [data-lalala-settings-row] > div > [data-lalala-settings-error] {
@@ -516,11 +548,14 @@
   font-size: var(--s-text);
   cursor: pointer;
 }
-/* Listed with its reason: the reason chip stays readable, only the name steps back. */
+/* Listed with its reason: the reason chip stays readable, only the name (and a check) steps back. */
 [data-lalala-settings-list] [role="option"][aria-disabled="true"] {
   opacity: 1;
   color: var(--s-fg-2);
   cursor: default;
+}
+[data-lalala-settings-list] [role="option"][aria-disabled="true"] > svg {
+  opacity: 0.5;
 }
 /* The one cue for where the keyboard or mouse is; the chosen option carries the check. */
 [data-lalala-settings-list] [role="option"][data-active] {

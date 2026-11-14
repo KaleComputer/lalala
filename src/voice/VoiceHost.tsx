@@ -43,7 +43,7 @@ import {
   voiceErrorText,
 } from "./voiceErrors";
 import { checkLink, linkIsDown, markLinkDown, onLinkUp, useLinkDown } from "./voiceLink";
-import { autoStartCall, replyVoice } from "./settingsStore";
+import { autoStartCall, replyVoice, useAutoStartCall } from "./settingsStore";
 import { type HeldWords, heldWords, holdWords, releaseWords, useHeldCount } from "./voiceOutbox";
 import { syncVoiceTheme } from "./voiceThemeSync";
 import { setStreamerMode } from "./streamerMode";
@@ -747,37 +747,52 @@ export function VoiceHost({
   }, [items]);
 
   const autoStartedRef = useRef(false);
-  // Read as the page opens: turning it on in Settings applies from the next time lalala opens.
-  const [autoStartPicked] = useState(autoStartCall);
+  // On applies from the next time lalala opens (read as it opens); off applies at once.
+  const [autoStartAtOpen] = useState(autoStartCall);
+  const autoStartLive = useAutoStartCall();
+  const autoStartPicked = autoStartAtOpen && autoStartLive;
   const [tapToStart, setTapToStart] = useState(false);
   // oxlint-disable-next-line t3code/no-unreasoned-state-sync -- starts the call once its config (read from the harness) is in; where the browser holds sound back until a gesture, the first tap anywhere does
   useEffect(() => {
     if ((!autoStart && !autoStartPicked) || config === null || autoStartedRef.current) return;
     if (sessionRef.current?.active) return;
     autoStartedRef.current = true;
-    // Safari, phones and a Chrome tab that hasn't played sound here start audio only inside a tap.
+    // Safari, phones and a Chrome tab that hasn't played sound here start audio only inside a gesture:
+    // a fresh AudioContext says so ("suspended"); Firefox turns a permitted one "running" a tick later.
     const probe = new AudioContext();
-    const allowed =
-      probe.state === "running" ||
-      (navigator as { userActivation?: { hasBeenActive: boolean } }).userActivation?.hasBeenActive === true;
-    void probe.close();
-    voiceLog("system", "auto-start", { allowed });
-    if (allowed) {
-      void toggle();
-      return;
-    }
-    setTapToStart(true);
     const events = ["pointerup", "touchend", "keydown"] as const;
-    const onTap = () => {
-      for (const type of events) document.removeEventListener(type, onTap, true);
+    let waiting = true;
+    const begin = (how: string) => {
+      if (!waiting) return;
+      waiting = false;
+      for (const type of events) document.removeEventListener(type, onGesture, true);
+      void probe.close();
       setTapToStart(false);
+      voiceLog("system", "auto-start", { how });
       if (!sessionRef.current?.active) void toggle();
     };
-    for (const type of events) document.addEventListener(type, onTap, true);
+    // A real tap or Enter/Space starts it; Tab, Escape, modifiers and taps on buttons, links or the
+    // settings sheet keep waiting (the gear must still open Settings to turn auto start off).
+    function onGesture(event: Event) {
+      // START itself was pressed meanwhile: nothing left to wait for.
+      if (sessionRef.current?.active || startingRef.current) return begin("started");
+      if (event instanceof KeyboardEvent && event.key !== "Enter" && event.key !== " ") return;
+      const target = event.target instanceof Element ? event.target : null;
+      if (target?.closest("button, a, input, select, textarea, [role='dialog'], [data-lalala-settings]"))
+        return;
+      begin("tap");
+    }
+    if (probe.state === "running") begin("allowed");
+    else {
+      setTapToStart(true);
+      probe.onstatechange = () => probe.state === "running" && begin("allowed");
+      for (const type of events) document.addEventListener(type, onGesture, true);
+    }
     return () => {
-      // Still waiting (auto start turned off, or the host re-rendered): the next run arms it again.
-      for (const type of events) document.removeEventListener(type, onTap, true);
-      autoStartedRef.current = false;
+      // Auto start turned off (or the host left) while it waited: nothing starts.
+      waiting = false;
+      for (const type of events) document.removeEventListener(type, onGesture, true);
+      void probe.close();
       setTapToStart(false);
     };
   }, [autoStart, autoStartPicked, config]);

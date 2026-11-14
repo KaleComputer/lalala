@@ -582,9 +582,7 @@ function RoomNote({ note, compacting }: { readonly note: Note; readonly compacti
           Tap to resume mic
         </b>
       ) : note.kind === "tap" ? (
-        <b data-lalala-plate="" aria-label="Auto start is on: tap anywhere to start the call.">
-          Tap anywhere to start
-        </b>
+        <b data-lalala-plate="">Tap anywhere to start the call</b>
       ) : note.kind === "loading" ? (
         // The models set up from this device (a download shows its bytes instead): one white plate.
         <b data-lalala-plate="white">

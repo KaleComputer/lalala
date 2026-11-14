@@ -207,11 +207,16 @@ export const setAutoStartCall = (on: boolean) => write(AUTO_START_KEY, on ? "on"
  */
 const AUTO_RETRY_KEY = "lalala:auto-retry";
 export const DEFAULT_AUTO_RETRY_SECONDS = 5;
+export const AUTO_RETRY_CHOICES = [5, 15, 60] as const;
+/** The interval in seconds, the nearest of the choices (a hand-set value too), or null when off. */
 export function autoRetrySeconds(): number | null {
   const stored = read(AUTO_RETRY_KEY);
   if (stored === "off") return null;
   const seconds = Number(stored);
-  return stored !== null && Number.isFinite(seconds) && seconds > 0 ? seconds : DEFAULT_AUTO_RETRY_SECONDS;
+  if (stored === null || !Number.isFinite(seconds) || seconds <= 0) return DEFAULT_AUTO_RETRY_SECONDS;
+  return AUTO_RETRY_CHOICES.reduce((best, every) =>
+    Math.abs(every - seconds) < Math.abs(best - seconds) ? every : best,
+  );
 }
 export const setAutoRetrySeconds = (seconds: number | null) =>
   write(

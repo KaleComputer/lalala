@@ -19,7 +19,7 @@ type Reply =
   | { type: "error"; id: number; message: string };
 
 const MODEL_FAILED = "The voice models didn't load.";
-export const NEEDS_WEBGPU = "Speech-to-text needs WebGPU";
+export const NEEDS_WEBGPU = "needs WebGPU";
 
 // A model that was loading when the page ended without a pagehide took the tab down with it (iOS
 // ends a tab over its memory limit): logged as speech.died on the next load, nothing else changes.
@@ -131,7 +131,7 @@ function modelWorker(
   const scheduleRetry = () => {
     cancelRetry();
     const every = autoRetrySeconds();
-    if (!failed || every === null || failure?.startsWith(NEEDS_WEBGPU)) return;
+    if (!failed || every === null || failure?.includes(NEEDS_WEBGPU)) return;
     retryAt = Date.now() + every * 1000;
     retryTimer = window.setTimeout(() => {
       retryTimer = 0;
@@ -146,7 +146,7 @@ function modelWorker(
     failed = true;
     retries += 1;
     // A browser without what the model needs says so; anything else is the general line.
-    failure = cause.includes(NEEDS_WEBGPU) ? cause.slice(cause.indexOf(NEEDS_WEBGPU)) : MODEL_FAILED;
+    failure = cause.includes(NEEDS_WEBGPU) ? cause.slice(cause.lastIndexOf(":") + 1).trim() : MODEL_FAILED;
     markFailed(new Error(failure));
     scheduleRetry();
     notify();
@@ -360,6 +360,8 @@ document.addEventListener("lalala:settings", () => {
   if (autoRetrySeconds() !== retryEvery) {
     retryEvery = autoRetrySeconds();
     for (const model of [ears, voice, matcha]) model.scheduleRetry();
+    // A computer that isn't answering is asked again at the new interval (or not at all when off).
+    if (computerState === "down") setComputer("down");
     notify();
   }
   if (sttModel() !== earsModel) {
@@ -641,7 +643,9 @@ export type ComputerSpeech = "ready" | "loading" | "down" | "absent";
 export async function checkComputerSpeech(): Promise<ComputerSpeech> {
   try {
     const response = await fetch("/__lalala/local/health", { signal: AbortSignal.timeout(4_000) });
-    if (!response.ok || !response.headers.get("content-type")?.includes("json")) return "absent";
+    // No route here (lalala.talk answers with its own page or a 404): out of reach for good.
+    if (!response.headers.get("content-type")?.includes("json")) return "absent";
+    if (!response.ok) return "down";
     const body = (await response.json()) as { ready?: unknown; down?: unknown };
     return body.ready === true ? "ready" : body.down === true ? "down" : "loading";
   } catch {
