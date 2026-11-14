@@ -424,9 +424,33 @@
 }
 @media (prefers-reduced-motion: reduce) {
   [data-lalala-settings-trying]::after {
+    width: 100%;
     animation: none;
-    transform: translateX(75%);
+    opacity: 0.5;
   }
+}
+/* A download's progress: the same thin track, filled by scale (no repaint). */
+[data-lalala-settings-meter] {
+  position: relative;
+  display: block;
+  width: min(12rem, 100%);
+  height: 2px;
+  margin-top: 6px;
+  overflow: hidden;
+  border-radius: 1px;
+  background: var(--s-divider);
+}
+[data-lalala-settings-meter]::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: var(--s-primary);
+  transform: scaleX(var(--done, 0));
+  transform-origin: left;
+}
+[data-lalala-settings-now] {
+  color: var(--s-fg);
+  font-weight: 500;
 }
 [data-lalala-settings-progress] {
   display: block;
@@ -992,6 +1016,9 @@
 [data-lalala-pair-terminal][open] > summary {
   margin-bottom: 8px;
 }
+[data-lalala-pair-or][data-wrong] {
+  color: var(--s-warn);
+}
 [data-lalala-pair-or] {
   margin: 0;
   color: var(--s-fg-2);
@@ -1022,7 +1049,7 @@
 }
 [data-lalala-pair-privacy] {
   margin: 0;
-  padding: 0 var(--s-inset) 12px;
+  padding: 10px var(--s-inset) 12px;
   color: var(--s-fg-2);
   font-size: 11px;
   line-height: 1.5;
@@ -1072,7 +1099,7 @@
 /* A picture of T3 Code's switches: framed, a little faded, never tappable. */
 [data-lalala-t3-switches] {
   pointer-events: none;
-  opacity: 0.85;
+  opacity: 0.7;
   display: grid;
   gap: 0;
   max-width: 20rem;

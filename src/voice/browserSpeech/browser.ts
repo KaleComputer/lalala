@@ -337,8 +337,8 @@ function modelWorker(
 const ears = modelWorker(
   "parakeet",
   () => new Worker(new URL("./parakeet.worker.ts", import.meta.url), { type: "module" }),
-  // With the computer picked, the browser only hears while the computer isn't ready: the lightest.
-  () => ({ model: sttModel() === "computer" ? "110m" : sttModel() }),
+  // While the computer is wanted (by hand or by Automatic), the browser only stands in: the lightest.
+  () => ({ model: sttModel() === "computer" || wantsComputer.stt() ? "110m" : sttModel() }),
 );
 const kokoroBuild = () => {
   const picked = replyVoice();
@@ -473,10 +473,8 @@ function fitModels() {
     else ears.releaseWhenIdle();
   }
   if (wantsComputer.voice()) {
-    if (standingIn()) {
-      if (replyVoice() === "computer") startMatcha();
-      else prewarmVoice();
-    } else {
+    if (standingIn()) startMatcha();
+    else {
       voice.releaseWhenIdle();
       matcha.releaseWhenIdle();
     }
@@ -502,6 +500,13 @@ function setComputer(state: ComputerSpeech) {
   if (changed) {
     voiceLog("system", "speech.computer", { state });
     notify();
+  }
+  // Out of reach for good (lalala.talk): Automatic's browser models replace the light stand-ins.
+  if (changed && state === "absent" && speechPrewarmed) {
+    if (automatic.stt()) ears.releaseWhenIdle();
+    if (automatic.voice()) matcha.releaseWhenIdle();
+    startEars();
+    prewarmVoice();
   }
   if (speechPrewarmed) fitModels();
 }
@@ -559,15 +564,15 @@ function wavOf(pcm: Float32Array): Blob {
 
 /** Parakeet loads (once per call) so the first utterance does not wait for it. */
 export const startEars = () => {
-  if (earsOff || onComputer.stt() || (sttModel() === "computer" && computerState === "checking"))
-    return;
+  // Before the computer has answered once, wait: it decides between the stand-in and the real model.
+  if (earsOff || onComputer.stt() || (wantsComputer.stt() && computerState === "checking")) return;
   persistDownloads();
   ears.start();
 };
 export const releaseEars = () => ears.releaseWhenIdle();
 /** Kokoro loads with the call while it is the reply voice; another reply voice frees it. */
 export const startKokoro = () => {
-  if (!voiceOff && replyVoice().startsWith("kokoro") && !onComputer.voice()) voice.start();
+  if (!voiceOff && replyVoice().startsWith("kokoro") && !wantsComputer.voice()) voice.start();
 };
 export const releaseKokoro = () => voice.releaseWhenIdle();
 /** The same for Kale's Matcha voice. */
@@ -576,7 +581,7 @@ export const startMatcha = () => {
 };
 export const releaseMatcha = () => {
   // Standing in for the computer, Matcha speaks: the call's player can't free it then.
-  if (!(replyVoice() === "computer" && standingIn())) matcha.releaseWhenIdle();
+  if (!(wantsComputer.voice() && standingIn())) matcha.releaseWhenIdle();
 };
 
 /** 16 kHz PCM, transcribed by Parakeet. The buffer moves to its worker. */
@@ -658,8 +663,8 @@ export async function kokoroSpeak(text: string): Promise<Float32Array<ArrayBuffe
     const samples = await computerSpeak(plain());
     if (samples !== null) return samples;
   }
-  // Standing in for the computer, the lightest voice speaks: Matcha.
-  if (replyVoice() === "computer") return (await matchaSpeak(plain())).samples;
+  // Standing in for the computer (picked or Automatic's aim), the lightest voice speaks: Matcha.
+  if (wantsComputer.voice()) return (await matchaSpeak(plain())).samples;
   const browserAt = performance.now();
   const reply = await voice.ask({ type: "speak", text });
   if (reply.type !== "audio") throw new Error("Kokoro returned no audio");
@@ -672,8 +677,8 @@ export async function matchaSpeak(
   text: string,
 ): Promise<{ samples: Float32Array<ArrayBuffer>; timing: Record<string, number> }> {
   if (voiceOff) return { samples: new Float32Array(0), timing: {} };
-  // Automatic on a phone: the computer's Kokoro speaks when it is the faster path here.
-  if (onComputer.voice() && replyVoice() !== "computer") {
+  // Automatic choosing the computer: its Kokoro speaks (a phone's automatic voice is Matcha).
+  if (onComputer.voice()) {
     const samples = await computerSpeak(text.replace(/\[([^\]]+)\]\(\/[^)]*\/\)/g, "$1"));
     if (samples !== null) return { samples, timing: {} };
   }

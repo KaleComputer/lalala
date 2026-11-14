@@ -26,13 +26,23 @@ const SPEECH_LOG = NodePath.join(
 );
 const STARTING_MS = 120_000;
 let startedAt = 0;
+let failureShown = false;
+/**
+ * Starts the service unless a start is still within its window. A window that ran out without it
+ * answering is reported once (false: the page shows why), and the next ask starts it again: the page
+ * never stops asking, at its own backoff.
+ */
 function startSpeech(force: boolean): boolean {
   const now = Date.now();
-  if (force || now - startedAt >= STARTING_MS) {
-    startedAt = now;
-    NodeChildProcess.spawn(SPEECH_SCRIPT, ["start"], { detached: true, stdio: "ignore" }).unref();
+  if (!force && startedAt > 0 && now - startedAt < STARTING_MS) return true;
+  if (!force && startedAt > 0 && !failureShown) {
+    failureShown = true;
+    return false;
   }
-  return Date.now() - startedAt < STARTING_MS;
+  failureShown = false;
+  startedAt = now;
+  NodeChildProcess.spawn(SPEECH_SCRIPT, ["start"], { detached: true, stdio: "ignore" }).unref();
+  return true;
 }
 /** Why the service didn't come up: the last line its log says it failed with, if any. */
 function speechFailure(): string {

@@ -69,7 +69,7 @@ export function PairSteps(props: {
     const value = input.trim();
     if (value === "" || busy) return;
     if (ask) ask.onAddress(value);
-    else props.onPair(value, path === "other" && connectAddress.trim() !== "" ? connectAddress.trim() : undefined);
+    else props.onPair(value, path === "other" && connectCommand !== null ? connectAddress.trim() : undefined);
   };
   const value = ask ? (address ?? ask.address) : link;
   const setValue = ask ? setAddress : setLink;
@@ -88,6 +88,7 @@ export function PairSteps(props: {
       ? props.connectCommand.replace("<your T3 Connect address>", host)
       : null;
   const phone = isPhone();
+  const addressWrong = host !== "" && connectCommand === null;
 
   const field = (placeholder: string, label: string) => (
     <div data-lalala-pair-field="" data-failed={props.problem ? "" : undefined}>
@@ -199,7 +200,7 @@ export function PairSteps(props: {
               {ask
                 ? `${phone ? "Your phone" : "This browser"} can't reach T3 Code's local address. Paste your T3 Connect address instead.`
                 : remote
-                  ? "Steps 1 and 3 happen in T3 Code on your computer; the pasting happens here."
+                  ? "Do steps 1 to 3 in T3 Code on your computer, send the address and the link to this phone (a message to yourself works) and paste them here."
                   : "Pair once; lalala remembers it on this device."}
             </p>
           </div>
@@ -234,10 +235,10 @@ export function PairSteps(props: {
           <>
             <Step n={1} title="Turn these on in T3 Code">
               <T3Path steps={["Settings", "Sharing & access"]} />
-              <p data-lalala-pair-or="">Like this, both on (T3 Connect asks you to sign in first):</p>
+              <p data-lalala-pair-or="">Both on, like this. T3 Connect asks you to sign in first.</p>
               <T3Switches names={["T3 Connect", "Network access"]} />
             </Step>
-            <Step n={2} title="Paste your T3 Connect address">
+            <Step n={2} title="Paste your T3 Connect address (the MCP URL)">
               <T3Path steps={["Settings", "Environments", "⋯", "Copy MCP URL"]} />
               <div data-lalala-pair-field="" data-plain="">
                 <input
@@ -252,8 +253,15 @@ export function PairSteps(props: {
                   value={connectAddress}
                   disabled={busy}
                   onChange={(event) => setConnectAddress(event.currentTarget.value)}
+                  aria-invalid={addressWrong || undefined}
+                  aria-describedby={`${choiceId}a`}
                 />
               </div>
+              <p id={`${choiceId}a`} data-lalala-pair-or="" data-wrong={addressWrong ? "" : undefined}>
+                {addressWrong
+                  ? "That isn't a T3 Connect address; copy the MCP URL again."
+                  : "lalala pairs through this address."}
+              </p>
             </Step>
             <Step n={3} title="Create a pairing link in T3 Code">
               <T3Path steps={["Settings", "Sharing & access", "Create link"]} />
@@ -261,11 +269,11 @@ export function PairSteps(props: {
                 <summary>Use a terminal instead</summary>
                 {command(
                   connectCommand,
-                  host === "" ? "Paste your address in step 2 first." : "That address isn't right; copy the MCP URL again.",
+                  "Paste your address in step 2 first.",
                 )}
               </details>
             </Step>
-            <Step n={4} title={phone ? "Paste the link or code here" : "Paste the link or code"}>
+            <Step n={4} title="Paste the link or code">
               {field("Paste link or code", "Pairing link or code")}
             </Step>
           </>
@@ -343,7 +351,14 @@ function T3Path(props: { readonly steps: ReadonlyArray<string> }) {
       {/* A chip keeps the › after it, so a wrapped line never starts with one. */}
       {props.steps.map((step, index) => (
         <span key={step}>
-          <b>{step}</b>
+          {step === "⋯" ? (
+            <b>
+              <span aria-hidden="true">⋯</span>
+              <span data-lalala-settings-sr="">the menu next to your computer's name</span>
+            </b>
+          ) : (
+            <b>{step}</b>
+          )}
           {index < props.steps.length - 1 ? <i aria-hidden="true">›</i> : null}
         </span>
       ))}
