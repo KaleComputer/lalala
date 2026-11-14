@@ -23,7 +23,7 @@ export function afterCanvasShown(then: () => void): () => void {
   const run = () => {
     if (cancelled) return;
     idle =
-      "requestIdleCallback" in window
+      typeof requestIdleCallback === "function"
         ? requestIdleCallback(then, { timeout: 2_000 })
         : window.setTimeout(then, 200);
   };
@@ -32,7 +32,7 @@ export function afterCanvasShown(then: () => void): () => void {
   return () => {
     cancelled = true;
     waiting.delete(run);
-    if ("cancelIdleCallback" in window) cancelIdleCallback(idle);
+    if (typeof cancelIdleCallback === "function") cancelIdleCallback(idle);
     window.clearTimeout(idle);
   };
 }
