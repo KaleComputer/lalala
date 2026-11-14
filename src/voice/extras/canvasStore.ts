@@ -360,6 +360,28 @@ function pickDrawn() {
 const measured = () => surface.view.w > 0 && surface.view.h > 0;
 /** Whether a card's content is drawn; every card is until the surface is measured. */
 export const isDrawn = (id: string) => !measured() || drawn.has(id);
+/** Whether a card is near the screen now: its content loads then (CanvasCard), not before. */
+export const isNear = (id: string) => measured() && drawn.has(id);
+
+/** Cards whose content has rendered once (CanvasCard), by box key. */
+const loaded = new Set<string>();
+export function setLoaded(id: string, done: boolean) {
+  if (loaded.has(id) === done) return;
+  if (done) loaded.add(id);
+  else loaded.delete(id);
+  changed();
+}
+/**
+ * The cards near the screen whose content hasn't arrived, and how many are near (the bar's map
+ * says it); null once there is nothing to wait for. Waiting too while the layout isn't in.
+ */
+export function canvasLoading(): { readonly waiting: number; readonly near: number } | null {
+  if (!layoutReady || !measured() || unplaced.size > 0) return { waiting: 0, near: 0 };
+  let waiting = 0;
+  for (const id of drawn) if (!loaded.has(id)) waiting += 1;
+  return waiting === 0 ? null : { waiting, near: drawn.size };
+}
+
 /** Whether a drawn card has its own layer (and a scrolling body) or is painted flat. */
 export const isLayered = (id: string) => !measured() || layered.has(id);
 

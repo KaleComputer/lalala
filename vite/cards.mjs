@@ -22,9 +22,70 @@ const inside = (dir, file) => {
   return relative !== "" && !relative.startsWith("..") && !NodePath.isAbsolute(relative);
 };
 
+const CODE = ["", ".tsx", ".ts", ".jsx", ".js", "/index.tsx", "/index.ts", "/index.jsx", "/index.js"];
+const IMPORT = /^import\s+(?!type\b)(?:(\w+)\s*,?\s*)?(?:\{([^}]*)\})?\s*from\s*(["'])(\.[^"']+)\3;?[ \t]*$/gm;
+
+/**
+ * The entry's card components as lazy ones (extras/lazyCard.tsx): `import { Board } from "./Board"`
+ * becomes a fetch of ./Board the first time a card shows a <Board />. Only imports of the cards
+ * folder's own files whose every binding is used just as a JSX tag; anything else stays as written.
+ */
+export function lazyCardImports(code, dir, from, lazyCardFile) {
+  const ownFile = (spec) => {
+    const base = NodePath.resolve(NodePath.dirname(from), spec);
+    return inside(dir, base) && CODE.some((ext) => NodeFS.statSync(base + ext, { throwIfNoEntry: false })?.isFile());
+  };
+  const body = code.replace(IMPORT, "");
+  const tagOnly = (name) =>
+    /^[A-Z]/.test(name) &&
+    new RegExp(`<${name}[\\s/>]`).test(body) &&
+    !new RegExp(`(?<![<\\w$.])${name}(?![\\w$])`).test(body.replace(new RegExp(`</?${name}(?![\\w$])`, "g"), ""));
+  let count = 0;
+  const out = code.replace(IMPORT, (statement, fallback, named, _q, spec) => {
+    if (!ownFile(spec)) return statement;
+    const bindings = [
+      ...(fallback ? [{ imported: "default", local: fallback }] : []),
+      ...(named ?? "")
+        .split(",")
+        .map((part) => part.trim())
+        .filter((part) => part && !part.startsWith("type "))
+        .map((part) => {
+          const [imported, local = imported] = part.split(/\s+as\s+/);
+          return { imported, local };
+        }),
+    ];
+    if (bindings.length === 0 || !bindings.every((binding) => tagOnly(binding.local))) return statement;
+    const load = `__lalalaCard${count++}`;
+    return [
+      `const ${load} = () => import(${JSON.stringify(spec)});`,
+      ...bindings.map(
+        ({ imported, local }) => `const ${local} = __lalalaLazyCard(${load}, ${JSON.stringify(imported)});`,
+      ),
+    ].join(" ");
+  });
+  return count === 0
+    ? null
+    : `import { lazyCard as __lalalaLazyCard } from ${JSON.stringify(lazyCardFile)};\n${out}`;
+}
+
 export function cardsPlugin({ dir, extrasDir }) {
   let entry = entryOf(dir);
-  return {
+  const lazyCards = {
+    name: "lalala-cards-lazy",
+    // Before the JSX transform, which would hide the tags.
+    enforce: "pre",
+    transform(code, id) {
+      const file = id.split("?")[0];
+      if (!inside(dir, file)) return null;
+      // Vite makes `new URL(`./${name}`, import.meta.url)` an eager glob of every file in the
+      // folder, one request each (thousands here): the card resolves it when it runs instead.
+      const out = code.replace(/\bnew\s+URL\s*\(\s*(?=`[^`]*\$\{)/g, "$&/* @vite-ignore */ ");
+      const lazy =
+        file === entry ? lazyCardImports(out, dir, entry, NodePath.join(extrasDir, "lazyCard.tsx")) : null;
+      return lazy !== null ? { code: lazy, map: null } : out !== code ? { code: out, map: null } : null;
+    },
+  };
+  return [lazyCards, {
     name: "lalala-cards",
     config: () => ({
       server: { fs: { allow: [NodePath.resolve(import.meta.dirname, ".."), dir] } },
@@ -77,7 +138,7 @@ export function cardsPlugin({ dir, extrasDir }) {
       server.watcher.on("add", recheck);
       server.watcher.on("unlink", recheck);
     },
-  };
+  }];
 }
 
 /** The cards folder's own dev-server routes, `cards/server/*.mjs`; none when it has no such folder. */

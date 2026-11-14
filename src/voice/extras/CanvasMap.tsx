@@ -1,7 +1,9 @@
 import { useEffect } from "react";
 import {
   type Rect,
+  canvasLoading,
   getCamera,
+  getCanvases,
   getCards,
   getView,
   isMounted,
@@ -137,8 +139,29 @@ function drawInto(slot: HTMLElement) {
     draw();
   };
 
-  draw();
-  const unsubscribe = subscribe(draw);
+  // The first load of each canvas, said over the map (voiceBar.css); a card that loads later as the
+  // view moves only shows its own placeholder.
+  const loadedCanvases = new Set<string>();
+  const say = () => {
+    const { active } = getCanvases();
+    const loading = loadedCanvases.has(active) ? null : canvasLoading();
+    if (loading === null) {
+      if (active !== "") loadedCanvases.add(active);
+      delete slot.dataset.loading;
+      slot.removeAttribute("aria-busy");
+    } else {
+      slot.dataset.loading =
+        loading.near > 0 ? `${loading.near - loading.waiting}/${loading.near}` : "";
+      slot.setAttribute("aria-busy", "true");
+    }
+  };
+
+  const update = () => {
+    say();
+    draw();
+  };
+  update();
+  const unsubscribe = subscribe(update);
   // oxlint-disable-next-line t3code/no-raw-resize-observer -- extras import only React and this folder; this writes no React state
   const resize = new ResizeObserver(draw);
   resize.observe(canvas);
@@ -152,5 +175,6 @@ function drawInto(slot: HTMLElement) {
     unsubscribe();
     resize.disconnect();
     canvas.remove();
+    delete slot.dataset.loading;
   };
 }

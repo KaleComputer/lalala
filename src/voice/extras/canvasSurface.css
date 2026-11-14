@@ -175,6 +175,15 @@
   font: inherit;
   cursor: pointer;
 }
+/* A card whose content is on its way (CanvasCard): still, no motion. */
+[data-lalala-card-loading] {
+  padding: 4px 0;
+  color: var(--lala-ink);
+  opacity: 0.5;
+  font: 600 10px / 1 var(--lala-font-mono);
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
 /* Only a selected card (a tap picks it, CanvasSurface) shows and takes its resize corner. */
 [data-lalala-card]:not([data-lalala-card-selected]) > [data-lalala-card-resize] {
   display: none;

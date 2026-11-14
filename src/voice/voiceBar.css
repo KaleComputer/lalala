@@ -321,6 +321,25 @@
   width: 1px;
   background: var(--fe);
 }
+/* The canvas still loading (extras/CanvasMap; the bar sets it until the canvas's code arrives):
+   said in the map square, over the map dimmed. Still text, gone once the cards near the view are in. */
+[data-lalala-presence] .fr-map[data-loading] > canvas {
+  opacity: 0.35;
+}
+[data-lalala-presence] .fr-map[data-loading]::after {
+  content: "Loading\A canvas\A" attr(data-loading);
+  white-space: pre;
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-content: center;
+  text-align: center;
+  color: var(--lala-accent, #3dff8f);
+  font: 400 calc(var(--tab-fs, 10px) - 2px) / 1.3 var(--font-mono);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  pointer-events: none;
+}
 [data-lalala-dock]:not([data-lalala-canvas]) .fr-map {
   display: none;
 }

@@ -1,6 +1,7 @@
 import {
   Component,
   type ReactNode,
+  Suspense,
   useLayoutEffect,
   useRef,
   useState,
@@ -19,8 +20,10 @@ import {
   homeOf,
   isDrawn,
   isLayered,
+  isNear,
   mountCard,
   scrollTops,
+  setLoaded,
   subscribe,
   subscribeCanvases,
 } from "./canvasStore";
@@ -65,7 +68,7 @@ const style = (rect: Rect | undefined) => {
 
 /** A card that throws shows that in its own box; the rest of the canvas and the call carry on. */
 class CardBoundary extends Component<
-  { readonly card: string; readonly children: ReactNode },
+  { readonly card: string; readonly box: string; readonly children: ReactNode },
   { readonly error: string | null }
 > {
   override state = { error: null as string | null };
@@ -83,6 +86,8 @@ class CardBoundary extends Component<
     if (this.state.error === null) return this.props.children;
     return (
       <div data-lalala-card-error="">
+        {/* As far as loading goes, it's in. */}
+        <Loaded card={this.props.box} />
         <b>This card stopped working.</b>
         <code>{this.state.error}</code>
         <button type="button" onClick={() => this.setState({ error: null })}>
@@ -92,6 +97,20 @@ class CardBoundary extends Component<
     );
   }
 }
+
+/** Rendered once everything before it in the card's Suspense has: the card's content is in. */
+function Loaded(props: { readonly card: string }) {
+  const { card } = props;
+  // oxlint-disable-next-line t3code/no-unreasoned-state-sync -- tells canvasStore (outside React) the card's content arrived, for the bar's loading readout
+  useLayoutEffect(() => {
+    setLoaded(card, true);
+    return () => setLoaded(card, false);
+  }, [card]);
+  return null;
+}
+
+/** A card whose content is still on its way: its frame and title, and this. */
+const loading = <div data-lalala-card-loading="">Loading</div>;
 
 declare global {
   var __lalalaOpenThread: ((threadId: string) => void) | undefined;
@@ -120,6 +139,8 @@ export function CanvasCard(props: {
   declareCard(id, canvas, title, group);
   // Only the first place counts; after that the card is wherever it was put.
   const [at] = useState(props.at);
+  // Its content renders (and its code loads) once the card first comes near the screen.
+  const [near, setNear] = useState(false);
   const { active, list } = useSyncExternalStore(subscribeCanvases, getCanvases);
   const shown = active !== "" && homeOf(canvas, list) === active;
   const key = boxKey(active, id);
@@ -145,6 +166,7 @@ export function CanvasCard(props: {
       if (card === null) return;
       const rect = getCards()[key];
       const camera = getCamera();
+      if (isNear(key)) setNear(true);
       if (rect !== last || camera !== lastCamera) {
         last = rect;
         lastCamera = camera;
@@ -222,7 +244,16 @@ export function CanvasCard(props: {
             scrollTops[key] = event.currentTarget.scrollTop;
         }}
       >
-        <CardBoundary card={id}>{props.children}</CardBoundary>
+        <CardBoundary card={id} box={key}>
+          {near ? (
+            <Suspense fallback={loading}>
+              {props.children}
+              <Loaded card={key} />
+            </Suspense>
+          ) : (
+            loading
+          )}
+        </CardBoundary>
       </div>
       <span data-lalala-card-resize="" aria-hidden />
     </section>

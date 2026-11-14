@@ -298,6 +298,8 @@ export function VoiceBar(props: {
     const map = document.createElement("div");
     map.className = "fr-map";
     map.dataset.lalalaMap = "";
+    // Until the canvas's code arrives and says otherwise (CanvasMap); a preview has no canvas to wait for.
+    if (!previewing()) map.dataset.loading = "";
     (frameEl.querySelector(".fr-in") ?? frameEl).append(map);
     setMicHost(root.querySelector<HTMLElement>(".lalala-mic-slot"));
     setCanvasHost(root.querySelector<HTMLElement>(".lalala-canvas-slot"));
