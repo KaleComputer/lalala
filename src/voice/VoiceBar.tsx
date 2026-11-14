@@ -208,7 +208,8 @@ export function VoiceBar(props: {
       : props.models
         ? props.models.length > 0
           ? { kind: "models", models: props.models }
-          : { kind: "connecting", text: "Loading voice" }
+          : // Downloads show their bytes above; this is setup from files already on the device.
+            { kind: "connecting", text: "Setting up voice · no download" }
         : props.paused
           ? { kind: "paused" }
           : topicMs > 0
