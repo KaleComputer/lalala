@@ -1,6 +1,6 @@
 /**
  * What differs between the lalala app and lalala.talk, picked once at startup: everything else
- * (canvas, cards, bar, settings, the call) is the same code. The app installs the server adapters
+ * (canvas, cards, bar, settings, the call and its in-browser speech) is the same code. The app installs the server adapters
  * (main.tsx), the site the browser ones (site/app/canvas/adapters.ts), before the canvas loads.
  * On a global, because the canvas's extras bundle may import only React and its own folder.
  */
@@ -17,31 +17,6 @@ export type StorageAdapter = {
   readonly shared: boolean;
   read(doc: SharedDoc): Promise<unknown>;
   write(doc: SharedDoc, body: unknown, options?: { readonly leaving?: boolean }): Promise<unknown>;
-};
-
-/**
- * Speech in and out. The app's runs on the local speech service (Parakeet and Kokoro on MLX), the
- * site's in the browser (Parakeet and Kokoro on ONNX, WebGPU or WASM).
- */
-export type SpeechAdapter = {
-  /** One listening session: 16 kHz PCM goes in while the user talks, each commit is an utterance. */
-  listen(): Promise<{
-    send(pcm: Int16Array): void;
-    commit(): Promise<string>;
-    close(): void;
-  }>;
-  /** One sentence as 24 kHz PCM, streamed in pieces as it renders. */
-  speak(text: string, signal: AbortSignal): AsyncIterable<Float32Array>;
-  /** The models this call loads, for the bar's download readout; null once all are ready. */
-  progress?(): ReadonlyArray<ModelProgress> | null;
-};
-
-/** One model a call downloads: its bytes so far against its size, `done` once all are here. */
-export type ModelProgress = {
-  readonly name: string;
-  readonly loaded: number;
-  readonly total: number;
-  readonly done: boolean;
 };
 
 /** The coding harness (T3 Code) the voice works through. */
@@ -62,13 +37,18 @@ export type HarnessAdapter = {
 
 export type Adapters = {
   readonly storage: StorageAdapter;
-  readonly speech?: SpeechAdapter;
+  /** The app's way to the brain's card files (its server reads the cards folder); the site's is the harness's. */
+  readonly readFile?: (relativePath: string) => Promise<string | null>;
   readonly harness?: HarnessAdapter;
 };
 
 declare global {
   var __lalalaAdapters: Adapters | undefined;
 }
+
+/** How this host reads a card file the brain wrote (`cards/<id>.html`), if it can. */
+export const brainFileReader = () =>
+  globalThis.__lalalaAdapters?.harness?.readFile ?? globalThis.__lalalaAdapters?.readFile;
 
 export function installAdapters(adapters: Adapters) {
   globalThis.__lalalaAdapters = adapters;

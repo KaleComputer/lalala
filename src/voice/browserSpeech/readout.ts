@@ -1,7 +1,13 @@
 /** Messages a speech worker sends about its model. */
 export type LoadMessage =
-  | { readonly type: "load"; readonly name: string; readonly expected: number; readonly cached: boolean }
+  | {
+      readonly type: "load";
+      readonly name: string;
+      readonly expected: number;
+      readonly cached: boolean;
+    }
   | { readonly type: "progress"; readonly loaded: number; readonly total: number }
+  | { readonly type: "stage"; readonly stage: string; readonly [detail: string]: unknown }
   | { readonly type: "ready" }
   | { readonly type: "failed"; readonly message: string };
 
@@ -9,7 +15,8 @@ export type LoadMessage =
 export function trackFiles(onBytes: (loaded: number, total: number) => void) {
   const files = new Map<string, { loaded: number; total: number }>();
   return (info: { status?: string; file?: string; loaded?: number; total?: number }) => {
-    if ((info.status !== undefined && info.status !== "progress") || !info.file || !info.total) return;
+    if ((info.status !== undefined && info.status !== "progress") || !info.file || !info.total)
+      return;
     files.set(info.file, { loaded: info.loaded ?? 0, total: info.total });
     let loaded = 0;
     let total = 0;

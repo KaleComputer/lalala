@@ -37,6 +37,7 @@ const DEFAULTS: SyncedSettings = {
 
 const SYNCED_KEY = "lalala:settings";
 const MIC_KEY = "lalala:mic";
+const REPLY_VOICE_KEY = "lalala:reply-voice";
 const EVENT = "lalala:settings";
 const storage = () => {
   const adapter = globalThis.__lalalaAdapters?.storage;
@@ -133,9 +134,31 @@ export function setMicDeviceId(id: string | null) {
   document.dispatchEvent(new Event(EVENT));
 }
 
+/**
+ * Who speaks the replies on this device, in this browser: Kokoro (browserSpeech/, the default), or a
+ * voice the user's cards registered (replyVoices.ts) by its id.
+ */
+export function replyVoice(): string {
+  try {
+    return localStorage.getItem(REPLY_VOICE_KEY) ?? "kokoro";
+  } catch {
+    return "kokoro";
+  }
+}
+
+export function setReplyVoice(voice: string) {
+  try {
+    if (voice === "kokoro") localStorage.removeItem(REPLY_VOICE_KEY);
+    else localStorage.setItem(REPLY_VOICE_KEY, voice);
+  } catch {
+    // No storage: Kokoro.
+  }
+  document.dispatchEvent(new Event(EVENT));
+}
+
 export const subscribeSettings = (listener: () => void) => {
   const onStorage = (event: StorageEvent) => {
-    if (event.key !== SYNCED_KEY && event.key !== MIC_KEY) return;
+    if (event.key !== SYNCED_KEY && event.key !== MIC_KEY && event.key !== REPLY_VOICE_KEY) return;
     synced = null;
     listener();
   };
@@ -151,6 +174,7 @@ export const useSyncedSettings = () =>
   useSyncExternalStore(subscribeSettings, syncedSettings, () => DEFAULTS);
 export const useMicDeviceId = () =>
   useSyncExternalStore(subscribeSettings, micDeviceId, () => null);
+export const useReplyVoice = () => useSyncExternalStore(subscribeSettings, replyVoice, () => "kokoro");
 
 /** For the brain's context tag: `default effort=high fastMode=false`. */
 export function delegatesTag(delegates = current().delegates): string {

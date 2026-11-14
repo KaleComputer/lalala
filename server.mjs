@@ -20,9 +20,11 @@ keepSessionFresh();
 
 const { createServer } = await import("vite");
 const { devVersionPlugin } = await import("./vite/devVersion.mjs");
+const { cardServerPlugins, cardsDir } = await import("./vite/cards.mjs");
+const brainRoot = process.env.LALALA_WORKSPACE_ROOT?.trim() || import.meta.dirname;
 const server = await createServer({
   configFile: new URL("./vite.config.mjs", import.meta.url).pathname,
-  plugins: [devVersionPlugin()],
+  plugins: [devVersionPlugin(), ...(await cardServerPlugins(cardsDir(brainRoot)))],
 });
 await server.listen();
 console.log(`lalala on http://127.0.0.1:${port}`);

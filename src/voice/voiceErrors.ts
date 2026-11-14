@@ -35,16 +35,6 @@ export async function readJson<T extends object>(response: Response): Promise<Pa
   }
 }
 
-/** A fetch to lalala; a network failure becomes `VoiceUnreachable`. */
-export async function fetchLalala(input: string, init?: RequestInit): Promise<Response> {
-  try {
-    return await fetch(input, init);
-  } catch (cause) {
-    if (init?.signal?.aborted) throw cause;
-    throw new VoiceUnreachable();
-  }
-}
-
 /** Words for the bar: our own and the server's messages as they are; what the browser itself threw
     (a TypeError, SyntaxError or DOMException) never. */
 export function voiceErrorText(cause: unknown): string {

@@ -1,4 +1,4 @@
-import { useLayoutEffect, useRef, useSyncExternalStore } from "react";
+import { useEffect, useLayoutEffect, useRef, useSyncExternalStore } from "react";
 
 import { CanvasCard } from "./CanvasCard";
 import "./brainCards.css";
@@ -139,6 +139,45 @@ function isolated(html: string, origin: string): string {
 }
 
 /**
+ * What a card's page may ask of the canvas, as `window.lalala` (posted messages; the card has no
+ * network or storage of its own): `data()` reads `cards/<id>.data.json` from the brain's folder (a
+ * helper there keeps it current), `log(what, data)` notes a pick in the session log for the brain.
+ */
+const BRIDGE =
+  `(function(){var n=0,w={};addEventListener("message",function(e){var d=e.data;` +
+  `if(e.source!==parent||!d||d.lalala!==1||!w[d.n])return;var p=w[d.n];delete w[d.n];` +
+  `d.error?p[1](new Error(d.error)):p[0](d.value)});function ask(t,a){return new Promise(function(ok,no){` +
+  `var k=++n;w[k]=[ok,no];parent.postMessage({lalala:1,n:k,type:t,arg:a},"*")})}` +
+  `window.lalala={data:function(){return ask("data")},log:function(what,data){` +
+  `parent.postMessage({lalala:1,type:"log",arg:{what:String(what),data:data===undefined?null:data}},"*")}}})();`;
+
+type BridgeMessage = {
+  readonly lalala: 1;
+  readonly n?: number;
+  readonly type: "data" | "log";
+  readonly arg?: { readonly what?: unknown; readonly data?: unknown };
+};
+
+function answer(frame: HTMLIFrameElement, id: string, message: BridgeMessage) {
+  if (message.type === "log") {
+    globalThis.__lalalaLog?.("system", "card.log", {
+      id,
+      what: String(message.arg?.what ?? ""),
+      data: message.arg?.data ?? null,
+    });
+    return;
+  }
+  const adapters = globalThis.__lalalaAdapters;
+  const read = adapters?.harness?.readFile ?? adapters?.readFile;
+  const reply = (body: { value?: unknown; error?: string }) =>
+    frame.contentWindow?.postMessage({ lalala: 1, n: message.n, ...body }, "*");
+  if (!read) return reply({ error: "this canvas can't read card data" });
+  read(`cards/${id}.data.json`)
+    .then((text) => reply({ value: text === null ? null : (JSON.parse(text) as unknown) }))
+    .catch((error: unknown) => reply({ error: String(error) }));
+}
+
+/**
  * The brain's HTML in the card's colours and font, which the iframe would not inherit. They win on
  * the root (cards often say `html{color:inherit}`, which would be the browser's black serif there).
  */
@@ -148,12 +187,23 @@ function page(html: string, look: CSSStyleDeclaration) {
     `<style>:root{color-scheme:${look.colorScheme || "normal"};color:${look.color} !important;` +
     `font-family:${look.fontFamily} !important;background:transparent !important;` +
     `font-size:${look.fontSize};line-height:1.4}body{margin:0}</style>` +
+    `<script>${BRIDGE}</script>` +
     (crossOriginIsolated ? isolated(html, location.origin) : html)
   );
 }
 
-function CardFrame(props: { readonly title: string; readonly html: string }) {
+function CardFrame(props: { readonly id: string; readonly title: string; readonly html: string }) {
   const ref = useRef<HTMLIFrameElement>(null);
+  // oxlint-disable-next-line t3code/no-unreasoned-state-sync -- answers the card page's window.lalala calls, which arrive as window messages
+  useEffect(() => {
+    const onMessage = (event: MessageEvent<BridgeMessage>) => {
+      const frame = ref.current;
+      if (!frame || event.source !== frame.contentWindow || event.data?.lalala !== 1) return;
+      answer(frame, props.id, event.data);
+    };
+    window.addEventListener("message", onMessage);
+    return () => window.removeEventListener("message", onMessage);
+  }, [props.id]);
   // oxlint-disable-next-line t3code/no-unreasoned-state-sync -- the iframe's document takes the card's computed colours, known only once it is in the DOM
   useLayoutEffect(() => {
     const frame = ref.current;
@@ -174,7 +224,7 @@ export function BrainCards() {
       onRemove={() => api.remove(id)}
       {...(card.canvas ? { canvas: card.canvas } : {})}
     >
-      <CardFrame title={card.title} html={card.html} />
+      <CardFrame id={id} title={card.title} html={card.html} />
     </CanvasCard>
   ));
 }

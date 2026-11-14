@@ -1,3 +1,4 @@
+import { speechLoading } from "./browserSpeech/browser";
 import { keepHmrAcrossDisconnects } from "./hmrReconnect";
 import { voiceLog } from "./voiceLog";
 
@@ -6,7 +7,7 @@ import { voiceLog } from "./voiceLog";
  * downloading counts too.
  */
 function callActive(): boolean {
-  if ((globalThis.__lalalaAdapters?.speech?.progress?.() ?? null) !== null) return true;
+  if (speechLoading()) return true;
   const bar = document.querySelector<HTMLElement>("[data-lalala-presence]");
   return (bar?.dataset.voiceState ?? "off") !== "off";
 }
@@ -27,9 +28,18 @@ export function voiceIdle(): boolean {
 
 // Modules that apply their own hot update without remounting the voice host.
 const LIVE = ["/src/voice/extras/", "/src/voice/extrasImages.ts", "/src/voice/voiceThemeSync.ts"];
+declare global {
+  /** Where the app serves the user's cards folder (vite/cards.mjs); they hot-update like extras/. */
+  var __lalalaCardsUrl: string | undefined;
+}
 const live = (path: string) => {
   const file = path.split("?")[0] ?? path;
-  return file.endsWith(".css") || LIVE.some((prefix) => file.startsWith(prefix));
+  const cards = globalThis.__lalalaCardsUrl;
+  return (
+    file.endsWith(".css") ||
+    LIVE.some((prefix) => file.startsWith(prefix)) ||
+    (cards !== undefined && file.startsWith(cards))
+  );
 };
 
 // Dev: a hot update outside extras/ remounts the voice host and a dev server restart reloads the

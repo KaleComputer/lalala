@@ -4,21 +4,34 @@
  * iOS can interrupt the context mid-reply, so it is resumed, cut pieces replay, and every end is
  * logged with its cause.
  */
-import type { SpeechEngine } from "./engine";
+import { kokoroSpeak, releaseKokoro, startKokoro } from "./browserSpeech/browser";
+import { replyVoicePlugin } from "./replyVoices";
+import { soundGain } from "./extras/soundVolume";
+import { withPronunciations } from "./pronunciations";
+import { voiceLog } from "./voiceLog";
+import { voiceErrorText } from "./voiceErrors";
 import {
   BUILT_IN_TOPIC_SOUND,
+  replyVoice,
   subscribeSettings,
   syncedSettings,
   topicSoundUrl,
 } from "./settingsStore";
-import { soundGain } from "./extras/soundVolume";
-import { withPronunciations } from "./pronunciations";
-import { voiceLog } from "./voiceLog";
-import { fetchLalala, isGatewayStatus, readJson, voiceErrorText, VoiceUnreachable } from "./voiceErrors";
 
 const TTS_SAMPLE_RATE = 24_000;
+const FIRST_CHUNK_SAMPLES = 1_200; // 50 ms: start quickly
+const CHUNK_SAMPLES = 4_800; // then 200 ms pieces
+const SCHEDULE_AHEAD_S = 0.03;
+// A piece that ends this much before its scheduled end was cut short (not by us).
+const EARLY_END_S = 0.06;
+// Give up on a context that will not run again after this long (then the reply ends, logged).
+// Counted only while the page is visible: a reply cut by the phone going to the background waits.
+const STALLED_GIVE_UP_MS = 20_000;
+// A stall longer than this replays the cut sentence from its start (Tim lost its beginning).
+const RESTART_SENTENCE_AFTER_MS = 1_500;
+const RESUME_RETRY_MS = 400;
 
-/** The `[new topic]` sound: a soft two-note chime, rendered once at the player's sample rate. */
+/** The `[new topic]` sound when no file is picked: a soft two-note chime at the player's sample rate. */
 export function topicChime(rate: number): Float32Array<ArrayBuffer> {
   const notes = [
     { f: 880, at: 0, gain: 0.16 },
@@ -35,17 +48,6 @@ export function topicChime(rate: number): Float32Array<ArrayBuffer> {
   }
   return out;
 }
-const FIRST_CHUNK_SAMPLES = 1_200; // 50 ms: start quickly
-const CHUNK_SAMPLES = 4_800; // then 200 ms pieces
-const SCHEDULE_AHEAD_S = 0.03;
-// A piece that ends this much before its scheduled end was cut short (not by us).
-const EARLY_END_S = 0.06;
-// Give up on a context that will not run again after this long (then the reply ends, logged).
-// Counted only while the page is visible: a reply cut by the phone going to the background waits.
-const STALLED_GIVE_UP_MS = 20_000;
-// A stall longer than this replays the cut sentence from its start (the user lost its beginning).
-const RESTART_SENTENCE_AFTER_MS = 1_500;
-const RESUME_RETRY_MS = 400;
 
 type PlaybackEndCause = "finished" | "barge" | "ctx-interrupted" | "error" | string;
 
@@ -115,21 +117,20 @@ export class SpeechPlayer {
   private current: string | null = null;
   /** Sentences spoken in the last few seconds, to recognise our own words coming back. */
   // Kept until 15 s after each sentence's audio ends: a long reply is scheduled well ahead of being
-  // heard, so its echo comes back long after the sentence was queued (2 Nov: the user's 120-point reply cut itself off).
+  // heard, so its echo comes back long after the sentence was queued (2 Nov: Tim's 120-point reply cut itself off).
   private recent: Array<{ readonly text: string; until: number }> = [];
   /** The topic sound at the speech's rate, through the same path, so hold, replay and echo cover it. */
   private topicSound: Float32Array<ArrayBuffer> | null = null;
-  private topicSoundName: string | null = null;
-  private readonly stopFollowingSettings: () => void;
   /** The label of the last reply ("Chat", a thread title); a new player is a new call. */
   private lastTopic: string | null = null;
+  private topicSoundName: string | null = null;
+  private readonly stopFollowingSettings: () => void;
+  private preparedVoice: string | null = null;
 
   constructor(
     private readonly context: AudioContext,
     private readonly onSpeakingChange: (speaking: boolean) => void,
     private readonly onError: (message: string) => void,
-    /** Both engines stream the same 16-bit 24 kHz PCM. */
-    private readonly engine: () => SpeechEngine,
   ) {
     this.output = context.createAnalyser();
     // Presence's wave reads a 2048-point spectrum (1024 bins) at the analyser's usual smoothing.
@@ -146,8 +147,35 @@ export class SpeechPlayer {
     this.frame = new Float32Array(this.output.fftSize);
     context.addEventListener("statechange", this.onContextState);
     this.loadTopicSound();
-    // The topic sound picked in the settings applies in the call already running.
-    this.stopFollowingSettings = subscribeSettings(() => this.loadTopicSound());
+    this.prepareVoice();
+    // The topic sound and reply voice picked in the settings apply in the call already running.
+    this.stopFollowingSettings = subscribeSettings(() => {
+      this.loadTopicSound();
+      this.prepareVoice();
+    });
+  }
+
+  /** The reply voice loads with the call, so the first reply does not wait for it; the other is freed. */
+  private prepareVoice(): void {
+    const voice = replyVoice();
+    if (voice === this.preparedVoice) return;
+    const previous = this.preparedVoice === null ? null : replyVoicePlugin(this.preparedVoice);
+    this.preparedVoice = voice;
+    previous?.unload();
+    const plugin = replyVoicePlugin(voice);
+    if (plugin === null) {
+      startKokoro();
+      return;
+    }
+    releaseKokoro();
+    plugin.load().then(
+      (load) => voiceLog("voice", "reply-voice.load", { voice, ...load }),
+      (error: unknown) => {
+        voiceLog("system", "error", { where: "reply-voice.load", voice, message: String(error) });
+        this.preparedVoice = null;
+        this.onError(voiceErrorText(error));
+      },
+    );
   }
 
   private loadTopicSound(): void {
@@ -174,10 +202,13 @@ export class SpeechPlayer {
 
   /** Stops watching the context (the call ended). */
   dispose(): void {
+    this.stopFollowingSettings();
+    // The voices' models hold a few hundred MB; the page keeps none of it between calls.
+    if (this.preparedVoice !== null) replyVoicePlugin(this.preparedVoice)?.unload();
+    releaseKokoro();
     this.context.removeEventListener("statechange", this.onContextState);
     if (this.resumeTimer !== null) window.clearTimeout(this.resumeTimer);
     this.resumeTimer = null;
-    this.stopFollowingSettings();
   }
 
   private readonly onContextState = (): void => {
@@ -289,7 +320,7 @@ export class SpeechPlayer {
     return this.held !== null;
   }
 
-  /** Silences the reply at once but keeps its place: the user may be taking over (then stop or release). */
+  /** Silences the reply at once but keeps its place: Tim may be taking over (then stop or release). */
   hold(): void {
     if (!this.running || this.held !== null) return;
     const now = this.context.currentTime;
@@ -318,7 +349,7 @@ export class SpeechPlayer {
     voiceLog("voice", "playback.hold", { current: this.current });
   }
 
-  /** Not the user after all (no words of their): the reply goes on from where hold() took it. */
+  /** Not Tim after all (no words of his): the reply goes on from where hold() took it. */
   release(): void {
     const held = this.held;
     if (held === null) return;
@@ -342,7 +373,10 @@ export class SpeechPlayer {
     }
     const wasRunning = this.running;
     const cut = this.current;
-    const unheard = [...(cut === null ? [] : [cut]), ...this.queue.map((sentence) => sentence.text)];
+    const unheard = [
+      ...(cut === null ? [] : [cut]),
+      ...this.queue.map((sentence) => sentence.text),
+    ];
     this.current = null;
     this.endsAt = 0;
     this.generation += 1;
@@ -396,60 +430,51 @@ export class SpeechPlayer {
       wake?.();
     };
     try {
-      const adapter = globalThis.__lalalaAdapters?.speech;
-      if (adapter) {
-        for await (const piece of adapter.speak(sentence.text, signal)) {
-          sentence.chunks.push(Float32Array.from(piece));
-          notify();
+      const voice = replyVoice();
+      const plugin = replyVoicePlugin(voice);
+      if (plugin !== null) {
+        // A plugin voice renders in this tab, a whole sentence at a time; it plays in Kokoro's chunks.
+        const { samples, timing } = await plugin.speak(sentence.text, signal);
+        voiceLog("voice", "reply-voice.sentence", {
+          voice,
+          ...Object.fromEntries(
+            Object.entries(timing).map(([key, value]) => [
+              key,
+              typeof value === "number" ? Math.round(value) : value,
+            ]),
+          ),
+        });
+        for (let at = 0; at < samples.length;) {
+          const size = sentence.chunks.length === 0 ? FIRST_CHUNK_SAMPLES : CHUNK_SAMPLES;
+          sentence.chunks.push(samples.slice(at, at + size));
+          at += size;
         }
+        notify();
         return;
       }
-      const engine = this.engine();
-      // Only Kokoro (local) reads misaki's phoneme markup.
-      const text = engine === "local" ? withPronunciations(sentence.text) : sentence.text;
-      const response = await fetchLalala(`/__lalala/tts?engine=${engine}`, {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({ text, format: "pcm" }),
-        signal,
+      // Kokoro in this tab, a whole sentence at a time, with misaki's markup for listed words.
+      const renderStart = performance.now();
+      const samples = await kokoroSpeak(withPronunciations(sentence.text));
+      if (signal.aborted) return;
+      voiceLog("voice", "kokoro.sentence", {
+        renderMs: Math.round(performance.now() - renderStart),
+        audioMs: Math.round((samples.length / TTS_SAMPLE_RATE) * 1000),
       });
-      if (isGatewayStatus(response.status)) throw new VoiceUnreachable();
-      if (!response.ok || response.body === null) {
-        const body = await readJson<{ error: unknown }>(response);
-        throw new Error(
-          typeof body.error === "string" ? body.error : `speech failed (${response.status})`,
-        );
+      for (let at = 0; at < samples.length;) {
+        const size = sentence.chunks.length === 0 ? FIRST_CHUNK_SAMPLES : CHUNK_SAMPLES;
+        sentence.chunks.push(samples.slice(at, at + size));
+        at += size;
       }
-      const reader = response.body.getReader();
-      let pending = new Uint8Array(0);
-      let samples: number[] = [];
-      const emit = (force: boolean) => {
-        const want = sentence.chunks.length === 0 ? FIRST_CHUNK_SAMPLES : CHUNK_SAMPLES;
-        if (samples.length === 0 || (!force && samples.length < want)) return;
-        sentence.chunks.push(Float32Array.from(samples));
-        samples = [];
-        notify();
-      };
-      for (;;) {
-        const { done, value } = await reader.read();
-        if (done) break;
-        const bytes = new Uint8Array(pending.length + value.length);
-        bytes.set(pending);
-        bytes.set(value, pending.length);
-        const usable = bytes.length - (bytes.length % 2);
-        const view = new DataView(bytes.buffer, 0, usable);
-        for (let offset = 0; offset < usable; offset += 2) {
-          samples.push(view.getInt16(offset, true) / 0x8000);
-        }
-        pending = bytes.slice(usable);
-        emit(false);
-      }
-      emit(true);
+      notify();
     } catch (error) {
       sentence.failed = true;
       if (!signal.aborted) {
         const message = error instanceof Error ? error.message : String(error);
-        voiceLog("system", "error", { where: "tts", engine: this.engine(), message });
+        voiceLog("system", "error", {
+          where: "tts",
+          voice: replyVoice(),
+          message,
+        });
         this.onError(voiceErrorText(error));
       }
     } finally {
@@ -481,7 +506,7 @@ export class SpeechPlayer {
             this.current = sentence.text;
             voiceLog("voice", "say", {
               text: sentence.text,
-              engine: this.engine(),
+              voice: replyVoice(),
               // From the sentence being queued to its first audio being scheduled.
               waitMs: Math.round(performance.now() - sentence.queuedAt),
             });
@@ -500,7 +525,11 @@ export class SpeechPlayer {
             if (sentence.newTopic && this.topicSound !== null) {
               const gain = soundGain();
               const sound = this.topicSound;
-              this.schedule(gain === 1 ? sound : sound.map((sample) => sample * gain), sentence, -1);
+              this.schedule(
+                gain === 1 ? sound : sound.map((sample) => sample * gain),
+                sentence,
+                -1,
+              );
             }
           }
           this.schedule(sentence.chunks[played]!, sentence, played);
@@ -539,7 +568,7 @@ export class SpeechPlayer {
       if (generation !== this.generation) return "stopped";
       const running = (this.context.state as string) === "running";
       if (this.held !== null) {
-        // On hold while the user may be taking over: not finished, not stalled.
+        // On hold while Tim may be taking over: not finished, not stalled.
         await new Promise<void>((resolve) => {
           this.settled = resolve;
           window.setTimeout(resolve, 100);
@@ -574,7 +603,7 @@ export class SpeechPlayer {
   /**
    * Puts back whatever an interruption cut short: every piece not yet fully played is stopped and
    * scheduled again, in order, from now: from where it stopped, or with `fromSentenceStart` from
-   * the start of the sentence it was in (after a long stall the user has lost its beginning).
+   * the start of the sentence it was in (after a long stall Tim has lost its beginning).
    */
   private recover(why: string, fromSentenceStart = false): void {
     if ((this.context.state as string) !== "running" || this.pieces.size === 0) return;

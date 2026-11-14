@@ -3,6 +3,7 @@ import * as NodeChildProcess from "node:child_process";
 import * as NodeNet from "node:net";
 import type { Connect, Plugin } from "vite";
 
+import { cardsDir } from "./cards.mjs";
 import { readCanvasLayout, saveCanvasCards } from "./canvasLayout";
 import { appendSessionEvents } from "./sessionLog";
 
@@ -18,6 +19,9 @@ const PREFIX = "/__lalala";
 const MAX_AUDIO_BYTES = 1024 * 1024 * 1024;
 const MAX_TTS_CHARS = 1_200;
 const EXTRAS_DIR = NodePath.join(import.meta.dirname, "../src/voice/extras") + NodePath.sep;
+// The user's cards folder (vite/cards.mjs) swaps in the same way.
+const CARDS_DIR =
+  cardsDir(process.env.LALALA_WORKSPACE_ROOT?.trim() || NodePath.join(import.meta.dirname, "..")) + NodePath.sep;
 
 // The repo root: the brain's project, and where scripts/speech.sh lives.
 const workspaceRoot = NodePath.resolve(import.meta.dirname, "..");
@@ -151,7 +155,7 @@ export function lalalaPlugin(): Plugin {
 
     if (route === "/config" && req.method === "GET") {
       sendJson(res, 200, {
-        workspaceRoot,
+        workspaceRoot: process.env.LALALA_WORKSPACE_ROOT?.trim() || workspaceRoot,
         model: process.env.LALALA_MODEL?.trim() || null,
       });
       return;
@@ -224,7 +228,8 @@ export function lalalaPlugin(): Plugin {
     },
     // A file no extras module imports any more has no HMR boundary; Vite would reload the page and end the call.
     hotUpdate({ file, modules, timestamp }) {
-      if (this.environment.name !== "client" || !file.startsWith(EXTRAS_DIR)) return;
+      if (this.environment.name !== "client") return;
+      if (!file.startsWith(EXTRAS_DIR) && !file.startsWith(CARDS_DIR)) return;
       const orphans = modules.filter((mod) => mod.importers.size === 0 && !mod.isSelfAccepting);
       if (orphans.length === 0) return;
       const seen = new Set<(typeof modules)[number]>();

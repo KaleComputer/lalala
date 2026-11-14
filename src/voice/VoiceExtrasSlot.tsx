@@ -13,12 +13,12 @@ import { VoiceBar } from "./VoiceBar";
 import { voiceLog } from "./voiceLog";
 import "./voicePage.css";
 
-type ExtrasModule = typeof import("./extras/VoiceExtras");
+type ExtrasModule = typeof import("./extras/AppExtras");
 type Loaded = { readonly id: string; readonly module: ExtrasModule };
 
 // Dev imports the source, so Vite's HMR updates it. Not a literal: the phone's main build must not
 // bundle extras/, or every extras edit would rebuild and reload the whole app.
-const DEV_ENTRY = "/src/voice/extras/VoiceExtras.tsx";
+const DEV_ENTRY = "/src/voice/extras/AppExtras.tsx";
 const BUILD = "/lalala-extras/build.json";
 const POLL_MS = 2_000;
 

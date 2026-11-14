@@ -30,12 +30,15 @@ import {
   type OptionValue,
   pullSynced,
   setMicDeviceId,
+  setReplyVoice,
   topicSoundNames,
   topicSoundUrl,
   updateSynced,
   useMicDeviceId,
+  useReplyVoice,
   useSyncedSettings,
 } from "./settingsStore";
+import { replyVoicePlugins, subscribeReplyVoices } from "./replyVoices";
 import { setSoundVolume, soundOutput, useSoundVolume, withSoundVolume } from "./extras/soundVolume";
 import { REQUEST_TIMEOUT_MS } from "./voiceErrors";
 import "./voiceSettings.css";
@@ -680,7 +683,12 @@ function AppSettings(props: { readonly section: string; readonly onClose: () => 
       title: "Sound & mic",
       icon: PAGE_ICONS.sound,
       value: sound,
-      content: <SoundSection />,
+      content: (
+        <>
+          <SoundSection />
+          <ExperimentsSection />
+        </>
+      ),
     },
     {
       id: "canvas",
@@ -1629,6 +1637,33 @@ export function SoundSection() {
           },
         ]}
         onChange={(id) => setMicDeviceId(id || null)}
+      />
+    </Section>
+  );
+}
+
+/** Reply voices the user's cards added (replyVoices.ts); nothing to pick without one. */
+function ExperimentsSection() {
+  const voice = useReplyVoice();
+  const plugins = useSyncExternalStore(subscribeReplyVoices, replyVoicePlugins, replyVoicePlugins);
+  if (plugins.length === 0) return null;
+  return (
+    <Section title="Experiments">
+      <PickRow
+        title="Reply voice"
+        description="On this device, from the next sentence, to compare how fast each answers. Both run in this browser; the call's log has each sentence's render time."
+        label="Reply voice"
+        value={voice}
+        onReset={voice === "kokoro" ? undefined : () => setReplyVoice("kokoro")}
+        groups={[
+          {
+            options: [
+              { value: "kokoro", label: "Kokoro (default)" },
+              ...plugins.map((plugin) => ({ value: plugin.id, label: plugin.label })),
+            ],
+          },
+        ]}
+        onChange={(value) => setReplyVoice(value)}
       />
     </Section>
   );

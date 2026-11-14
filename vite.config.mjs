@@ -6,19 +6,24 @@ import tailwindcss from "@tailwindcss/vite";
 import react from "@vitejs/plugin-react";
 import { defineConfig } from "vite";
 
+import { cardsDir, cardsPlugin } from "./vite/cards.mjs";
 import { t3BridgePlugin } from "./vite/t3bridge.mjs";
 import { lalalaPlugin } from "./vite/voice.ts";
 
 const src = NodePath.join(import.meta.dirname, "src");
 const t3 = (file) => NodePath.join(src, "t3", file);
 const port = Number(process.env.LALALA_PORT || 5780);
+// The brain's T3 project folder (this checkout unless LALALA_WORKSPACE_ROOT says otherwise); the
+// user's cards live in its cards/ folder (vite/cards.mjs).
+const brainRoot = NodePath.resolve(process.env.LALALA_WORKSPACE_ROOT?.trim() || import.meta.dirname);
 
 export default defineConfig({
   plugins: [
     t3BridgePlugin({
       threadId: process.env.LALALA_THREAD_ID?.trim(),
-      workspaceRoot: import.meta.dirname,
+      workspaceRoot: brainRoot,
     }),
+    cardsPlugin({ dir: cardsDir(brainRoot), extrasDir: NodePath.join(src, "voice/extras") }),
     lalalaPlugin(),
     tailwindcss(),
     react(),

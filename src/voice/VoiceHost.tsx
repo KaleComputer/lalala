@@ -21,16 +21,16 @@ import { threadEnvironment } from "../state/threads";
 import { useOrchestrationCommand } from "../state/use-orchestration-command";
 import { useVoiceBrainContext } from "../state/voiceBrainContext";
 import { uploadVoiceFile } from "../state/voiceUpload";
+import { brainFileReader } from "./adapters";
 import { applyCardTags, takeCards } from "./brainCards";
 import { compactEstimateMs, compactionDue, shareBrainThread } from "./brainCompaction";
 import { useCompactSim } from "./compactSim";
 import { markBriefed, needsBrief, withBrief, withCanvas } from "./brief";
-import type { ModelProgress } from "./adapters";
-import { speechEngine, useSpeechEngine } from "./engine";
+import { speechProgress } from "./browserSpeech/browser";
 import { followCommand, setFollowing, takeFocus } from "./follow";
 import { type VoicePhase, VoiceSession } from "./speech";
 import { takeSentences } from "./speechText";
-import { VoiceBar, type VoiceBarState } from "./VoiceBar";
+import { VoiceBar, type VoiceBarModel, type VoiceBarState } from "./VoiceBar";
 import type { VoiceFileRef } from "./VoiceInput";
 import { closeVoiceSettings, CONNECTED_HOLD_MS, onVoiceSettingsClosed, openVoiceSettings } from "./VoiceSettings";
 import { endVoiceLogSession, startVoiceLogSession, voiceLog } from "./voiceLog";
@@ -42,7 +42,8 @@ import {
   UNREACHABLE_TEXT,
   voiceErrorText,
 } from "./voiceErrors";
-import { checkLink, linkIsDown, markLinkDown, markLinkUp, onLinkUp, useLinkDown } from "./voiceLink";
+import { checkLink, linkIsDown, markLinkDown, onLinkUp, useLinkDown } from "./voiceLink";
+import { replyVoice } from "./settingsStore";
 import { type HeldWords, heldWords, holdWords, releaseWords, useHeldCount } from "./voiceOutbox";
 import { syncVoiceTheme } from "./voiceThemeSync";
 import { setStreamerMode } from "./streamerMode";
@@ -63,7 +64,7 @@ const TALK_ITEMS = new Set([
   "system_notice",
   "checkpoint",
 ]);
-const LOCAL_HEALTH_EVERY_MS = 10_000;
+const MODELS_READ_EVERY_MS = 250;
 const RECONNECT_EVERY_MS = 2_000;
 /** The brain puts this before outside material, at the start or after its answer to the user (brain.md). */
 const NEW_TOPIC_TAG = /\s*\[new topic\]\s*/gi;
@@ -139,11 +140,6 @@ export function VoiceHost({
   const [stoppedAt, setStoppedAt] = useState(0);
   // The user's mic is muted for this call (the bar's mic cell); the call and its replies go on.
   const [muted, setMuted] = useState(false);
-  const engine = useSpeechEngine();
-  // Why local speech cannot be used right now (service down or loading); null when it is ready.
-  const [localProblem, setLocalProblem] = useState<string | null>(null);
-  // Asks the local service again now (a tap on "tap to retry"); the poll keeps going either way.
-  const recheckLocalRef = useRef<() => void>(() => {});
   // The platform took the mic away mid-call (iOS: another app playing sound); a tap takes it back.
   const [micPaused, setMicPaused] = useState(false);
   const sessionRef = useRef<VoiceSession | null>(null);
@@ -202,10 +198,9 @@ export function VoiceHost({
     : null;
   // lalala.talk: the harness and speech adapters stand in for the dev server and the speech service.
   const harness = globalThis.__lalalaAdapters?.harness;
-  const speech = globalThis.__lalalaAdapters?.speech;
   // Out of a call too where the brain's replies carry cards (brainCards.ts).
   const items = useThreadVisibleTurnItems(
-    phase === "off" && !harness?.readFile ? null : voiceThreadRef,
+    phase === "off" && !brainFileReader() ? null : voiceThreadRef,
   );
   const thinking = threadRuntimeIsActive(voiceThread?.runtime);
   const brainContext = useVoiceBrainContext(voiceThreadRef);
@@ -223,7 +218,7 @@ export function VoiceHost({
     (compactSentAt !== null && (brainContext?.compactedAt ?? 0) < compactSentAt);
 
   // The in-browser models' download and warm-up (the bar's readout); null once ready.
-  const [loading, setLoading] = useState<ReadonlyArray<ModelProgress> | null>(null);
+  const [loading, setLoading] = useState<ReadonlyArray<VoiceBarModel> | null>(null);
 
   // oxlint-disable-next-line t3code/no-unreasoned-state-sync -- reads the dev server's voice config once
   useEffect(() => {
@@ -246,47 +241,15 @@ export function VoiceHost({
 
   // oxlint-disable-next-line t3code/no-unreasoned-state-sync -- reads the in-browser models' load state (workers outside React) while a call loads them, and stops once they are ready
   useEffect(() => {
-    if (engine !== "local" || speech) return;
-    let cancelled = false;
-    const check = () =>
-      fetch("/__lalala/local/health", {
-        cache: "no-store",
-        signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
-      })
-        .then(async (response) => {
-          const body = (await response.json().catch(() => ({}))) as { error?: string };
-          // lalala answers 503 with its reason while models load; a front door answers 502-504
-          // with no reason when lalala isn't behind it.
-          // That is the link, not the models: the bar shows it as such and the models' state stands.
-          if (isGatewayStatus(response.status) && body.error === undefined) {
-            markLinkDown("health gateway");
-            return;
-          }
-          markLinkUp();
-          if (!cancelled)
-            setLocalProblem(response.ok ? null : (body.error ?? "Local speech is down"));
-        })
-        .catch(() => {
-          // No answer at all (a phone between networks, a slow link): the page can't reach lalala, so
-          // its words wait (voiceOutbox); the models aren't the problem, so the bar doesn't say they are.
-          markLinkDown("health");
-        });
-    recheckLocalRef.current = () => void check();
-    void check();
-    const timer = window.setInterval(check, LOCAL_HEALTH_EVERY_MS);
-    return () => {
-      cancelled = true;
-      window.clearInterval(timer);
-      recheckLocalRef.current = () => {};
+    if (phase === "off" && !starting) return;
+    let timer = 0;
+    const read = () => {
+      const models = speechProgress();
+      setLoading(models);
+      if (models === null) window.clearInterval(timer);
     };
-  }, [engine]);
-
-  // oxlint-disable-next-line t3code/no-unreasoned-state-sync -- polls the in-browser models' load state (workers outside React) while a call is on
-  useEffect(() => {
-    if (!speech?.progress || (phase === "off" && !starting)) return;
-    const read = () => setLoading(speech.progress?.() ?? null);
+    timer = window.setInterval(read, MODELS_READ_EVERY_MS);
     read();
-    const timer = window.setInterval(read, 250);
     return () => window.clearInterval(timer);
   }, [phase, starting]);
 
@@ -638,7 +601,7 @@ export function VoiceHost({
       onStopped: () => setStoppedAt(Date.now()),
       onMicPaused: setMicPaused,
     });
-    startVoiceLogSession({ engine: speechEngine(), thread: voiceThread?.id ?? null });
+    startVoiceLogSession({ voice: replyVoice(), thread: voiceThread?.id ?? null });
     sessionRef.current = session;
     sessionStartedAtRef.current = Date.now();
     setStarting(true);
@@ -664,7 +627,7 @@ export function VoiceHost({
 
   // oxlint-disable-next-line t3code/no-unreasoned-state-sync -- puts the cards named in the brain's finished replies on the canvas, reading their files from T3
   useEffect(() => {
-    const readFile = harness?.readFile;
+    const readFile = brainFileReader();
     if (readFile && voiceThread) applyCardTags(voiceThread.id, items, readFile);
   }, [items, voiceThread?.id]);
 
@@ -830,14 +793,12 @@ export function VoiceHost({
 
   if (config === null) return null;
 
-  // Local speech needs its service up.
-  const unavailable = localProblem;
   // Offline says why everything else fails; then words that weren't sent (a tap sends them), then the rest.
   const problem = linkDown
     ? OFFLINE_TEXT
     : notSent && heldCount > 0
       ? NOT_SENT_TEXT
-      : (error ?? unavailable);
+      : error;
   const live = phase !== "off" || starting;
   // In a call, a dropped link to T3 shows while it comes back (the harness retries on its own).
   const linkProblem = live ? link : null;
@@ -880,8 +841,6 @@ export function VoiceHost({
           void drain();
           return;
         }
-        // The models said they failed: ask again now (lalala starts the service when it's down).
-        if (localProblem !== null) recheckLocalRef.current();
         void toggle();
       }}
       analysis={() => sessionRef.current?.analysis() ?? null}

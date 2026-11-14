@@ -4,3 +4,7 @@ node_modules/
 *.log
 .vercel
 .env.local
+# Your own brain rules, appended to the brief (src/main.tsx); each user keeps their own
+src/voice/brain.user.md
+# Your cards, when the brain's project is this checkout (vite/cards.mjs); never in this repo
+/cards/

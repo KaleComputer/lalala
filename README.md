@@ -8,24 +8,27 @@ answers out loud in a sentence or two, and hands real work to other agent thread
 background. When something is worth looking at, the brain builds it as a card on an endless
 canvas next to you: a list, a comparison, a diagram, a small tool, even a game.
 
-Speech runs on your Mac. Speech-to-text is NVIDIA Parakeet, text-to-speech is Kokoro, both on
-Apple's MLX. No audio leaves the machine.
+Speech runs in your browser: speech-to-text is NVIDIA Parakeet, text-to-speech is Kokoro, and
+Silero VAD hears when you stop, all on ONNX (WebGPU or WASM). On phones, the app hands Kokoro to a
+small speech service on your Mac (MLX). No audio leaves your devices.
 
 ## How it works
 
 ```
 browser (mic, canvas) ──▶ lalala server :5780 ──▶ T3 Code server   (pairing + /ws RPC, brain thread)
-                                    └─────────────▶ local speech :5797 (Parakeet STT, Kokoro TTS, Silero VAD)
+                                    └─────────────▶ local speech :5797 (phones: Kokoro TTS on MLX)
 ```
 
 - **lalala server** (`npm start`): serves the canvas, keeps one connection to T3 Code that follows
-  the brain thread, and forwards audio to the local speech service. The browser only talks to it.
-- **Brain thread**: an ordinary T3 Code thread in a project rooted at this folder. Its instructions
+  the brain thread, serves your cards folder, and forwards a phone's speech to the local speech
+  service. The browser only talks to it.
+- **Brain thread**: an ordinary T3 Code thread in a project rooted at this folder (or the folder
+  `LALALA_WORKSPACE_ROOT` names). Its instructions
   are `src/voice/brain.md` plus how this host makes cards (`brain-files.md` or `brain-cards.md`),
   which lalala sends into the thread on the first turn, after compaction and whenever they change. The brain keeps replies short (they are read aloud) and delegates
   real work to other threads with T3 Code's own tools, so it stays free to listen.
-- **Local speech** (`npm run speech`): a small Python service on `127.0.0.1` that streams partial
-  transcripts while you talk and speaks replies sentence by sentence.
+- **Local speech** (`npm run speech`): a small Python service on `127.0.0.1` that speaks for phones
+  (and listens for a tab whose own model crashed).
 - **Canvas**: pan, pinch-zoom, several named canvases, cards you drag by the header and resize
   from the corner. It starts empty; the brain adds cards when you ask for them. The layout is
   saved in `.lalala/canvas.json`, so it survives restarts and is the same on every device.
@@ -37,16 +40,17 @@ settings and call code from `src/voice`. Only the adapters in `src/voice/adapter
 once at startup (`src/main.tsx` for the app, `site/app/canvas/adapters.ts` for the site):
 
 - **storage**: layout and settings on the lalala server (`server.ts`), or in this browser only (`browser.ts`).
-- **speech**: the local speech service, or Parakeet and Kokoro in the browser (ONNX, WebGPU or WASM).
 - **harness**: T3 Code through the lalala server, or straight from the browser to T3 Code.
   The site's harness also reads files from the brain's project, which is how its cards arrive.
 
-The site imports `src/voice` with the app's own aliases (`site/next.config.mjs` mirrors `vite.config.mjs`).
+Speech is the same on both (`src/voice/browserSpeech`); only the app can hand a phone's speech to
+the Mac. The site imports `src/voice` with the app's own aliases (`site/next.config.mjs` mirrors
+`vite.config.mjs`).
 
 ## Requirements
 
-- **Mac with Apple silicon** (M1 or later). The speech models run on MLX, which is Apple-silicon
-  only. 16 GB RAM recommended: the models take about 2 GB while loaded.
+- **Mac with Apple silicon** (M1 or later) for the phone speech service, which runs on MLX.
+  On a computer alone, the browser's own models are enough.
 - **Node.js 22.12 or later**.
 - **[uv](https://docs.astral.sh/uv/)** (`brew install uv`). It installs Python 3.12 for the speech
   service by itself.
@@ -107,8 +111,8 @@ The site imports `src/voice` with the app's own aliases (`site/next.config.mjs` 
 
    Nothing to do: once paired, lalala uses this folder's T3 Code project (or makes it once, named
    "lalala") and starts a thread called "brain" there, on the project's or T3 Code's default model.
-   It remembers that thread in `.lalala/brain.json`. Because the project is this folder, the brain
-   edits this repo's `src/voice/extras` when you ask for a card, and Vite shows it within seconds.
+   It remembers that thread in `.lalala/brain.json`. Your cards go in `cards/` in that project
+   (gitignored here); see [Cards](#cards).
 
    The brain answers every time you speak, so give it a fast model (a Haiku-class or "mini"
    model): change it in the settings (gear in the bar) or in T3 Code. Delegated threads do the
@@ -127,9 +131,9 @@ The site imports `src/voice` with the app's own aliases (`site/next.config.mjs` 
 7. **Open http://127.0.0.1:5780**, allow the microphone, and press **Start call** in the bar at
    the bottom (or Ctrl+Option+V). Say "put a clock on the canvas" and watch it appear.
 
-   The first call can take a few seconds while local speech loads its models. lalala starts the
-   speech service in the background when needed and leaves it running after `npm start` stops;
-   `scripts/speech.sh stop` stops it.
+   The first call downloads the speech models into the browser (a few hundred MB, once). On a
+   phone, lalala starts the Mac's speech service in the background when needed and leaves it
+   running after `npm start` stops; `scripts/speech.sh stop` stops it.
 
 ## Phone and tablet (optional)
 
@@ -156,31 +160,37 @@ private to your own devices: never use `tailscale funnel` or an unrestricted Net
 
 ## Cards
 
-The canvas starts empty. Ask the brain for something ("put a list of my open threads on the
-canvas", "make me a pomodoro timer") and it writes a small React component in
-`src/voice/extras/`, mounts it with one line in `src/voice/extras/VoiceExtras.tsx` and commits
-both, so "undo that" is a `git revert`:
+Your cards live in `cards/` in the brain's project folder, never in this repo, so you can clone
+lalala, pull its updates, and keep your cards to yourself (make `cards/` a private git repo of its
+own if you like; the brain then commits each change, so "undo that" is a `git revert`). Ask the
+brain for something ("put a list of my open threads on the canvas") and it makes one of two kinds:
 
-```tsx
-<CanvasCard id="timer" title="Pomodoro" at={{ x: 40, y: 40, w: 320, h: 200 }}>
-  <Pomodoro />
-</CanvasCard>
-```
+- **HTML** (the default, and the only kind on lalala.talk): one self-contained file,
+  `cards/<id>.html`, named in the brain's reply with `[card id="timer" title="Pomodoro" size="320x200"]`.
+  It runs in a sandboxed frame (inline and CDN scripts run; no network, no storage, no access to
+  the page). For live data it calls `lalala.data()`, which reads `cards/<id>.data.json`; a small
+  helper the brain writes and starts in the same folder keeps that file current. `lalala.log()`
+  notes a pick for the brain. `[card remove id="timer"]` takes a card off.
+- **React** (the app only): a component in `cards/`, mounted with one line in `cards/index.tsx`,
+  whose default export renders your cards. It hot-reloads on every device within seconds:
+
+  ```tsx
+  <CanvasCard id="timer" title="Pomodoro" at={{ x: 40, y: 40, w: 320, h: 200 }}>
+    <Pomodoro />
+  </CanvasCard>
+  ```
+
+  A React card imports lalala's canvas files as if they sat next to it (`./CanvasCard`,
+  `./cardState`, `./streamer`, `./cutFrame.css`) and styles itself with a plain CSS file.
+  `cards/server/*.mjs` may add routes to the app's dev server (each default-exports a Vite plugin).
 
 - `at` is only a wish: a new card lands in the nearest free space next to the others.
 - `canvas="…"` puts a card on a named canvas; without it, it lives on Main.
-- Cards import only React and files in `extras/`, and style with a plain CSS file next to them.
 - **Follow** (in the settings, or say "follow"): when on, a reply about a card moves your view to it. "Show me the timer" does that
   once. "Tidy up" repacks the open canvas with even gaps.
 
-You can write cards by hand too; the brain picks them up like its own.
-
-On lalala.talk the page is prebuilt and can't load new code, so the brain writes each card as one
-HTML file, `cards/<id>.html` in its own project folder (`~/lalala`), and names it in its reply with
-`[card id="timer" title="Pomodoro" size="320x200"]`. The page reads the file through your T3 Code
-connection, keeps it in the browser, and shows it in a sandboxed frame (inline and CDN scripts run;
-no network requests, no access to the page). The card's close button takes it off this browser's
-canvas; `[card remove id="timer"]` lets the brain do the same.
+Your own brain rules go in `src/voice/brain.user.md` (gitignored); lalala appends them to
+`brain.md`, and they win where the two differ.
 
 ## Configuration
 
@@ -195,6 +205,8 @@ Set in `.env` (see `.env.example`).
 | `LALALA_LOCAL_SPEED` | `1.0` | Speaking speed |
 | `LALALA_SPEECH_HOME` | `~/.cache/lalala` | Models, Python environment, speech log |
 | `LALALA_STATE_DIR` | `.lalala` in this folder | T3 session, canvas layout, call log |
+| `LALALA_WORKSPACE_ROOT` | this folder | The brain's T3 project folder |
+| `LALALA_CARDS_DIR` | `cards/` in that folder | Your cards |
 | `T3CODE_HOME` | `~/.t3` | Where T3 Code keeps its state |
 | `LALALA_T3_ORIGIN` | from T3 Code's runtime file | T3 Code server URL |
 | `T3CODE_CLI_PATH` | `~/.t3/bin/t3`, then `t3`, then `npx t3` | The `t3` command used for pairing |

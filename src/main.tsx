@@ -1,5 +1,6 @@
 // lalala: the canvas (CanvasPage), its device bar (VoiceDock) and the canvas switcher. The bar is
 // always open: hiding it would leave an empty page with nothing to go back to.
+import "./storageMigration";
 import "@fontsource-variable/inter";
 import "./index.css";
 import "./updateChip";
@@ -18,8 +19,22 @@ import { StreamerFilter } from "./voice/streamerMode";
 import { VoiceDock } from "./voice/VoiceDock";
 import { setVoiceOpen } from "./voice/voiceOpen";
 
+// The user's own brain rules, appended to the brief (brief.ts); a glob, so a missing file is fine.
+globalThis.__lalalaUserRules = Object.values(
+  import.meta.glob<string>("./voice/brain.user.md", { query: "?raw", import: "default", eager: true }),
+)[0];
+
+// This server reaches the Mac's speech service, for phones and for a model that crashed a tab.
+globalThis.__lalalaMacSpeech = true;
+
 // The app keeps layout and settings on its server; lalala.talk installs the browser adapters.
-installAdapters({ storage: serverStorage });
+installAdapters({
+  storage: serverStorage,
+  readFile: (relativePath) =>
+    fetch(`/__lalala/brain-file?path=${encodeURIComponent(relativePath)}`, { cache: "no-store" }).then(
+      (response) => (response.ok ? response.text() : null),
+    ),
+});
 
 // The /canvas route opens the bar on entry (routes/_chat.canvas.tsx).
 setVoiceOpen(true);

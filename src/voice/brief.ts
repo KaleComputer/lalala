@@ -11,8 +11,18 @@ import { delegatesTag } from "./settingsStore";
  * How the brain makes cards depends on the host: the app loads new code under src/voice/extras/,
  * lalala.talk's prebuilt page shows the files its harness reads (brainCards.ts).
  */
-const brief = () =>
-  `${brainBrief}${globalThis.__lalalaAdapters?.harness?.readFile ? cardsBrief : filesBrief}`;
+const brief = () => {
+  const host = globalThis.__lalalaAdapters?.harness?.readFile ? cardsBrief : filesBrief;
+  const own = globalThis.__lalalaUserRules?.trim();
+  return own
+    ? `${brainBrief}${host.trimEnd()}\n\nThe user's own rules (these win where they differ)\n\n${own}\n`
+    : `${brainBrief}${host}`;
+};
+
+declare global {
+  /** The user's own brain rules (src/voice/brain.user.md, gitignored), set by the app's main.tsx. */
+  var __lalalaUserRules: string | undefined;
+}
 
 /**
  * The brain's instructions travel in the voice thread itself, so they must come back whenever the

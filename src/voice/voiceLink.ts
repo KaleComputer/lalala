@@ -23,7 +23,7 @@ const notify = () => {
 
 export const linkIsDown = () => down;
 
-export function markLinkUp(): void {
+function markLinkUp(): void {
   if (!down) return;
   down = false;
   window.clearTimeout(timer);
