@@ -26,6 +26,7 @@ import { applyCardTags, takeCards } from "./brainCards";
 import { compactEstimateMs, compactionDue, shareBrainThread } from "./brainCompaction";
 import { markBriefed, needsBrief, withBrief, withCanvas } from "./brief";
 import { prewarm, speechProgress } from "./browserSpeech/browser";
+import { afterCanvasShown } from "./canvasShown";
 import { followCommand, setFollowing, takeFocus } from "./follow";
 import { type VoicePhase, VoiceSession } from "./speech";
 import { takeSentences } from "./speechText";
@@ -217,9 +218,10 @@ export function VoiceHost({
   // The in-browser models' download and warm-up (the bar's readout); null once ready.
   const [loading, setLoading] = useState<ReadonlyArray<VoiceBarModel> | null>(null);
 
-  // oxlint-disable-next-line t3code/no-unreasoned-state-sync -- starts the speech models' workers (outside React) as the page opens, so a call finds them ready
+  // oxlint-disable-next-line t3code/no-unreasoned-state-sync -- starts the speech models' workers (outside React) once the canvas is shown, so a call finds them ready
   useEffect(() => {
-    if (config !== null) prewarm();
+    if (config === null) return;
+    return afterCanvasShown(prewarm);
   }, [config]);
 
   // oxlint-disable-next-line t3code/no-unreasoned-state-sync -- reads the dev server's voice config once

@@ -382,6 +382,28 @@ export function canvasLoading(): { readonly waiting: number; readonly near: numb
   return waiting === 0 ? null : { waiting, near: drawn.size };
 }
 
+/**
+ * Like canvasLoading, but only the cards on the screen itself (the boot screen waits for these,
+ * not the ones loading just off it): how many are on screen and how many of those wait.
+ */
+export function screenLoading(): { readonly waiting: number; readonly onScreen: number } | null {
+  if (!layoutReady || !measured() || unplaced.size > 0) return { waiting: 0, onScreen: 0 };
+  const { x, y, z } = live.camera;
+  let onScreen = 0;
+  let waiting = 0;
+  for (const id of drawn) {
+    const rect = live.cards[id];
+    if (rect === undefined) continue;
+    const left = rect.x * z + x;
+    const top = rect.y * z + y;
+    if (left >= surface.view.w || top >= surface.view.h) continue;
+    if (left + rect.w * z <= 0 || top + rect.h * z <= 0) continue;
+    onScreen += 1;
+    if (!loaded.has(id)) waiting += 1;
+  }
+  return waiting === 0 ? null : { waiting, onScreen };
+}
+
 /** Whether a drawn card has its own layer (and a scrolling body) or is painted flat. */
 export const isLayered = (id: string) => !measured() || layered.has(id);
 

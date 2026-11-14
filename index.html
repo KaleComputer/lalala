@@ -67,7 +67,7 @@
         transform-origin: left;
         transition: transform 200ms linear;
       }
-      /* The end: the bar fills, fades alone (250 ms), the logo holds (500 ms), then all fades (250 ms). */
+      /* The end: the bar fills and fades alone (250 ms), then the screen fades into the canvas (250 ms). */
       #lala-boot.is-full .lala-boot-bar { opacity: 0; transition: opacity 250ms ease; }
       #lala-boot.is-done { opacity: 0; pointer-events: none; transition: opacity 250ms ease; }
       /* The logo is the retry: a button, live only once the load failed (glitching, no words). */
@@ -117,12 +117,13 @@
             const bar = boot.querySelector(".lala-boot-bar > i");
             if (bar) bar.style.transform = "scaleX(1)";
             const after = (ms, then) => setTimeout(then, ms);
-            // The fill's own 200 ms, the bar's fade, the hold, then the screen's fade.
-            after(200, () => {
-              boot.classList.add("is-full");
-              after(250 + 500, () => {
-                boot.classList.add("is-done");
-                after(300, () => boot.remove());
+            // The bar fades as it fills (250 ms), then the screen fades into the canvas (250 ms).
+            boot.classList.add("is-full");
+            after(250, () => {
+              boot.classList.add("is-done");
+              after(300, () => {
+                boot.remove();
+                window.dispatchEvent(new Event("lalala:canvas-shown"));
               });
             });
           },
