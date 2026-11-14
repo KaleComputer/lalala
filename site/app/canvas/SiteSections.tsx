@@ -1,29 +1,23 @@
 import { useEffect, useState } from "react";
 
-import { type LookId, setLook, useLook } from "../../../src/voice/extras/look";
+import { ThemeGallery } from "../../../src/voice/extras/ThemeGallery";
 import { readBrainThread, readSession, readWorkspace, T3Socket } from "../../../src/voice/adapters/harness/t3";
-import { type Brain, PickRow, Section, ThreadsSection } from "../../../src/voice/VoiceSettings";
-
-const LOOKS: ReadonlyArray<{ readonly value: LookId; readonly label: string }> = [
-  { value: "neon", label: "Cyberpunk (default)" },
-  { value: "paper", label: "Paper notebook" },
-  { value: "t3", label: "T3 Code" },
-];
+import { type Brain, Section, ThreadsSection } from "../../../src/voice/VoiceSettings";
 
 /** Themes: the look of the canvas, its cards, the device bar and these settings, on this device. */
 export function ThemeSection() {
-  const look = useLook();
   return (
-    <Section title="Themes">
-      <PickRow
-        title="Theme"
-        description="On this device: the canvas, its cards, the device bar and these settings."
-        label="Theme"
-        value={look}
-        groups={[{ options: LOOKS }]}
-        onReset={look === "neon" ? undefined : () => setLook("neon")}
-        onChange={(value) => setLook(value as LookId)}
-      />
+    <Section
+      title="Themes"
+      ungrouped
+      note={
+        <>
+          Changes the whole look on this device. If a theme ever breaks the page, add <code>?look=neon</code>{" "}
+          to the address.
+        </>
+      }
+    >
+      <ThemeGallery />
     </Section>
   );
 }

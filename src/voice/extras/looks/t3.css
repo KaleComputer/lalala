@@ -211,7 +211,13 @@
   clip-path: none;
   font: 500 13px / 1 var(--lala-font-sans);
   letter-spacing: 0;
+  text-indent: 0;
   text-transform: none;
+  /* T3's primary button; the neon plate under it (::before) is hidden. */
+  height: 30px;
+  padding: 0 14px;
+  color: var(--t3l-primary-ink);
+  background: var(--t3l-primary);
 }
 :root[data-lala-look="t3"] [data-lalala-offline] button::before {
   display: none;

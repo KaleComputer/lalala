@@ -40,10 +40,12 @@
   will-change: transform;
   display: flex;
   flex-direction: column;
-  border: 1px solid rgba(61, 255, 143, 0.34);
-  color: #d8ffe8;
-  background: rgba(11, 15, 13, 0.9);
-  font-family: "Oxanium", ui-monospace, monospace;
+  border: var(--lala-border-width) solid var(--lala-line);
+  border-radius: var(--lala-radius);
+  box-shadow: var(--lala-shadow);
+  color: var(--lala-ink);
+  background: var(--lala-surface);
+  font-family: var(--lala-font);
   font-size: 12px;
   line-height: 1.35;
 }
@@ -138,31 +140,6 @@
     padding: 4px 12px;
   }
 }
-[data-lalala-card-close] {
-  position: absolute;
-  top: 0;
-  right: 0;
-  display: grid;
-  place-items: center;
-  /* The header's full height (min 36px), so the cross sits on its midline. */
-  width: 36px;
-  height: 36px;
-  padding: 0;
-  border: 0;
-  color: rgba(61, 255, 143, 0.6);
-  background: none;
-  cursor: pointer;
-}
-[data-lalala-card-close]:is(:hover, :focus-visible) {
-  color: #3dff8f;
-}
-[data-lalala-card-close] > svg {
-  width: 13px;
-  height: 13px;
-  fill: none;
-  stroke: currentColor;
-  stroke-width: 2.2;
-}
 [data-lalala-card-body] {
   flex: 1;
   min-height: 0;
@@ -183,6 +160,7 @@
   display: grid;
   gap: 8px;
   justify-items: start;
+  color: var(--lala-ink);
 }
 [data-lalala-card-error] > code {
   overflow-wrap: anywhere;
@@ -190,8 +168,9 @@
 }
 [data-lalala-card-error] > button {
   padding: 4px 10px;
-  border: 1px solid #3dff8f;
-  color: #3dff8f;
+  border: var(--lala-border-width) solid var(--lala-accent);
+  border-radius: var(--lala-radius);
+  color: var(--lala-accent);
   background: none;
   font: inherit;
   cursor: pointer;
@@ -215,8 +194,8 @@
   bottom: 3px;
   width: 8px;
   height: 8px;
-  border-right: 2px solid #3dff8f;
-  border-bottom: 2px solid #3dff8f;
+  border-right: 2px solid var(--lala-accent);
+  border-bottom: 2px solid var(--lala-accent);
   opacity: 0.6;
 }
 
@@ -229,4 +208,30 @@
   touch-action: none;
   cursor: crosshair;
   pointer-events: auto;
+}
+
+/* lalala.talk's cards can be closed: the cross sits on the header's midline (min 36px). */
+[data-lalala-card-close] {
+  position: absolute;
+  top: 0;
+  right: 0;
+  display: grid;
+  place-items: center;
+  width: 36px;
+  height: 36px;
+  padding: 0;
+  border: 0;
+  color: var(--lala-ink-dim);
+  background: none;
+  cursor: pointer;
+}
+[data-lalala-card-close]:is(:hover, :focus-visible) {
+  color: var(--lala-accent);
+}
+[data-lalala-card-close] > svg {
+  width: 13px;
+  height: 13px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2.2;
 }

@@ -421,7 +421,7 @@ export function VoiceBar(props: {
         data-voice-state={props.state}
         // The call's tabs (input, mic) are live by this, not by Presence's timer.
         data-lalala-live={props.live ? "" : undefined}
-        data-t3-off={offline ? "" : undefined}
+        data-lalala-off={offline ? "" : undefined}
       />
       {/* A look may show connecting and thinking only as a word drawn in CSS; readers hear it here. */}
       <span data-lalala-sr="" role="status">
