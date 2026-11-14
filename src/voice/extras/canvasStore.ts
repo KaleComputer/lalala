@@ -597,8 +597,27 @@ type Shared = {
   readonly cards: Readonly<Record<string, Rect>>;
   readonly canvases?: Canvases;
   readonly marks?: Marks;
+  readonly state?: CardState;
   readonly at: number;
 };
+/** What each card had open (cardState.ts), card to key to value: it rides the layout's sends. */
+export type CardState = Readonly<Record<string, Readonly<Record<string, unknown>>>>;
+export type CardStateLink = {
+  /** The values changed here that the shared layout doesn't have yet. */
+  unsent(): CardState;
+  /** The shared layout now keeps `sent`. */
+  sent(sent: CardState): void;
+  /** The shared layout's state, to show where nothing here is unsent. */
+  adopt(state: CardState): void;
+};
+let cardStateLink: CardStateLink | null = null;
+let sharedState: CardState | null = null;
+/** cardState.ts hands over its side: it gets the state already read and calls the returned send. */
+export function linkCardState(link: CardStateLink) {
+  cardStateLink = link;
+  if (sharedState !== null) link.adopt(sharedState);
+  return schedulePush;
+}
 /** Cards changed here that the shared layout doesn't have yet. */
 const unsynced = new Set<string>();
 /** Changed before this tab saw the shared layout (offline): kept whatever the layout says. */
@@ -655,6 +674,10 @@ function applyShared(shared: Shared) {
   }
   adoptCanvases(shared.canvases ?? {});
   adoptMarks(shared.marks ?? {});
+  if (shared.state) {
+    sharedState = shared.state;
+    cardStateLink?.adopt(shared.state);
+  }
   adoptCards(shared.cards);
   // Always, not only on a change here: the next load starts from this layout, not an older one.
   try {
@@ -682,7 +705,10 @@ async function push(leaving = false) {
   const idle = () =>
     store === null ||
     pushing ||
-    (unsynced.size === 0 && unsentCanvases.size === 0 && unsentMarks.size === 0);
+    (unsynced.size === 0 &&
+      unsentCanvases.size === 0 &&
+      unsentMarks.size === 0 &&
+      Object.keys(cardStateLink?.unsent() ?? {}).length === 0);
   if (store === null || idle()) return;
   if (held !== null && !leaving) return;
   // Boxes kept through a sleep or a lost server may be older than the shared layout: read it first
@@ -698,6 +724,8 @@ async function push(leaving = false) {
     [...unsentCanvases].map((id) => [id, live.canvases[id] ?? null]),
   );
   const sentMarks = Object.fromEntries([...unsentMarks].map((key) => [key, live.marks[key] ?? {}]));
+  const sentState = cardStateLink?.unsent() ?? {};
+  const hasState = Object.keys(sentState).length > 0;
   pushing = true;
   try {
     const shared = (await store.write(
@@ -707,6 +735,7 @@ async function push(leaving = false) {
         ...(Object.keys(sentPlaced).length > 0 && { placed: sentPlaced }),
         ...(unsentCanvases.size > 0 && { canvases: sentCanvases }),
         ...(unsentMarks.size > 0 && { marks: sentMarks }),
+        ...(hasState && { state: sentState }),
       },
       { leaving },
     )) as Shared | null;
@@ -743,6 +772,7 @@ async function push(leaving = false) {
         unsentMarks.delete(key);
       }
     }
+    if (hasState && shared.state) cardStateLink?.sent(sentState);
     applyShared(shared);
     if (unsynced.size > 0) schedulePush();
   } catch {
