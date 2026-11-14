@@ -44,6 +44,7 @@ import {
 } from "./voiceErrors";
 import { checkLink, linkIsDown, markLinkDown, onLinkUp, useLinkDown } from "./voiceLink";
 import { autoStartCall, replyVoice, useAutoStartCall } from "./settingsStore";
+import { connectPreview } from "./connectPreview";
 import { type HeldWords, heldWords, holdWords, releaseWords, useHeldCount } from "./voiceOutbox";
 import { syncVoiceTheme } from "./voiceThemeSync";
 import { setStreamerMode } from "./streamerMode";
@@ -220,7 +221,8 @@ export function VoiceHost({
 
   // oxlint-disable-next-line t3code/no-unreasoned-state-sync -- starts the speech models' workers (outside React) once the canvas is shown, so a call finds them ready
   useEffect(() => {
-    if (config === null) return;
+    // The connect preview is a picture of lalala.talk before pairing: no speech to load.
+    if (config === null || connectPreview) return;
     return afterCanvasShown(prewarm);
   }, [config]);
 
@@ -923,7 +925,7 @@ export function VoiceHost({
       }
       live={phase !== "off"}
       offline={
-        down && !live
+        (down || connectPreview) && !live
           ? () => {
               closeOnConnectRef.current = true;
               openVoiceSettings("Connection");

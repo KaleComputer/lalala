@@ -860,6 +860,169 @@
   padding: 0 8px;
   font-size: 12px;
 }
+/* Where T3 Code runs: two choices side by side, only the chosen one's steps below. */
+[data-lalala-pair-choice] {
+  grid-column: 1 / -1;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(11rem, 1fr));
+  gap: 8px;
+}
+[data-lalala-pair-choice] > button {
+  display: grid;
+  justify-items: start;
+  gap: 2px;
+  padding: 10px 12px;
+  border: 1px solid var(--s-border);
+  border-radius: 8px;
+  color: var(--s-fg);
+  background: transparent;
+  font: 500 var(--s-text) / 20px var(--s-sans);
+  text-align: left;
+  cursor: pointer;
+}
+[data-lalala-pair-choice] > button > small {
+  color: var(--s-fg-2);
+  font: 400 12px / 1.4 var(--s-sans);
+}
+[data-lalala-pair-choice] > button[aria-checked="true"] {
+  border-color: var(--s-primary);
+  background: var(--s-active);
+  box-shadow: inset 0 0 0 1px var(--s-primary);
+}
+[data-lalala-pair-choice] > button:focus-visible {
+  outline: 2px solid var(--s-ring);
+  outline-offset: 2px;
+}
+/* The steps: a number, what to do, then the place in T3 Code or the control that does it. */
+[data-lalala-pair-steps] {
+  display: grid;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+[data-lalala-pair-step] {
+  display: grid;
+  grid-template-columns: 24px minmax(0, 1fr);
+  gap: 12px;
+  padding: 14px var(--s-inset);
+  box-shadow: inset 0 1px var(--s-divider);
+}
+[data-lalala-pair-step] > span {
+  display: grid;
+  place-items: center;
+  width: 24px;
+  height: 24px;
+  border: 1px solid var(--s-border);
+  border-radius: 50%;
+  color: var(--s-fg-2);
+  font: 600 12px / 1 var(--s-sans);
+  font-variant-numeric: tabular-nums;
+}
+[data-lalala-pair-step] > div {
+  display: grid;
+  gap: 8px;
+  min-width: 0;
+}
+[data-lalala-pair-step] h4 {
+  margin: 2px 0 0;
+  color: var(--s-fg);
+  font: 500 var(--s-text) / 20px var(--s-sans);
+}
+[data-lalala-pair-or] {
+  margin: 0;
+  color: var(--s-fg-2);
+  font-size: 12px;
+}
+[data-lalala-pair-command] {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0;
+  padding: 6px 6px 6px 10px;
+  border: 1px solid var(--s-border);
+  border-radius: 8px;
+  background: var(--s-input-bg);
+}
+[data-lalala-pair-command] > code {
+  flex: 1;
+  min-width: 0;
+  color: var(--s-fg);
+  font: 400 12px / 1.5 var(--s-mono);
+  overflow-wrap: anywhere;
+  user-select: all;
+}
+[data-lalala-pair-command] > button {
+  height: 24px;
+  padding: 0 8px;
+  font-size: 12px;
+}
+/* T3 Code's own settings, drawn as chips and switches: where to go, and how it should look. */
+[data-lalala-t3-path] {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px;
+  margin: 0;
+  font-size: 12px;
+}
+[data-lalala-t3-path] > span {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+[data-lalala-t3-path] b {
+  padding: 2px 8px;
+  border: 1px solid var(--s-border);
+  border-radius: 6px;
+  color: var(--s-fg);
+  background: var(--s-input-bg);
+  font-weight: 500;
+}
+[data-lalala-t3-path] i {
+  color: var(--s-fg-2);
+  font-style: normal;
+}
+[data-lalala-t3-switches] {
+  display: grid;
+  gap: 0;
+  max-width: 20rem;
+  margin: 0;
+  padding: 0;
+  border: 1px solid var(--s-border);
+  border-radius: 8px;
+  list-style: none;
+}
+[data-lalala-t3-switches] > li {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 8px 10px;
+  color: var(--s-fg);
+  font-size: 12px;
+}
+[data-lalala-t3-switches] > li + li {
+  box-shadow: inset 0 1px var(--s-divider);
+}
+/* A switch in its on position, like T3 Code's: a picture, so no pointer. */
+[data-lalala-t3-switch] {
+  position: relative;
+  flex: none;
+  width: 30px;
+  height: 18px;
+  border-radius: 9px;
+  background: var(--s-primary);
+}
+[data-lalala-t3-switch]::after {
+  content: "";
+  position: absolute;
+  top: 2px;
+  right: 2px;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: var(--s-bg);
+}
 /* Cyberpunk: the voice bar's cut plate in its chrome red, cyan on focus, mono text; no green here. */
 :root:is(:not([data-lala-look]), [data-lala-look="neon"]) [data-lalala-pair] {
   --pair-red: #ff5e54;
@@ -891,7 +1054,7 @@
     color: color-mix(in srgb, var(--pair-red) 70%, transparent);
     letter-spacing: 0.04em;
   }
-  & [data-lalala-pair-alt] > code {
+  & :is([data-lalala-pair-alt], [data-lalala-pair-command]) > code {
     color: color-mix(in srgb, var(--pair-red) 85%, white);
   }
 }

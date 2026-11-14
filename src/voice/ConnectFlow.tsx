@@ -39,6 +39,7 @@ export function PairSteps(props: {
   readonly children?: ReactNode;
 }) {
   const ask = props.ask ?? null;
+  const choiceId = useId();
   const [link, setLink] = useState("");
   // Starts as the remembered address, once asked.
   const [address, setAddress] = useState<string | null>(null);
@@ -54,6 +55,60 @@ export function PairSteps(props: {
   };
   const value = ask ? (address ?? ask.address) : link;
   const setValue = ask ? setAddress : setLink;
+  // lalala.talk offers two ways in; a phone is never the computer T3 Code runs on.
+  const remote = props.connectCommand !== undefined;
+  const [where, setWhere] = useState<Where>(() => (isPhone() ? "other" : readWhere()));
+  const path: Where = remote && !isPhone() ? where : remote ? "other" : "here";
+  const [connectAddress, setConnectAddress] = useState("");
+  const host = connectAddress.trim().replace(/^https?:\/\//, "").replace(/\/(mcp)?\/?$/, "");
+  const connectCommand =
+    props.connectCommand && host !== ""
+      ? props.connectCommand.replace("<your T3 Connect address>", host)
+      : props.connectCommand;
+
+  const field = (placeholder: string, label: string) => (
+    <div data-lalala-pair-field="">
+      <input
+        key={ask ? "address" : "link"}
+        type={ask ? "url" : "text"}
+        inputMode={ask ? "url" : undefined}
+        aria-label={ask ? "Your T3 Connect address" : label}
+        placeholder={ask ? "https://….t3coderelay.com/mcp" : placeholder}
+        autoComplete="off"
+        autoCapitalize="off"
+        spellCheck={false}
+        // oxlint-disable-next-line jsx-a11y/no-autofocus -- the one field to fill once the address is asked for
+        autoFocus={ask !== null}
+        data-streamer-input={streamer ? "" : undefined}
+        value={value}
+        disabled={busy}
+        onChange={(event) => setValue(event.currentTarget.value)}
+        onPaste={(event) => {
+          const pasted = event.clipboardData.getData("text").trim();
+          if (pasted === "") return;
+          event.preventDefault();
+          setValue(pasted);
+          submit(pasted);
+        }}
+        onKeyDown={(event) => {
+          if (event.key === "Enter") submit(value);
+          if (event.key === "Escape" && ask) {
+            event.preventDefault();
+            event.stopPropagation();
+            ask.onBack();
+          }
+        }}
+      />
+    </div>
+  );
+  const command = (text: string) => (
+    <p data-lalala-pair-command="">
+      <code>{text}</code>
+      <button type="button" data-lalala-settings-button="" data-quiet="" onClick={() => copy(text)}>
+        {copied === text ? "Copied" : "Copy"}
+      </button>
+    </p>
+  );
 
   return (
     <>
@@ -61,20 +116,9 @@ export function PairSteps(props: {
         <div>
           <h3>T3 Code</h3>
           <p>
-            {ask ? (
-              `${isPhone() ? "Your phone" : "This browser"} can't reach T3 Code's local address. Paste your T3 Connect address instead: T3 Code → Settings → Environments → ⋯ → Copy MCP URL.`
-            ) : props.connectCommand ? (
-              <>
-                First, on the computer running T3 Code: <b>Settings → Sharing &amp; access</b>, sign in
-                and turn on <b>T3 Connect</b> and <b>Network access</b>. Without them T3 Code has no
-                address this page can reach.
-                <br />
-                Then copy your T3 Connect address (Settings → Environments → ⋯ → Copy MCP URL, without
-                /mcp), put it in this command, run it on that computer and paste the printed link here.
-              </>
-            ) : (
-              "T3 Code → Settings → Sharing & access → Create link, then paste the link or code here."
-            )}
+            {ask
+              ? `${isPhone() ? "Your phone" : "This browser"} can't reach T3 Code's local address. Paste your T3 Connect address instead.`
+              : "Pair once; lalala remembers it on this device."}
           </p>
         </div>
         <div data-lalala-settings-control="">
@@ -82,77 +126,96 @@ export function PairSteps(props: {
             Not connected
           </span>
         </div>
-        {props.connectCommand && !ask ? (
-          <p data-lalala-pair-alt="">
-            <code>{props.connectCommand}</code>
-            <button
-              type="button"
-              data-lalala-settings-button=""
-              data-quiet=""
-              onClick={() => copy(props.connectCommand!)}
-            >
-              {copied === props.connectCommand ? "Copied" : "Copy"}
-            </button>
-          </p>
-        ) : null}
-        <div data-lalala-pair-field="">
-          <input
-            key={ask ? "address" : "link"}
-            type={ask ? "url" : "text"}
-            inputMode={ask ? "url" : undefined}
-            aria-label={ask ? "Your T3 Connect address" : "Pairing link or code"}
-            placeholder={ask ? "https://….t3coderelay.com/mcp" : props.connectCommand ? "Paste the printed link" : "Paste link or code"}
-            autoComplete="off"
-            autoCapitalize="off"
-            spellCheck={false}
-            // oxlint-disable-next-line jsx-a11y/no-autofocus -- the one field to fill once the address is asked for
-            autoFocus={ask !== null}
-            data-streamer-input={streamer ? "" : undefined}
-            value={value}
-            disabled={busy}
-            onChange={(event) => setValue(event.currentTarget.value)}
-            onPaste={(event) => {
-              const pasted = event.clipboardData.getData("text").trim();
-              if (pasted === "") return;
-              event.preventDefault();
-              setValue(pasted);
-              submit(pasted);
-            }}
+      </div>
+      {remote && !isPhone() && !ask ? (
+        <div data-lalala-settings-row="" data-lalala-pair="">
+          <div>
+            <h3 id={`${choiceId}t`}>Where does T3 Code run?</h3>
+          </div>
+          <div
+            role="radiogroup"
+            aria-labelledby={`${choiceId}t`}
+            data-lalala-pair-choice=""
             onKeyDown={(event) => {
-              if (event.key === "Enter") submit(value);
-              if (event.key === "Escape" && ask) {
-                event.preventDefault();
-                event.stopPropagation();
-                ask.onBack();
-              }
+              if (!["ArrowLeft", "ArrowRight", "ArrowUp", "ArrowDown"].includes(event.key)) return;
+              event.preventDefault();
+              const next = path === "here" ? "other" : "here";
+              pick(next);
+              event.currentTarget.querySelector<HTMLElement>(`[data-where="${next}"]`)?.focus();
             }}
-          />
+          >
+            {WHERES.map((option) => (
+              <button
+                key={option.id}
+                type="button"
+                role="radio"
+                aria-checked={path === option.id}
+                tabIndex={path === option.id ? 0 : -1}
+                data-where={option.id}
+                onClick={() => pick(option.id)}
+              >
+                <span>{option.label}</span>
+                <small>{option.detail}</small>
+              </button>
+            ))}
+          </div>
         </div>
+      ) : null}
+      <ol data-lalala-pair="" data-lalala-pair-steps="" aria-label="Steps to pair">
         {ask ? (
-          <p data-lalala-pair-alt="">
-            <button type="button" data-lalala-settings-button="" data-quiet="" disabled={busy} onClick={ask.onBack}>
-              Back
-            </button>
-          </p>
-        ) : (
-          <>
+          <Step n={1} title="Paste your T3 Connect address">
+            <T3Path steps={["Settings", "Environments", "⋯", "Copy MCP URL"]} />
+            {field("", "Your T3 Connect address")}
             <p data-lalala-pair-alt="">
-              {props.connectCommand
-                ? "Only if lalala runs on the same computer as T3 Code: T3 Code → Settings → Sharing & access → Create link, or run"
-                : "Or run"}
-              <code>{props.command}</code>
-              <button type="button" data-lalala-settings-button="" data-quiet="" onClick={() => copy(props.command)}>
-                {copied === props.command ? "Copied" : "Copy"}
+              <button type="button" data-lalala-settings-button="" data-quiet="" disabled={busy} onClick={ask.onBack}>
+                Back
               </button>
             </p>
-            {props.connectCommand ? (
-              <p data-lalala-pair-alt="">
-                A localhost link won't work from another device, not even on the same Wi-Fi.
-              </p>
-            ) : null}
+          </Step>
+        ) : path === "here" ? (
+          <>
+            <Step n={1} title="Create a pairing link in T3 Code">
+              <T3Path steps={["Settings", "Sharing & access", "Create link"]} />
+              <p data-lalala-pair-or="">or run this in a terminal on this computer</p>
+              {command(props.command)}
+            </Step>
+            <Step n={2} title="Paste the link or code">
+              {field("Paste link or code", "Pairing link or code")}
+            </Step>
+          </>
+        ) : (
+          <>
+            <Step n={1} title="Turn these on in T3 Code">
+              <T3Path steps={["Settings", "Sharing & access"]} />
+              <T3Switches names={["T3 Connect", "Network access"]} />
+            </Step>
+            <Step n={2} title="Copy your T3 Connect address">
+              <T3Path steps={["Settings", "Environments", "⋯", "Copy MCP URL"]} />
+              <div data-lalala-pair-field="">
+                <input
+                  type="url"
+                  inputMode="url"
+                  aria-label="Your T3 Connect address"
+                  placeholder="Paste it here: https://….t3coderelay.com/mcp"
+                  autoComplete="off"
+                  autoCapitalize="off"
+                  spellCheck={false}
+                  data-streamer-input={streamer ? "" : undefined}
+                  value={connectAddress}
+                  disabled={busy}
+                  onChange={(event) => setConnectAddress(event.currentTarget.value)}
+                />
+              </div>
+            </Step>
+            <Step n={3} title="Run this on the computer with T3 Code">
+              {command(connectCommand ?? "")}
+            </Step>
+            <Step n={4} title="Paste the link it prints">
+              {field("Paste the printed link", "Pairing link")}
+            </Step>
           </>
         )}
-      </div>
+      </ol>
       {props.working ? (
         <p data-lalala-settings-info="" role="status">
           {props.working}
@@ -171,6 +234,70 @@ export function PairSteps(props: {
       ) : null}
       {props.children}
     </>
+  );
+
+  function pick(next: Where) {
+    setWhere(next);
+    try {
+      localStorage.setItem(WHERE_KEY, next);
+    } catch {
+      // No storage: asked again next time.
+    }
+  }
+}
+
+type Where = "here" | "other";
+const WHERE_KEY = "lalala:pair-where";
+const WHERES: ReadonlyArray<{ readonly id: Where; readonly label: string; readonly detail: string }> = [
+  { id: "here", label: "This computer", detail: "Same computer as this browser" },
+  { id: "other", label: "Another computer", detail: "Through T3 Connect, from anywhere" },
+];
+function readWhere(): Where {
+  try {
+    return localStorage.getItem(WHERE_KEY) === "other" ? "other" : "here";
+  } catch {
+    return "here";
+  }
+}
+
+/** One numbered step: what to do, then the place in T3 Code or the control that does it. */
+function Step(props: { readonly n: number; readonly title: string; readonly children: ReactNode }) {
+  return (
+    <li data-lalala-pair-step="">
+      <span aria-hidden="true">{props.n}</span>
+      <div>
+        <h4>{props.title}</h4>
+        {props.children}
+      </div>
+    </li>
+  );
+}
+
+/** Where a setting lives in T3 Code, as the chips it shows, not a sentence. */
+function T3Path(props: { readonly steps: ReadonlyArray<string> }) {
+  return (
+    <p data-lalala-t3-path="" aria-label={`In T3 Code: ${props.steps.join(", then ")}`}>
+      {props.steps.map((step, index) => (
+        <span key={step}>
+          {index > 0 ? <i aria-hidden="true">›</i> : null}
+          <b aria-hidden="true">{step}</b>
+        </span>
+      ))}
+    </p>
+  );
+}
+
+/** T3 Code's switches as they should look once turned on: a picture of its settings, not a control here. */
+function T3Switches(props: { readonly names: ReadonlyArray<string> }) {
+  return (
+    <ul data-lalala-t3-switches="" aria-label={`In T3 Code, turn on ${props.names.join(" and ")}`}>
+      {props.names.map((name) => (
+        <li key={name} aria-hidden="true">
+          <span>{name}</span>
+          <span data-lalala-t3-switch="" />
+        </li>
+      ))}
+    </ul>
   );
 }
 

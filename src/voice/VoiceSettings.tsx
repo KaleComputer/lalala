@@ -18,6 +18,7 @@ import { Tooltip, TooltipPopup, TooltipTrigger } from "../components/ui/tooltip"
 import { useVoiceBrainContext } from "../state/voiceBrainContext";
 import { formatTokens, useSharedBrainThread } from "./brainCompaction";
 import { ConnectedRows, PairSteps } from "./ConnectFlow";
+import { connectPreview, TALK_CONNECT_COMMAND, TALK_NOTE, TALK_PAIR_COMMAND } from "./connectPreview";
 import { isFollowing, setFollowing, subscribeFollow } from "./follow";
 import { isPairingCode, pairingLink } from "./pairing";
 import { setStreamerMode, StreamerText, useStreamerMode } from "./streamerMode";
@@ -676,8 +677,9 @@ function AppSettings(props: { readonly section: string; readonly onClose: () => 
   const known = brain.kind === "ready" ? brain.brain : brain.kind === "error" ? brain.brain : null;
 
   const [connection, setConnection] = useState<ConnectionState>({ kind: "loading" });
-  const link =
-    connection.kind === "inside" || (connection.kind === "ready" && connection.connection.connected)
+  const link = connectPreview
+    ? "Not connected"
+    : connection.kind === "inside" || (connection.kind === "ready" && connection.connection.connected)
       ? "Connected"
       : connection.kind === "ready"
         ? "Not connected"
@@ -696,7 +698,11 @@ function AppSettings(props: { readonly section: string; readonly onClose: () => 
       icon: PAGE_ICONS.connection,
       value: link,
       content: (
-        <ConnectionSection onChange={() => retryBrain()} onState={setConnection} />
+        connectPreview ? (
+          <ConnectPreview />
+        ) : (
+          <ConnectionSection onChange={() => retryBrain()} onState={setConnection} />
+        )
       ),
     },
     {
@@ -1275,6 +1281,24 @@ const describe = (cause: unknown) => {
  * The harness the voice works through: T3 Code today, the one the app's bridge pairs with. Paste a
  * pairing link and it pairs, checks the link and shows it connected; nothing else to click.
  */
+/** `?connect=fresh`: lalala.talk's connect screen as a visitor sees it before pairing; pairs nothing. */
+function ConnectPreview() {
+  const [problem, setProblem] = useState<string | null>(null);
+  return (
+    <Section title="Connection" note={TALK_NOTE}>
+      <PairSteps
+        command={TALK_PAIR_COMMAND}
+        connectCommand={TALK_CONNECT_COMMAND}
+        working={null}
+        problem={problem}
+        onPair={() =>
+          setProblem("Preview (?connect=fresh): nothing pairs here, the real connection is untouched.")
+        }
+      />
+    </Section>
+  );
+}
+
 function ConnectionSection(props: {
   readonly onChange: () => void;
   /** Every new reading, for the Connection row's value in the phone's list. */
