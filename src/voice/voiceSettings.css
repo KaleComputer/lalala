@@ -476,7 +476,8 @@
   z-index: 1;
   top: calc(100% + 6px);
   right: 0;
-  max-height: 18rem;
+  /* Tall enough for the speech lists' last group (the computer) without scrolling on most screens. */
+  max-height: min(28rem, 70dvh);
   overflow-y: auto;
   overscroll-behavior: contain;
   scroll-padding-block: 4px;
@@ -512,7 +513,10 @@
   font-size: var(--s-text);
   cursor: pointer;
 }
+/* Listed with its reason: the reason chip stays readable, only the name steps back. */
 [data-lalala-settings-list] [role="option"][aria-disabled="true"] {
+  opacity: 1;
+  color: var(--s-fg-2);
   cursor: default;
 }
 /* The one cue for where the keyboard or mouse is; the chosen option carries the check. */
@@ -624,6 +628,11 @@
   [data-lalala-settings-control]:has(> [data-lalala-settings-pick]) {
     grid-area: 1 / 2;
     min-width: 160px;
+  }
+  [data-lalala-settings-pick] > span {
+    overflow: hidden;
+    white-space: nowrap;
+    text-overflow: ellipsis;
   }
   [data-lalala-settings-control] input[type="text"] {
     width: 220px;

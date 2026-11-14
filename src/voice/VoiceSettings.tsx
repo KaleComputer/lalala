@@ -31,6 +31,7 @@ import {
   setMicDeviceId,
   setReplyVoice,
   defaultReplyVoice,
+  isPhoneDevice,
   setAutoRetrySeconds,
   setSttModel,
   DEFAULT_AUTO_RETRY_SECONDS,
@@ -46,10 +47,13 @@ import {
 } from "./settingsStore";
 import { replyVoicePlugins, subscribeReplyVoices } from "./replyVoices";
 import {
-  checkComputerSpeech,
   checkGpu,
-  computerStandIn,
-  type ComputerSpeech,
+  computerSpeechState,
+  type ModelStatus,
+  refreshComputerSpeech,
+  speechStateVersion,
+  speechStatus,
+  subscribeSpeechState,
 } from "./browserSpeech/browser";
 import { useLook } from "./extras/look";
 import { ThemeGallery } from "./extras/ThemeGallery";
@@ -1055,7 +1059,9 @@ export function PickRow(props: {
             aria-haspopup="listbox"
             aria-expanded={open}
             aria-controls={open ? `${id}l` : undefined}
-            aria-label={`${props.label}: ${options[selected]?.label ?? "none"}`}
+            aria-label={`${props.label}: ${options[selected]?.label ?? "none"}${
+              options[selected]?.detail ? `, ${options[selected].detail}` : ""
+            }`}
             aria-describedby={describedBy}
             disabled={props.disabled}
             aria-disabled={props.busy || undefined}
@@ -1672,51 +1678,72 @@ export function SoundSection() {
   );
 }
 
+type BrowserEars = Exclude<SttModel, "auto" | "computer">;
+type VoiceBuild = "kokoro-gpu" | "kokoro-cpu" | "matcha" | "computer";
 const STT_LABELS: Record<Exclude<SttModel, "auto">, string> = {
   "0.6b-gpu": "Parakeet 0.6B · GPU",
   "0.6b-cpu": "Parakeet 0.6B · CPU",
   "110m": "Parakeet 110M",
   computer: "Parakeet 0.6B · Computer",
 };
-const VOICE_LABELS: Record<string, string> = {
+const VOICE_LABELS: Record<VoiceBuild, string> = {
   "kokoro-gpu": "Kokoro 82M · GPU",
   "kokoro-cpu": "Kokoro 82M · CPU",
   matcha: "Llama Matcha (Kale's voice)",
   computer: "Kokoro 82M · Computer",
 };
-/** What this device can run, and whether the computer running T3 answers; asked when the page opens. */
-function useSpeechHost() {
+const MB = (bytes: number) =>
+  bytes >= 1e9 ? `${(bytes / 1e9).toFixed(2)} GB` : `${Math.round(bytes / 1e6)} MB`;
+
+/** What this browser's GPU can run; asked once when the page opens. */
+function useGpu() {
   const [gpu, setGpu] = useState<{ f16: boolean; any: boolean } | null>(null);
-  const [computer, setComputer] = useState<ComputerSpeech | "checking">("checking");
-  const [standIn, setStandIn] = useState(computerStandIn);
-  // oxlint-disable-next-line t3code/no-unreasoned-state-sync -- asks the browser's GPU and the computer's speech service, and follows a computer that stops answering mid-call
+  // oxlint-disable-next-line t3code/no-unreasoned-state-sync -- asks the browser for its GPU adapter once
   useEffect(() => {
     let live = true;
     void checkGpu().then((found) => live && setGpu(found));
-    const check = () =>
-      void checkComputerSpeech().then((found) => {
-        if (!live) return;
-        setComputer(found);
-        setStandIn(computerStandIn());
-      });
-    check();
-    document.addEventListener("lalala:computer-speech", check);
     return () => {
       live = false;
-      document.removeEventListener("lalala:computer-speech", check);
     };
   }, []);
-  return { gpu, computer, standIn };
+  return gpu;
 }
 
-/** The computer option's line in the list: its state while it isn't plainly ready. */
-function computerMeta(computer: ComputerSpeech | "checking"): { meta: string; disabled?: boolean } {
-  if (computer === "checking") return { meta: "Checking…" };
-  if (computer === "absent")
-    return { meta: "Only in lalala opened from that computer", disabled: true };
-  if (computer === "down") return { meta: "Not answering" };
-  if (computer === "loading") return { meta: "Still loading its models" };
-  return { meta: "Nothing downloads here" };
+/** The second sentence of a task's description: what runs it now, and that model's own state. */
+function taskState(props: {
+  readonly picked: string;
+  readonly auto: string;
+  readonly verb: "hears you" | "speaks";
+  readonly computer: ReturnType<typeof computerSpeechState>;
+  readonly status: ModelStatus | null;
+}): { readonly text: string; readonly error: boolean } {
+  const { picked, auto, verb, computer, status } = props;
+  const model = picked === "auto" || picked === "computer" ? auto : null;
+  let text =
+    picked === "auto" ? `Automatic: ${auto}, in this browser.` : "Runs in this browser.";
+  let error = false;
+  if (picked === "computer") {
+    if (computer === "checking") return { text: "Checking the computer running T3…", error: false };
+    if (computer === "ready")
+      return { text: "Runs on the computer running T3; nothing loads on this device.", error: false };
+    text =
+      computer === "loading"
+        ? `The computer running T3 is still loading its models, so this browser ${verb} with ${auto} meanwhile.`
+        : computer === "absent"
+          ? `This page can't reach the computer running T3 (open lalala from it), so this browser ${verb} with ${auto}.`
+          : `The computer's speech service isn't answering, so this browser ${verb} with ${auto} until it does.`;
+    error = computer === "down";
+  }
+  if (status?.phase === "downloading" && status.total > 0)
+    text += ` Downloading ${MB(status.loaded)} of ${MB(status.total)}.`;
+  else if (status?.phase === "loading") text += model ? ` Loading ${model}…` : " Loading…";
+  else if (status?.phase === "failed") {
+    error = true;
+    text += ` ${status.error ?? "It didn't load."}${
+      status.retryAt > 0 ? " Trying again shortly." : " It tries again from the next call."
+    }`;
+  }
+  return { text, error };
 }
 
 /**
@@ -1727,47 +1754,59 @@ function SpeechSection() {
   const ears = useSttModel();
   const voice = useReplyVoicePick();
   const plugins = useSyncExternalStore(subscribeReplyVoices, replyVoicePlugins, replyVoicePlugins);
-  const { gpu, computer, standIn } = useSpeechHost();
-  // The device, not the sheet's width: the speech code picks models by user agent too.
-  const phone = /iPhone|iPad|iPod|Android/.test(navigator.userAgent);
+  useSyncExternalStore(subscribeSpeechState, speechStateVersion, speechStateVersion);
+  const gpu = useGpu();
+  // oxlint-disable-next-line t3code/no-unreasoned-state-sync -- asks the computer's speech service whether it can take a task, each time Settings open
+  useEffect(() => void refreshComputerSpeech(), []);
+  const computer = computerSpeechState();
+  const phone = isPhoneDevice();
 
-  const autoEars: Exclude<SttModel, "auto" | "computer"> | null = phone
+  const autoEars: BrowserEars | null = phone
     ? "110m"
     : gpu === null
       ? null
       : gpu.f16
         ? "0.6b-gpu"
         : "0.6b-cpu";
-  const autoVoice = phone ? "matcha" : gpu === null ? null : gpu.any ? "kokoro-gpu" : "kokoro-cpu";
-  const autoName = (name: string | undefined) => name ?? "…";
-  const earsAuto = autoName(autoEars === null ? undefined : STT_LABELS[autoEars]);
-  const voiceAuto = autoName(autoVoice === null ? undefined : VOICE_LABELS[autoVoice]);
-  const onComputer = computerMeta(computer);
-  const away = computer !== "ready" && computer !== "checking";
-  const tooBig = phone ? "may close a phone tab" : undefined;
+  const autoVoice: VoiceBuild | null = phone
+    ? "matcha"
+    : gpu === null
+      ? null
+      : gpu.any
+        ? "kokoro-gpu"
+        : "kokoro-cpu";
+  const earsAuto = autoEars === null ? "checking this browser" : STT_LABELS[autoEars];
+  const voiceAuto = autoVoice === null ? "checking this browser" : VOICE_LABELS[autoVoice];
+  const computerOption =
+    computer === "absent"
+      ? { meta: "Only in lalala opened from that computer", disabled: true }
+      : {
+          meta:
+            computer === "checking"
+              ? "Checking…"
+              : computer === "down"
+                ? "Not answering"
+                : computer === "loading"
+                  ? "Still loading its models"
+                  : "Nothing downloads here",
+        };
+  // On a phone the big builds have ended the tab (Tim's iPhone, 14 Nov): picking them stays allowed.
+  const heavy = (detail: string) => (phone ? `${detail}, may close a phone tab` : detail);
 
-  // The second sentence of each description: where the task runs now, honestly.
-  const state = (picked: string, task: "hears you" | "speaks", auto: string) => {
-    if (picked === "auto") return { text: `Automatic: ${auto}, in this browser.`, error: false };
-    if (picked !== "computer") return { text: "Runs in this browser.", error: false };
-    if (computer === "checking")
-      return { text: "Checking the computer running T3…", error: false };
-    if (computer === "absent")
-      return {
-        text: `This page can't reach the computer running T3 (open lalala from it), so this browser ${task} with ${auto}.`,
-        error: true,
-      };
-    if (away || standIn)
-      return {
-        text: `The computer's speech service isn't answering, so this browser ${task} with ${auto} until it does.`,
-        error: true,
-      };
-    return { text: "Runs on the computer running T3; nothing loads on this device.", error: false };
-  };
-  const earsState = state(ears, "hears you", earsAuto);
-  const voiceState = state(voice, "speaks", voiceAuto);
-  // Before 15 Nov "kokoro" let the device pick Kokoro's build: shown as the build it picks.
-  const voiceValue = voice === "kokoro" ? (autoVoice === "kokoro-cpu" ? "kokoro-cpu" : "kokoro-gpu") : voice;
+  const earsState = taskState({
+    picked: ears,
+    auto: earsAuto,
+    verb: "hears you",
+    computer,
+    status: speechStatus("stt"),
+  });
+  const voiceState = taskState({
+    picked: voice,
+    auto: voiceAuto,
+    verb: "speaks",
+    computer,
+    status: speechStatus("voice"),
+  });
 
   return (
     <Section title="Speech">
@@ -1783,29 +1822,23 @@ function SpeechSection() {
           {
             label: "In this browser",
             options: [
-              gpu !== null && !gpu.f16
-                ? {
-                    value: "0.6b-gpu",
-                    label: STT_LABELS["0.6b-gpu"],
-                    meta: "Needs WebGPU with 16-bit floats",
-                    disabled: true,
-                  }
-                : {
-                    value: "0.6b-gpu",
-                    label: STT_LABELS["0.6b-gpu"],
-                    detail: tooBig ?? "best accuracy",
-                    meta: "1.25 GB download · ~1.3 GB memory",
-                  },
+              {
+                value: "0.6b-gpu",
+                label: STT_LABELS["0.6b-gpu"],
+                ...(gpu !== null && !gpu.f16
+                  ? { meta: "Needs WebGPU with 16-bit floats", disabled: true }
+                  : { detail: heavy("best accuracy"), meta: "1.25 GB download · ~1.3 GB memory" }),
+              },
               {
                 value: "0.6b-cpu",
                 label: STT_LABELS["0.6b-cpu"],
-                detail: "same accuracy, slower",
+                detail: heavy("same accuracy, slower"),
                 meta: "661 MB download · ~0.8 GB memory",
               },
               {
                 value: "110m",
                 label: STT_LABELS["110m"],
-                detail: "fastest here, a few more wrong words",
+                detail: "fastest, a few more wrong words",
                 meta: "137 MB download · ~0.25 GB memory",
               },
             ],
@@ -1816,8 +1849,8 @@ function SpeechSection() {
               {
                 value: "computer",
                 label: STT_LABELS.computer,
-                detail: "0.07 s for 3.4 s of speech",
-                ...onComputer,
+                detail: "best accuracy, 0.07 s for 3.4 s of speech",
+                ...computerOption,
               },
             ],
           },
@@ -1829,36 +1862,30 @@ function SpeechSection() {
         description={`Speaks the answers, from the next sentence. ${voiceState.text}`}
         error={voiceState.error}
         label="Reply voice"
-        value={voiceValue}
+        value={voice}
         onReset={voice === "auto" ? undefined : () => setReplyVoice("auto")}
         groups={[
           { options: [{ value: "auto", label: "Automatic", detail: voiceAuto }] },
           {
             label: "In this browser",
             options: [
-              gpu !== null && !gpu.any
-                ? {
-                    value: "kokoro-gpu",
-                    label: VOICE_LABELS["kokoro-gpu"]!,
-                    meta: "Needs WebGPU",
-                    disabled: true,
-                  }
-                : {
-                    value: "kokoro-gpu",
-                    label: VOICE_LABELS["kokoro-gpu"]!,
-                    detail: tooBig ?? "most natural",
-                    meta: "327 MB download · ~0.4 GB memory",
-                  },
+              {
+                value: "kokoro-gpu",
+                label: VOICE_LABELS["kokoro-gpu"],
+                ...(gpu !== null && !gpu.any
+                  ? { meta: "Needs WebGPU", disabled: true }
+                  : { detail: heavy("most natural"), meta: "327 MB download · ~0.4 GB memory" }),
+              },
               {
                 value: "kokoro-cpu",
-                label: VOICE_LABELS["kokoro-cpu"]!,
-                detail: phone ? "about 2× a sentence's length to render" : "same voice, slower",
+                label: VOICE_LABELS["kokoro-cpu"],
+                detail: phone ? "natural, about 2× a sentence to render" : "natural, slower",
                 meta: "93 MB download · ~0.2 GB memory",
               },
               {
                 value: "matcha",
-                label: VOICE_LABELS.matcha!,
-                detail: "19× faster than Kokoro on the CPU",
+                label: VOICE_LABELS.matcha,
+                detail: "19× faster than Kokoro CPU",
                 meta: "45 MB download · ~0.1 GB memory",
               },
             ],
@@ -1876,9 +1903,9 @@ function SpeechSection() {
             options: [
               {
                 value: "computer",
-                label: VOICE_LABELS.computer!,
-                detail: "same voice, 0.15 s for a 3.8 s sentence",
-                ...onComputer,
+                label: VOICE_LABELS.computer,
+                detail: "most natural, 0.15 s for a 3.8 s sentence",
+                ...computerOption,
               },
             ],
           },
@@ -1898,7 +1925,11 @@ function RetrySection() {
     <Section title="Loading">
       <PickRow
         title="Retry when loading fails"
-        description="When lalala or a speech model doesn't load, it tries again on its own."
+        description={
+          seconds === null
+            ? "Off: when the page or a speech model doesn't load, reload or start a call to try again."
+            : "When the page or a speech model doesn't load, lalala tries again on its own until it does."
+        }
         label="Retry when loading fails"
         value={seconds === null ? "off" : String(seconds)}
         onReset={
@@ -1914,9 +1945,6 @@ function RetrySection() {
                 label:
                   every === DEFAULT_AUTO_RETRY_SECONDS ? `Every ${every} s (default)` : `Every ${every} s`,
               })),
-              ...(seconds !== null && !RETRY_CHOICES.some((every) => every === seconds)
-                ? [{ value: String(seconds), label: `Every ${seconds} s` }]
-                : []),
               { value: "off", label: "Off" },
             ],
           },

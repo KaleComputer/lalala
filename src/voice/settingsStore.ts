@@ -135,8 +135,10 @@ export function setMicDeviceId(id: string | null) {
   document.dispatchEvent(new Event(EVENT));
 }
 
-const phone = () =>
+/** A phone or tablet by its user agent: speech picks its models by device, not by window width. */
+export const isPhoneDevice = () =>
   typeof navigator !== "undefined" && /iPhone|iPad|iPod|Android/.test(navigator.userAgent);
+const phone = isPhoneDevice;
 
 const read = (key: string): string | null => {
   try {
@@ -166,7 +168,12 @@ export const defaultReplyVoice = (): string => (phone() ? "matcha" : "kokoro");
  * build picked by the device), "kokoro-gpu", "kokoro-cpu", Kale's "matcha", "computer" (Kokoro on
  * the computer running T3, opt-in), or a voice the user's cards registered (replyVoices.ts) by its id.
  */
-export const replyVoicePick = (): string => read(REPLY_VOICE_KEY) ?? "auto";
+export const replyVoicePick = (): string => {
+  const stored = read(REPLY_VOICE_KEY) ?? "auto";
+  // Before 15 Nov "kokoro" let the device pick Kokoro's build, as automatic does on a desktop.
+  if (stored === "kokoro") return phone() ? "kokoro-cpu" : "auto";
+  return stored;
+};
 export const setReplyVoice = (voice: string) => write(REPLY_VOICE_KEY, voice === "auto" ? null : voice);
 /** The voice that speaks now, with "auto" resolved for this device. */
 export const replyVoice = (): string => {
