@@ -5,8 +5,8 @@ import "./pageLoader.css";
 
 /**
  * The whole page's loading screen: the lalala mark turning as small white ASCII on black; when
- * `failed`, still turning but glitching, with "tap to retry". Moves only while `play` and on
- * screen. lalala's index.html shows the same before React (its own markup, the same runLogo).
+ * `failed`, still turning but glitching, and the mark itself is the retry (no words). Moves only
+ * while `play` and on screen. lalala's index.html shows the same before React (the same runLogo).
  */
 export function PageLoader(props: {
   readonly play: boolean;
@@ -39,12 +39,14 @@ export function PageLoader(props: {
 
   return (
     <div data-lalala-page-loader="" data-failed={props.failed ? "" : undefined} ref={rootRef}>
-      <pre ref={logoRef} aria-hidden="true" />
-      {props.failed ? (
-        <button type="button" onClick={props.onReload}>
-          tap to retry
-        </button>
-      ) : null}
+      <button
+        type="button"
+        disabled={!props.failed}
+        aria-label={props.failed ? "Didn't load. Tap to retry" : "Loading"}
+        onClick={props.onReload}
+      >
+        <pre ref={logoRef} aria-hidden="true" />
+      </button>
     </div>
   );
 }

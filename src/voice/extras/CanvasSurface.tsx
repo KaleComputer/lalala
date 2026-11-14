@@ -1,4 +1,4 @@
-import { type ReactNode, useLayoutEffect, useRef } from "react";
+import { type ReactNode, useEffect, useLayoutEffect, useRef } from "react";
 import {
   type Rect,
   getCamera,
@@ -21,6 +21,7 @@ import {
   resizeGroup,
   type GroupGrab,
 } from "./canvasStore";
+import { followBootScreen } from "./bootScreen";
 import { GroupAreas } from "./GroupAreas";
 import "./canvasSurface.css";
 
@@ -52,6 +53,9 @@ const wheelPixels = (event: WheelEvent, delta: number) =>
 export function CanvasSurface({ children }: { readonly children: ReactNode }) {
   const surfaceRef = useRef<HTMLDivElement>(null);
   const worldRef = useRef<HTMLDivElement>(null);
+
+  // oxlint-disable-next-line t3code/no-unreasoned-state-sync -- the page's boot screen (index.html) lives outside React and waits for the cards in view
+  useEffect(followBootScreen, []);
 
   // Before paint: a swapped-in build must show the saved camera on its very first frame.
   // oxlint-disable-next-line t3code/no-unreasoned-state-sync -- pointer, wheel and Safari gesture input drive the camera outside React

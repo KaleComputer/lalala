@@ -19,18 +19,18 @@
     monospace;
   white-space: pre;
 }
+/* The mark is a button, live only once the load failed: a tap retries. */
 [data-lalala-page-loader] button {
-  padding: 10px 12px;
+  padding: 12px;
   border: 0;
   background: none;
-  color: #fff;
-  font:
-    700 9px / 1 ui-monospace,
-    SFMono-Regular,
-    Menlo,
-    Consolas,
-    monospace;
-  letter-spacing: 0.08em;
+  color: inherit;
+  font: inherit;
+}
+[data-lalala-page-loader] button:disabled {
+  cursor: default;
+}
+[data-lalala-page-loader][data-failed] button {
   cursor: pointer;
 }
 [data-lalala-page-loader] button:focus-visible {

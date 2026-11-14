@@ -33,8 +33,9 @@
       })();
     </script>
     <style>
-      /* Boot screen: in the HTML so the phone never shows a bare black page; React replaces #root's
-         contents on mount, which removes it. The lalala mark as small white ASCII, turning in 3D. */
+      /* Boot screen: in the HTML so the phone never shows a bare black page. The lalala mark as small
+         white ASCII, turning in 3D, over the app until the cards in view are in (the bar under it
+         follows them, extras/bootScreen.ts); then it fades out in 250 ms and goes. */
       #lala-boot {
         position: fixed;
         inset: 0;
@@ -48,60 +49,148 @@
         font: 700 7px / 1 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
       }
       #lala-boot pre { margin: 0; font: inherit; white-space: pre; }
-      #lala-boot .msg { display: grid; place-items: center; min-height: 28px; }
-      #lala-boot .msg > * { grid-area: 1 / 1; }
-      #lala-boot .slow,
-      #lala-boot button {
-        font: 700 9px / 1 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
-        letter-spacing: 0.08em;
-        color: #fff;
+      /* Under the logo (centred, 168px of type plus its 12px padding), 5% of the screen below it. */
+      #lala-boot .lala-boot-bar {
+        position: absolute;
+        top: calc(50% + 96px + 5vh);
+        left: 50%;
+        width: 140px;
+        height: 2px;
+        background: rgba(255, 255, 255, 0.18);
+        transform: translateX(-50%);
       }
-      #lala-boot .slow { visibility: hidden; opacity: 0.6; animation: lala-boot-show 0s 15s forwards; }
-      #lala-boot button {
-        display: none;
-        padding: 10px 12px;
+      #lala-boot .lala-boot-bar > i {
+        display: block;
+        height: 100%;
+        background: #fff;
+        transform: scaleX(0);
+        transform-origin: left;
+        transition: transform 200ms linear;
+      }
+      /* The end: the bar fills, fades alone (250 ms), the logo holds (500 ms), then all fades (250 ms). */
+      #lala-boot.is-full .lala-boot-bar { opacity: 0; transition: opacity 250ms ease; }
+      #lala-boot.is-done { opacity: 0; pointer-events: none; transition: opacity 250ms ease; }
+      /* The logo is the retry: a button, live only once the load failed (glitching, no words). */
+      #lala-boot .lala-boot-logo {
+        padding: 12px;
         border: 0;
         background: none;
-        cursor: pointer;
+        color: inherit;
+        font: inherit;
+        pointer-events: none;
       }
-      #lala-boot button:focus-visible { outline: 1px solid #fff; outline-offset: 0; }
-      #lala-boot.is-failed .slow { display: none; }
-      #lala-boot.is-failed button { display: block; }
-      @keyframes lala-boot-show { to { visibility: visible; } }
+      #lala-boot.is-failed .lala-boot-logo { pointer-events: auto; cursor: pointer; }
+      #lala-boot .lala-boot-logo:focus-visible { outline: 1px solid #fff; outline-offset: 0; }
+      #lala-boot.is-failed .lala-boot-bar { visibility: hidden; }
+      @media (prefers-reduced-motion: reduce) {
+        #lala-boot.is-done,
+        #lala-boot.is-full .lala-boot-bar,
+        #lala-boot .lala-boot-bar > i { transition: none; }
+      }
     </style>
     <script>
-      // A module that fails to load or throws before the app mounts leaves the boot screen up; say so.
+      // A module that fails to load or throws before the canvas takes over leaves the boot screen up;
+      // say so. Once the canvas reports (extras/bootScreen.ts), the screen is its to end.
       (() => {
+        let handedOver = false;
+        // A card that never arrives doesn't keep the canvas hidden past this.
+        const LONGEST_MS = 20_000;
+        const handOver = () => {
+          if (handedOver) return;
+          handedOver = true;
+          setTimeout(() => window.__lalalaBootDone?.(), LONGEST_MS);
+        };
+        window.__lalalaBoot = {
+          progress(share) {
+            handOver();
+            const bar = document.querySelector("#lala-boot .lala-boot-bar > i");
+            if (bar) bar.style.transform = `scaleX(${Math.max(0, Math.min(1, share))})`;
+          },
+          done() {
+            handOver();
+            try {
+              sessionStorage.removeItem("lalala:boot-tries");
+            } catch {}
+            const boot = document.getElementById("lala-boot");
+            if (!boot || boot.dataset.ending !== undefined) return;
+            boot.dataset.ending = "";
+            const bar = boot.querySelector(".lala-boot-bar > i");
+            if (bar) bar.style.transform = "scaleX(1)";
+            const after = (ms, then) => setTimeout(then, ms);
+            // The fill's own 200 ms, the bar's fade, the hold, then the screen's fade.
+            after(200, () => {
+              boot.classList.add("is-full");
+              after(250 + 500, () => {
+                boot.classList.add("is-done");
+                after(300, () => boot.remove());
+              });
+            });
+          },
+        };
+        window.__lalalaBootDone = window.__lalalaBoot.done;
+        // Auto-retry (Settings writes it): "off", or seconds between retries; absent is every 5 s.
+        // The first tries come quickly and quietly (1 s, then 2 s), the mark still turning; after
+        // them it glitches and keeps retrying in the background. A tap on it retries at once.
+        const TRIES = "lalala:boot-tries";
+        const every = (() => {
+          try {
+            const value = localStorage.getItem("lalala:auto-retry");
+            if (value === "off") return 0;
+            const seconds = Number(value);
+            return value !== null && seconds > 0 ? seconds * 1000 : 5000;
+          } catch {
+            return 5000;
+          }
+        })();
+        const tries = (() => {
+          try {
+            return Number(sessionStorage.getItem(TRIES)) || 0;
+          } catch {
+            return 0;
+          }
+        })();
+        const retry = () => {
+          try {
+            sessionStorage.setItem(TRIES, String(tries + 1));
+          } catch {}
+          location.reload();
+        };
+        window.__lalalaBootRetry = () => {
+          try {
+            sessionStorage.removeItem(TRIES);
+          } catch {}
+          location.reload();
+        };
+        let failed = false;
         const fail = (event) => {
           const boot = document.getElementById("lala-boot");
-          if (!boot) return;
+          if (!boot || handedOver || failed) return;
           const fromScript = event.target instanceof HTMLScriptElement;
           if (!fromScript && !(event instanceof ErrorEvent)) return;
+          failed = true;
+          console.warn("lalala: the page didn't load", fromScript ? event.target.src : event.message);
+          if (every > 0 && tries < 2) {
+            setTimeout(retry, 1000 * 2 ** tries);
+            return;
+          }
           boot.classList.add("is-failed");
-          const button = boot.querySelector("button");
-          if (button && !button.title)
-            button.title = fromScript
-              ? "Part of the app didn't arrive. The connection may have dropped, or the computer is mid-update."
-              : `It stopped with an error: ${event.message}`;
+          boot.querySelector(".lala-boot-logo")?.setAttribute("aria-label", "Didn't load. Tap to retry");
+          if (every > 0) setTimeout(retry, every);
         };
         window.addEventListener("error", fail, true);
       })();
     </script>
   </head>
   <body>
-    <div id="root">
-      <div id="lala-boot" role="status" aria-live="polite" aria-label="Loading">
-        <pre aria-hidden="true"></pre>
-        <div class="msg">
-          <span class="slow">slow connection</span>
-          <button type="button" onclick="location.reload()">tap to retry</button>
-        </div>
-      </div>
+    <div id="root"></div>
+    <div id="lala-boot" role="status" aria-live="polite" aria-label="Loading">
+      <button type="button" class="lala-boot-logo" onclick="window.__lalalaBootRetry()"><pre aria-hidden="true"></pre></button>
+      <div class="lala-boot-bar" aria-hidden="true"><i></i></div>
     </div>
     <script type="module">
       // The mark's drawing and frame loop are the canvas's PageLoader's (one source); it turns until
-      // React removes the boot screen, glitching once the load fails. A module, so it starts just
-      // before the app's.
+      // the boot screen goes, glitching once the load fails. A module, so it starts just before the
+      // app's.
       import { runLogo } from "/src/voice/extras/asciiLogo.ts";
       const boot = document.getElementById("lala-boot");
       const pre = boot?.querySelector("pre");
