@@ -1,6 +1,8 @@
 import { readdirSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 
+import { buildVersion } from "./version.mjs";
+
 // The repo root: the page is the app's own canvas, imported from ../src/voice.
 const root = fileURLToPath(new URL("..", import.meta.url));
 
@@ -34,7 +36,17 @@ const config = {
       "@base-ui/react/*": "./node_modules/@base-ui/react/*",
     },
   },
-  env: { LALALA_TOPIC_SOUNDS: topicSounds.join(",") },
+  env: {
+    LALALA_TOPIC_SOUNDS: topicSounds.join(","),
+    LALALA_VERSION: JSON.stringify(
+      buildVersion(
+        root,
+        process.env.VERCEL_ENV === "production"
+          ? "lalala.talk"
+          : (process.env.VERCEL_ENV ?? "local build"),
+      ),
+    ),
+  },
 };
 
 export default config;

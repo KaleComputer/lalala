@@ -25,3 +25,26 @@
   height: 100%;
   --page-loader-font: 7px;
 }
+
+/* The build stamp, unpaired only: tiny in the bottom-right corner, under the device bar. Tap copies it. */
+.landing-version {
+  position: fixed;
+  bottom: calc(2px + env(safe-area-inset-bottom));
+  right: calc(8px + env(safe-area-inset-right));
+  z-index: 5;
+  padding: 4px 6px;
+  border: 0;
+  background: none;
+  color: var(--lala-settings-ink);
+  font: 400 10px / 1.2 var(--lala-font);
+  font-variant-numeric: tabular-nums;
+  opacity: 0.4;
+  cursor: pointer;
+}
+/* A phone's bar spans the bottom edge, so there the stamp moves to the top corner. */
+@media (max-width: 640px) {
+  .landing-version {
+    top: calc(4px + env(safe-area-inset-top));
+    bottom: auto;
+  }
+}

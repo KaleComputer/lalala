@@ -10,6 +10,7 @@ import { cardsDir, cardsPlugin } from "./vite/cards.mjs";
 import { isolationPlugin } from "./vite/isolation.mjs";
 import { t3BridgePlugin } from "./vite/t3bridge.mjs";
 import { lalalaPlugin } from "./vite/voice.ts";
+import { buildVersion } from "./site/version.mjs";
 
 const src = NodePath.join(import.meta.dirname, "src");
 const t3 = (file) => NodePath.join(src, "t3", file);
@@ -17,6 +18,28 @@ const port = Number(process.env.LALALA_PORT || 5780);
 // The brain's T3 project folder (this checkout unless LALALA_WORKSPACE_ROOT says otherwise); the
 // user's cards live in its cards/ folder (vite/cards.mjs).
 const brainRoot = NodePath.resolve(process.env.LALALA_WORKSPACE_ROOT?.trim() || import.meta.dirname);
+
+/** The version label's stamp (site/version.mjs): baked in, and live at /__lalala-version in dev. */
+function versionPlugin() {
+  const root = import.meta.dirname;
+  return {
+    name: "lalala-version",
+    config: (_, { command }) => ({
+      define: {
+        "process.env.LALALA_VERSION": JSON.stringify(
+          JSON.stringify(buildVersion(root, command === "serve" ? "local dev" : "local build")),
+        ),
+      },
+    }),
+    configureServer(server) {
+      server.middlewares.use((req, res, next) => {
+        if ((req.url ?? "").split("?")[0] !== "/__lalala-version") return next();
+        res.writeHead(200, { "content-type": "application/json", "cache-control": "no-store" });
+        res.end(JSON.stringify(buildVersion(root, "local dev")));
+      });
+    },
+  };
+}
 
 export default defineConfig({
   plugins: [
@@ -27,6 +50,7 @@ export default defineConfig({
     cardsPlugin({ dir: cardsDir(brainRoot), extrasDir: NodePath.join(src, "voice/extras") }),
     lalalaPlugin(),
     isolationPlugin(),
+    versionPlugin(),
     tailwindcss(),
     react(),
   ],

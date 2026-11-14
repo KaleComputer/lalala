@@ -60,6 +60,7 @@ import {
   subscribeSpeechState,
 } from "./browserSpeech/browser";
 import { useLook } from "./extras/look";
+import { VersionLabel } from "./VersionLabel";
 import { ThemeGallery } from "./extras/ThemeGallery";
 import { setSoundVolume, soundOutput, useSoundVolume, withSoundVolume } from "./extras/soundVolume";
 import { REQUEST_TIMEOUT_MS } from "./voiceErrors";
@@ -435,7 +436,7 @@ function SettingsSheet(props: {
   // T3's sidebar: one Tab stop, arrows move along it without wrapping.
   const onNavKey = (event: ReactKeyboardEvent<HTMLElement>) => {
     if (event.altKey || event.ctrlKey || event.metaKey || event.shiftKey) return;
-    const items = [...(navRef.current?.querySelectorAll<HTMLElement>("button") ?? [])];
+    const items = [...(navRef.current?.querySelectorAll<HTMLElement>("button[data-page]") ?? [])];
     const at = items.indexOf(document.activeElement as HTMLElement);
     const next =
       event.key === "ArrowDown"
@@ -568,6 +569,7 @@ function SettingsSheet(props: {
               );
             })}
           </ul>
+          <VersionLabel />
         </nav>
         {/* Every page stays mounted, so a check or a failed save survives a look at another page. */}
         <div ref={bodyRef} data-lalala-settings-body="">

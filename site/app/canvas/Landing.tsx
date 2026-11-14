@@ -9,6 +9,7 @@ import { CanvasCard } from "../../../src/voice/extras/CanvasCard";
 import { PageLoader } from "../../../src/voice/extras/PageLoader";
 import { VoiceExtras } from "../../../src/voice/extras/VoiceExtras";
 import { StreamerFilter } from "../../../src/voice/streamerMode";
+import { VersionLabel } from "../../../src/voice/VersionLabel";
 import {
   CanvasRows,
   LOOK_NAMES,
@@ -183,6 +184,7 @@ export default function Landing() {
       <div data-lalala-dock="" data-lalala-canvas="">
         <Call settings={pages} />
       </div>
+      {linked ? null : <VersionLabel className="landing-version" />}
       <StreamerFilter />
     </>
   );

@@ -279,6 +279,26 @@
   font-size: 12px;
   line-height: 1.5;
 }
+/* The build stamp under the pages: quiet, tap to copy. The icon rail has no room for it. */
+[data-lalala-settings-nav] [data-lalala-version] {
+  display: block;
+  height: auto;
+  min-height: 0;
+  margin-top: 12px;
+  padding: 4px 10px;
+  color: var(--s-fg-3);
+  font: 400 10px / 1.4 var(--s-sans);
+  font-variant-numeric: tabular-nums;
+  white-space: normal;
+  background: none;
+}
+[data-lalala-settings-nav] [data-lalala-version]:hover {
+  color: var(--s-fg-2);
+  background: none;
+}
+[data-rail] [data-lalala-settings-nav] [data-lalala-version] {
+  display: none;
+}
 /* Small print at a page's end (Credits): no box, quieter than a description. */
 [data-lalala-settings-fine] {
   max-width: 42rem;
