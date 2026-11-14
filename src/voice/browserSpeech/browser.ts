@@ -213,7 +213,9 @@ function modelWorker(key: string, spawn: () => Worker, onSettled: () => void = (
 
 // A phone speaks with the Mac's Kokoro: the WASM one there took over 20 s per sentence (iPhone, 13 Nov).
 // Phones speak through the Mac where there is one: Kokoro in a phone tab costs it most of its memory.
-const onPhone = /iPhone|iPad|iPod|Android/.test(navigator.userAgent) && hasMac();
+const phone = /iPhone|iPad|iPod|Android/.test(navigator.userAgent);
+// Read at each call: the app sets __lalalaMacSpeech after this module has loaded.
+const onPhone = () => phone && hasMac();
 // Spelled out at each call: bundlers only turn this exact form into a worker of its own.
 const ears = modelWorker(
   "parakeet",
@@ -280,7 +282,7 @@ export const startEars = () => {
 export const releaseEars = () => ears.release();
 /** Kokoro loads with the call while it is the reply voice; another reply voice frees it. */
 export const startKokoro = () => {
-  if (onPhone || onMac("kokoro")) voiceLog("system", "speech.mac", { model: "kokoro" });
+  if (onPhone() || onMac("kokoro")) voiceLog("system", "speech.mac", { model: "kokoro" });
   else voice.start();
 };
 export const releaseKokoro = () => voice.release();
@@ -324,7 +326,7 @@ export function openVad(onProbability: (probability: number) => void) {
 
 /** One sentence as 24 kHz PCM from Kokoro; it reads misaki's `[word](/phonemes/)` markup. */
 export async function kokoroSpeak(text: string): Promise<Float32Array<ArrayBuffer>> {
-  if (onPhone || onMac("kokoro")) {
+  if (onPhone() || onMac("kokoro")) {
     const response = await mac("/__lalala/tts?engine=local", {
       headers: { "content-type": "application/json" },
       body: JSON.stringify({ text, format: "pcm" }),
