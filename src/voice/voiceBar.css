@@ -966,8 +966,16 @@
 [data-lalala-note="models"] li[data-done] > span {
   opacity: 0.5;
 }
-[data-lalala-presence]:has(:is([data-lalala-note="models"], [data-lalala-note="loading"]))
-  .fr[data-state="connecting"]
+/* Every info state's plate has the ASCII display behind it (callwave's info), whatever the look hides. */
+[data-lalala-presence]:has(
+    :is(
+      [data-lalala-note="models"],
+      [data-lalala-note="loading"],
+      [data-lalala-note="connecting"],
+      [data-lalala-note="reconnecting"],
+      [data-lalala-note="holding"]
+    )
+  )
   .fr-wv {
   visibility: visible;
 }

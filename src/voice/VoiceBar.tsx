@@ -227,6 +227,8 @@ export function VoiceBar(props: {
   const compacting = useEffectEvent(() => props.compacting?.active === true);
   const fill = useEffectEvent(() => downloadFill(props.models));
   const loading = useEffectEvent(() => props.models !== null && props.models !== undefined);
+  const motion = note === null ? undefined : INFO_MOTION[note.kind];
+  const infoMotion = useEffectEvent(() => motion ?? null);
   const previewed = props.preview !== undefined;
   const previewing = useEffectEvent(() => previewed);
   const topicAt = props.preview?.topicAt;
@@ -325,6 +327,7 @@ export function VoiceBar(props: {
       if (stopped) return;
       const analysis = readAnalysis();
       light.setFill(fill());
+      light.setInfo(infoOf(infoMotion(), canvas, frameEl));
       light.frame(analysis?.levels ?? {}, analysis?.spectrum ?? null);
       const now = performance.now();
       const dt = Math.min(0.05, (now - voiceAt) / 1000);
@@ -541,6 +544,30 @@ type Note =
 
 const mb = (bytes: number) => Math.round(bytes / 1e6);
 
+/** The ASCII display's motion behind each info state's plate (Tim, 15 Nov: one system, a motion each). */
+const INFO_MOTION: Partial<Record<Note["kind"], "wave" | "scan" | "pulse">> = {
+  connecting: "wave",
+  loading: "scan",
+  models: "scan",
+  reconnecting: "pulse",
+  holding: "pulse",
+};
+
+/** The motion and the plate's span in the wave canvas's CSS px (the display leaves a gap there). */
+function infoOf(mode: "wave" | "scan" | "pulse" | null, canvas: HTMLCanvasElement, frame: Element) {
+  if (mode === null) return null;
+  const plate = frame.querySelector("[data-lalala-note] > b");
+  if (plate === null) return { mode, hole: null };
+  const box = canvas.getBoundingClientRect();
+  // A scaled copy (the states card) measures in screen px; the canvas draws in its own CSS px.
+  const scale = box.width / Math.max(1, canvas.clientWidth);
+  const at = plate.getBoundingClientRect();
+  return {
+    mode,
+    hole: [(at.left - box.left) / scale, (at.right - box.left) / scale] as const,
+  };
+}
+
 /** All the models' bytes so far against all their sizes, for the connecting line's fill; null while unknown. */
 function downloadFill(models: ReadonlyArray<VoiceBarModel> | null | undefined) {
   let loaded = 0;
@@ -589,9 +616,9 @@ function RoomNote({ note, compacting }: { readonly note: Note; readonly compacti
           VOICE LOADING
         </b>
       ) : note.kind === "connecting" ? (
-        // The status line under the bar already reads "Connecting" out.
-        <b data-lalala-tag="" aria-hidden="true">
-          <span>{note.text}</span>
+        // The status line under the bar already reads "Connecting" out. A white plate like VOICE LOADING.
+        <b data-lalala-plate="white" aria-hidden="true">
+          {note.text.toUpperCase()}
         </b>
       ) : note.kind === "topic" ? (
         <b style={{ "--lalala-topic-ms": `${note.ms}ms` } as CSSProperties}>Update</b>

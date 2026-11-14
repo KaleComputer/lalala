@@ -150,6 +150,9 @@ export function createCallWave(canvas, { reduced = false, wash = null, state = (
   let barsSet = "";
   let voice = "idle";
   let fill = null; // a model download's progress (0..1) for the ASCII line, or null
+  // An info state's plate on the room (connecting, loading, reconnecting...): its motion for the ASCII
+  // display behind it and the plate's left and right (CSS px in this canvas); null shows the look's own wave.
+  let info = null;
   let moving = false; // her line or its ghost still off the middle
   let resting = false; // nothing here moves without sound: the page may poll instead of drawing every frame
   let glitchGl; // Presence's shader glitch (glitchline.js), made on the first no-signal frame; null without WebGL
@@ -171,7 +174,9 @@ export function createCallWave(canvas, { reduced = false, wash = null, state = (
       const v = parseFloat(cs?.getPropertyValue(name));
       return Number.isFinite(v) ? v : or;
     };
-    const rh = Math.min(H, px("--bar-row", H));
+    // The canvas is the wave's (--bar-wave, twice the row): the room is its middle half at most, so the
+    // ASCII rows and their clip never reach under the tabs or below the bar (Tim, 15 Nov).
+    const rh = Math.min(H / 2, px("--bar-row", H / 2));
     room = { top: (H - rh) / 2, bottom: (H + rh) / 2, cut: Math.max(0, px("--cut", 0) - px("--fr-strip", 0)) };
     drawn = "";
     cleared = false;
@@ -283,7 +288,7 @@ export function createCallWave(canvas, { reduced = false, wash = null, state = (
     if (k === "ascii") {
       // The old ASCII shader (the user, 23 Oct: "the one we had before"), copied into the room's clip.
       if (asciiGl === undefined) asciiGl = createAsciiLine();
-      const img = asciiGl?.draw({ width: W, height: H, dpr, x0: a, x1: b, y: cy, top: room.top, bottom: room.bottom, time: t, breath: 0.5 + 0.5 * Math.sin((t * Math.PI * 2) / 7), fill });
+      const img = asciiGl?.draw({ width: W, height: H, dpr, x0: a, x1: b, y: cy, top: room.top, bottom: room.bottom, time: t, fill, mode: info?.mode ?? "wave", hole: info?.hole ?? null });
       if (img) {
         asciiBy = asciiGl.kind;
         ctx.drawImage(img, 0, 0, W, H);
@@ -420,7 +425,7 @@ export function createCallWave(canvas, { reduced = false, wash = null, state = (
     last = now;
     const t = (now - start) / 1000 + 1.3;
     const st = state();
-    const k = waveKind(st);
+    const k = info !== null && !st.open ? "ascii" : waveKind(st);
     if (k !== kind) {
       fromKind = reduced ? "" : kind;
       fromLt = (now - kindAt) / 1000;
@@ -489,6 +494,7 @@ export function createCallWave(canvas, { reduced = false, wash = null, state = (
     setVoice: (v) => void (voice = v),
     /** A model download's progress (0..1), lighting the connecting line's glyphs green from the left; null, none. */
     setFill: (f) => void (fill = f),
+    setInfo: (i) => void (info = i),
     /** The kind drawn now, her and the user's eased levels, the voice line's highest point drawn (CSS px), the line's ends and the room (CSS px), the wash's opacity (checks). */
     get kind() {
       return kind;

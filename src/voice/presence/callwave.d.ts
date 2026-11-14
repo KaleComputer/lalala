@@ -15,6 +15,10 @@ export interface CallWave {
   readonly resting: boolean;
   readonly fading: boolean;
   setFill(fill: number | null): void;
+  /** An info state's plate: the ASCII display's motion behind it and the plate's span (CSS px); null, none. */
+  setInfo(
+    info: { mode: "wave" | "scan" | "pulse"; hole: readonly [number, number] | null } | null,
+  ): void;
 }
 export function createCallWave(
   canvas: HTMLCanvasElement,

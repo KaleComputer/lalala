@@ -1,18 +1,11 @@
-// From Presence's call-frame bar, recoloured green.
-// The connecting line as ASCII, restored (the user, 23 Oct: "bring back the ASCII shader for the connecting
-// state, the one we had before"). This is the shader from cd87111 (KAL-1485, public/shared/line-gl.mjs,
-// after movAX13h's "ASCII Art" on Shadertoy), which drew the lost line until #168 put the call frame's 2D
-// glyph static (callwave.mjs) in its place. Only its connecting path is kept: the resting line (a crisp
-// warm-white core, a tight halo, a warm glow) is lit per pixel, then per 9 px cell the line's brightness
-// where it crosses the cell's column picks a 5x5 glyph by density (. : * o & 8 @ #), drawn in the line's
-// own colour at 60% over the room; the characters flicker ten times a second. The line lies just above
-// a row's edge, as it did on the old page, so it reads as two rows of glyphs with a dotted one each side.
-// The line runs the room edge to edge (#216): from the room's left end to the key's divider, on the
-// room's middle; its soft ends keep the faintest glyphs at the room's ends. It draws into a detached WebGL canvas that callwave.mjs
-// copies into its own 2D canvas inside the room's clip, so the page keeps one canvas and the room's
-// shape (#220's straight divider or a slant) is the 2D clip's. Drawn only while connecting and only
-// when a glyph changes (10 a second) or the size does. WebGL2 first, else WebGL1 with the same
-// GLSL ES 1.00 source; null when neither compiles (callwave.mjs then keeps its 2D static).
+// The bar's small ASCII display (Tim, 15 Nov): behind every info state's plate (connecting, voice
+// loading, downloading, reconnecting...), as many rows of 5x5 glyphs (. : * o & 8 @ #, movAX13h's "ASCII
+// Art" set, from cd87111's old connecting shader) as fit the room's height, in white at low opacity,
+// showing a designed motion per state: a travelling waveform, a scan, or rings from the middle. A gap is
+// left around the plate. It draws into a detached WebGL canvas that callwave.js copies into its own 2D
+// canvas inside the room's clip, only while such a state shows and only when the motion steps (16 a
+// second) or the size changes. WebGL2 first, else WebGL1 with the same GLSL ES 1.00 source; null when
+// neither compiles (callwave.js then keeps its 2D static).
 
 const VERT = `
 attribute vec2 aPos;
@@ -23,42 +16,13 @@ precision highp float;
 uniform vec2 uRes;      // backing px
 uniform vec3 uLine;     // x0, x1, y: backing px, y from the top
 uniform float uDpr;     // backing px per CSS px
-uniform float uK;       // glow scale: 1 on a wide line, smaller on a short one or in the bar
-uniform vec4 uState;    // time (s), idle breath, opacity over the room, the cell grid's vertical offset (backing px)
-uniform float uFill;    // a model download's edge (backing px): glyphs left of it light green; < 0, no download
-uniform vec2 uBand;     // the room's top and a glyph row's height (backing px): the room's height over ROWS
+uniform vec4 uState;    // time (s), unused, opacity over the room, unused
+uniform float uFill;    // a model download's edge (backing px): glyphs left of it brighter; < 0, no download
+uniform vec3 uBand;     // the room's top, a glyph row's height and the room's bottom (backing px)
+uniform float uMode;    // the motion: 0 waveform, 1 scan, 2 rings
+uniform vec2 uHole;     // the state's plate, left and right (backing px), padded: no glyphs there; empty when x >= y
 
 const vec3 WHITE = vec3(1.0, 0.955, 0.90);
-const vec3 WARM = vec3(1.0, 0.56, 0.24);
-const vec3 HUD = vec3(0.239, 1.0, 0.561);
-const vec3 BG = vec3(0.003035, 0.002732, 0.002428);
-
-float sq(float x) { return x * x; }
-
-// The resting line's light at p (backing px, y from the top), linear (cd87111's lineAt, idle weight).
-vec3 lineAt(vec2 p) {
-  float L = max(1.0, uLine.y - uLine.x);
-  float u = (p.x - uLine.x) / L;
-  float uc = clamp(u, 0.0, 1.0);
-  float d = length(vec2((u - uc) * L, p.y - uLine.z)) / uDpr;
-  // cd87111's soft ends, held up so the faintest glyphs still touch the room's ends (edge to edge, #216).
-  float along = mix(END, 1.0, smoothstep(0.0, 0.16, u)) * mix(END, 1.0, smoothstep(1.0, 0.84, u)) * step(0.0, u) * step(u, 1.0);
-  float level = 0.40 + 0.06 * uState.y;
-  float thick = 0.55;
-  float core = exp(-0.5 * sq(d / (0.46 + 0.52 * thick)));
-  float halo = 1.0 / (1.0 + sq(d / (1.4 + 1.6 * thick)));
-  float glow = exp(-d / (7.0 * mix(1.0, uK, 0.5)));
-  float reach = exp(-sq(d / (28.0 * uK)));
-  vec3 col = WHITE * core * 2.4 + mix(WHITE, WARM, 0.4) * halo * 0.14 + WARM * glow * 0.03 + WARM * reach * 0.016;
-  return col * along * level;
-}
-
-// Linear light over the room to display sRGB (tone-mapped).
-vec3 toS(vec3 col) {
-  col = 1.0 - exp(-(col + BG));
-  return mix(col * 12.92, 1.055 * pow(col, vec3(1.0 / 2.4)) - 0.055, step(vec3(0.0031308), col));
-}
-
 // 5x5 glyphs packed in bits, split in a high and a low half so they stay exact in a float (GLSL ES 1.00
 // has no bit operations). Bit a = x + 5 y, x from the right, y from the bottom.
 float glyph(float hi, float lo, vec2 g) {
@@ -81,52 +45,73 @@ float ascii(float gray, vec2 g) {
 
 void main() {
   vec2 p = vec2(gl_FragCoord.x, uRes.y - gl_FragCoord.y);
-  vec3 room = toS(vec3(0.0));
-  // Each cell samples the line where it crosses the cell's column (its brightest point there), maps
-  // that to a glyph by density and draws it in the line's own colour; the characters flicker a little.
-  // ROWS rows of glyphs fill the room's height (Tim, 15 Nov), spaced apart: each row's glyph sits in the
-  // middle of its band, the rows nearer the line denser, the outer ones lighter.
+  // A small black-and-white display (Tim, 15 Nov): as many rows of 5x5 glyphs as fit the room's
+  // height, each in the middle of its band, showing a designed motion per state (uMode): 0 a
+  // travelling waveform (connecting, starting), 1 a scan sweeping left to right (models loading;
+  // a download fills from the left), 2 rings from the middle out (reconnecting, offline). It stays
+  // dim behind the state's plate, and leaves a gap around it (uHole) so nothing competes with its words.
   float cs = CELL * uDpr;
+  // Nothing outside the room: no glyph under the tabs or below the bar, whatever the canvas's clip.
+  if (p.y < uBand.x || p.y >= uBand.z) {
+    gl_FragColor = vec4(0.0);
+    return;
+  }
   vec2 cell = vec2(floor(p.x / cs), floor((p.y - uBand.x) / uBand.y));
   vec2 c0 = vec2(cell.x * cs, uBand.x + cell.y * uBand.y + 0.5 * (uBand.y - cs));
-  vec2 q = p;
   float cx = c0.x + 0.5 * cs;
-  float rowY = uBand.x + (cell.y + 0.5) * uBand.y;
-  float away = clamp(abs(rowY - uLine.z) / max(1.0, 2.0 * uBand.y), 0.0, 1.0);
-  vec3 cc = toS(lineAt(vec2(cx, uLine.z)));
-  float gray = clamp(dot(cc - room, vec3(0.3, 0.59, 0.11)) * 1.15, 0.0, 1.0) * mix(1.0, 0.5, away);
-  float n = fract(sin(dot(cell, vec2(12.9898, 78.233)) + floor(uState.x * 10.0) * 7.31) * 43758.5453);
-  gray *= 1.0 + 0.22 * (n - 0.5);
-  float on = ascii(gray, floor((q - c0) / cs * 7.0) - 1.0);
-  vec3 tint = cc / max(1e-3, max(cc.r, max(cc.g, cc.b)));
-  // Over the room at the line's opacity (about 60% while lost): premultiplied, so the frame shows through.
-  float a = on * uState.z;
-  vec3 col = tint * min(1.0, 0.35 + gray);
-  // A download fills the line green from the left (Tim, 6 Nov: design A's glyphs, D's green fill).
-  if (uFill >= 0.0) {
-    if (cx <= uFill) {
-      col = HUD * min(1.0, 0.55 + gray);
-      a = on * min(1.0, uState.z + 0.3);
-    } else {
-      col *= 0.6;
-      a *= 0.55;
-    }
+  if (uHole.y > uHole.x && c0.x + cs > uHole.x && c0.x < uHole.y) {
+    gl_FragColor = vec4(0.0);
+    return;
   }
+  float rows = floor((uBand.z - uBand.x) / uBand.y + 0.5);
+  float mid = 0.5 * (rows - 1.0);
+  // How far this row is from the middle, 0 (centre) to 1 (the outer rows' edge).
+  float d = (abs(cell.y - mid) + 0.5) / max(1.0, mid + 0.5);
+  float L = max(1.0, uLine.y - uLine.x);
+  float u = clamp((cx - uLine.x) / L, 0.0, 1.0);
+  float span = L / cs;
+  float t = uState.x;
+  float amp;
+  if (uMode < 0.5) {
+    // Two sines travelling at different speeds: a calm, always-changing waveform.
+    float w = 0.62 * sin(u * span * 0.21 - t * 3.0) + 0.38 * sin(u * span * 0.53 + t * 1.9);
+    amp = 0.18 + 0.82 * abs(w);
+  } else if (uMode < 1.5) {
+    // A bright head sweeping left to right every 2.2 s, a fading trail behind it.
+    float head = fract(t / 2.2) * 1.3 - 0.15;
+    float back = head - u;
+    amp = 0.12 + 0.88 * (back < 0.0 ? exp(back * 60.0) : exp(-back * 5.0));
+  } else {
+    // Rings from the middle out every 1.8 s, like a signal being looked for.
+    float r = abs(u - 0.5) * 2.0;
+    float ring = fract(t / 1.8) * 1.4 - 0.2;
+    amp = 0.15 + 0.85 * exp(-pow((r - ring) * 7.0, 2.0)) * (1.0 - 0.5 * r);
+  }
+  amp *= smoothstep(0.0, 0.05, u) * smoothstep(1.0, 0.95, u);
+  // A row is lit where the waveform reaches it: fully inside, a lighter glyph at its edge.
+  float gray = smoothstep(d - 0.45, d + 0.05, amp) * (0.95 - 0.3 * d);
+  float on = ascii(gray, floor((p - c0) / cs * 7.0) - 1.0);
+  float a = on * uState.z * (0.55 + 0.45 * gray);
+  vec3 col = WHITE;
+  // A download fills from the left: the part done brighter, the rest dimmer, still white.
+  if (uFill >= 0.0) a *= cx <= uFill ? 1.5 : 0.6;
   gl_FragColor = vec4(col * a, a);
 }`;
 
 /** The character cell, CSS px (KAL-1485). */
 export const ASCII_CELL = 9;
-/** The lost line's opacity over the room (KAL-1485: connecting at about 60%). */
-export const ASCII_OPACITY = 0.6;
+/** The display's opacity over the room: dim, behind the state's plate (Tim, 15 Nov: "it shouldn't be that bright"). */
+export const ASCII_OPACITY = 0.3;
 // movAX13h's glyphs (25 bits each: . : * o & 8 @ #) as "high, low" halves of 13 and 12 bits.
 const GLYPHS = [4096, 65600, 332772, 15255086, 23385164, 15252014, 13199452, 11512810];
-/** How much light the soft ends keep at the room's very ends (cd87111: none, on a short line). */
-export const ASCII_END = 0.1;
-const DEFINES = [`#define CELL ${ASCII_CELL.toFixed(1)}`, `#define END ${ASCII_END.toFixed(3)}`, ...GLYPHS.map((n, i) => `#define GLYPH${i} ${Math.floor(n / 4096).toFixed(1)}, ${(n % 4096).toFixed(1)}`)].join("\n");
-const UNIFORMS = ["uRes", "uLine", "uDpr", "uK", "uState", "uFill", "uBand"];
-/** Glyph rows over the room's height, however tall the bar is. */
-export const ASCII_ROWS = 4;
+const DEFINES = [`#define CELL ${ASCII_CELL.toFixed(1)}`, ...GLYPHS.map((n, i) => `#define GLYPH${i} ${Math.floor(n / 4096).toFixed(1)}, ${(n % 4096).toFixed(1)}`)].join("\n");
+const UNIFORMS = ["uRes", "uLine", "uDpr", "uState", "uFill", "uBand", "uMode", "uHole"];
+/** The motions by name (callwave's `info`). */
+const MODES = { wave: 0, scan: 1, pulse: 2 };
+/** Clear room around the state's plate (CSS px). */
+const HOLE_PAD = 10;
+/** A glyph row's least height (CSS px): the cell plus a gap; as many rows as fit fill the room. */
+export const ASCII_ROW_H = ASCII_CELL + 2;
 
 /**
  * The ASCII line on a detached canvas: `draw({ width, height, dpr, x0, x1, y, time, breath, glow, fill })` (CSS
@@ -185,12 +170,12 @@ export function createAsciiLine({ force } = {}) {
     } catch {}
   });
 
-  function draw({ width, height, dpr = 1, x0 = 0, x1 = width, y = height / 2, top = 0, bottom = height, time = 0, breath = 0.5, glow = 0.8, fill = null }) {
+  function draw({ width, height, dpr = 1, x0 = 0, x1 = width, y = height / 2, top = 0, bottom = height, time = 0, breath = 0.5, glow = 0.8, fill = null, mode = "wave", hole = null }) {
     if (lost || gl.isContextLost()) return null;
     const W = Math.max(1, Math.round(width * dpr));
     const H = Math.max(1, Math.round(height * dpr));
-    // The glyphs change ten times a second: between steps the last frame stands.
-    const key = `${W}x${H}|${x0}|${x1}|${y}|${top}|${bottom}|${Math.floor(time * 10)}|${fill === null ? "" : fill.toFixed(3)}`;
+    // The motion steps 16 times a second: between steps the last frame stands.
+    const key = `${W}x${H}|${x0}|${x1}|${y}|${top}|${bottom}|${mode}|${hole}|${Math.floor(time * 16)}|${fill === null ? "" : fill.toFixed(3)}`;
     if (key === last) return canvas;
     last = key;
     if (canvas.width !== W) canvas.width = W;
@@ -203,10 +188,12 @@ export function createAsciiLine({ force } = {}) {
     gl.uniform2f(loc.uRes, W, H);
     gl.uniform3f(loc.uLine, x0 * dpr, x1 * dpr, yb);
     gl.uniform1f(loc.uDpr, dpr);
-    gl.uniform1f(loc.uK, Math.min(1, Math.max(0.55, (x1 - x0) / 860)) * glow);
     gl.uniform1f(loc.uFill, fill === null ? -1 : (x0 + Math.min(1, Math.max(0, fill)) * (x1 - x0)) * dpr);
     gl.uniform4f(loc.uState, time, breath, ASCII_OPACITY, 0);
-    gl.uniform2f(loc.uBand, top * dpr, Math.max(cs, ((bottom - top) * dpr) / ASCII_ROWS));
+    const rows = Math.max(1, Math.floor((bottom - top) / ASCII_ROW_H));
+    gl.uniform3f(loc.uBand, top * dpr, ((bottom - top) * dpr) / rows, bottom * dpr);
+    gl.uniform1f(loc.uMode, MODES[mode] ?? 0);
+    gl.uniform2f(loc.uHole, hole ? (hole[0] - HOLE_PAD) * dpr : 0, hole ? (hole[1] + HOLE_PAD) * dpr : 0);
     gl.drawArrays(gl.TRIANGLES, 0, 3);
     return canvas;
   }
