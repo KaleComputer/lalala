@@ -553,6 +553,8 @@ export function VoiceHost({
 
   const toggle = useEffectEvent(async () => {
     if (startingRef.current) return;
+    // A call started by hand ends auto start's wait for a tap.
+    if (!sessionRef.current?.active) disarmAutoStartRef.current?.();
     const current = sessionRef.current;
     // A tap on the paused bar brings the mic back; it never hangs up.
     if (current?.active && current.micPausedForTap) {
@@ -747,6 +749,7 @@ export function VoiceHost({
   }, [items]);
 
   const autoStartedRef = useRef(false);
+  const disarmAutoStartRef = useRef<(() => void) | null>(null);
   // On applies from the next time lalala opens (read as it opens); off applies at once.
   const [autoStartAtOpen] = useState(autoStartCall);
   const autoStartLive = useAutoStartCall();
@@ -760,8 +763,9 @@ export function VoiceHost({
     // Safari, phones and a Chrome tab that hasn't played sound here start audio only inside a gesture:
     // a fresh AudioContext says so ("suspended"); Firefox turns a permitted one "running" a tick later.
     const probe = new AudioContext();
-    const events = ["pointerup", "touchend", "keydown"] as const;
+    const events = ["pointerdown", "pointerup", "touchend", "keydown"] as const;
     let waiting = true;
+    let downAt: { x: number; y: number } | null = null;
     const begin = (how: string) => {
       if (!waiting) return;
       waiting = false;
@@ -769,19 +773,31 @@ export function VoiceHost({
       void probe.close();
       setTapToStart(false);
       voiceLog("system", "auto-start", { how });
-      if (!sessionRef.current?.active) void toggle();
+      if (how !== "started" && !sessionRef.current?.active) void toggle();
     };
     // A real tap or Enter/Space starts it; Tab, Escape, modifiers and taps on buttons, links or the
     // settings sheet keep waiting (the gear must still open Settings to turn auto start off).
     function onGesture(event: Event) {
       // START itself was pressed meanwhile: nothing left to wait for.
       if (sessionRef.current?.active || startingRef.current) return begin("started");
-      if (event instanceof KeyboardEvent && event.key !== "Enter" && event.key !== " ") return;
+      if (event instanceof KeyboardEvent) {
+        if (event.key !== "Enter" && event.key !== " ") return;
+        if (event.ctrlKey || event.metaKey || event.altKey || event.shiftKey) return;
+      }
+      // A right click or a middle click opens menus, and a finger that moved was scrolling.
+      if (event instanceof PointerEvent) {
+        if (event.button !== 0) return;
+        if (event.type === "pointerdown") return void (downAt = { x: event.clientX, y: event.clientY });
+        if (downAt && Math.hypot(event.clientX - downAt.x, event.clientY - downAt.y) > 10) return;
+      }
+      if (event.type === "touchend" && downAt === null) return;
       const target = event.target instanceof Element ? event.target : null;
       if (target?.closest("button, a, input, select, textarea, [role='dialog'], [data-lalala-settings]"))
         return;
       begin("tap");
     }
+    // Pressing START meanwhile clears the wait at once (toggle calls it).
+    disarmAutoStartRef.current = () => begin("started");
     if (probe.state === "running") begin("allowed");
     else {
       setTapToStart(true);
@@ -789,8 +805,10 @@ export function VoiceHost({
       for (const type of events) document.addEventListener(type, onGesture, true);
     }
     return () => {
-      // Auto start turned off (or the host left) while it waited: nothing starts.
+      // Auto start turned off (or the host left) while it waited: nothing starts; on again re-arms it.
+      if (waiting) autoStartedRef.current = false;
       waiting = false;
+      disarmAutoStartRef.current = null;
       for (const type of events) document.removeEventListener(type, onGesture, true);
       void probe.close();
       setTapToStart(false);

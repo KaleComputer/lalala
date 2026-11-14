@@ -264,12 +264,13 @@
 [data-lalala-settings-heading] {
   display: grid;
   gap: 2px;
+  margin-bottom: 4px;
   padding-inline: 4px;
 }
 [data-lalala-settings-heading] h2 {
   margin: 0;
   color: var(--s-fg);
-  font: 500 14px / 20px var(--s-sans);
+  font: 600 15px / 22px var(--s-sans);
 }
 [data-lalala-settings-heading] p {
   max-width: 42rem;
@@ -281,7 +282,7 @@
 /* Small print at a page's end (Credits): no box, quieter than a description. */
 [data-lalala-settings-fine] {
   max-width: 42rem;
-  margin: -16px 0 0;
+  margin: 0;
   padding-inline: 4px;
   color: var(--s-fg-2);
   font-size: 11px;
@@ -289,6 +290,8 @@
 }
 [data-lalala-settings-fine] a {
   color: inherit;
+  text-decoration: underline;
+  text-underline-offset: 2px;
 }
 [data-lalala-settings-sr] {
   position: absolute;
@@ -527,6 +530,10 @@
   background: var(--s-popover);
   box-shadow: var(--s-shadow);
   outline: 0;
+}
+[data-lalala-settings-list][data-above] {
+  top: auto;
+  bottom: calc(100% + 6px);
 }
 [data-lalala-settings-list] [role="group"] + [role="group"] {
   margin-top: 4px;

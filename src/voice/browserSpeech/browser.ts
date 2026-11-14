@@ -146,7 +146,7 @@ function modelWorker(
     failed = true;
     retries += 1;
     // A browser without what the model needs says so; anything else is the general line.
-    failure = cause.includes(NEEDS_WEBGPU) ? cause.slice(cause.lastIndexOf(":") + 1).trim() : MODEL_FAILED;
+    failure = cause.includes(NEEDS_WEBGPU) ? cause.replace(/^\w*Error:\s*/, "") : MODEL_FAILED;
     markFailed(new Error(failure));
     scheduleRetry();
     notify();
@@ -361,7 +361,7 @@ document.addEventListener("lalala:settings", () => {
     retryEvery = autoRetrySeconds();
     for (const model of [ears, voice, matcha]) model.scheduleRetry();
     // A computer that isn't answering is asked again at the new interval (or not at all when off).
-    if (computerState === "down") setComputer("down");
+    scheduleComputer();
     notify();
   }
   if (sttModel() !== earsModel) {
@@ -423,19 +423,20 @@ function fitModels() {
     else matcha.releaseWhenIdle();
   }
 }
-function setComputer(state: ComputerSpeech) {
+/** Still loading: asked again shortly. Not answering: at the retry interval, if retrying is on. */
+function scheduleComputer() {
   window.clearTimeout(computerTimer);
   computerTimer = 0;
+  const every =
+    computerState === "loading" ? COMPUTER_LOADING_MS / 1000
+    : computerState === "down" ? autoRetrySeconds()
+    : null;
+  if (every !== null) computerTimer = window.setTimeout(() => void refreshComputerSpeech(), every * 1000);
+}
+function setComputer(state: ComputerSpeech) {
   const changed = state !== computerState;
   computerState = state;
-  // Still loading: asked again shortly. Not answering: at the retry interval, if retrying is on.
-  const every = state === "loading" ? COMPUTER_LOADING_MS : state === "down" ? autoRetrySeconds() : null;
-  if (every !== null) {
-    computerTimer = window.setTimeout(
-      () => void refreshComputerSpeech(),
-      state === "loading" ? every : every * 1000,
-    );
-  }
+  scheduleComputer();
   if (changed) {
     voiceLog("system", "speech.computer", { state });
     notify();

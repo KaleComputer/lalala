@@ -780,34 +780,31 @@ export function Section(props: {
   readonly children?: ReactNode;
 }) {
   const id = useId();
-  if (props.fine)
-    return (
-      <section data-lalala-settings-section="" aria-labelledby={id}>
-        <h2 id={id} data-lalala-settings-sr="">
-          {props.title}
-        </h2>
-        <p data-lalala-settings-fine="">{props.note}</p>
-      </section>
-    );
-  const content = (
+  const content = props.fine ? (
+    <p data-lalala-settings-fine="">{props.note}</p>
+  ) : (
     <>
       {props.note ? <p data-lalala-settings-info="">{props.note}</p> : null}
       {props.children}
     </>
   );
   return (
-    <section data-lalala-settings-section="" aria-labelledby={id}>
+    <section
+      data-lalala-settings-section={props.fine ? "fine" : ""}
+      aria-labelledby={id}
+      aria-describedby={props.about ? `${id}a` : undefined}
+    >
       {props.about ? (
         <header data-lalala-settings-heading="">
           <h2 id={id}>{props.title}</h2>
-          <p>{props.about}</p>
+          <p id={`${id}a`}>{props.about}</p>
         </header>
       ) : (
         <h2 id={id} data-lalala-settings-sr="">
           {props.title}
         </h2>
       )}
-      {props.ungrouped ? (
+      {props.ungrouped || props.fine ? (
         content
       ) : props.note || props.children ? (
         <div data-lalala-settings-group="">{content}</div>
@@ -1009,11 +1006,21 @@ export function PickRow(props: {
     const node = listRef.current;
     if (!open || !node) return;
     node.focus({ preventScroll: true });
-    node.querySelector('[aria-selected="true"]')?.scrollIntoView({ block: "nearest" });
     node.scrollIntoView({ block: "nearest" });
-    // Where the sheet can't scroll far enough (the page's end), the list stops above the screen's edge.
-    const room = window.innerHeight - node.getBoundingClientRect().top - 16;
-    if (room < node.offsetHeight) node.style.maxHeight = `${Math.max(160, room)}px`;
+    // Where the sheet can't scroll far enough (the page's end), the list fits the screen: below its
+    // trigger, or above it when there is more room there.
+    node.style.maxHeight = "";
+    delete node.dataset.above;
+    const trigger = triggerRef.current?.getBoundingClientRect();
+    if (trigger) {
+      const below = window.innerHeight - trigger.bottom - 22;
+      const above = trigger.top - 22;
+      if (node.offsetHeight > below) {
+        if (above > below) node.dataset.above = "";
+        node.style.maxHeight = `${Math.max(above, below)}px`;
+      }
+    }
+    node.querySelector('[aria-selected="true"]')?.scrollIntoView({ block: "nearest" });
     const outside = (event: Event) => {
       if (event.target instanceof Node && !node.parentElement?.contains(event.target)) {
         event.preventDefault();
@@ -1633,7 +1640,7 @@ export function SoundSection() {
 
   const named = (mics ?? []).filter((device) => device.deviceId !== "" && device.label !== "");
   return (
-    <Section title="Sound & mic">
+    <Section title="Sounds and microphone" about="What plays besides the voice, and which mic listens.">
       <PickRow
         title="Update sound"
         description="Plays before an update, like a thread's result (not for one about the card you're looking at)."
@@ -1844,7 +1851,6 @@ function SpeechSection() {
   // On a phone the big builds have ended the tab (Tim's iPhone, 14 Nov): picking them stays allowed.
   const heavy = (detail: string) => (phone ? `${detail}, may close a phone tab` : detail);
 
-
   return (
     <Section
       title="Speech models"
@@ -1952,6 +1958,17 @@ function SpeechSection() {
               },
             ],
           },
+          {
+            label: "On the computer running T3",
+            options: [
+              {
+                value: "computer",
+                label: VOICE_LABELS.computer,
+                detail: "most natural",
+                ...computerOption("a 3.8 s sentence in 0.15 s"),
+              },
+            ],
+          },
           ...(plugins.length > 0
             ? [
                 {
@@ -1964,24 +1981,12 @@ function SpeechSection() {
                 },
               ]
             : []),
-          {
-            label: "On the computer running T3",
-            options: [
-              {
-                value: "computer",
-                label: VOICE_LABELS.computer,
-                detail: "most natural",
-                ...computerOption("a 3.8 s sentence in 0.15 s"),
-              },
-            ],
-          },
         ]}
         onChange={(value) => setReplyVoice(value)}
       />
     </Section>
   );
 }
-
 
 /**
  * What happens as lalala opens on this device: whether the call starts by itself, and whether a page
@@ -1991,10 +1996,13 @@ function OpeningSection() {
   const seconds = useAutoRetrySeconds();
   const autoStart = useAutoStartCall();
   return (
-    <Section title="Starting and loading" about="What lalala does by itself when it opens.">
+    <Section
+      title="Starting and loading"
+      about="What lalala does on its own: start the call, and try again when something doesn't load."
+    >
       <Row
         title="Start the call when lalala opens"
-        description="From the next time it opens. It starts by itself where the browser allows sound without a tap; elsewhere (Safari, phones) the first tap or Enter starts it."
+        description="Turning it on applies from the next open, turning it off right away. Safari and phones wait for a first tap or Enter."
       >
         {(describedBy) => (
           <Toggle
