@@ -59,8 +59,9 @@
 [data-lalala-settings-panel] {
   display: grid;
   grid-template: "nav header" auto "nav body" minmax(0, 1fr) / auto minmax(0, 1fr);
-  width: min(880px, 100%);
-  height: min(640px, calc(100dvh - 48px));
+  /* Tall enough for the connect screen's longest path (four steps) without scrolling on a laptop. */
+  width: min(920px, 100%);
+  height: min(860px, calc(100dvh - 48px));
   overflow: hidden;
   border: 1px solid var(--s-frame);
   border-radius: 16px;
@@ -271,13 +272,6 @@
   margin: 0;
   color: var(--s-fg);
   font: 600 15px / 22px var(--s-sans);
-}
-[data-lalala-settings-heading] p {
-  max-width: 42rem;
-  margin: 0;
-  color: var(--s-fg-2);
-  font-size: 12px;
-  line-height: 1.5;
 }
 /* The build stamp under the pages: quiet, tap to copy. The icon rail has no room for it. */
 [data-lalala-settings-nav] [data-lalala-version] {
@@ -874,6 +868,7 @@
 }
 [data-lalala-pair-choice] > button {
   display: grid;
+  align-content: start;
   justify-items: start;
   gap: 2px;
   padding: 10px 12px;
@@ -889,10 +884,27 @@
   color: var(--s-fg-2);
   font: 400 12px / 1.4 var(--s-sans);
 }
+[data-lalala-pair-choice] > button {
+  position: relative;
+  padding-right: 36px;
+}
+/* A radio dot marks the choice; the outline is left to focus. */
+[data-lalala-pair-choice] > button::after {
+  content: "";
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  width: 14px;
+  height: 14px;
+  box-sizing: border-box;
+  border: 1.5px solid var(--s-fg-2);
+  border-radius: 50%;
+}
 [data-lalala-pair-choice] > button[aria-checked="true"] {
-  border-color: var(--s-primary);
   background: var(--s-active);
-  box-shadow: inset 0 0 0 1px var(--s-primary);
+}
+[data-lalala-pair-choice] > button[aria-checked="true"]::after {
+  border: 4px solid var(--s-primary);
 }
 [data-lalala-pair-choice] > button:focus-visible {
   outline: 2px solid var(--s-ring);
@@ -933,6 +945,15 @@
   color: var(--s-fg);
   font: 500 var(--s-text) / 20px var(--s-sans);
 }
+[data-lalala-pair-terminal] > summary {
+  width: fit-content;
+  color: var(--s-fg-2);
+  font-size: 12px;
+  cursor: pointer;
+}
+[data-lalala-pair-terminal][open] > summary {
+  margin-bottom: 8px;
+}
 [data-lalala-pair-or] {
   margin: 0;
   color: var(--s-fg-2);
@@ -955,6 +976,11 @@
   font: 400 12px / 1.5 var(--s-mono);
   overflow-wrap: anywhere;
   user-select: all;
+}
+[data-lalala-pair-command][data-missing] > code {
+  color: var(--s-fg-2);
+  font-family: var(--s-sans);
+  user-select: none;
 }
 [data-lalala-pair-command] > button {
   height: 24px;
@@ -988,6 +1014,7 @@
   font-style: normal;
 }
 [data-lalala-t3-switches] {
+  pointer-events: none;
   display: grid;
   gap: 0;
   max-width: 20rem;
@@ -1028,40 +1055,9 @@
   border-radius: 50%;
   background: var(--s-bg);
 }
-/* Cyberpunk: the voice bar's cut plate in its chrome red, cyan on focus, mono text; no green here. */
-:root:is(:not([data-lala-look]), [data-lala-look="neon"]) [data-lalala-pair] {
-  --pair-red: #ff5e54;
-  & [data-lalala-pair-field],
-  & [data-lalala-pair-field] > input {
-    border-radius: 0;
-    clip-path: polygon(
-      var(--cut) 0,
-      100% 0,
-      100% calc(100% - var(--cut)),
-      calc(100% - var(--cut)) 100%,
-      0 100%,
-      0 var(--cut)
-    );
-  }
-  & [data-lalala-pair-field] {
-    background: color-mix(in srgb, var(--pair-red) 65%, var(--s-bg));
-  }
-  & [data-lalala-pair-field]:focus-within {
-    background: #26f3ec;
-  }
-  & [data-lalala-pair-field] > input {
-    color: #ffd8d2;
-    background: color-mix(in srgb, var(--pair-red) 6%, var(--s-bg));
-    caret-color: #26f3ec;
-    font-family: var(--s-mono);
-  }
-  & [data-lalala-pair-field] > input::placeholder {
-    color: color-mix(in srgb, var(--pair-red) 70%, transparent);
-    letter-spacing: 0.04em;
-  }
-  & :is([data-lalala-pair-alt], [data-lalala-pair-command]) > code {
-    color: color-mix(in srgb, var(--pair-red) 85%, white);
-  }
+/* A paste that failed: the field takes the warning colour until the next try. Never red before that. */
+[data-lalala-pair-field][data-failed] {
+  background: var(--s-warn);
 }
 /* Fingers: every small control gets T3's 44px hit area. */
 @media (pointer: coarse) {

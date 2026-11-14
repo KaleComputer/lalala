@@ -7,7 +7,12 @@ export function isPhone() {
   const nav = navigator as Navigator & { userAgentData?: { readonly mobile: boolean } };
   // iPadOS Safari calls itself a Mac.
   const touchMac = /Macintosh/.test(navigator.userAgent) && navigator.maxTouchPoints > 1;
-  return nav.userAgentData?.mobile ?? (touchMac || /iPhone|iPad|iPod|Android|Mobile/.test(navigator.userAgent));
+  // Any sign counts: an Android tablet's userAgentData says mobile: false, its user agent says Android.
+  return (
+    nav.userAgentData?.mobile === true ||
+    touchMac ||
+    /iPhone|iPad|iPod|Android|Mobile/.test(navigator.userAgent)
+  );
 }
 
 const untilDate = (at: number) =>
@@ -44,7 +49,14 @@ export function PairSteps(props: {
   // Starts as the remembered address, once asked.
   const [address, setAddress] = useState<string | null>(null);
   const [copied, setCopied] = useState<string | null>(null);
-  const copy = (text: string) => void navigator.clipboard.writeText(text).then(() => setCopied(text));
+  const copy = (text: string) =>
+    void navigator.clipboard.writeText(text).then(
+      () => {
+        setCopied(text);
+        window.setTimeout(() => setCopied((now) => (now === text ? null : now)), 2000);
+      },
+      () => setCopied(null),
+    );
   const streamer = useStreamerMode();
   const busy = props.working !== null;
   const submit = (input: string) => {
@@ -60,14 +72,19 @@ export function PairSteps(props: {
   const [where, setWhere] = useState<Where>(() => (isPhone() ? "other" : readWhere()));
   const path: Where = remote && !isPhone() ? where : remote ? "other" : "here";
   const [connectAddress, setConnectAddress] = useState("");
-  const host = connectAddress.trim().replace(/^https?:\/\//, "").replace(/\/(mcp)?\/?$/, "");
+  const host = connectAddress
+    .trim()
+    .replace(/^https?:\/\//i, "")
+    .replace(/\/(mcp)?\/?$/i, "");
+  // Only a real host fills the command: the placeholder would be a shell redirect.
   const connectCommand =
-    props.connectCommand && host !== ""
+    props.connectCommand && /^[a-z0-9.-]+(:\d+)?$/i.test(host)
       ? props.connectCommand.replace("<your T3 Connect address>", host)
-      : props.connectCommand;
+      : null;
+  const phone = isPhone();
 
   const field = (placeholder: string, label: string) => (
-    <div data-lalala-pair-field="">
+    <div data-lalala-pair-field="" data-failed={props.problem ? "" : undefined}>
       <input
         key={ask ? "address" : "link"}
         type={ask ? "url" : "text"}
@@ -101,45 +118,46 @@ export function PairSteps(props: {
       />
     </div>
   );
-  const command = (text: string) => (
-    <p data-lalala-pair-command="">
-      <code>{text}</code>
-      <button type="button" data-lalala-settings-button="" data-quiet="" onClick={() => copy(text)}>
-        {copied === text ? "Copied" : "Copy"}
+  const command = (text: string | null, missing?: string) => (
+    <p data-lalala-pair-command="" data-missing={text === null ? "" : undefined}>
+      <code>{text ?? missing}</code>
+      <button
+        type="button"
+        data-lalala-settings-button=""
+        data-quiet=""
+        aria-live="polite"
+        disabled={text === null}
+        onClick={() => text !== null && copy(text)}
+      >
+        {text !== null && copied === text ? "Copied" : "Copy"}
       </button>
     </p>
   );
+  const status = (
+    <span aria-live="polite" data-lalala-settings-status="">
+      Not connected
+    </span>
+  );
+  const choosing = remote && !phone && !ask;
 
   return (
     <>
-      <div data-lalala-settings-row="" data-lalala-pair="">
-        <div>
-          <h3>T3 Code</h3>
-          <p>
-            {ask
-              ? `${isPhone() ? "Your phone" : "This browser"} can't reach T3 Code's local address. Paste your T3 Connect address instead.`
-              : "Pair once; lalala remembers it on this device."}
-          </p>
-        </div>
-        <div data-lalala-settings-control="">
-          <span aria-live="polite" data-lalala-settings-status="">
-            Not connected
-          </span>
-        </div>
-      </div>
-      {remote && !isPhone() && !ask ? (
+      {choosing ? (
         <div data-lalala-settings-row="" data-lalala-pair="">
           <div>
             <h3 id={`${choiceId}t`}>Where does T3 Code run?</h3>
           </div>
+          <div data-lalala-settings-control="">{status}</div>
           <div
             role="radiogroup"
             aria-labelledby={`${choiceId}t`}
             data-lalala-pair-choice=""
             onKeyDown={(event) => {
-              if (!["ArrowLeft", "ArrowRight", "ArrowUp", "ArrowDown"].includes(event.key)) return;
+              if (!["ArrowLeft", "ArrowRight", "ArrowUp", "ArrowDown", "Home", "End"].includes(event.key))
+                return;
               event.preventDefault();
-              const next = path === "here" ? "other" : "here";
+              const next: Where =
+                event.key === "Home" ? "here" : event.key === "End" ? "other" : path === "here" ? "other" : "here";
               pick(next);
               event.currentTarget.querySelector<HTMLElement>(`[data-where="${next}"]`)?.focus();
             }}
@@ -160,8 +178,23 @@ export function PairSteps(props: {
             ))}
           </div>
         </div>
-      ) : null}
-      <ol data-lalala-pair="" data-lalala-pair-steps="" aria-label="Steps to pair">
+      ) : (
+        <div data-lalala-settings-row="" data-lalala-pair="">
+          <div>
+            <h3>T3 Code</h3>
+            <p>
+              {ask
+                ? `${phone ? "Your phone" : "This browser"} can't reach T3 Code's local address. Paste your T3 Connect address instead.`
+                : remote
+                  ? "T3 Code runs on your computer: do steps 1 to 3 there, then bring the link to this phone."
+                  : "Pair once; lalala remembers it on this device."}
+            </p>
+          </div>
+          <div data-lalala-settings-control="">{status}</div>
+        </div>
+      )}
+      {/* role=list: list-style none drops the list's semantics in Safari. */}
+      <ol role="list" data-lalala-pair="" data-lalala-pair-steps="" aria-label="Steps to pair">
         {ask ? (
           <Step n={1} title="Paste your T3 Connect address">
             <T3Path steps={["Settings", "Environments", "⋯", "Copy MCP URL"]} />
@@ -176,8 +209,10 @@ export function PairSteps(props: {
           <>
             <Step n={1} title="Create a pairing link in T3 Code">
               <T3Path steps={["Settings", "Sharing & access", "Create link"]} />
-              <p data-lalala-pair-or="">or run this in a terminal on this computer</p>
-              {command(props.command)}
+              <details data-lalala-pair-terminal="">
+                <summary>Use a terminal instead</summary>
+                {command(props.command)}
+              </details>
             </Step>
             <Step n={2} title="Paste the link or code">
               {field("Paste link or code", "Pairing link or code")}
@@ -188,15 +223,17 @@ export function PairSteps(props: {
             <Step n={1} title="Turn these on in T3 Code">
               <T3Path steps={["Settings", "Sharing & access"]} />
               <T3Switches names={["T3 Connect", "Network access"]} />
+              <p data-lalala-pair-or="">How they look in T3 Code once on. Sign in first if T3 Connect asks.</p>
             </Step>
-            <Step n={2} title="Copy your T3 Connect address">
+            <Step n={2} title="Paste your T3 Connect address">
               <T3Path steps={["Settings", "Environments", "⋯", "Copy MCP URL"]} />
-              <div data-lalala-pair-field="">
+              <p data-lalala-pair-or="">It fills in the command in step 3.</p>
+              <div data-lalala-pair-field="" data-plain="">
                 <input
                   type="url"
                   inputMode="url"
                   aria-label="Your T3 Connect address"
-                  placeholder="Paste it here: https://….t3coderelay.com/mcp"
+                  placeholder="https://….t3coderelay.com/mcp"
                   autoComplete="off"
                   autoCapitalize="off"
                   spellCheck={false}
@@ -208,9 +245,9 @@ export function PairSteps(props: {
               </div>
             </Step>
             <Step n={3} title="Run this on the computer with T3 Code">
-              {command(connectCommand ?? "")}
+              {command(connectCommand, "Add your address in step 2 first.")}
             </Step>
-            <Step n={4} title="Paste the link it prints">
+            <Step n={4} title={phone ? "Paste the link it prints, on this phone" : "Paste the link it prints"}>
               {field("Paste the printed link", "Pairing link")}
             </Step>
           </>
@@ -249,8 +286,12 @@ export function PairSteps(props: {
 type Where = "here" | "other";
 const WHERE_KEY = "lalala:pair-where";
 const WHERES: ReadonlyArray<{ readonly id: Where; readonly label: string; readonly detail: string }> = [
-  { id: "here", label: "This computer", detail: "Same computer as this browser" },
-  { id: "other", label: "Another computer", detail: "Through T3 Connect, from anywhere" },
+  { id: "here", label: "This computer", detail: "T3 Code runs here, on the computer with this browser" },
+  {
+    id: "other",
+    label: "Another computer",
+    detail: "T3 Code runs on a different machine, like your Mac at home; lalala reaches it through T3 Connect",
+  },
 ];
 function readWhere(): Where {
   try {
@@ -276,25 +317,27 @@ function Step(props: { readonly n: number; readonly title: string; readonly chil
 /** Where a setting lives in T3 Code, as the chips it shows, not a sentence. */
 function T3Path(props: { readonly steps: ReadonlyArray<string> }) {
   return (
-    <p data-lalala-t3-path="" aria-label={`In T3 Code: ${props.steps.join(", then ")}`}>
+    <p data-lalala-t3-path="">
+      <span data-lalala-settings-sr="">In T3 Code: </span>
       {props.steps.map((step, index) => (
         <span key={step}>
           {index > 0 ? <i aria-hidden="true">›</i> : null}
-          <b aria-hidden="true">{step}</b>
+          <b>{step}</b>
         </span>
       ))}
     </p>
   );
 }
 
-/** T3 Code's switches as they should look once turned on: a picture of its settings, not a control here. */
+/** T3 Code's switches as they look once on: a picture of its settings, not a control here. */
 function T3Switches(props: { readonly names: ReadonlyArray<string> }) {
   return (
-    <ul data-lalala-t3-switches="" aria-label={`In T3 Code, turn on ${props.names.join(" and ")}`}>
+    <ul data-lalala-t3-switches="">
       {props.names.map((name) => (
-        <li key={name} aria-hidden="true">
+        <li key={name}>
           <span>{name}</span>
-          <span data-lalala-t3-switch="" />
+          <span data-lalala-settings-sr="">: on</span>
+          <span data-lalala-t3-switch="" aria-hidden="true" />
         </li>
       ))}
     </ul>

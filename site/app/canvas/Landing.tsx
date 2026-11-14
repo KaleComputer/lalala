@@ -22,6 +22,9 @@ import {
   ThemeSection,
   useCanvasValue,
   useSoundValue,
+  SpeechSection,
+  OpeningSection,
+  CreditsSection,
 } from "../../../src/voice/VoiceSettings";
 import "../../../src/voice/voicePage.css";
 import "./landing.css";
@@ -30,7 +33,7 @@ import { Call } from "./Call";
 import { ConnectSection } from "./ConnectSection";
 import { NewThreadsSection } from "./SiteSections";
 import { useLook } from "../../../src/voice/extras/look";
-import { useSyncedSettings } from "../../../src/voice/settingsStore";
+import { useAutoStartCall, useSyncedSettings } from "../../../src/voice/settingsStore";
 
 const HIDDEN = "lalala:landing-hidden";
 /** The device bar and its rail take this much of the first view's bottom (CanvasCard's BAR_ROOM). */
@@ -89,6 +92,7 @@ export default function Landing() {
   const canvas = useCanvasValue();
   const look = useLook();
   const { delegates } = useSyncedSettings();
+  const autoStart = useAutoStartCall();
   const pages: SettingsPage[] = [
     {
       id: "connection",
@@ -96,6 +100,13 @@ export default function Landing() {
       icon: PAGE_ICONS.connection,
       value: linked ? "Connected" : "Not connected",
       content: <ConnectSection part="connection" />,
+    },
+    {
+      id: "general",
+      title: "General",
+      icon: PAGE_ICONS.general,
+      value: autoStart ? "Starts by itself" : "Starts on a tap",
+      content: <OpeningSection />,
     },
     {
       id: "brain",
@@ -115,7 +126,13 @@ export default function Landing() {
       title: "Sound & mic",
       icon: PAGE_ICONS.sound,
       value: sound,
-      content: <SoundSection />,
+      content: (
+        <>
+          <SoundSection />
+          <SpeechSection />
+          <CreditsSection />
+        </>
+      ),
     },
     {
       id: "themes",

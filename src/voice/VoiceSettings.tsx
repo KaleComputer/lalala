@@ -311,6 +311,10 @@ export const PAGE_ICONS = {
   ],
   canvas: ["M3 3h7v7H3z", "M14 3h7v7h-7z", "M14 14h7v7h-7z", "M3 14h7v7H3z"],
   cards: ["M12 2 2 7l10 5 10-5-10-5z", "m2 17 10 5 10-5", "m2 12 10 5 10-5"],
+  general: [
+    "M12.2 2h-.4a2 2 0 0 0-2 2v.2a2 2 0 0 1-1 1.7l-.4.3a2 2 0 0 1-2 0l-.2-.1a2 2 0 0 0-2.7.7l-.2.4a2 2 0 0 0 .7 2.7l.2.1a2 2 0 0 1 1 1.7v.5a2 2 0 0 1-1 1.7l-.2.1a2 2 0 0 0-.7 2.7l.2.4a2 2 0 0 0 2.7.7l.2-.1a2 2 0 0 1 2 0l.4.3a2 2 0 0 1 1 1.7v.2a2 2 0 0 0 2 2h.4a2 2 0 0 0 2-2v-.2a2 2 0 0 1 1-1.7l.4-.3a2 2 0 0 1 2 0l.2.1a2 2 0 0 0 2.7-.7l.2-.4a2 2 0 0 0-.7-2.7l-.2-.1a2 2 0 0 1-1-1.7v-.5a2 2 0 0 1 1-1.7l.2-.1a2 2 0 0 0 .7-2.7l-.2-.4a2 2 0 0 0-2.7-.7l-.2.1a2 2 0 0 1-2 0l-.4-.3a2 2 0 0 1-1-1.7V4a2 2 0 0 0-2-2z",
+    "M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6z",
+  ],
 } as const;
 
 const PAGE_KEY = "lalala:settings-page";
@@ -690,6 +694,7 @@ function AppSettings(props: { readonly section: string; readonly onClose: () => 
   const { delegates } = useSyncedSettings();
   const sound = useSoundValue();
   const canvas = useCanvasValue();
+  const autoStart = useAutoStartCall();
   const look = useLook();
   const pages: SettingsPage[] = [
     {
@@ -704,6 +709,13 @@ function AppSettings(props: { readonly section: string; readonly onClose: () => 
           <ConnectionSection onChange={() => retryBrain()} onState={setConnection} />
         )
       ),
+    },
+    {
+      id: "general",
+      title: "General",
+      icon: PAGE_ICONS.general,
+      value: autoStart ? "Starts by itself" : "Starts on a tap",
+      content: <OpeningSection />,
     },
     {
       id: "brain",
@@ -738,7 +750,6 @@ function AppSettings(props: { readonly section: string; readonly onClose: () => 
         <>
           <SoundSection />
           <SpeechSection />
-          <OpeningSection />
           <CreditsSection />
         </>
       ),
@@ -781,7 +792,8 @@ function AppSettings(props: { readonly section: string; readonly onClose: () => 
  */
 export function Section(props: {
   readonly title: string;
-  readonly about?: ReactNode;
+  /** Shows the title, for a page with several groups; a title gives direction, so no line under it. */
+  readonly named?: boolean;
   readonly ungrouped?: boolean;
   readonly fine?: boolean;
   readonly note?: ReactNode;
@@ -797,15 +809,10 @@ export function Section(props: {
     </>
   );
   return (
-    <section
-      data-lalala-settings-section=""
-      aria-labelledby={id}
-      aria-describedby={props.about ? `${id}a` : undefined}
-    >
-      {props.about ? (
+    <section data-lalala-settings-section="" aria-labelledby={id}>
+      {props.named ? (
         <header data-lalala-settings-heading="">
           <h2 id={id}>{props.title}</h2>
-          <p id={`${id}a`}>{props.about}</p>
         </header>
       ) : (
         <h2 id={id} data-lalala-settings-sr="">
@@ -1665,7 +1672,7 @@ export function SoundSection() {
 
   const named = (mics ?? []).filter((device) => device.deviceId !== "" && device.label !== "");
   return (
-    <Section title="Sounds and microphone" about="What plays besides the voice, and which mic listens.">
+    <Section title="Sounds and microphone" named>
       <PickRow
         title="Update sound"
         description="Plays before an update, like a thread's result (not for one about the card you're looking at)."
@@ -1735,16 +1742,16 @@ export function SoundSection() {
 type BrowserEars = Exclude<SttModel, "auto" | "computer">;
 type VoiceBuild = "kokoro-gpu" | "kokoro-cpu" | "matcha" | "computer";
 const STT_LABELS: Record<Exclude<SttModel, "auto">, string> = {
-  "0.6b-gpu": "Parakeet 0.6B · GPU",
-  "0.6b-cpu": "Parakeet 0.6B · CPU",
+  "0.6b-gpu": "Parakeet 0.6B\u00a0·\u00a0GPU",
+  "0.6b-cpu": "Parakeet 0.6B\u00a0·\u00a0CPU",
   "110m": "Parakeet 110M",
-  computer: "Parakeet 0.6B · Computer",
+  computer: "Parakeet 0.6B\u00a0·\u00a0Computer",
 };
 const VOICE_LABELS: Record<VoiceBuild, string> = {
-  "kokoro-gpu": "Kokoro 82M · GPU",
-  "kokoro-cpu": "Kokoro 82M · CPU",
+  "kokoro-gpu": "Kokoro 82M\u00a0·\u00a0GPU",
+  "kokoro-cpu": "Kokoro 82M\u00a0·\u00a0CPU",
   matcha: "Llama Matcha (Kale's voice)",
-  computer: "Kokoro 82M · Computer",
+  computer: "Kokoro 82M\u00a0·\u00a0Computer",
 };
 const STT_COSTS: Partial<Record<string, string>> = {
   "0.6b-gpu": "1.25 GB download · ~1.3 GB memory",
@@ -1825,7 +1832,7 @@ function TaskState(props: {
       : picked === "auto"
         ? auto === CHECKING
           ? "Automatic: checking this browser…"
-          : `Automatic: ${auto}, in this browser.`
+          : `Automatic: ${auto}, in this browser${props.cost ? ` (${props.cost})` : ""}.`
         : `Runs in this browser${props.cost ? ` (${props.cost})` : ""}.`;
   if (status?.phase === "ready" && picked !== "computer") state = state.replace(/\.$/, "; ready.");
   if (status?.phase === "idle" && picked !== "computer") state += " Loads with the call.";
@@ -1858,7 +1865,7 @@ function TaskState(props: {
  * Which model hears you and which speaks, and where each runs: in this browser or on the computer
  * running T3 (opt-in, never automatic). Saved on this device; the two don't have to match.
  */
-function SpeechSection() {
+export function SpeechSection() {
   const ears = useSttModel();
   const voice = useReplyVoicePick();
   const plugins = useSyncExternalStore(subscribeReplyVoices, replyVoicePlugins, replyVoicePlugins);
@@ -1896,7 +1903,7 @@ function SpeechSection() {
   return (
     <Section
       title="Speech models"
-      about="What hears you and what speaks the answers, and where each runs: in this browser, or on the computer running T3."
+      named
     >
       <PickRow
         title="Speech-to-text"
@@ -1904,7 +1911,7 @@ function SpeechSection() {
           <>
             Hears you, from the next thing you say.
             <TaskState
-              cost={STT_COSTS[ears]}
+              cost={STT_COSTS[ears === "auto" ? (autoEars ?? "") : ears]}
               picked={ears}
               auto={earsAuto}
               standIn={STT_LABELS["110m"]}
@@ -1918,7 +1925,16 @@ function SpeechSection() {
         value={ears}
         onReset={ears === "auto" ? undefined : () => setSttModel("auto")}
         groups={[
-          { options: [{ value: "auto", label: "Automatic", detail: earsAuto }] },
+          {
+            options: [
+              {
+                value: "auto",
+                label: "Automatic",
+                detail: earsAuto,
+                meta: autoEars === null ? undefined : STT_COSTS[autoEars],
+              },
+            ],
+          },
           {
             label: "In this browser",
             options: [
@@ -1963,7 +1979,7 @@ function SpeechSection() {
           <>
             Speaks the answers, from the next sentence.
             <TaskState
-              cost={VOICE_COSTS[voice]}
+              cost={VOICE_COSTS[voice === "auto" ? (autoVoice ?? "") : voice]}
               picked={voice}
               auto={voiceAuto}
               standIn={VOICE_LABELS.matcha}
@@ -1977,7 +1993,16 @@ function SpeechSection() {
         value={voice}
         onReset={voice === "auto" ? undefined : () => setReplyVoice("auto")}
         groups={[
-          { options: [{ value: "auto", label: "Automatic", detail: voiceAuto }] },
+          {
+            options: [
+              {
+                value: "auto",
+                label: "Automatic",
+                detail: voiceAuto,
+                meta: autoVoice === null ? undefined : VOICE_COSTS[autoVoice],
+              },
+            ],
+          },
           {
             label: "In this browser",
             options: [
@@ -1997,7 +2022,7 @@ function SpeechSection() {
               {
                 value: "matcha",
                 label: VOICE_LABELS.matcha,
-                detail: "19× faster than Kokoro CPU",
+                detail: "fastest",
                 meta: VOICE_COSTS.matcha,
               },
             ],
@@ -2036,14 +2061,11 @@ function SpeechSection() {
  * What happens as lalala opens on this device: whether the call starts by itself, and whether a page
  * or speech model that fails to load tries again on its own.
  */
-function OpeningSection() {
+export function OpeningSection() {
   const seconds = useAutoRetrySeconds();
   const autoStart = useAutoStartCall();
   return (
-    <Section
-      title="Starting and loading"
-      about="What lalala does on its own: start the call, and try again when something doesn't load."
-    >
+    <Section title="Starting and loading">
       <Row
         title="Start the call when lalala opens"
         description="Starts from the next time lalala opens; turning it off applies right away. Safari and phones wait for a first tap or Enter."
@@ -2092,7 +2114,7 @@ const LLAMA_LICENSE =
   "https://github.com/KaleComputer/lalala/blob/main/src/voice/browserSpeech/matcha/LLAMA-3.2-LICENSE.txt";
 
 /** Who made the speech models; the Llama lines are its licence's terms for Kale's voice (NOTICE.md). */
-function CreditsSection() {
+export function CreditsSection() {
   return (
     <Section
       title="Credits"
