@@ -798,7 +798,7 @@ export function Section(props: {
   );
   return (
     <section
-      data-lalala-settings-section={props.fine ? "fine" : ""}
+      data-lalala-settings-section=""
       aria-labelledby={id}
       aria-describedby={props.about ? `${id}a` : undefined}
     >
@@ -1014,19 +1014,18 @@ export function PickRow(props: {
     const node = listRef.current;
     if (!open || !node) return;
     node.focus({ preventScroll: true });
-    node.scrollIntoView({ block: "nearest" });
-    // Where the sheet can't scroll far enough (the page's end), the list fits the screen: below its
-    // trigger, or above it when there is more room there.
+    // The list fits the settings page it sits in: below its trigger, or above it when there is more room
+    // there (the page's end); measured before anything scrolls, then the chosen option is revealed.
     node.style.maxHeight = "";
     delete node.dataset.above;
     const trigger = triggerRef.current?.getBoundingClientRect();
-    if (trigger) {
-      const below = window.innerHeight - trigger.bottom - 22;
-      const above = trigger.top - 22;
-      if (node.offsetHeight > below) {
-        if (above > below) node.dataset.above = "";
-        node.style.maxHeight = `${Math.max(above, below)}px`;
-      }
+    const page = node.closest("[data-lalala-settings-body]")?.getBoundingClientRect();
+    if (trigger && page) {
+      const below = Math.min(window.innerHeight, page.bottom) - trigger.bottom - 14;
+      const above = trigger.top - Math.max(0, page.top) - 14;
+      if (node.offsetHeight > below && above > below) node.dataset.above = "";
+      const room = Math.max(above, below);
+      if (node.offsetHeight > room) node.style.maxHeight = `${room}px`;
     }
     node.querySelector('[aria-selected="true"]')?.scrollIntoView({ block: "nearest" });
     const outside = (event: Event) => {
@@ -1747,6 +1746,16 @@ const VOICE_LABELS: Record<VoiceBuild, string> = {
   matcha: "Llama Matcha (Kale's voice)",
   computer: "Kokoro 82M · Computer",
 };
+const STT_COSTS: Partial<Record<string, string>> = {
+  "0.6b-gpu": "1.25 GB download · ~1.3 GB memory",
+  "0.6b-cpu": "661 MB download · ~0.8 GB memory",
+  "110m": "137 MB download · ~0.25 GB memory",
+};
+const VOICE_COSTS: Partial<Record<string, string>> = {
+  "kokoro-gpu": "327 MB download · ~0.4 GB memory",
+  "kokoro-cpu": "93 MB download · ~0.2 GB memory",
+  matcha: "45 MB download · ~0.1 GB memory",
+};
 const MB = (bytes: number) =>
   bytes >= 1e9 ? `${(bytes / 1e9).toFixed(2)} GB` : `${Math.round(bytes / 1e6)} MB`;
 
@@ -1764,6 +1773,8 @@ function useGpu() {
   return gpu;
 }
 
+const CHECKING = "checking this browser";
+
 /** What the computer option says in the list, and how a task picked onto it reads, per state. */
 const COMPUTER_COPY = {
   checking: { meta: "Checking…", state: () => "Checking the computer running T3…" },
@@ -1779,10 +1790,10 @@ const COMPUTER_COPY = {
   down: {
     meta: "Not answering",
     state: (verb: string, standIn: string) =>
-      `The computer isn't answering; this browser ${verb} with ${standIn} until it does.`,
+      `The computer isn't answering; this browser ${verb} with ${standIn}, the lightest, until it does.`,
   },
   absent: {
-    meta: "Only in lalala opened from that computer",
+    meta: "Only when lalala is opened from that computer",
     state: (verb: string, standIn: string) =>
       `This page can't reach the computer; this browser ${verb} with ${standIn}.`,
   },
@@ -1800,6 +1811,8 @@ function TaskState(props: {
   readonly verb: "hears you" | "speaks";
   readonly computer: ReturnType<typeof computerSpeechState>;
   readonly status: ModelStatus | null;
+  /** The picked browser model's cost, so a closed list still shows it. */
+  readonly cost?: string | undefined;
 }) {
   const { picked, auto, standIn, verb, computer, status } = props;
   const retrying = useAutoRetrySeconds() !== null;
@@ -1810,12 +1823,15 @@ function TaskState(props: {
         ? `The computer isn't answering; this browser ${verb} with ${standIn} until Settings or the page open again.`
         : COMPUTER_COPY[computer].state(verb, standIn)
       : picked === "auto"
-        ? `Automatic: ${auto}, in this browser.`
-        : "Runs in this browser.";
+        ? auto === CHECKING
+          ? "Automatic: checking this browser…"
+          : `Automatic: ${auto}, in this browser.`
+        : `Runs in this browser${props.cost ? ` (${props.cost})` : ""}.`;
   if (status?.phase === "ready" && picked !== "computer") state = state.replace(/\.$/, "; ready.");
+  if (status?.phase === "idle" && picked !== "computer") state += " Loads with the call.";
   if (failed) {
     state += status.error?.includes(NEEDS_WEBGPU)
-      ? " This browser has no WebGPU for it: pick Automatic or a CPU model."
+      ? ` ${status.error} Pick Automatic or a CPU model.`
       : ` ${status.error ?? "It didn't load."}${
           status.retryAt > 0 ? " Trying again shortly." : " It tries again from the next call."
         }`;
@@ -1823,9 +1839,9 @@ function TaskState(props: {
   const problem = failed || (picked === "computer" && (computer === "down" || computer === "absent"));
   const progress =
     status?.phase === "downloading" && status.total > 0
-      ? ` Downloading ${MB(status.loaded)} of ${MB(status.total)}.`
+      ? `Downloading ${MB(status.loaded)} of ${MB(status.total)}.`
       : status?.phase === "loading"
-        ? " Loading…"
+        ? "Loading…"
         : "";
   return (
     <>
@@ -1833,7 +1849,7 @@ function TaskState(props: {
       <span role="status" data-lalala-settings-state={problem ? "problem" : ""}>
         {state}
       </span>
-      {progress}
+      {progress ? <span data-lalala-settings-progress="">{progress}</span> : null}
     </>
   );
 }
@@ -1867,8 +1883,8 @@ function SpeechSection() {
       : gpu.any
         ? "kokoro-gpu"
         : "kokoro-cpu";
-  const earsAuto = autoEars === null ? "checking this browser" : STT_LABELS[autoEars];
-  const voiceAuto = autoVoice === null ? "checking this browser" : VOICE_LABELS[autoVoice];
+  const earsAuto = autoEars === null ? CHECKING : STT_LABELS[autoEars];
+  const voiceAuto = autoVoice === null ? CHECKING : VOICE_LABELS[autoVoice];
   // The computer's line in the list: its state, and how fast it is once it answers.
   const computerOption = (speed: string) =>
     computer === "absent"
@@ -1888,6 +1904,7 @@ function SpeechSection() {
           <>
             Hears you, from the next thing you say.
             <TaskState
+              cost={STT_COSTS[ears]}
               picked={ears}
               auto={earsAuto}
               standIn={STT_LABELS["110m"]}
@@ -1910,19 +1927,19 @@ function SpeechSection() {
                 label: STT_LABELS["0.6b-gpu"],
                 ...(gpu !== null && !gpu.f16
                   ? { meta: "Needs WebGPU with 16-bit floats", disabled: true }
-                  : { detail: heavy("best accuracy"), meta: "1.25 GB download · ~1.3 GB memory" }),
+                  : { detail: heavy("best accuracy"), meta: STT_COSTS["0.6b-gpu"] }),
               },
               {
                 value: "0.6b-cpu",
                 label: STT_LABELS["0.6b-cpu"],
                 detail: heavy("same accuracy, slower"),
-                meta: "661 MB download · ~0.8 GB memory",
+                meta: STT_COSTS["0.6b-cpu"],
               },
               {
                 value: "110m",
                 label: STT_LABELS["110m"],
                 detail: "fastest, a few more wrong words",
-                meta: "137 MB download · ~0.25 GB memory",
+                meta: STT_COSTS["110m"],
               },
             ],
           },
@@ -1946,6 +1963,7 @@ function SpeechSection() {
           <>
             Speaks the answers, from the next sentence.
             <TaskState
+              cost={VOICE_COSTS[voice]}
               picked={voice}
               auto={voiceAuto}
               standIn={VOICE_LABELS.matcha}
@@ -1968,19 +1986,19 @@ function SpeechSection() {
                 label: VOICE_LABELS["kokoro-gpu"],
                 ...(gpu !== null && !gpu.any
                   ? { meta: "Needs WebGPU", disabled: true }
-                  : { detail: heavy("most natural"), meta: "327 MB download · ~0.4 GB memory" }),
+                  : { detail: heavy("most natural"), meta: VOICE_COSTS["kokoro-gpu"] }),
               },
               {
                 value: "kokoro-cpu",
                 label: VOICE_LABELS["kokoro-cpu"],
                 detail: phone ? "natural, about 2× a sentence to render" : "natural, slower",
-                meta: "93 MB download · ~0.2 GB memory",
+                meta: VOICE_COSTS["kokoro-cpu"],
               },
               {
                 value: "matcha",
                 label: VOICE_LABELS.matcha,
                 detail: "19× faster than Kokoro CPU",
-                meta: "45 MB download · ~0.1 GB memory",
+                meta: VOICE_COSTS.matcha,
               },
             ],
           },
@@ -2028,7 +2046,7 @@ function OpeningSection() {
     >
       <Row
         title="Start the call when lalala opens"
-        description="Turning it on applies from the next open, turning it off right away. Safari and phones wait for a first tap or Enter."
+        description="Starts from the next time lalala opens; turning it off applies right away. Safari and phones wait for a first tap or Enter."
       >
         {(describedBy) => (
           <Toggle
@@ -2058,8 +2076,7 @@ function OpeningSection() {
             options: [
               ...AUTO_RETRY_CHOICES.map((every) => ({
                 value: String(every),
-                label:
-                  every === DEFAULT_AUTO_RETRY_SECONDS ? `Every ${every} s (default)` : `Every ${every} s`,
+                label: `Every ${every} s`,
               })),
               { value: "off", label: "Off" },
             ],

@@ -395,6 +395,11 @@
   margin-bottom: 4px;
   padding: 0;
 }
+/* A model's download under its row's sentence, on a line of its own. */
+[data-lalala-settings-progress] {
+  display: block;
+  font-variant-numeric: tabular-nums;
+}
 :is([data-lalala-settings-error], [data-lalala-settings-status], [data-lalala-settings-state="problem"]) {
   color: var(--s-warn);
 }

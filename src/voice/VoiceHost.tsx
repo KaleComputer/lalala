@@ -765,7 +765,8 @@ export function VoiceHost({
     // Safari, phones and a Chrome tab that hasn't played sound here start audio only inside a gesture:
     // a fresh AudioContext says so ("suspended"); Firefox turns a permitted one "running" a tick later.
     const probe = new AudioContext();
-    const events = ["pointerdown", "pointerup", "touchend", "keydown"] as const;
+    // pointerup is the gesture on iOS 13+ too; a scroll cancels the pointer instead of lifting it.
+    const events = ["pointerdown", "pointerup", "pointercancel", "keydown"] as const;
     let waiting = true;
     let downAt: { x: number; y: number } | null = null;
     const begin = (how: string) => {
@@ -788,11 +789,13 @@ export function VoiceHost({
       }
       // A right click or a middle click opens menus, and a finger that moved was scrolling.
       if (event instanceof PointerEvent) {
+        if (event.type === "pointercancel") return void (downAt = null);
         if (event.button !== 0) return;
         if (event.type === "pointerdown") return void (downAt = { x: event.clientX, y: event.clientY });
-        if (downAt && Math.hypot(event.clientX - downAt.x, event.clientY - downAt.y) > 10) return;
+        const from = downAt;
+        downAt = null;
+        if (from === null || Math.hypot(event.clientX - from.x, event.clientY - from.y) > 10) return;
       }
-      if (event.type === "touchend" && downAt === null) return;
       const target = event.target instanceof Element ? event.target : null;
       if (target?.closest("button, a, input, select, textarea, [role='dialog'], [data-lalala-settings]"))
         return;
