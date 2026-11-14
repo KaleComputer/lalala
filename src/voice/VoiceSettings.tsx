@@ -713,6 +713,7 @@ function AppSettings(props: { readonly section: string; readonly onClose: () => 
         <>
           <SoundSection />
           <ExperimentsSection />
+          <CreditsSection />
         </>
       ),
     },
@@ -1675,7 +1676,7 @@ function ExperimentsSection() {
       />
       <PickRow
         title="Reply voice"
-        description="On this device, from the next sentence. All run in this browser; Kale's voice is the lighter and faster one, Kokoro the more natural. The call's log has each sentence's render time."
+        description="On this device, from the next sentence. All run in this browser; Llama Matcha is the lighter and faster one, Kokoro the more natural. The call's log has each sentence's render time."
         label="Reply voice"
         value={voice}
         onReset={voice === defaultReplyVoice() ? undefined : () => setReplyVoice(defaultReplyVoice())}
@@ -1683,7 +1684,7 @@ function ExperimentsSection() {
           {
             options: [
               { value: "kokoro", label: "Kokoro" },
-              { value: "matcha", label: "Kale's voice (lighter, faster)" },
+              { value: "matcha", label: "Llama Matcha, Kale's voice (lighter, faster)" },
               ...plugins.map((plugin) => ({ value: plugin.id, label: plugin.label })),
             ],
           },
@@ -1691,6 +1692,29 @@ function ExperimentsSection() {
         onChange={(value) => setReplyVoice(value)}
       />
     </Section>
+  );
+}
+
+const LLAMA_LICENSE =
+  "https://github.com/KaleComputer/lalala/blob/main/src/voice/browserSpeech/matcha/LLAMA-3.2-LICENSE.txt";
+
+/** Who made the speech models; the Llama lines are its licence's terms for Kale's voice (NOTICE.md). */
+function CreditsSection() {
+  return (
+    <Section
+      title="Credits"
+      note={
+        <>
+          Speech runs on NVIDIA Parakeet (CC-BY-4.0), Kokoro (Apache-2.0), Silero VAD (MIT) and Kale's
+          voice, Llama Matcha. <strong>Built with Llama</strong>: Llama Matcha learned to speak from
+          audio made with Maya1, which is built on Llama 3.2. Llama 3.2 is licensed under the{" "}
+          <a href={LLAMA_LICENSE} target="_blank" rel="noreferrer">
+            Llama 3.2 Community License
+          </a>
+          , Copyright © Meta Platforms, Inc. All Rights Reserved.
+        </>
+      }
+    />
   );
 }
 

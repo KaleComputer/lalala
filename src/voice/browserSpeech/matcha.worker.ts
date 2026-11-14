@@ -1,7 +1,8 @@
-// Kale's own Matcha-TTS voice (trained from scratch on LJSpeech, public domain), the phones' reply
-// voice: 38 MB with its weights stored in 8 bits, on the CPU (WASM), about 19x faster than Kokoro's q8
-// build in Safari (14 Nov), as fast as the 16-bit build and lighter on the tab. The files ship with
-// lalala (matcha/); the runtime comes from the CDN.
+// Llama Matcha, Kale's own voice and the phones' reply voice: a Matcha-TTS model trained from scratch
+// on Maya1 audio of 149 voices, voice f40warm baked in, with Vocos fine-tuned on Maya1 audio. On the
+// CPU (WASM), about 19x faster than Kokoro's q8 build in Safari: acoustic weights stored in 8 bits,
+// the vocoder's in 16 (it is the part 8 bits hurt). Files ship with lalala (matcha/), the runtime
+// comes from the CDN. "Built with Llama": NOTICE.md and the settings' credits.
 import { Voice, normalize } from "./matcha/kaleTts.js";
 
 const ORT = "https://cdn.jsdelivr.net/npm/onnxruntime-web@1.24.1/dist/ort.wasm.min.mjs";
@@ -10,14 +11,19 @@ const RATE = 24_000;
 
 // Spelled out at each file: bundlers only emit an asset for this exact form.
 const FILES = {
-  model: new URL("./matcha/model.onnx", import.meta.url).href,
-  vocoder: new URL("./matcha/vocoder.onnx", import.meta.url).href,
+  model: new URL("./matcha/llama-matcha-f40warm.onnx", import.meta.url).href,
+  vocoder: new URL("./matcha/vocos-maya-noclip.onnx", import.meta.url).href,
   g2pModel: new URL("./matcha/g2p.bin", import.meta.url).href,
   tokens: new URL("./matcha/tokens.txt", import.meta.url).href,
   lexicon: new URL("./matcha/lexicon.tsv", import.meta.url).href,
   override: new URL("./matcha/override.tsv", import.meta.url).href,
 };
-const EXPECTED = 38_000_000;
+const EXPECTED = 49_300_000;
+// The voice's own settings (its package's candidate.json): a little slower, less random.
+const LENGTH_SCALE = 1.17;
+const NOISE_SCALE = 0.3;
+// The package's level guard checked a few lines only; a louder sentence is scaled down, not clipped.
+const PEAK = 0.95;
 
 type Ort = {
   env: { wasm: { wasmPaths: string; numThreads: number } };
@@ -36,7 +42,7 @@ async function fetchAll(onBytes: (loaded: number, total: number) => void) {
   }
   const hits = await Promise.all(urls.map((url) => cache?.match(url) ?? undefined));
   const cached = hits.every((hit) => hit !== undefined);
-  postMessage({ type: "load", name: "matcha (kale)", expected: EXPECTED, cached });
+  postMessage({ type: "load", name: "llama matcha", expected: EXPECTED, cached });
   const loaded = new Map<string, number>();
   const report = () => {
     let sum = 0;
@@ -88,7 +94,7 @@ async function load() {
   const loaded = await Voice.load(ort, files, {
     sessionOptions: { executionProviders: ["wasm"], graphOptimizationLevel: "all" },
   });
-  await loaded.speakSentence("Hi.");
+  await loaded.speakSentence("Hi.", { lengthScale: LENGTH_SCALE, noiseScale: NOISE_SCALE });
   postMessage({ type: "ready" });
   return loaded;
 }
@@ -125,8 +131,14 @@ self.onmessage = (event: MessageEvent<{ type: string; id?: number; text?: string
       const ready = await voice!;
       const text = normalize(message.text!);
       const started = performance.now();
-      const { pcm, ms } = await ready.speakSentence(text);
+      const { pcm, ms } = await ready.speakSentence(text, {
+        lengthScale: LENGTH_SCALE,
+        noiseScale: NOISE_SCALE,
+      });
       const samples = resample(pcm, ready.sampleRate);
+      let peak = 0;
+      for (const sample of samples) peak = Math.max(peak, Math.abs(sample));
+      if (peak > PEAK) for (let i = 0; i < samples.length; i++) samples[i] = (samples[i]! * PEAK) / peak;
       postMessage(
         {
           type: "audio",
