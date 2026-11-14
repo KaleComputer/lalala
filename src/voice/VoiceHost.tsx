@@ -24,7 +24,6 @@ import { uploadVoiceFile } from "../state/voiceUpload";
 import { brainFileReader } from "./adapters";
 import { applyCardTags, takeCards } from "./brainCards";
 import { compactEstimateMs, compactionDue, shareBrainThread } from "./brainCompaction";
-import { useCompactSim } from "./compactSim";
 import { markBriefed, needsBrief, withBrief, withCanvas } from "./brief";
 import { speechProgress } from "./browserSpeech/browser";
 import { followCommand, setFollowing, takeFocus } from "./follow";
@@ -211,8 +210,6 @@ export function VoiceHost({
   const compactWaitersRef = useRef<Array<() => void>>([]);
   // The `/compact` on its way to T3, so words spoken meanwhile wait for it too.
   const compactSendingRef = useRef<Promise<boolean> | null>(null);
-  // Dev's pretend compaction (settings) shows in the bar unless a real one runs.
-  const compactSim = useCompactSim();
   const compacting =
     brainContext?.compacting === true ||
     (compactSentAt !== null && (brainContext?.compactedAt ?? 0) < compactSentAt);
@@ -865,15 +862,11 @@ export function VoiceHost({
           : null
       }
       muted={muted}
-      compacting={
-        compactSim !== null && !compacting
-          ? compactSim
-          : {
-              active: compacting,
-              startedAt: brainContext?.compactStartedAt ?? compactSentAt,
-              estimateMs: compactEstimateMs(brainContext),
-            }
-      }
+      compacting={{
+        active: compacting,
+        startedAt: brainContext?.compactStartedAt ?? compactSentAt,
+        estimateMs: compactEstimateMs(brainContext),
+      }}
       onMute={() => {
         sessionRef.current?.setMuted(!muted);
         setMuted(!muted);

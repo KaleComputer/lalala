@@ -49,5 +49,7 @@ export default defineConfig({
     strictPort: true,
     // A tunnel (NetBird, Tailscale) sends its own Host.
     allowedHosts: true,
+    // The site's own build (site/out, site/.next) is no part of the app.
+    watch: { ignored: ["**/site/**"] },
   },
 });

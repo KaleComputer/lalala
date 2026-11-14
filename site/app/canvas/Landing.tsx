@@ -11,12 +11,14 @@ import { VoiceExtras } from "../../../src/voice/extras/VoiceExtras";
 import { StreamerFilter } from "../../../src/voice/streamerMode";
 import {
   CanvasRows,
+  LOOK_NAMES,
   openVoiceSettings,
   PAGE_ICONS,
   Row,
   Section,
   type SettingsPage,
   SoundSection,
+  ThemeSection,
   useCanvasValue,
   useSoundValue,
 } from "../../../src/voice/VoiceSettings";
@@ -25,12 +27,11 @@ import "./landing.css";
 import { useBrainVersion } from "./adapters";
 import { Call } from "./Call";
 import { ConnectSection } from "./ConnectSection";
-import { NewThreadsSection, ThemeSection } from "./SiteSections";
+import { NewThreadsSection } from "./SiteSections";
 import { useLook } from "../../../src/voice/extras/look";
 import { useSyncedSettings } from "../../../src/voice/settingsStore";
 
 const HIDDEN = "lalala:landing-hidden";
-const LOOK_NAMES = { neon: "Cyberpunk", paper: "Paper notebook", t3: "T3 Code" } as const;
 /** The device bar and its rail take this much of the first view's bottom (CanvasCard's BAR_ROOM). */
 const BAR_ROOM = 188;
 

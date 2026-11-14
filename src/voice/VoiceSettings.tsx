@@ -17,7 +17,6 @@ import { Tooltip, TooltipPopup, TooltipTrigger } from "../components/ui/tooltip"
 
 import { useVoiceBrainContext } from "../state/voiceBrainContext";
 import { formatTokens, useSharedBrainThread } from "./brainCompaction";
-import { finishCompactSim, startCompactSim, useCompactSim } from "./compactSim";
 import { ConnectedRows, PairSteps } from "./ConnectFlow";
 import { isFollowing, setFollowing, subscribeFollow } from "./follow";
 import { isPairingCode, pairingLink } from "./pairing";
@@ -39,6 +38,8 @@ import {
   useSyncedSettings,
 } from "./settingsStore";
 import { replyVoicePlugins, subscribeReplyVoices } from "./replyVoices";
+import { useLook } from "./extras/look";
+import { ThemeGallery } from "./extras/ThemeGallery";
 import { setSoundVolume, soundOutput, useSoundVolume, withSoundVolume } from "./extras/soundVolume";
 import { REQUEST_TIMEOUT_MS } from "./voiceErrors";
 import "./voiceSettings.css";
@@ -560,7 +561,27 @@ function SettingsSheet(props: {
   );
 }
 
-/** The app's pages: the harness connection, the brain's and new threads' models, sound, canvas. */
+export const LOOK_NAMES = { neon: "Cyberpunk", paper: "Paper notebook", t3: "T3 Code" } as const;
+
+/** Themes: the look of the canvas, its cards, the device bar and these settings, on this device. */
+export function ThemeSection() {
+  return (
+    <Section
+      title="Themes"
+      ungrouped
+      note={
+        <>
+          Changes the whole look on this device. If a theme ever breaks the page, add{" "}
+          <code>?look=neon</code> to the address.
+        </>
+      }
+    >
+      <ThemeGallery />
+    </Section>
+  );
+}
+
+/** The app's pages: the harness connection, the brain's and new threads' models, sound, themes, canvas. */
 function AppSettings(props: { readonly section: string; readonly onClose: () => void }) {
   const [brain, setBrain] = useState<BrainState>({ kind: "loading" });
   const savingRef = useRef(false);
@@ -644,6 +665,7 @@ function AppSettings(props: { readonly section: string; readonly onClose: () => 
   const { delegates } = useSyncedSettings();
   const sound = useSoundValue();
   const canvas = useCanvasValue();
+  const look = useLook();
   const pages: SettingsPage[] = [
     {
       id: "connection",
@@ -689,6 +711,13 @@ function AppSettings(props: { readonly section: string; readonly onClose: () => 
           <ExperimentsSection />
         </>
       ),
+    },
+    {
+      id: "themes",
+      title: "Themes",
+      icon: PAGE_ICONS.themes,
+      value: LOOK_NAMES[look],
+      content: <ThemeSection />,
     },
     {
       id: "canvas",
@@ -1330,7 +1359,7 @@ function BrainSection(props: {
         note="The brain's model is set here in the voice app. In T3 Code, use the voice thread's model picker."
       >
         <BrainContextRow />
-        {import.meta.env.DEV ? <DevCompactRow /> : null}
+        
       </Section>
     );
   }
@@ -1402,7 +1431,7 @@ function BrainSection(props: {
         }}
       />
       <BrainContextRow />
-      {import.meta.env.DEV ? <DevCompactRow /> : null}
+      
     </Section>
   );
 }
@@ -1411,44 +1440,19 @@ function BrainSection(props: {
 function BrainContextRow() {
   const context = useVoiceBrainContext(useSharedBrainThread());
   if (context === null || !context.claude) return null;
+  // It compacts only once its prompt cache has run out, so with the 1-hour cache that is an hour of quiet.
+  const pause = context.cacheTtlMs ?? 5 * 60_000;
+  const quiet =
+    pause >= 3_600_000 ? `${Math.round(pause / 3_600_000)} h` : `${Math.round(pause / 60_000)} min`;
   return (
     <Row
       title="Context"
-      description="Over 200k after a pause, it compacts its thread before your next words."
+      description={`Over 200k, it compacts its thread before your next words once it has been quiet for ${quiet}, when its prompt cache has run out.`}
     >
       <span data-lalala-settings-value="">
         {context.compacting
           ? "Compacting…"
           : `${formatTokens(context.usedTokens)}${context.maxTokens ? ` of ${formatTokens(context.maxTokens)}` : ""} tokens`}
-      </span>
-    </Row>
-  );
-}
-
-/** Dev only: runs the bar's compacting view without sending `/compact` (compactSim). */
-function DevCompactRow() {
-  const sim = useCompactSim();
-  return (
-    <Row
-      title="Simulate compacting"
-      description="Dev only. Shows the bar's compacting state; nothing is sent to the brain."
-    >
-      <span data-lalala-dev-compact="">
-        <button type="button" data-lalala-settings-button="" onClick={() => startCompactSim(10_000)}>
-          10 s
-        </button>
-        <button type="button" data-lalala-settings-button="" onClick={() => startCompactSim(30_000)}>
-          30 s
-        </button>
-        <button
-          type="button"
-          data-lalala-settings-button=""
-          data-quiet=""
-          disabled={!sim?.active}
-          onClick={finishCompactSim}
-        >
-          Finish now
-        </button>
       </span>
     </Row>
   );

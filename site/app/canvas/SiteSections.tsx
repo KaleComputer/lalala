@@ -1,26 +1,7 @@
 import { useEffect, useState } from "react";
 
-import { ThemeGallery } from "../../../src/voice/extras/ThemeGallery";
 import { readBrainThread, readSession, readWorkspace, T3Socket } from "../../../src/voice/adapters/harness/t3";
 import { type Brain, Section, ThreadsSection } from "../../../src/voice/VoiceSettings";
-
-/** Themes: the look of the canvas, its cards, the device bar and these settings, on this device. */
-export function ThemeSection() {
-  return (
-    <Section
-      title="Themes"
-      ungrouped
-      note={
-        <>
-          Changes the whole look on this device. If a theme ever breaks the page, add <code>?look=neon</code>{" "}
-          to the address.
-        </>
-      }
-    >
-      <ThemeGallery />
-    </Section>
-  );
-}
 
 /** The models the visitor's T3 offers, read once per open page, for the new threads' picker. */
 function useSiteBrain(): { readonly brain: Brain | null; readonly loading: boolean } {
