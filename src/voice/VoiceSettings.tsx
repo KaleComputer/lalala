@@ -1958,7 +1958,15 @@ export function SpeechSection() {
           <>
             Hears you, from the next thing you say.
             <TaskState
-              cost={STT_COSTS[ears === "auto" ? (autoEars ?? "") : ears]}
+              cost={
+                STT_COSTS[
+                  ears === "computer" || (ears === "auto" && tryingComputer("stt"))
+                    ? "110m"
+                    : ears === "auto"
+                      ? (autoEars ?? "")
+                      : ears
+                ]
+              }
               picked={ears}
               auto={earsAuto}
               standIn={STT_LABELS["110m"]}
@@ -2026,7 +2034,15 @@ export function SpeechSection() {
           <>
             Speaks the answers, from the next sentence.
             <TaskState
-              cost={VOICE_COSTS[voice === "auto" ? (autoVoice ?? "") : voice]}
+              cost={
+                VOICE_COSTS[
+                  voice === "computer" || (voice === "auto" && tryingComputer("voice"))
+                    ? "matcha"
+                    : voice === "auto"
+                      ? (autoVoice ?? "")
+                      : voice
+                ]
+              }
               picked={voice}
               auto={voiceAuto}
               standIn={VOICE_LABELS.matcha}
