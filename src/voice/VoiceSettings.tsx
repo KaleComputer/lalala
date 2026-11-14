@@ -67,7 +67,7 @@ type Selection = {
   readonly model: string;
   readonly options?: ReadonlyArray<{ readonly id: string; readonly value: OptionValue }>;
 };
-type Brain = {
+export type Brain = {
   readonly modelSelection: Selection | null;
   readonly providers: ReadonlyArray<Provider>;
 };
@@ -275,6 +275,12 @@ export const PAGE_ICONS = {
     "M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z",
     "M19 10v2a7 7 0 0 1-14 0v-2",
     "M12 19v3",
+  ],
+  themes: [
+    "M12 22a10 10 0 1 1 10-10c0 2.8-2.2 4-4 4h-2a2 2 0 0 0-1.5 3.3A1.6 1.6 0 0 1 12 22z",
+    "M7.5 10.5h.01",
+    "M12 7.5h.01",
+    "M16.5 10.5h.01",
   ],
   canvas: ["M3 3h7v7H3z", "M14 3h7v7h-7z", "M14 14h7v7h-7z", "M3 14h7v7H3z"],
   cards: ["M12 2 2 7l10 5 10-5-10-5z", "m2 17 10 5 10-5", "m2 12 10 5 10-5"],
@@ -1443,7 +1449,10 @@ function DevCompactRow() {
 const THREAD_MODEL_NOTE =
   "What the brain gives the threads it delegates to. Sent with each message, on every device.";
 
-function ThreadsSection(props: { readonly brain: Brain | null; readonly loading: boolean }) {
+export function ThreadsSection(props: {
+  readonly brain: Brain | null;
+  readonly loading: boolean;
+}) {
   const { delegates } = useSyncedSettings();
   const brain = props.brain;
   // "Same as the brain" is delegate_task's own default: no provider or model given.

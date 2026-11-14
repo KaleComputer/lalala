@@ -25,8 +25,12 @@ import "./landing.css";
 import { useBrainVersion } from "./adapters";
 import { Call } from "./Call";
 import { ConnectSection } from "./ConnectSection";
+import { NewThreadsSection, ThemeSection } from "./SiteSections";
+import { useLook } from "../../../src/voice/extras/look";
+import { useSyncedSettings } from "../../../src/voice/settingsStore";
 
 const HIDDEN = "lalala:landing-hidden";
+const LOOK_NAMES = { neon: "Cyberpunk", paper: "Paper notebook", t3: "T3 Code" } as const;
 /** The device bar and its rail take this much of the first view's bottom (CanvasCard's BAR_ROOM). */
 const BAR_ROOM = 188;
 
@@ -81,13 +85,28 @@ export default function Landing() {
   const linked = useBrainVersion() !== 0;
   const sound = useSoundValue();
   const canvas = useCanvasValue();
+  const look = useLook();
+  const { delegates } = useSyncedSettings();
   const pages: SettingsPage[] = [
     {
       id: "connection",
       title: "Connection",
       icon: PAGE_ICONS.connection,
       value: linked ? "Connected" : "Not connected",
-      content: <ConnectSection />,
+      content: <ConnectSection part="connection" />,
+    },
+    {
+      id: "brain",
+      title: "Voice brain",
+      icon: PAGE_ICONS.brain,
+      content: <ConnectSection part="brain" />,
+    },
+    {
+      id: "threads",
+      title: "New threads",
+      icon: PAGE_ICONS.threads,
+      value: delegates.modelName ?? "Same as the brain",
+      content: <NewThreadsSection />,
     },
     {
       id: "sound",
@@ -95,6 +114,13 @@ export default function Landing() {
       icon: PAGE_ICONS.sound,
       value: sound,
       content: <SoundSection />,
+    },
+    {
+      id: "themes",
+      title: "Themes",
+      icon: PAGE_ICONS.themes,
+      value: LOOK_NAMES[look],
+      content: <ThemeSection />,
     },
     {
       id: "canvas",

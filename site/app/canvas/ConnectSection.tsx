@@ -55,11 +55,14 @@ const firstModel = (workspace: Workspace) => {
 type Pick = { readonly projectId: string; readonly threadId: string; readonly model: string };
 
 /**
+ * `connection`: pairs lalala.talk with the visitor's own T3 Code, straight from this tab, and shows
+ * the link. `brain`: the thread lalala talks to, its model and project, once paired.
+ *
  * Pairs lalala.talk with the visitor's own T3 Code, straight from this tab. A pasted link does the
  * rest on its own: pair, check T3 answers, set up the voice thread, show Connected (and start the
  * call when the call button led here). Picks made later apply at once.
  */
-export function ConnectSection() {
+export function ConnectSection(props: { readonly part: "connection" | "brain" }) {
   const [connected, setConnected] = useState<Connected | null>(null);
   const [working, setWorking] = useState<string | null>(() =>
     readSession() !== null ? "Connecting to T3 Code…" : null,
@@ -227,6 +230,17 @@ export function ConnectSection() {
   const note =
     "lalala.talk talks from this tab straight to T3 Code on your computer. Speech stays in the browser; only your words, as text, reach your T3.";
 
+  if (props.part === "brain") {
+    if (connected === null) {
+      return (
+        <Section
+          title="Voice brain"
+          note={working ?? problem ?? "Pair with your T3 Code first, under Connection."}
+        />
+      );
+    }
+  }
+
   if (connected === null) {
     return (
       <Section title={title} note={note}>
@@ -275,32 +289,14 @@ export function ConnectSection() {
     });
   };
 
-  return (
-    <Section title={title} note={note}>
-      {notice ? <p data-lalala-settings-info="">{notice}</p> : null}
-      <ConnectedRows
-        ok={problem === null}
-        where={[workspace.label, workspace.version ? `v${workspace.version}` : null, session.origin]
-          .filter(Boolean)
-          .join(" · ")}
-        checked={working ?? checked}
-        problem={problem}
-        expiresAt={session.expiresAt}
-        busy={busy}
-        onRetest={() =>
-          run("Checking…", async () => {
-            setChecked(null);
-            setChecked(answered(await pingServer(socket)));
-          })
-        }
-        onDisconnect={() => {
-          socket.close();
-          socketRef.current = null;
-          disconnectBrain();
-          setChecked(null);
-          setConnected(null);
-        }}
-      >
+  if (props.part === "brain") {
+    return (
+      <Section title="Voice brain">
+        {problem ? (
+          <p data-lalala-settings-error="" role="alert">
+            {problem}
+          </p>
+        ) : null}
         {choosing ? (
           <PickRow
             title="Project"
@@ -344,7 +340,36 @@ export function ConnectSection() {
             </button>
           </Row>
         )}
-      </ConnectedRows>
+      </Section>
+    );
+  }
+
+  return (
+    <Section title={title} note={note}>
+      {notice ? <p data-lalala-settings-info="">{notice}</p> : null}
+      <ConnectedRows
+        ok={problem === null}
+        where={[workspace.label, workspace.version ? `v${workspace.version}` : null, session.origin]
+          .filter(Boolean)
+          .join(" · ")}
+        checked={working ?? checked}
+        problem={problem}
+        expiresAt={session.expiresAt}
+        busy={busy}
+        onRetest={() =>
+          run("Checking…", async () => {
+            setChecked(null);
+            setChecked(answered(await pingServer(socket)));
+          })
+        }
+        onDisconnect={() => {
+          socket.close();
+          socketRef.current = null;
+          disconnectBrain();
+          setChecked(null);
+          setConnected(null);
+        }}
+      />
     </Section>
   );
 }

@@ -307,8 +307,16 @@ export type Project = {
   defaultModelSelection: ModelSelection | null;
   archivedAt?: string | null;
 };
-export type ThreadShell = { id: string; projectId: string; title: string; updatedAt?: string };
-export type Provider = { instanceId: string; name: string; models: { slug: string; name: string }[] };
+export type ThreadShell = {
+  id: string;
+  projectId: string;
+  title: string;
+  updatedAt?: string;
+  modelSelection?: ModelSelection | null;
+};
+/** A model and its own options (effort, fast mode…), as T3 describes them. */
+export type ProviderModel = { slug: string; name: string; options: never[] };
+export type Provider = { instanceId: string; name: string; models: ProviderModel[] };
 
 /** Every project and thread, once. */
 export function readShell(socket: T3Socket) {
@@ -338,7 +346,7 @@ export async function readWorkspace(socket: T3Socket) {
       driver: string;
       enabled: boolean;
       installed: boolean;
-      models: { slug: string; name: string }[];
+      models: { slug: string; name: string; capabilities?: { optionDescriptors?: never[] } }[];
     }[];
   }>("server.getConfig", {});
   const providers: Provider[] = config.providers
@@ -346,7 +354,11 @@ export async function readWorkspace(socket: T3Socket) {
     .map((p) => ({
       instanceId: p.instanceId,
       name: p.displayName ?? p.driver,
-      models: p.models.map((m) => ({ slug: m.slug, name: m.name })),
+      models: p.models.map((m) => ({
+        slug: m.slug,
+        name: m.name,
+        options: m.capabilities?.optionDescriptors ?? [],
+      })),
     }));
   return {
     label: config.environment?.label ?? "T3 Code",
