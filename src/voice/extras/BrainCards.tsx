@@ -198,7 +198,9 @@ function page(html: string, look: CSSStyleDeclaration, streamer: boolean, hidden
 /** Streamer mode in a card page: the same redaction as streamer.css, after the card's own styles. */
 const redaction = (ink: string, hidden: boolean) =>
   `<style>*,*::before,*::after{color:transparent!important;-webkit-text-fill-color:transparent!important;` +
-  `text-shadow:0 0 .4em ${ink}!important;-webkit-text-security:square!important;caret-color:transparent!important}::placeholder{color:transparent!important}` +
+  `text-shadow:0 0 .4em ${ink}!important;caret-color:transparent!important}::marker,::placeholder{color:transparent!important}` +
+  `@supports (-webkit-text-security:square){*,*::before,*::after{-webkit-text-security:square!important;` +
+  `color:color-mix(in srgb,${ink} 60%,transparent)!important;-webkit-text-fill-color:color-mix(in srgb,${ink} 60%,transparent)!important;text-shadow:none!important}}` +
   `svg text,svg tspan{fill:transparent!important;stroke:transparent!important}</style>` +
   (hidden ? media(ink) : "");
 

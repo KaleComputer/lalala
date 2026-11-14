@@ -22,8 +22,9 @@
   }
 }
 
-/* Streamer mode on the canvas: every card body's text is a static smudge (each glyph a square,
-   drawn only as a blurred shadow, painted once into the card's layer: no filter while it moves).
+/* Streamer mode on the canvas: every card body's glyph is drawn as a solid square, plain text, so
+   it re-renders sharp at every zoom like the rest (a blur would scale up soft; no filter moves).
+   Without -webkit-text-security the text falls back to a blurred shadow.
    Pictures stay, except in private cards (CanvasCard's `private`, or marked so from a card's or
    group's menu): there every image, video, camera frame and canvas is blanked, unless the card marks
    it `data-streamer-safe` (a diagram, a logo). Titles and group headlines stay. HTML cards: BrainCards. */
@@ -31,12 +32,24 @@
 :root[data-lalala-streamer] [data-lalala-card-body] *,
 :root[data-lalala-streamer] [data-lalala-card-body] *::before,
 :root[data-lalala-streamer] [data-lalala-card-body] *::after {
-  color: transparent !important;
-  -webkit-text-fill-color: transparent !important;
-  text-shadow: 0 0 0.4em var(--lala-ink, #888) !important;
+  --lalala-redact: color-mix(in srgb, var(--lala-ink, #888) 60%, transparent);
+  color: var(--lalala-redact) !important;
+  -webkit-text-fill-color: var(--lalala-redact) !important;
+  text-shadow: none !important;
   -webkit-text-security: square !important;
   caret-color: transparent !important;
 }
+@supports not (-webkit-text-security: square) {
+  :root[data-lalala-streamer] [data-lalala-card-body],
+  :root[data-lalala-streamer] [data-lalala-card-body] *,
+  :root[data-lalala-streamer] [data-lalala-card-body] *::before,
+  :root[data-lalala-streamer] [data-lalala-card-body] *::after {
+    color: transparent !important;
+    -webkit-text-fill-color: transparent !important;
+    text-shadow: 0 0 0.4em var(--lala-ink, #888) !important;
+  }
+}
+:root[data-lalala-streamer] [data-lalala-card-body] ::marker,
 :root[data-lalala-streamer] [data-lalala-card-body] ::placeholder {
   color: transparent !important;
 }
