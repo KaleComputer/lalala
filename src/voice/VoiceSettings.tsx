@@ -1765,7 +1765,7 @@ const VOICE_COSTS: Partial<Record<string, string>> = {
   matcha: "45 MB download · ~0.1 GB memory",
 };
 const MB = (bytes: number) =>
-  bytes >= 1e9 ? `${(bytes / 1e9).toFixed(2)} GB` : `${Math.round(bytes / 1e6)} MB`;
+  bytes >= 1e9 ? `${(bytes / 1e9).toFixed(2)}\u00a0GB` : `${Math.round(bytes / 1e6)}\u00a0MB`;
 
 /** What this browser's GPU can run; asked once when the page opens. */
 function useGpu() {
@@ -1807,6 +1807,12 @@ const LOADED_NAMES: Record<string, string> = {
 };
 const loadedName = (name: string) => LOADED_NAMES[name] ?? name;
 const seconds = (ms: number) => `${(ms / 1000).toFixed(ms < 100 ? 2 : 1)} s`;
+/** How fast your computer did a task, as measured from this device, once it has. */
+function measuredComputer(task: "stt" | "voice"): string | undefined {
+  const computer = speechTimings()[task].computer;
+  return computer === undefined ? undefined : `measured ${seconds(computer)} per second of audio`;
+}
+
 /** What Automatic measured here, per second of audio, once both paths have run on this device. */
 function measuredMeta(task: "stt" | "voice"): string | undefined {
   const { browser, computer } = speechTimings()[task];
@@ -1854,7 +1860,6 @@ function TaskState(props: {
   const failed = status?.phase === "failed";
   const trying = tryingComputer(props.task);
   const couldNotStart = trying && computer === "down";
-  const reason = couldNotStart ? computerSpeechReason() : null;
   const waiting =
     picked === "computer" || (picked === "auto" && trying)
       ? standIn
@@ -1863,27 +1868,14 @@ function TaskState(props: {
         : (STT_LABELS[picked as Exclude<SttModel, "auto">] ?? VOICE_LABELS[picked as VoiceBuild] ?? auto);
   let now = `Now: ${nowText(active, waiting, trying && !couldNotStart)}`;
   if (picked === "computer" && computer === "absent") now += " (lalala.talk can't reach your computer)";
-  if (status?.phase === "idle" && props.cost) now += ` (${props.cost.split(" download")[0]})`;
+  if (status?.phase === "idle" && props.cost)
+    now = now.replace(" · loads with the call", ` · ${props.cost.split(" download")[0]}, loads with the call`);
   if (failed)
     now += status.error?.includes(NEEDS_WEBGPU)
       ? `. ${status.error} Pick Automatic or a CPU model.`
       : `. ${status.error ?? ""}${status.retryAt > 0 ? " Trying again shortly." : " It tries again from the next call."}`;
   return (
     <>
-      {couldNotStart ? (
-        <span data-lalala-settings-state="">
-          <span data-lalala-settings-problem="">Your computer's speech service couldn't start.</span>
-          {reason ? <span data-lalala-settings-reason=""> {reason}</span> : null} It keeps trying.{" "}
-          <button
-            type="button"
-            data-lalala-settings-button=""
-            data-quiet=""
-            onClick={() => void refreshComputerSpeech(true)}
-          >
-            Try again now
-          </button>
-        </span>
-      ) : null}
       {/* The live region says the phase; the changing megabytes stay out of it. */}
       <span role="status" data-lalala-settings-state="">
         <b data-lalala-settings-now="">Now:</b>{" "}
@@ -1893,13 +1885,18 @@ function TaskState(props: {
           now.slice(5)
         )}
         {status?.phase === "downloading" && status.total > 0 ? (
-          <span aria-hidden="true">
-            {` ${MB(status.loaded)} of ${MB(status.total)}`}
+          <>
+            <span aria-hidden="true">{` ${MB(status.loaded)} of ${MB(status.total)}`}</span>
             <span
+              role="progressbar"
+              aria-label="Download"
+              aria-valuemin={0}
+              aria-valuemax={100}
+              aria-valuenow={Math.round((100 * status.loaded) / status.total)}
               data-lalala-settings-meter=""
               style={{ "--done": Math.min(1, status.loaded / status.total) } as CSSProperties}
             />
-          </span>
+          </>
         ) : trying && !couldNotStart ? (
           <span data-lalala-settings-trying="" aria-hidden="true" />
         ) : null}
@@ -1940,10 +1937,15 @@ export function SpeechSection() {
   const earsAuto = autoEars === null ? CHECKING : STT_LABELS[autoEars];
   const voiceAuto = autoVoice === null ? CHECKING : VOICE_LABELS[autoVoice];
   // The computer's line in the list: its state, and how fast it is once it answers.
-  const computerOption = (speed: string) =>
+  const computerOption = (speed: string | undefined) =>
     computer === "absent"
       ? { meta: COMPUTER_COPY.absent.meta, disabled: true }
-      : { meta: computer === "ready" ? `${COMPUTER_COPY.ready.meta} · ${speed}` : COMPUTER_COPY[computer].meta };
+      : {
+          meta:
+            computer === "ready"
+              ? `${COMPUTER_COPY.ready.meta}${speed === undefined ? "" : ` · ${speed}`}`
+              : COMPUTER_COPY[computer].meta,
+        };
   // On a phone the big builds have ended the tab (Tim's iPhone, 14 Nov): picking them stays allowed.
   const heavy = (detail: string) => (phone ? `${detail}, may close a phone tab` : detail);
 
@@ -1951,6 +1953,22 @@ export function SpeechSection() {
     <Section
       title="Speech models"
       named
+      note={
+        (tryingComputer("stt") || tryingComputer("voice")) && computer === "down" ? (
+          <span role="status">
+            <span data-lalala-settings-problem="">Your computer's speech service couldn't start.</span>
+            {computerSpeechReason() ? ` ${computerSpeechReason()}` : ""} It keeps trying.
+            <button
+              type="button"
+              data-lalala-settings-button=""
+              data-quiet=""
+              onClick={() => void refreshComputerSpeech(true)}
+            >
+              Try your computer again
+            </button>
+          </span>
+        ) : undefined
+      }
     >
       <PickRow
         title="Speech-to-text"
@@ -1985,8 +2003,16 @@ export function SpeechSection() {
               {
                 value: "auto",
                 label: "Automatic",
-                detail: computer === "absent" ? earsAuto : `your computer, else ${earsAuto}`,
-                meta: measuredMeta("stt") ?? (autoEars === null ? undefined : STT_COSTS[autoEars]),
+                detail: computer === "absent" ? earsAuto : `your computer, else ${STT_LABELS["110m"]}`,
+                meta:
+                  measuredMeta("stt") ??
+                  (computer === "ready"
+                    ? "Nothing downloads while your computer answers"
+                    : computer !== "absent"
+                      ? `Only while your computer is out: ${STT_COSTS["110m"]}`
+                      : autoEars === null
+                        ? undefined
+                        : STT_COSTS[autoEars]),
               },
             ],
           },
@@ -2021,7 +2047,7 @@ export function SpeechSection() {
                 value: "computer",
                 label: STT_LABELS.computer,
                 detail: "best accuracy",
-                ...computerOption("3.4 s of speech in 0.07 s"),
+                ...computerOption(measuredComputer("stt")),
               },
             ],
           },
@@ -2061,8 +2087,16 @@ export function SpeechSection() {
               {
                 value: "auto",
                 label: "Automatic",
-                detail: computer === "absent" ? voiceAuto : `your computer, else ${voiceAuto}`,
-                meta: measuredMeta("voice") ?? (autoVoice === null ? undefined : VOICE_COSTS[autoVoice]),
+                detail: computer === "absent" ? voiceAuto : `your computer, else ${VOICE_LABELS.matcha}`,
+                meta:
+                  measuredMeta("voice") ??
+                  (computer === "ready"
+                    ? "Nothing downloads while your computer answers"
+                    : computer !== "absent"
+                      ? `Only while your computer is out: ${VOICE_COSTS.matcha}`
+                      : autoVoice === null
+                        ? undefined
+                        : VOICE_COSTS[autoVoice]),
               },
             ],
           },
@@ -2097,7 +2131,7 @@ export function SpeechSection() {
                 value: "computer",
                 label: VOICE_LABELS.computer,
                 detail: "most natural",
-                ...computerOption("a 3.8 s sentence in 0.15 s"),
+                ...computerOption(measuredComputer("voice")),
               },
             ],
           },

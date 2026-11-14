@@ -448,6 +448,15 @@
   transform: scaleX(var(--done, 0));
   transform-origin: left;
 }
+[data-lalala-settings-info] button,
+[data-lalala-settings-state] > button {
+  display: inline-flex;
+  height: 22px;
+  margin-left: 4px;
+  padding: 0 8px;
+  font-size: 12px;
+  vertical-align: baseline;
+}
 [data-lalala-settings-now] {
   color: var(--s-fg);
   font-weight: 500;
@@ -963,6 +972,7 @@
   border-radius: 50%;
 }
 [data-lalala-pair-choice] > button[aria-checked="true"] {
+  border-color: color-mix(in srgb, var(--s-primary) 55%, var(--s-border));
   background: var(--s-active);
 }
 [data-lalala-pair-choice] > button[aria-checked="true"]::after {
@@ -1007,7 +1017,9 @@
   color: var(--s-fg);
   font: 500 var(--s-text) / 20px var(--s-sans);
 }
+/* A list item keeps the disclosure triangle; the padding makes a 24px target. */
 [data-lalala-pair-terminal] > summary {
+  padding: 4px 0;
   width: fit-content;
   color: var(--s-fg-2);
   font-size: 12px;
@@ -1092,6 +1104,11 @@
   background: var(--s-input-bg);
   font-weight: 500;
 }
+[data-lalala-t3-path] b[data-press] {
+  border-color: color-mix(in srgb, var(--s-fg) 30%, var(--s-border));
+  background: color-mix(in srgb, var(--s-fg) 10%, transparent);
+  box-shadow: 0 1px 0 color-mix(in srgb, var(--s-fg) 15%, transparent);
+}
 [data-lalala-t3-path] i {
   color: var(--s-fg-2);
   font-style: normal;
@@ -1128,7 +1145,7 @@
   width: 30px;
   height: 18px;
   border-radius: 9px;
-  background: var(--s-primary);
+  background: color-mix(in srgb, var(--s-primary) 55%, var(--s-border));
 }
 [data-lalala-t3-switch]::after {
   content: "";

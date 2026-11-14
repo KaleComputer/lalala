@@ -512,8 +512,8 @@ function scheduleComputer() {
   const retry = autoRetrySeconds();
   const every =
     computerState === "loading" || computerState === "starting" ? COMPUTER_LOADING_MS / 1000
-    : computerState === "down" && retry !== null
-      ? Math.min(retry * 2 ** Math.min(computerTries, 8), COMPUTER_BACKOFF_MAX_S)
+    : computerState === "down"
+      ? Math.min((retry ?? 5) * 2 ** Math.min(computerTries, 8), COMPUTER_BACKOFF_MAX_S)
       : null;
   if (every !== null) computerTimer = window.setTimeout(() => void refreshComputerSpeech(), every * 1000);
 }
@@ -557,7 +557,7 @@ async function computer(path: string, init: RequestInit): Promise<Response> {
   if (!response.ok) {
     const body = (await response.json().catch(() => ({}))) as { error?: unknown };
     throw new Error(
-      typeof body.error === "string" ? body.error : "The computer's speech service didn't answer",
+      typeof body.error === "string" ? body.error : "Your computer's speech service didn't answer",
     );
   }
   return response;
@@ -745,7 +745,8 @@ export function activeSpeech(task: "stt" | "voice"): ActiveSpeech {
       : { where: "browser", status: ears.status() };
   const picked = replyVoice();
   if (onComputer.voice()) return { where: "computer", name: "kokoro 82m mlx" };
-  if (picked === "matcha" || picked === "computer") return { where: "browser", status: matcha.status() };
+  // Standing in for your computer (picked, or Automatic's aim): Matcha speaks.
+  if (picked === "matcha" || wantsComputer.voice()) return { where: "browser", status: matcha.status() };
   if (picked.startsWith("kokoro")) return { where: "browser", status: voice.status() };
   return { where: "card", name: picked };
 }
@@ -755,7 +756,7 @@ export function speechStatus(task: "stt" | "voice"): ModelStatus | null {
   if (task === "stt") return onComputer.stt() ? null : ears.status();
   const picked = replyVoice();
   if (onComputer.voice()) return null;
-  if (picked === "matcha" || picked === "computer") return matcha.status();
+  if (picked === "matcha" || wantsComputer.voice()) return matcha.status();
   if (picked.startsWith("kokoro")) return voice.status();
   return null;
 }

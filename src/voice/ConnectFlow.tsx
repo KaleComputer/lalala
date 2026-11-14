@@ -69,6 +69,11 @@ export function PairSteps(props: {
     const value = input.trim();
     if (value === "" || busy) return;
     if (ask) ask.onAddress(value);
+    // A wrong address in step 2 is fixed first; it is never skipped for another route.
+    else if (path === "other" && addressWrong) {
+      document.querySelector<HTMLInputElement>(`[aria-describedby="${choiceId}a"]`)?.focus();
+      return;
+    }
     else props.onPair(value, path === "other" && connectCommand !== null ? connectAddress.trim() : undefined);
   };
   const value = ask ? (address ?? ask.address) : link;
@@ -84,7 +89,7 @@ export function PairSteps(props: {
     .replace(/\/(mcp)?\/?$/i, "");
   // Only a real host fills the command: the placeholder would be a shell redirect.
   const connectCommand =
-    props.connectCommand && /^[a-z0-9.-]+(:\d+)?$/i.test(host)
+    props.connectCommand && /^(localhost|[a-z0-9-]+(\.[a-z0-9-]+)+)(:\d+)?$/i.test(host)
       ? props.connectCommand.replace("<your T3 Connect address>", host)
       : null;
   const phone = isPhone();
@@ -103,6 +108,7 @@ export function PairSteps(props: {
         autoComplete="off"
         autoCapitalize="off"
         spellCheck={false}
+        enterKeyHint="go"
         // oxlint-disable-next-line jsx-a11y/no-autofocus -- the one field to fill once the address is asked for
         autoFocus={ask !== null}
         data-streamer-input={streamer ? "" : undefined}
@@ -200,7 +206,7 @@ export function PairSteps(props: {
               {ask
                 ? `${phone ? "Your phone" : "This browser"} can't reach T3 Code's local address. Paste your T3 Connect address instead.`
                 : remote
-                  ? "Do steps 1 to 3 in T3 Code on your computer, send the address and the link to this phone (a message to yourself works) and paste them here."
+                  ? "On your computer, turn on the switches, copy the MCP URL and create a pairing link. Send both to this phone and paste them below."
                   : "Pair once; lalala remembers it on this device."}
             </p>
           </div>
@@ -228,7 +234,7 @@ export function PairSteps(props: {
               </details>
             </Step>
             <Step n={2} title="Paste the link or code">
-              {field("Paste link or code", "Pairing link or code")}
+              {field("https://…/pair#token=… or the code", "Pairing link or code")}
             </Step>
           </>
         ) : (
@@ -238,7 +244,14 @@ export function PairSteps(props: {
               <p data-lalala-pair-or="">Both on, like this. T3 Connect asks you to sign in first.</p>
               <T3Switches names={["T3 Connect", "Network access"]} />
             </Step>
-            <Step n={2} title="Paste your T3 Connect address (the MCP URL)">
+            <Step
+              n={2}
+              title={
+                phone
+                  ? "Copy the MCP URL, send it to this phone, paste it here"
+                  : "Paste your T3 Connect address (the MCP URL)"
+              }
+            >
               <T3Path steps={["Settings", "Environments", "⋯", "Copy MCP URL"]} />
               <div data-lalala-pair-field="" data-plain="">
                 <input
@@ -257,7 +270,12 @@ export function PairSteps(props: {
                   aria-describedby={`${choiceId}a`}
                 />
               </div>
-              <p id={`${choiceId}a`} data-lalala-pair-or="" data-wrong={addressWrong ? "" : undefined}>
+              <p
+                id={`${choiceId}a`}
+                aria-live="polite"
+                data-lalala-pair-or=""
+                data-wrong={addressWrong ? "" : undefined}
+              >
                 {addressWrong
                   ? "That isn't a T3 Connect address; copy the MCP URL again."
                   : "lalala pairs through this address."}
@@ -273,8 +291,8 @@ export function PairSteps(props: {
                 )}
               </details>
             </Step>
-            <Step n={4} title="Paste the link or code">
-              {field("Paste link or code", "Pairing link or code")}
+            <Step n={4} title={phone ? "Send the link to this phone, paste it here" : "Paste the link or code"}>
+              {field("https://…/pair#token=… or the code", "Pairing link or code")}
             </Step>
           </>
         )}
@@ -343,6 +361,8 @@ function Step(props: { readonly n: number; readonly title: string; readonly chil
   );
 }
 
+const PRESS = new Set(["Create link", "Copy MCP URL"]);
+
 /** Where a setting lives in T3 Code, as the chips it shows, not a sentence. */
 function T3Path(props: { readonly steps: ReadonlyArray<string> }) {
   return (
@@ -357,7 +377,8 @@ function T3Path(props: { readonly steps: ReadonlyArray<string> }) {
               <span data-lalala-settings-sr="">the menu next to your computer's name</span>
             </b>
           ) : (
-            <b>{step}</b>
+            // The last chip of a path is the button to press there: drawn as one.
+            <b data-press={index === props.steps.length - 1 && PRESS.has(step) ? "" : undefined}>{step}</b>
           )}
           {index < props.steps.length - 1 ? <i aria-hidden="true">›</i> : null}
         </span>
