@@ -81,6 +81,9 @@ const ABOUT_TAG = /\s*\[about:[^\]]*\]\s*/gi;
 const opensTopic = (text: string) => /^\s*[\u2063\u2064]/.test(text);
 // `[tidy]` repacks the open canvas, `[tidy: <group name>]` only that group.
 const TIDY_TAG = /\[tidy(?::\s*([^\]]*))?\]\s*/gi;
+// A call whose mic another tab or app holds tries again this often until it opens.
+const MIC_RETRY_MS = 4_000;
+const MIC_IN_USE = /microphone is in use/i;
 // `[streamer: on]` / `[streamer: off]` flips streamer mode, the same switch as in settings.
 const STREAMER_TAG = /\[streamer:\s*(on|off)\s*\]\s*/gi;
 // A sent `/compact` counts as running this long at most, until its run shows on the thread.
@@ -144,6 +147,9 @@ export function VoiceHost({
   // The platform took the mic away mid-call (iOS: another app playing sound); a tap takes it back.
   const [micPaused, setMicPaused] = useState(false);
   const sessionRef = useRef<VoiceSession | null>(null);
+  const micRetryRef = useRef(0);
+  // oxlint-disable-next-line t3code/no-unreasoned-state-sync -- stops the busy mic's quiet retry (a browser timer) when the host goes away
+  useEffect(() => () => window.clearTimeout(micRetryRef.current), []);
   // A tap while the mic opens would start a second session that nothing ever stops (13 Nov).
   const startingRef = useRef(false);
   const sessionStartedAtRef = useRef(0);
@@ -553,7 +559,7 @@ export function VoiceHost({
     if (voiceThreadKnown && heldWords().length > 0) void drain();
   }, [voiceThreadKnown]);
 
-  const toggle = useEffectEvent(async () => {
+  const toggle = useEffectEvent(async (quiet = false) => {
     if (startingRef.current) return;
     // A call started by hand ends auto start's wait for a tap.
     if (!sessionRef.current?.active) disarmAutoStartRef.current?.();
@@ -576,7 +582,9 @@ export function VoiceHost({
       endVoiceLogSession("mic off (tap)");
       return;
     }
-    setError(null);
+    window.clearTimeout(micRetryRef.current);
+    // A quiet retry keeps the message up until the call really starts.
+    if (!quiet) setError(null);
     const session = new VoiceSession({
       onPhase: (next) => {
         setPhase(next);
@@ -623,7 +631,16 @@ export function VoiceHost({
       // Whatever the start opened (the audio context, a mic it did get) is let go at once.
       session.stop();
       sessionRef.current = null;
-      setError(voiceErrorText(cause));
+      const message = voiceErrorText(cause);
+      setError(message);
+      // The mic is busy elsewhere: try again quietly until it's free, no tap needed.
+      if (MIC_IN_USE.test(message)) {
+        micRetryRef.current = window.setTimeout(() => {
+          if (sessionRef.current !== null) return;
+          if (document.visibilityState === "visible") void toggle(true);
+          else document.addEventListener("visibilitychange", () => void toggle(true), { once: true });
+        }, MIC_RETRY_MS);
+      }
     } finally {
       startingRef.current = false;
       setStarting(false);

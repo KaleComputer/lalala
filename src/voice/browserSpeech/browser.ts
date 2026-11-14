@@ -21,6 +21,7 @@ type Reply =
 const MODEL_FAILED = "The voice models didn't load.";
 /** The worker's words when a model can't fit this browser's storage (parakeet.worker's NO_ROOM). */
 const NO_ROOM = /Not enough storage for the voice models/;
+const NO_ROOM_RETRY_S = 180;
 export const NEEDS_WEBGPU = "needs WebGPU";
 
 // A model that was loading when the page ended without a pagehide took the tab down with it (iOS
@@ -135,19 +136,27 @@ function modelWorker(
     retryTimer = 0;
     retryAt = 0;
   };
-  /** (Re)schedules a failed model's next try at the interval Settings set now; none when it's off. */
+  /**
+   * (Re)schedules a failed model's next try at the interval Settings set now; none when it's off.
+   * A full storage never stops trying: quietly every few minutes, and whenever the page is back in
+   * front (space may have been freed meanwhile).
+   */
   const scheduleRetry = () => {
     cancelRetry();
-    const every = autoRetrySeconds();
-    // Retrying can't give a browser WebGPU or more storage.
-    if (!failed || every === null || failure?.includes(NEEDS_WEBGPU) || NO_ROOM.test(failure ?? ""))
-      return;
+    const noRoom = NO_ROOM.test(failure ?? "");
+    const every = noRoom ? NO_ROOM_RETRY_S : autoRetrySeconds();
+    // Retrying can't give a browser WebGPU.
+    if (!failed || every === null || failure?.includes(NEEDS_WEBGPU)) return;
+    if (noRoom) window.addEventListener("focus", retryOnFocus, { once: true });
     retryAt = Date.now() + every * 1000;
     retryTimer = window.setTimeout(() => {
       retryTimer = 0;
       retryAt = 0;
       if (failed) start();
     }, every * 1000);
+  };
+  const retryOnFocus = () => {
+    if (failed && NO_ROOM.test(failure ?? "")) start();
   };
   const fail = (cause: string) => {
     console.warn("lalala: a speech model didn't load", cause);

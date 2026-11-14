@@ -239,7 +239,7 @@ function micProblem(cause: unknown): string {
     return "The browser blocked the microphone. Allow it in the browser's site settings.";
   if (name === "NotFoundError" || name === "OverconstrainedError")
     return "No microphone found. Plug one in, then tap to retry.";
-  return "The microphone is in use by another tab or app. End the call there, then tap to retry.";
+  return "The microphone is in use by another tab or app. The call starts on its own once it is free.";
 }
 
 export class VoiceSession {
