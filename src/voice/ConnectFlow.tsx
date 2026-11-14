@@ -64,7 +64,14 @@ export function PairSteps(props: {
             {ask ? (
               `${isPhone() ? "Your phone" : "This browser"} can't reach T3 Code's local address. Paste your T3 Connect address instead: T3 Code → Settings → Environments → ⋯ → Copy MCP URL.`
             ) : props.connectCommand ? (
-              "Works from any device: copy your T3 Connect address (T3 Code → Settings → Environments → ⋯ → Copy MCP URL, without /mcp), put it in this command, run it on the computer running T3 Code and paste the printed link here."
+              <>
+                First, on the computer running T3 Code: <b>Settings → Sharing &amp; access</b>, sign in
+                and turn on <b>T3 Connect</b> and <b>Network access</b>. Without them T3 Code has no
+                address this page can reach.
+                <br />
+                Then copy your T3 Connect address (Settings → Environments → ⋯ → Copy MCP URL, without
+                /mcp), put it in this command, run it on that computer and paste the printed link here.
+              </>
             ) : (
               "T3 Code → Settings → Sharing & access → Create link, then paste the link or code here."
             )}
