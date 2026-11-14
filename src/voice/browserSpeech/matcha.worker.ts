@@ -12,7 +12,7 @@ const RATE = 24_000;
 // Spelled out at each file: bundlers only emit an asset for this exact form.
 const FILES = {
   model: new URL("./matcha/llama-matcha-f40warm.onnx", import.meta.url).href,
-  vocoder: new URL("./matcha/vocos-maya-noclip.onnx", import.meta.url).href,
+  vocoder: new URL("./matcha/vocos-maya-noclip-g0485.onnx", import.meta.url).href,
   g2pModel: new URL("./matcha/g2p.bin", import.meta.url).href,
   tokens: new URL("./matcha/tokens.txt", import.meta.url).href,
   lexicon: new URL("./matcha/lexicon.tsv", import.meta.url).href,
@@ -22,7 +22,7 @@ const EXPECTED = 49_300_000;
 // The voice's own settings (its package's candidate.json): a little slower, less random.
 const LENGTH_SCALE = 1.17;
 const NOISE_SCALE = 0.3;
-// The package's level guard checked a few lines only; a louder sentence is scaled down, not clipped.
+// The vocoder's gain (0.485) keeps every bench line at or under 0.85; this only catches a stray louder one.
 const PEAK = 0.95;
 
 type Ort = {
