@@ -1,3 +1,4 @@
+import { keepHmrAcrossDisconnects } from "./hmrReconnect";
 import { voiceLog } from "./voiceLog";
 
 /**
@@ -67,6 +68,9 @@ if (import.meta.hot) {
     // The client reloads for an .html path only when it is this page's.
     payload.path = "/__lalala-held.html";
   });
-  // After a server restart the client pings until it is back, then reloads; that waits for idle too.
-  import.meta.hot.on("vite:ws:disconnect", () => (callActive() ? whenIdle() : undefined));
+  // A locked phone drops this socket and Vite's client reloads once the server answers again;
+  // hmrReconnect reconnects in place instead. Without it, that reload waits for the call to end.
+  if (!keepHmrAcrossDisconnects(import.meta.hot)) {
+    import.meta.hot.on("vite:ws:disconnect", () => (callActive() ? whenIdle() : undefined));
+  }
 }

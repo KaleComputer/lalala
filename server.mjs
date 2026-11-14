@@ -19,6 +19,10 @@ process.env.VITE_CONFIG_NATIVE_IGNORE_WARNING ??= "true";
 keepSessionFresh();
 
 const { createServer } = await import("vite");
-const server = await createServer({ configFile: new URL("./vite.config.mjs", import.meta.url).pathname });
+const { devVersionPlugin } = await import("./vite/devVersion.mjs");
+const server = await createServer({
+  configFile: new URL("./vite.config.mjs", import.meta.url).pathname,
+  plugins: [devVersionPlugin()],
+});
 await server.listen();
 console.log(`lalala on http://127.0.0.1:${port}`);
