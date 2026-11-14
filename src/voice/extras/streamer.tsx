@@ -1,4 +1,5 @@
 import { useSyncExternalStore } from "react";
+import { REDACT_FONT_FACE } from "./redactFont";
 import "./streamer.css";
 
 // The app's side is ../streamerMode.tsx, which this folder may not import: same key, event and scramble.
@@ -28,6 +29,9 @@ export const useStreamer = () => useSyncExternalStore(subscribe, read, () => fal
 // One root attribute drives the redaction CSS on both hosts, whichever React tree is mounted.
 const mark = () => document.documentElement.toggleAttribute("data-lalala-streamer", read());
 if (typeof document !== "undefined") {
+  const face = document.createElement("style");
+  face.textContent = REDACT_FONT_FACE;
+  document.head.append(face);
   mark();
   subscribe(mark);
 }

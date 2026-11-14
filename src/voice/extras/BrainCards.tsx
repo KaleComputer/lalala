@@ -2,6 +2,7 @@ import { useEffect, useLayoutEffect, useRef, useSyncExternalStore } from "react"
 
 import { CanvasCard } from "./CanvasCard";
 import { getMarks, isPrivate, subscribeMarks } from "./canvasStore";
+import { REDACT_FAMILY, REDACT_FONT_FACE } from "./redactFont";
 import { useStreamer } from "./streamer";
 import "./brainCards.css";
 
@@ -197,11 +198,9 @@ function page(html: string, look: CSSStyleDeclaration, streamer: boolean, hidden
 
 /** Streamer mode in a card page: the same redaction as streamer.css, after the card's own styles. */
 const redaction = (ink: string, hidden: boolean) =>
-  `<style>*,*::before,*::after{color:transparent!important;-webkit-text-fill-color:transparent!important;` +
-  `text-shadow:0 0 .4em ${ink}!important;caret-color:transparent!important}::marker,::placeholder{color:transparent!important}` +
-  `@supports (-webkit-text-security:square){*,*::before,*::after{-webkit-text-security:square!important;` +
-  `color:color-mix(in srgb,${ink} 60%,transparent)!important;-webkit-text-fill-color:color-mix(in srgb,${ink} 60%,transparent)!important;text-shadow:none!important}}` +
-  `svg text,svg tspan{fill:transparent!important;stroke:transparent!important}</style>` +
+  `<style>${REDACT_FONT_FACE}*,*::before,*::after,::marker,::placeholder{` +
+  `font-family:"${REDACT_FAMILY}",sans-serif!important;font-synthesis:none!important;` +
+  `text-shadow:none!important;caret-color:transparent!important}</style>` +
   (hidden ? media(ink) : "");
 
 /** A private card's pictures, blanked as in streamer.css. */
