@@ -2111,7 +2111,7 @@ export function CanvasRows() {
       </Row>
       <Row
         title="Streamer mode"
-        description="Scrambles thread titles and message text, for screen sharing."
+        description="Scrambles thread titles and every card's text, for screen sharing. Pictures stay, except in cards and groups marked “Hide in streamer mode” (right-click or long-press a card's header or a group's name)."
       >
         {(describedBy) => (
           <Toggle
@@ -2122,6 +2122,35 @@ export function CanvasRows() {
           />
         )}
       </Row>
+      <RemovedRows />
     </Section>
   );
+}
+
+const NO_MARKS = {};
+const noMarks = () => () => undefined;
+
+/** Cards and groups taken off the canvas from their menu, each with a way back. */
+function RemovedRows() {
+  const api = globalThis.__lalalaCanvases;
+  // Re-renders on every mark change; the list itself is read from the canvas below.
+  const marks = api?.marks ?? (() => NO_MARKS);
+  useSyncExternalStore(api?.subscribeMarks ?? noMarks, marks, () => NO_MARKS);
+  const removed = api?.removed?.() ?? [];
+  return removed.map((item) => (
+    <Row
+      key={item.key}
+      title={item.kind === "group" ? "Removed group" : "Removed card"}
+      description={
+        <>
+          <StreamerText text={item.name} />
+          {item.kind === "group" ? " and its cards" : null}
+        </>
+      }
+    >
+      <button type="button" data-lalala-settings-button="" onClick={() => api?.restore(item.key)}>
+        Put back
+      </button>
+    </Row>
+  ));
 }

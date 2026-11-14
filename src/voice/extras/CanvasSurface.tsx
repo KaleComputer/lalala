@@ -1,6 +1,7 @@
 import { type ReactNode, useEffect, useLayoutEffect, useRef } from "react";
 import {
   type Rect,
+  cardOf,
   getCamera,
   getCards,
   getSelected,
@@ -24,6 +25,13 @@ import {
 import { followBootScreen } from "./bootScreen";
 import { endSwap, hoverSwap, startSwap, stopGlides } from "./cardSwap";
 import { GroupAreas } from "./GroupAreas";
+import {
+  CanvasMenu,
+  type MenuFor,
+  closeCanvasMenu,
+  isCanvasMenuOpen,
+  openCanvasMenu,
+} from "./CanvasMenu";
 import "./canvasSurface.css";
 
 type Point = { x: number; y: number };
@@ -41,6 +49,9 @@ const SETTLE_MS = 400;
 const CORNER_REACH = 64;
 /** A group's corner takes presses this far (screen px) inside it, over its drawn corner mark. */
 const GROUP_CORNER = 48;
+/** A finger held this long on a card's header or a group's headline, moving less than SLOP px, opens its menu. */
+const LONG_PRESS_MS = 500;
+const SLOP = 8;
 
 const wheelPixels = (event: WheelEvent, delta: number) =>
   event.deltaMode === 1 ? delta * 16 : event.deltaMode === 2 ? delta * 400 : delta;
@@ -205,6 +216,57 @@ export function CanvasSurface({ children }: { readonly children: ReactNode }) {
       }
       return cornerAt(at, target);
     };
+    /** The card (its header) or group (its headline) a press is on, for its menu. */
+    const menuFor = (at: Point, target: Element | null): MenuFor | undefined => {
+      if (
+        target?.closest("[data-lalala-card-grip]") &&
+        !target.closest("[data-lalala-card-thread]")
+      ) {
+        const key = target.closest<HTMLElement>("[data-lalala-card]")?.dataset.lalalaCard;
+        return key ? { kind: "card", id: cardOf(key) } : undefined;
+      }
+      const group = groupUnder(at, target);
+      return group?.part === "head" ? { kind: "group", label: group.grab.label } : undefined;
+    };
+    let longPress = 0;
+    let pressedAt: Point | null = null;
+    let menuOpenedAt = 0;
+    const cancelLongPress = () => {
+      window.clearTimeout(longPress);
+      longPress = 0;
+      pressedAt = null;
+    };
+    /** The menu takes over from a press: what it started moving goes back, untouched. */
+    const openMenu = (target: MenuFor, at: Point) => {
+      cancelLongPress();
+      if (gesture?.kind === "move" || gesture?.kind === "resize") setCard(gesture.id, gesture.rect);
+      if (gesture?.kind === "group") moveGroup(gesture.grab, 0, 0);
+      clear();
+      menuOpenedAt = performance.now();
+      openCanvasMenu(target, at.x, at.y);
+    };
+    const contextMenu = (event: MouseEvent) => {
+      const target = event.target instanceof Element ? event.target : null;
+      if (target?.closest("[data-lalala-canvas-float]")) return event.preventDefault();
+      const at = local(event);
+      const found = menuFor(at, target);
+      if (!found) return;
+      event.preventDefault();
+      // Android sends its own long press as a contextmenu too: one menu, not two.
+      if (performance.now() - menuOpenedAt < 800) return;
+      openMenu(found, at);
+    };
+    // The menu goes when the canvas moves under it.
+    let menuCamera = getCamera();
+    const unsubscribeMenu = subscribe(() => {
+      if (getCamera() === menuCamera) return;
+      menuCamera = getCamera();
+      closeCanvasMenu();
+    });
+    const escape = (event: KeyboardEvent) => {
+      if (event.key === "Escape") closeCanvasMenu();
+    };
+
     let hoverCursor = "";
     const hover = (event: PointerEvent) => {
       const target = event.target instanceof Element ? event.target : null;
@@ -294,9 +356,13 @@ export function CanvasSurface({ children }: { readonly children: ReactNode }) {
 
     const down = (event: PointerEvent) => {
       lastPointerType = event.pointerType;
+      const pressed = event.target instanceof Element ? event.target : null;
+      // The menu and the undo are taps of their own; a press anywhere else closes the menu.
+      if (pressed?.closest("[data-lalala-canvas-float]")) return;
+      if (isCanvasMenuOpen()) closeCanvasMenu();
+      cancelLongPress();
       if (event.pointerType === "mouse" && event.button !== 0) return;
       const at = local(event);
-      const pressed = event.target instanceof Element ? event.target : null;
       // Pressed in a card's corner reach: as if on its corner.
       const target =
         cardCornerAt(at, pressed)?.querySelector("[data-lalala-card-resize]") ?? pressed;
@@ -310,6 +376,7 @@ export function CanvasSurface({ children }: { readonly children: ReactNode }) {
 
       if (pointers.size === 1) pick(at, target);
       if (pointers.size >= 2) {
+        cancelLongPress();
         // A second finger anywhere, even on a card, makes it a pinch; the first one stops what it did.
         for (const pointer of pointers.keys()) capture(pointer);
         startPinch();
@@ -318,6 +385,12 @@ export function CanvasSurface({ children }: { readonly children: ReactNode }) {
       }
       // A mouse drag must not start selecting the cards' text; a header drag never does.
       if (begin(event.pointerId) && (event.pointerType === "mouse" || card)) event.preventDefault();
+      // A finger held still on a header or headline opens its menu (a mouse right-clicks).
+      const menu = event.pointerType === "mouse" ? undefined : menuFor(at, pressed);
+      if (menu) {
+        pressedAt = at;
+        longPress = window.setTimeout(() => openMenu(menu, at), LONG_PRESS_MS);
+      }
     };
 
     const move = (event: PointerEvent) => {
@@ -325,6 +398,7 @@ export function CanvasSurface({ children }: { readonly children: ReactNode }) {
       if (!pointers.has(event.pointerId)) return;
       const at = local(event);
       pointers.set(event.pointerId, at);
+      if (pressedAt && Math.hypot(at.x - pressedAt.x, at.y - pressedAt.y) > SLOP) cancelLongPress();
       if (gesture === null) return;
       if (gesture.kind === "pan") {
         const x = gesture.camera.x + at.x - gesture.from.x;
@@ -374,6 +448,7 @@ export function CanvasSurface({ children }: { readonly children: ReactNode }) {
       // Only the surface's own capture ending: a card's button hands its capture to the surface.
       if (event.type === "lostpointercapture" && event.target !== surface) return;
       if (!forget(event.pointerId)) return;
+      cancelLongPress();
       // Dropped on a card it was held over: it takes that card's slot (before the release sends it).
       if (gesture?.kind === "move" && pointers.size === 0) endSwap(event.type === "pointerup");
       if (gesture?.kind === "pinch") {
@@ -468,6 +543,8 @@ export function CanvasSurface({ children }: { readonly children: ReactNode }) {
     document.addEventListener("visibilitychange", hidden);
     window.addEventListener("blur", clear);
     surface.addEventListener("wheel", wheel, { passive: false });
+    surface.addEventListener("contextmenu", contextMenu);
+    document.addEventListener("keydown", escape);
     document.addEventListener("gesturestart", gestureStart);
     document.addEventListener("gesturechange", gestureChange);
     document.addEventListener("gestureend", gestureEnd);
@@ -492,6 +569,10 @@ export function CanvasSurface({ children }: { readonly children: ReactNode }) {
         string,
       ];
       surface.removeEventListener("wheel", wheel);
+      surface.removeEventListener("contextmenu", contextMenu);
+      document.removeEventListener("keydown", escape);
+      unsubscribeMenu();
+      cancelLongPress();
       document.removeEventListener("gesturestart", gestureStart);
       document.removeEventListener("gesturechange", gestureChange);
       document.removeEventListener("gestureend", gestureEnd);
@@ -504,6 +585,7 @@ export function CanvasSurface({ children }: { readonly children: ReactNode }) {
       <div ref={worldRef} data-lalala-world="">
         {children}
       </div>
+      <CanvasMenu />
     </div>
   );
 }

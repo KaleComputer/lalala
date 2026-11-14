@@ -19,6 +19,13 @@ type Saved = { readonly camera: Camera; readonly cards: Readonly<Record<string, 
  */
 export type CanvasInfo = { readonly name: string; readonly cards: readonly string[] };
 type Canvases = Readonly<Record<string, CanvasInfo | null>>;
+/**
+ * A card's or a group's own choices, one for every device (`card:<id>`, `group:<label>`): taken off
+ * the canvas (when; the code stays), and private, so streamer mode blanks its pictures too.
+ * `private` unset is the card's own default (CanvasCard's `private`).
+ */
+export type Mark = { readonly removed?: number; readonly private?: boolean };
+type Marks = Readonly<Record<string, Mark>>;
 export type CanvasesSnapshot = {
   readonly active: string;
   readonly list: readonly (CanvasInfo & { readonly id: string })[];
@@ -38,6 +45,7 @@ const CANVASES = "lalala:canvases";
 /** Per device: which canvas is open, and each other canvas's camera (Main's stays in STORE). */
 const ACTIVE = "lalala:canvas-active";
 const CAMERAS = "lalala:canvas-cameras";
+const MARKS = "lalala:canvas-marks";
 const HOME: Camera = { x: 0, y: 0, z: 1 };
 /** Far enough out to see a big canvas whole; past the cards is void, see `reach`. */
 const MIN_ZOOM = 0.05;
@@ -64,6 +72,7 @@ function readJson<T>(key: string, empty: T): T {
 }
 const readCanvases = () => readJson<Canvases>(CANVASES, {});
 const readCameras = () => readJson<Record<string, Camera>>(CAMERAS, {});
+const readMarks = () => readJson<Marks>(MARKS, {});
 function writeJson(key: string, value: unknown) {
   try {
     localStorage.setItem(key, JSON.stringify(value));
@@ -92,7 +101,14 @@ function fresh(): Live {
   const canvases = readCanvases();
   const active = readJson<string>(ACTIVE, MAIN);
   const canvas = exists(canvases, active) ? active : fallback(canvases);
-  return { ...saved, camera: cameraOf(canvas, saved), scroll: {}, canvas, canvases };
+  return {
+    ...saved,
+    camera: cameraOf(canvas, saved),
+    scroll: {},
+    canvas,
+    canvases,
+    marks: readMarks(),
+  };
 }
 
 /** The empty space between two boxes along whichever axis they're furthest apart. */
@@ -221,6 +237,7 @@ type Live = {
   scroll: Record<string, number>;
   canvas: string;
   canvases: Canvases;
+  marks: Marks;
 };
 declare global {
   var __lalalaCanvas: Live | undefined;
@@ -233,6 +250,7 @@ const live: Live = (globalThis.__lalalaCanvas ??= fresh());
 // A layout kept by a build from before there were canvases.
 live.canvases ??= readCanvases();
 live.canvas ??= MAIN;
+live.marks ??= readMarks();
 /** Each card body's scroll, so a swap or remount opens it where it was. */
 export const scrollTops = live.scroll;
 declare global {
@@ -578,6 +596,7 @@ const POLL_MS = 3_000;
 type Shared = {
   readonly cards: Readonly<Record<string, Rect>>;
   readonly canvases?: Canvases;
+  readonly marks?: Marks;
   readonly at: number;
 };
 /** Cards changed here that the shared layout doesn't have yet. */
@@ -635,6 +654,7 @@ function applyShared(shared: Shared) {
     bases.delete(id);
   }
   adoptCanvases(shared.canvases ?? {});
+  adoptMarks(shared.marks ?? {});
   adoptCards(shared.cards);
   // Always, not only on a change here: the next load starts from this layout, not an older one.
   try {
@@ -660,7 +680,9 @@ async function push(leaving = false) {
   window.clearTimeout(pushTimer);
   const store = storage();
   const idle = () =>
-    store === null || pushing || (unsynced.size === 0 && unsentCanvases.size === 0);
+    store === null ||
+    pushing ||
+    (unsynced.size === 0 && unsentCanvases.size === 0 && unsentMarks.size === 0);
   if (store === null || idle()) return;
   if (held !== null && !leaving) return;
   // Boxes kept through a sleep or a lost server may be older than the shared layout: read it first
@@ -675,6 +697,7 @@ async function push(leaving = false) {
   const sentCanvases = Object.fromEntries(
     [...unsentCanvases].map((id) => [id, live.canvases[id] ?? null]),
   );
+  const sentMarks = Object.fromEntries([...unsentMarks].map((key) => [key, live.marks[key] ?? {}]));
   pushing = true;
   try {
     const shared = (await store.write(
@@ -683,6 +706,7 @@ async function push(leaving = false) {
         cards: sent,
         ...(Object.keys(sentPlaced).length > 0 && { placed: sentPlaced }),
         ...(unsentCanvases.size > 0 && { canvases: sentCanvases }),
+        ...(unsentMarks.size > 0 && { marks: sentMarks }),
       },
       { leaving },
     )) as Shared | null;
@@ -714,6 +738,11 @@ async function push(leaving = false) {
         unsentCanvases.delete(id);
       }
     }
+    for (const [key, mark] of Object.entries(sentMarks)) {
+      if (shared.marks && key in shared.marks && (live.marks[key] ?? {}) === mark) {
+        unsentMarks.delete(key);
+      }
+    }
     applyShared(shared);
     if (unsynced.size > 0) schedulePush();
   } catch {
@@ -733,6 +762,7 @@ async function pull(first = false) {
     lastExchange = Date.now();
     if (first && shared.at === 0) {
       for (const id of Object.keys(live.cards)) unsynced.add(id);
+      for (const key of Object.keys(live.marks)) unsentMarks.add(key);
       await push();
     } else {
       applyShared(shared);
@@ -794,6 +824,75 @@ function editCanvas(id: string, info: CanvasInfo | null) {
   schedulePush();
 }
 
+/** Marks changed here that the shared layout doesn't have yet. */
+const unsentMarks = new Set<string>();
+const MARKS_EVENT = "lalala:canvas-marks";
+const marksChanged = () => document.dispatchEvent(new Event(MARKS_EVENT));
+export const subscribeMarks = (listener: () => void) => {
+  document.addEventListener(MARKS_EVENT, listener);
+  return () => document.removeEventListener(MARKS_EVENT, listener);
+};
+/** A new object on every change, for useSyncExternalStore. */
+export const getMarks = () => live.marks;
+export const cardMark = (id: string) => `card:${id}`;
+export const groupMark = (label: string) => `group:${label}`;
+
+/** Shows marks from the shared layout or another tab, keeping this tab's unsent ones. */
+function adoptMarks(incoming: Marks) {
+  const mine = Object.fromEntries([...unsentMarks].map((key) => [key, live.marks[key] ?? {}]));
+  const next = { ...live.marks, ...incoming, ...mine };
+  if (JSON.stringify(next) === JSON.stringify(live.marks)) return;
+  live.marks = next;
+  writeJson(MARKS, next);
+  marksChanged();
+}
+
+function editMark(key: string, patch: Partial<Record<keyof Mark, number | boolean | undefined>>) {
+  const merged: Record<string, unknown> = { ...live.marks[key], ...patch };
+  const mark = Object.fromEntries(
+    Object.entries(merged).filter(([, value]) => value !== undefined),
+  ) as Mark;
+  live.marks = { ...live.marks, [key]: mark };
+  unsentMarks.add(key);
+  writeJson(MARKS, { ...readMarks(), [key]: mark });
+  marksChanged();
+  schedulePush();
+}
+
+/** Takes a card (`card:<id>`) or a group with all its cards (`group:<label>`) off the canvas. */
+export const removeMarked = (key: string) => editMark(key, { removed: Date.now() });
+/** Puts a removed card or group back where it was. */
+export const restoreMarked = (key: string) => editMark(key, { removed: undefined });
+export const setPrivate = (key: string, on: boolean | undefined) => editMark(key, { private: on });
+
+/** A card's own private choice, else its default; a private group makes all its cards private. */
+export function isPrivate(
+  id: string,
+  group: string | undefined,
+  byDefault: boolean,
+  marks = live.marks,
+) {
+  const own = marks[cardMark(id)]?.private ?? byDefault;
+  return own || (group !== undefined && marks[groupMark(group)]?.private === true);
+}
+export const isRemoved = (id: string, group: string | undefined, marks = live.marks) =>
+  Boolean(marks[cardMark(id)]?.removed) ||
+  (group !== undefined && Boolean(marks[groupMark(group)]?.removed));
+
+/** What is off the canvas, newest first, each by the name it shows. */
+function removedList() {
+  return Object.entries(live.marks)
+    .flatMap(([key, mark]) => {
+      if (!mark.removed) return [];
+      const group = key.startsWith("group:") ? key.slice("group:".length) : undefined;
+      const id = key.startsWith("card:") ? key.slice("card:".length) : undefined;
+      const name = group ?? (id === undefined ? key : (cardsInCode.get(id)?.title ?? id));
+      const kind = group === undefined ? ("card" as const) : ("group" as const);
+      return [{ key, kind, name, at: mark.removed }];
+    })
+    .toSorted((a, b) => b.at - a.at);
+}
+
 /** Opens a canvas on this device, at the camera it had here. */
 function selectCanvas(id: string) {
   const next = exists(live.canvases, id) ? id : fallback(live.canvases);
@@ -836,14 +935,25 @@ type CardsInCode = Map<
     readonly canvas: string | undefined;
     readonly title: string;
     readonly group: string | undefined;
+    /** Private unless its mark says otherwise (CanvasCard's `private`). */
+    readonly private?: boolean;
   }
 >;
 const cardsInCode: CardsInCode = surface.inCode;
-export function declareCard(id: string, canvas: string | undefined, title: string, group?: string) {
-  cardsInCode.set(id, { canvas, title, group });
+export function declareCard(
+  id: string,
+  canvas: string | undefined,
+  title: string,
+  group?: string,
+  byDefault = false,
+) {
+  cardsInCode.set(id, { canvas, title, group, private: byDefault });
 }
+/** A card in code by its id: its title, group and default privacy, for its menu. */
+export const cardInfo = (id: string) => cardsInCode.get(id);
 /** The card id a box key on the open canvas stands for. */
-const cardOf = (key: string) => (live.canvas === MAIN ? key : key.slice(live.canvas.length + 1));
+export const cardOf = (key: string) =>
+  live.canvas === MAIN ? key : key.slice(live.canvas.length + 1);
 
 /** Room the top bar and the device bar take over the surface, in screen px. */
 const FOCUS_PAD = { top: 56, bottom: 120, side: 24 } as const;
@@ -860,7 +970,8 @@ function focusCard(name: string) {
   const found = [...cardsInCode].find(
     ([id, card]) => id.toLowerCase() === wanted || card.title.toLowerCase() === wanted,
   );
-  if (!found) return false;
+  // Removed: not on the canvas to go to (Settings › Canvas puts it back).
+  if (!found || isRemoved(found[0], found[1].group)) return false;
   const [id, card] = found;
   selectCanvas(homeOf(card.canvas, listOf(live.canvases)));
   const key = boxKey(live.canvas, id);
@@ -1139,6 +1250,11 @@ const api = {
   tidy: tidyCanvas,
   tidyGroup,
   inView: cardInView,
+  /** The settings' "Removed from the canvas" list. */
+  removed: removedList,
+  restore: restoreMarked,
+  marks: getMarks,
+  subscribeMarks,
 };
 export type CanvasesApi = typeof api;
 declare global {
@@ -1280,6 +1396,7 @@ export function setView(w: number, h: number) {
 function adopt(event: StorageEvent) {
   if (event.key === STORE && event.newValue !== null) adoptCards(read().cards);
   if (event.key === CANVASES && event.newValue !== null) adoptCanvases(readCanvases());
+  if (event.key === MARKS && event.newValue !== null) adoptMarks(readMarks());
 }
 
 const leave = () => {

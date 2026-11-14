@@ -23,9 +23,10 @@
 }
 
 /* Streamer mode on the canvas: every card body's text is a static smudge (each glyph a square,
-   drawn only as a blurred shadow, painted once into the card's layer: no filter while it moves),
-   and every image, video, camera frame and canvas is blanked. Card titles and group headlines stay; media a card marks
-   `data-streamer-safe` (a diagram, a mockup, a logo) stays. HTML cards get the same in BrainCards. */
+   drawn only as a blurred shadow, painted once into the card's layer: no filter while it moves).
+   Pictures stay, except in private cards (CanvasCard's `private`, or marked so from a card's or
+   group's menu): there every image, video, camera frame and canvas is blanked, unless the card marks
+   it `data-streamer-safe` (a diagram, a logo). Titles and group headlines stay. HTML cards: BrainCards. */
 :root[data-lalala-streamer] [data-lalala-card-body],
 :root[data-lalala-streamer] [data-lalala-card-body] *,
 :root[data-lalala-streamer] [data-lalala-card-body] *::before,
@@ -48,13 +49,15 @@
   stroke: transparent !important;
 }
 :root[data-lalala-streamer]
-  [data-lalala-card-body]
+  [data-lalala-card-private]
+  > [data-lalala-card-body]
   :is(img, video):not([data-streamer-safe], [data-streamer-safe] *) {
   object-position: -100000px 0 !important;
   background: color-mix(in srgb, var(--lala-ink, #888) 14%, transparent) !important;
 }
 :root[data-lalala-streamer]
-  [data-lalala-card-body]
+  [data-lalala-card-private]
+  > [data-lalala-card-body]
   :is(canvas, svg image, object, embed, iframe:not([data-lalala-brain-card])):not(
     [data-streamer-safe],
     [data-streamer-safe] *
@@ -62,7 +65,8 @@
   visibility: hidden !important;
 }
 :root[data-lalala-streamer]
-  [data-lalala-card-body]
+  [data-lalala-card-private]
+  > [data-lalala-card-body]
   *:not([data-streamer-safe], [data-streamer-safe] *) {
   background-image: none !important;
 }

@@ -1,6 +1,7 @@
 import { useEffect, useLayoutEffect, useRef, useSyncExternalStore } from "react";
 
 import { CanvasCard } from "./CanvasCard";
+import { getMarks, isPrivate, subscribeMarks } from "./canvasStore";
 import { useStreamer } from "./streamer";
 import "./brainCards.css";
 
@@ -182,7 +183,7 @@ function answer(frame: HTMLIFrameElement, id: string, message: BridgeMessage) {
  * The brain's HTML in the card's colours and font, which the iframe would not inherit. They win on
  * the root (cards often say `html{color:inherit}`, which would be the browser's black serif there).
  */
-function page(html: string, look: CSSStyleDeclaration, streamer: boolean) {
+function page(html: string, look: CSSStyleDeclaration, streamer: boolean, hidden: boolean) {
   return (
     `<!doctype html><meta charset="utf-8"><meta http-equiv="Content-Security-Policy" content="${CSP}">` +
     `<style>:root{color-scheme:${look.colorScheme || "normal"};color:${look.color} !important;` +
@@ -190,16 +191,20 @@ function page(html: string, look: CSSStyleDeclaration, streamer: boolean) {
     `font-size:${look.fontSize};line-height:1.4}body{margin:0}</style>` +
     `<script>${BRIDGE}</script>` +
     (crossOriginIsolated ? isolated(html, location.origin) : html) +
-    (streamer ? redaction(look.getPropertyValue("--lala-ink").trim() || "#888") : "")
+    (streamer ? redaction(look.getPropertyValue("--lala-ink").trim() || "#888", hidden) : "")
   );
 }
 
 /** Streamer mode in a card page: the same redaction as streamer.css, after the card's own styles. */
-const redaction = (ink: string) =>
+const redaction = (ink: string, hidden: boolean) =>
   `<style>*,*::before,*::after{color:transparent!important;-webkit-text-fill-color:transparent!important;` +
   `text-shadow:0 0 .4em ${ink}!important;-webkit-text-security:square!important;caret-color:transparent!important}::placeholder{color:transparent!important}` +
-  `svg text,svg tspan{fill:transparent!important;stroke:transparent!important}` +
-  `:is(img,video):not([data-streamer-safe],[data-streamer-safe] *){object-position:-100000px 0!important;` +
+  `svg text,svg tspan{fill:transparent!important;stroke:transparent!important}</style>` +
+  (hidden ? media(ink) : "");
+
+/** A private card's pictures, blanked as in streamer.css. */
+const media = (ink: string) =>
+  `<style>:is(img,video):not([data-streamer-safe],[data-streamer-safe] *){object-position:-100000px 0!important;` +
   `background:color-mix(in srgb,${ink} 14%,transparent)!important}` +
   `:is(canvas,svg image,object,embed,iframe):not([data-streamer-safe],[data-streamer-safe] *){visibility:hidden!important}` +
   `*:not([data-streamer-safe],[data-streamer-safe] *){background-image:none!important}</style>`;
@@ -207,6 +212,8 @@ const redaction = (ink: string) =>
 function CardFrame(props: { readonly id: string; readonly title: string; readonly html: string }) {
   const ref = useRef<HTMLIFrameElement>(null);
   const streamer = useStreamer();
+  const marks = useSyncExternalStore(subscribeMarks, getMarks);
+  const hidden = isPrivate(props.id, undefined, false, marks);
   // oxlint-disable-next-line t3code/no-unreasoned-state-sync -- answers the card page's window.lalala calls, which arrive as window messages
   useEffect(() => {
     const onMessage = (event: MessageEvent<BridgeMessage>) => {
@@ -220,8 +227,8 @@ function CardFrame(props: { readonly id: string; readonly title: string; readonl
   // oxlint-disable-next-line t3code/no-unreasoned-state-sync -- the iframe's document takes the card's computed colours, known only once it is in the DOM
   useLayoutEffect(() => {
     const frame = ref.current;
-    if (frame) frame.srcdoc = page(props.html, getComputedStyle(frame), streamer);
-  }, [props.html, streamer]);
+    if (frame) frame.srcdoc = page(props.html, getComputedStyle(frame), streamer, hidden);
+  }, [props.html, streamer, hidden]);
   return <iframe ref={ref} title={props.title} sandbox="allow-scripts" data-lalala-brain-card="" />;
 }
 

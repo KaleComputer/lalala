@@ -253,3 +253,109 @@
   stroke: currentColor;
   stroke-width: 2.2;
 }
+
+/* A card's or group's menu and the undo after a removal (CanvasMenu): over the cards, under the bar. */
+[data-lalala-canvas-float] {
+  position: absolute;
+  z-index: 2147483000;
+  border: var(--lala-border-width, 1px) solid var(--lala-line);
+  border-radius: var(--lala-radius);
+  box-shadow: var(--lala-shadow);
+  color: var(--lala-ink);
+  background: var(--lala-surface-solid, var(--lala-surface));
+  font: 600 11px / 1.2 var(--lala-font);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  transition: opacity 120ms ease-out;
+  @starting-style {
+    opacity: 0;
+  }
+}
+[data-lalala-canvas-menu] {
+  display: flex;
+  flex-direction: column;
+  min-width: 200px;
+  max-width: min(300px, calc(100% - 16px));
+  padding: 4px;
+}
+[data-lalala-canvas-menu-name] {
+  margin: 0;
+  padding: 6px 8px 7px;
+  overflow: hidden;
+  color: var(--lala-accent);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+:is([data-lalala-canvas-menu], [data-lalala-canvas-undo]) button {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 34px;
+  padding: 0 8px;
+  border: 0;
+  border-radius: calc(var(--lala-radius) * 0.6);
+  color: inherit;
+  background: none;
+  font: inherit;
+  letter-spacing: inherit;
+  text-transform: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+[data-lalala-canvas-menu] button:is(:hover, :focus-visible):not(:disabled) {
+  outline: 0;
+  color: var(--lala-accent);
+  background: color-mix(in srgb, var(--lala-accent) 12%, transparent);
+}
+[data-lalala-canvas-menu] button[data-danger]:is(:hover, :focus-visible) {
+  color: var(--lala-danger, #e5484d);
+  background: color-mix(in srgb, var(--lala-danger, #e5484d) 12%, transparent);
+}
+[data-lalala-canvas-menu] button:disabled {
+  cursor: default;
+  opacity: 0.6;
+}
+[data-lalala-canvas-menu] button > svg {
+  flex: none;
+  width: 14px;
+  height: 14px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2.4;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+/* The toggle's box: empty off, a check on. */
+[data-lalala-canvas-menu] button[role="menuitemcheckbox"] > svg {
+  border: 1.5px solid currentColor;
+  border-radius: 3px;
+}
+[data-lalala-canvas-undo] {
+  top: 64px;
+  left: 50%;
+  translate: -50% 0;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  max-width: calc(100% - 32px);
+  padding: 4px 4px 4px 14px;
+}
+[data-lalala-canvas-undo] > span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+[data-lalala-canvas-undo] button {
+  flex: none;
+  color: var(--lala-accent);
+}
+[data-lalala-canvas-undo] button:is(:hover, :focus-visible) {
+  outline: 0;
+  background: color-mix(in srgb, var(--lala-accent) 12%, transparent);
+}
+@media (prefers-reduced-motion: reduce) {
+  [data-lalala-canvas-float] {
+    transition: none;
+  }
+}

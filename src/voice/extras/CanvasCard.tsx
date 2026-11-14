@@ -16,16 +16,20 @@ import {
   getCamera,
   getCanvases,
   getCards,
+  getMarks,
   getSelected,
   homeOf,
   isDrawn,
   isLayered,
   isNear,
+  isPrivate,
+  isRemoved,
   mountCard,
   scrollTops,
   setLoaded,
   subscribe,
   subscribeCanvases,
+  subscribeMarks,
 } from "./canvasStore";
 import { holdScroll } from "./cardState";
 import { cardThreads } from "./cardThreads";
@@ -128,21 +132,28 @@ export function CanvasCard(props: {
   readonly canvas?: string;
   readonly exact?: boolean;
   readonly group?: string;
+  /**
+   * Shows real people or other private things: streamer mode blanks its pictures and video too, not
+   * only its text. The card's menu (and its group's) can change it on every device.
+   */
+  readonly private?: boolean;
   /** Gives the card a close button (lalala.talk, where visitors arrange the canvas themselves). */
   readonly onRemove?: () => void;
   readonly children: ReactNode;
 }) {
   const ref = useRef<HTMLElement>(null);
   const { id, title, canvas, exact = false, group } = props;
+  const byDefault = props.private ?? false;
   const thread = cardThreads[id];
   // Idempotent: lets focus find a card on any canvas, shown or not.
-  declareCard(id, canvas, title, group);
+  declareCard(id, canvas, title, group, byDefault);
   // Only the first place counts; after that the card is wherever it was put.
   const [at] = useState(props.at);
   // Its content renders (and its code loads) once the card first comes near the screen.
   const [near, setNear] = useState(false);
   const { active, list } = useSyncExternalStore(subscribeCanvases, getCanvases);
-  const shown = active !== "" && homeOf(canvas, list) === active;
+  const marks = useSyncExternalStore(subscribeMarks, getMarks);
+  const shown = active !== "" && homeOf(canvas, list) === active && !isRemoved(id, group, marks);
   const key = boxKey(active, id);
 
   // oxlint-disable-next-line t3code/no-unreasoned-state-sync -- moves and sizes the card from canvasStore, outside React, while it is dragged
@@ -204,7 +215,12 @@ export function CanvasCard(props: {
 
   if (!shown) return null;
   return (
-    <section ref={ref} data-lalala-card={key} style={style(getCards()[key])}>
+    <section
+      ref={ref}
+      data-lalala-card={key}
+      data-lalala-card-private={isPrivate(id, group, byDefault, marks) ? "" : undefined}
+      style={style(getCards()[key])}
+    >
       <header data-lalala-card-grip="">
         <span data-lalala-card-title="">
           <Hidden text={title} name />
