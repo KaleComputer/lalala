@@ -7,6 +7,7 @@ import react from "@vitejs/plugin-react";
 import { defineConfig } from "vite";
 
 import { cardsDir, cardsPlugin } from "./vite/cards.mjs";
+import { isolationPlugin } from "./vite/isolation.mjs";
 import { t3BridgePlugin } from "./vite/t3bridge.mjs";
 import { lalalaPlugin } from "./vite/voice.ts";
 
@@ -25,6 +26,7 @@ export default defineConfig({
     }),
     cardsPlugin({ dir: cardsDir(brainRoot), extrasDir: NodePath.join(src, "voice/extras") }),
     lalalaPlugin(),
+    isolationPlugin(),
     tailwindcss(),
     react(),
   ],

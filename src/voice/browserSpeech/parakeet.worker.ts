@@ -1,5 +1,6 @@
-// Parakeet TDT 0.6B v2 (parakeet.js): the fp16 encoder on WebGPU, on every device (Tim, 14 Nov: the
-// large one in the browser and nothing else; no int8 or Mac fallback). Files go to
+// Parakeet TDT 0.6B v2 (parakeet.js), in the browser on every device: the fp16 encoder on WebGPU on
+// desktops; the int8 one on WASM on phones, whose tab dies setting up fp16 on the GPU (about 1.8 GB at
+// once; Tim's iPhone, 14 Nov, three times). Files go to
 // IndexedDB in pieces and the encoder's weights reach the runtime as external data read from disk a
 // slice at a time: buffered whole, the 1.25 GB file ended a phone's tab (13 Nov).
 import { externalGraph } from "./onnxExternal";
@@ -40,6 +41,13 @@ const WEBGPU: Build = {
   expected: 1_248_000_000,
 };
 
+const WASM: Build = {
+  backend: "webgpu-hybrid",
+  encoder: "encoder-model.int8.onnx",
+  expected: 661_000_000,
+};
+const phone = /iPhone|iPad|iPod|Android/.test(navigator.userAgent);
+
 let model: Promise<Model> | null = null;
 let queue: Promise<unknown> = Promise.resolve();
 
@@ -77,11 +85,11 @@ function blobBytes(blob: Blob): Uint8Array {
 async function loadBuild(parakeet: ParakeetModule, build: Build, keep: readonly Build[] = [build]) {
   postMessage({
     type: "load",
-    name: "parakeet 0.6b gpu",
+    name: `parakeet 0.6b${build === WASM ? "" : " gpu"}`,
     expected: build.expected,
     cached: await isDownloaded(BASE + build.encoder),
   });
-  // An older int8 build's files would only fill the phone's storage.
+  // The other build's files would only fill the device's storage (fp16 alone is 1.25 GB).
   await keepDownloads(BASE, [...keep.map(({ encoder }) => BASE + encoder), BASE + DECODER]).catch(
     () => {},
   );
@@ -116,8 +124,34 @@ async function loadBuild(parakeet: ParakeetModule, build: Build, keep: readonly 
   }
 }
 
+// The runtime parakeet.js loads (its bundle imports this exact URL, so this is the same module).
+const ORT_ESM = "https://cdn.jsdelivr.net/npm/onnxruntime-web@1.24.1/+esm";
+type Ort = {
+  InferenceSession: {
+    create(url: string, options?: Record<string, unknown>): Promise<unknown>;
+  };
+};
+
+/**
+ * Phones run the int8 encoder on the CPU through the WebGPU build of the runtime: only that build
+ * reads the weights mounted slice by slice from disk (the plain WASM one fails with "MountedFiles is
+ * not available"), so every session it makes is pinned to the WASM provider here.
+ */
+async function cpuSessions() {
+  const ort = (await import(/* @vite-ignore */ ORT_ESM)) as Ort;
+  const create = ort.InferenceSession.create.bind(ort.InferenceSession);
+  ort.InferenceSession.create = (url, options = {}) =>
+    create(url, { ...options, executionProviders: ["wasm"] });
+}
+
 async function load() {
   const parakeet = (await import(/* @vite-ignore */ PARAKEET_JS)) as ParakeetModule;
+  if (phone) {
+    await cpuSessions();
+    const loaded = await loadBuild(parakeet, WASM);
+    postMessage({ type: "ready" });
+    return loaded;
+  }
   if (!(await hasWebGpu())) {
     throw new Error(
       "Speech-to-text needs WebGPU with 16-bit floats, and this browser has none. Try Chrome or Safari up to date.",
