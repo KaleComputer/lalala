@@ -208,8 +208,7 @@ export function VoiceBar(props: {
       : props.models
         ? props.models.length > 0
           ? { kind: "models", models: props.models }
-          : // Downloads show their bytes above; this is setup from files already on the device.
-            { kind: "connecting", text: "Setting up voice · no download" }
+          : { kind: "loading" }
         : props.paused
           ? { kind: "paused" }
           : topicMs > 0
@@ -223,7 +222,7 @@ export function VoiceBar(props: {
   const hearing = useEffectEvent(() => props.state === "hearing");
   const compacting = useEffectEvent(() => props.compacting?.active === true);
   const fill = useEffectEvent(() => downloadFill(props.models));
-  const loading = useEffectEvent(() => (props.models?.length ?? 0) > 0);
+  const loading = useEffectEvent(() => props.models !== null && props.models !== undefined);
   const previewed = props.preview !== undefined;
   const previewing = useEffectEvent(() => previewed);
   const topicAt = props.preview?.topicAt;
@@ -532,7 +531,8 @@ type Note =
   | { readonly kind: "models"; readonly models: ReadonlyArray<VoiceBarModel> }
   | { readonly kind: "paused" }
   | { readonly kind: "topic"; readonly ms: number }
-  | { readonly kind: "connecting"; readonly text: string };
+  | { readonly kind: "connecting"; readonly text: string }
+  | { readonly kind: "loading" };
 
 const mb = (bytes: number) => Math.round(bytes / 1e6);
 
@@ -575,6 +575,11 @@ function RoomNote({ note, compacting }: { readonly note: Note; readonly compacti
           aria-label="Mic paused: another app took the audio. Tap to resume."
         >
           Tap to resume mic
+        </b>
+      ) : note.kind === "loading" ? (
+        // The models set up from this device (a download shows its bytes instead): one white plate.
+        <b data-lalala-plate="white">
+          VOICE LOADING
         </b>
       ) : note.kind === "connecting" ? (
         // The status line under the bar already reads "Connecting" out.

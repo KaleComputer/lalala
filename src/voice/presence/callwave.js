@@ -283,7 +283,7 @@ export function createCallWave(canvas, { reduced = false, wash = null, state = (
     if (k === "ascii") {
       // The old ASCII shader (the user, 23 Oct: "the one we had before"), copied into the room's clip.
       if (asciiGl === undefined) asciiGl = createAsciiLine();
-      const img = asciiGl?.draw({ width: W, height: H, dpr, x0: a, x1: b, y: cy, time: t, breath: 0.5 + 0.5 * Math.sin((t * Math.PI * 2) / 7), fill });
+      const img = asciiGl?.draw({ width: W, height: H, dpr, x0: a, x1: b, y: cy, top: room.top, bottom: room.bottom, time: t, breath: 0.5 + 0.5 * Math.sin((t * Math.PI * 2) / 7), fill });
       if (img) {
         asciiBy = asciiGl.kind;
         ctx.drawImage(img, 0, 0, W, H);

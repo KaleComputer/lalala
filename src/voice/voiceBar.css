@@ -793,7 +793,8 @@
   opacity: 0;
 }
 /* The models' lines sit on the connecting ASCII line, so only START and CONNECT give way to them. */
-[data-lalala-presence]:has([data-lalala-note="models"]) :is(.fr-idle, [data-lalala-offline]) {
+[data-lalala-presence]:has(:is([data-lalala-note="models"], [data-lalala-note="loading"]))
+  :is(.fr-idle, [data-lalala-offline]) {
   opacity: 0;
 }
 [data-lalala-presence]:has([data-lalala-note]) .bar-line::after {
@@ -888,6 +889,11 @@
 /* Words beside an animation (an error's few words or RECONNECTING by the glitch, CONNECTING by the ASCII
    line) sit on a small tag in the room's centre, like START and COMPACTING, the animation whole around it
    (9 Nov); warm white, an error's in the danger colour, its hint under it. */
+/* VOICE LOADING (Tim, 15 Nov): START's plate in white, on the ASCII rows. */
+[data-lalala-presence] [data-lalala-note] > [data-lalala-plate="white"] {
+  background: #fff;
+  color: #0b0b0b;
+}
 [data-lalala-note] > [data-lalala-tag] {
   display: inline-grid;
   gap: 3px;
@@ -960,7 +966,9 @@
 [data-lalala-note="models"] li[data-done] > span {
   opacity: 0.5;
 }
-[data-lalala-presence]:has([data-lalala-note="models"]) .fr[data-state="connecting"] .fr-wv {
+[data-lalala-presence]:has(:is([data-lalala-note="models"], [data-lalala-note="loading"]))
+  .fr[data-state="connecting"]
+  .fr-wv {
   visibility: visible;
 }
 

@@ -26,6 +26,7 @@ uniform float uDpr;     // backing px per CSS px
 uniform float uK;       // glow scale: 1 on a wide line, smaller on a short one or in the bar
 uniform vec4 uState;    // time (s), idle breath, opacity over the room, the cell grid's vertical offset (backing px)
 uniform float uFill;    // a model download's edge (backing px): glyphs left of it light green; < 0, no download
+uniform vec2 uBand;     // the room's top and a glyph row's height (backing px): the room's height over ROWS
 
 const vec3 WHITE = vec3(1.0, 0.955, 0.90);
 const vec3 WARM = vec3(1.0, 0.56, 0.24);
@@ -83,13 +84,17 @@ void main() {
   vec3 room = toS(vec3(0.0));
   // Each cell samples the line where it crosses the cell's column (its brightest point there), maps
   // that to a glyph by density and draws it in the line's own colour; the characters flicker a little.
+  // ROWS rows of glyphs fill the room's height (Tim, 15 Nov), spaced apart: each row's glyph sits in the
+  // middle of its band, the rows nearer the line denser, the outer ones lighter.
   float cs = CELL * uDpr;
-  vec2 q = p - vec2(0.0, uState.w);
-  vec2 cell = floor(q / cs);
-  vec2 c0 = cell * cs;
+  vec2 cell = vec2(floor(p.x / cs), floor((p.y - uBand.x) / uBand.y));
+  vec2 c0 = vec2(cell.x * cs, uBand.x + cell.y * uBand.y + 0.5 * (uBand.y - cs));
+  vec2 q = p;
   float cx = c0.x + 0.5 * cs;
-  vec3 cc = toS(lineAt(vec2(cx, clamp(uLine.z, c0.y + uState.w, c0.y + uState.w + cs))));
-  float gray = clamp(dot(cc - room, vec3(0.3, 0.59, 0.11)) * 1.15, 0.0, 1.0);
+  float rowY = uBand.x + (cell.y + 0.5) * uBand.y;
+  float away = clamp(abs(rowY - uLine.z) / max(1.0, 2.0 * uBand.y), 0.0, 1.0);
+  vec3 cc = toS(lineAt(vec2(cx, uLine.z)));
+  float gray = clamp(dot(cc - room, vec3(0.3, 0.59, 0.11)) * 1.15, 0.0, 1.0) * mix(1.0, 0.5, away);
   float n = fract(sin(dot(cell, vec2(12.9898, 78.233)) + floor(uState.x * 10.0) * 7.31) * 43758.5453);
   gray *= 1.0 + 0.22 * (n - 0.5);
   float on = ascii(gray, floor((q - c0) / cs * 7.0) - 1.0);
@@ -118,10 +123,10 @@ export const ASCII_OPACITY = 0.6;
 const GLYPHS = [4096, 65600, 332772, 15255086, 23385164, 15252014, 13199452, 11512810];
 /** How much light the soft ends keep at the room's very ends (cd87111: none, on a short line). */
 export const ASCII_END = 0.1;
-/** The line sits this far (CSS px) above a cell row's edge, as it fell on the old page: a dense row over a lighter one, a dotted row each side. */
-export const ASCII_ROW = 0.75;
 const DEFINES = [`#define CELL ${ASCII_CELL.toFixed(1)}`, `#define END ${ASCII_END.toFixed(3)}`, ...GLYPHS.map((n, i) => `#define GLYPH${i} ${Math.floor(n / 4096).toFixed(1)}, ${(n % 4096).toFixed(1)}`)].join("\n");
-const UNIFORMS = ["uRes", "uLine", "uDpr", "uK", "uState", "uFill"];
+const UNIFORMS = ["uRes", "uLine", "uDpr", "uK", "uState", "uFill", "uBand"];
+/** Glyph rows over the room's height, however tall the bar is. */
+export const ASCII_ROWS = 4;
 
 /**
  * The ASCII line on a detached canvas: `draw({ width, height, dpr, x0, x1, y, time, breath, glow, fill })` (CSS
@@ -180,12 +185,12 @@ export function createAsciiLine({ force } = {}) {
     } catch {}
   });
 
-  function draw({ width, height, dpr = 1, x0 = 0, x1 = width, y = height / 2, time = 0, breath = 0.5, glow = 0.8, fill = null }) {
+  function draw({ width, height, dpr = 1, x0 = 0, x1 = width, y = height / 2, top = 0, bottom = height, time = 0, breath = 0.5, glow = 0.8, fill = null }) {
     if (lost || gl.isContextLost()) return null;
     const W = Math.max(1, Math.round(width * dpr));
     const H = Math.max(1, Math.round(height * dpr));
     // The glyphs change ten times a second: between steps the last frame stands.
-    const key = `${W}x${H}|${x0}|${x1}|${y}|${Math.floor(time * 10)}|${fill === null ? "" : fill.toFixed(3)}`;
+    const key = `${W}x${H}|${x0}|${x1}|${y}|${top}|${bottom}|${Math.floor(time * 10)}|${fill === null ? "" : fill.toFixed(3)}`;
     if (key === last) return canvas;
     last = key;
     if (canvas.width !== W) canvas.width = W;
@@ -200,7 +205,8 @@ export function createAsciiLine({ force } = {}) {
     gl.uniform1f(loc.uDpr, dpr);
     gl.uniform1f(loc.uK, Math.min(1, Math.max(0.55, (x1 - x0) / 860)) * glow);
     gl.uniform1f(loc.uFill, fill === null ? -1 : (x0 + Math.min(1, Math.max(0, fill)) * (x1 - x0)) * dpr);
-    gl.uniform4f(loc.uState, time, breath, ASCII_OPACITY, ((((y + ASCII_ROW) * dpr) % cs) + cs) % cs);
+    gl.uniform4f(loc.uState, time, breath, ASCII_OPACITY, 0);
+    gl.uniform2f(loc.uBand, top * dpr, Math.max(cs, ((bottom - top) * dpr) / ASCII_ROWS));
     gl.drawArrays(gl.TRIANGLES, 0, 3);
     return canvas;
   }
