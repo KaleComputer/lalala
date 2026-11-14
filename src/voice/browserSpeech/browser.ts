@@ -11,13 +11,11 @@ type Reply =
   | { type: "error"; id: number; message: string };
 
 const MODEL_FAILED = "The voice models didn't load.";
+export const NEEDS_WEBGPU = "Speech-to-text needs WebGPU";
 
 // A model that was loading when the page ended without a pagehide took the tab down with it (iOS
-// ends a tab over its memory limit): for half a day that model runs on the Mac's speech service
-// (scripts/lalala-speech.sh, via vite/voice.ts) instead, so a call works rather than crash again.
+// ends a tab over its memory limit): logged as speech.died on the next load, nothing else changes.
 const LOADING = (name: string) => `lalala:loading:${name}`;
-const DIED = (name: string) => `lalala:died:${name}`;
-const DIED_FOR_MS = 12 * 60 * 60 * 1000;
 const storage = (action: (store: Storage) => void) => {
   try {
     action(localStorage);
@@ -34,22 +32,10 @@ for (const name of ["parakeet", "kokoro"]) {
   storage((store) => {
     if (store.getItem(LOADING(name)) === null) return;
     store.removeItem(LOADING(name));
-    store.setItem(DIED(name), String(Date.now()));
+    store.removeItem(`lalala:died:${name}`);
     voiceLog("system", "speech.died", { model: name });
   });
 }
-declare global {
-  /** The app sets it: its server reaches the Mac's speech service (`npm run speech`). lalala.talk has none. */
-  var __lalalaMacSpeech: boolean | undefined;
-}
-const hasMac = () => globalThis.__lalalaMacSpeech === true;
-// A model that crashed this tab lately runs on the Mac instead, where there is one.
-const onMac = (name: string) => {
-  if (!hasMac()) return false;
-  let died = 0;
-  storage((store) => (died = Number(store.getItem(DIED(name)) ?? 0)));
-  return Date.now() - died < DIED_FOR_MS;
-};
 // The page ending on purpose (a reload, going away) or hiding is no crash.
 const onPageHide = () => {
   for (const name of loadingNow) markLoading(name, false);
@@ -99,7 +85,8 @@ function modelWorker(key: string, spawn: () => Worker, onSettled: () => void = (
     voiceLog("system", "speech.failed", { model: key, message: cause, ...memory() });
     settle();
     failed = true;
-    markFailed(new Error(MODEL_FAILED));
+    // A browser without what the model needs says so; anything else is the general line.
+    markFailed(new Error(cause.includes(NEEDS_WEBGPU) ? cause.slice(cause.indexOf(NEEDS_WEBGPU)) : MODEL_FAILED));
   };
   const release = () => {
     loadingNow.delete(key);
@@ -211,11 +198,6 @@ function modelWorker(key: string, spawn: () => Worker, onSettled: () => void = (
   };
 }
 
-// A phone speaks with the Mac's Kokoro: the WASM one there took over 20 s per sentence (iPhone, 13 Nov).
-// Phones speak through the Mac where there is one: Kokoro in a phone tab costs it most of its memory.
-const phone = /iPhone|iPad|iPod|Android/.test(navigator.userAgent);
-// Read at each call: the app sets __lalalaMacSpeech after this module has loaded.
-const onPhone = () => phone && hasMac();
 // Spelled out at each call: bundlers only turn this exact form into a worker of its own.
 const ears = modelWorker(
   "parakeet",
@@ -226,47 +208,6 @@ const voice = modelWorker(
   () => new Worker(new URL("./kokoro.worker.ts", import.meta.url), { type: "module" }),
 );
 
-async function mac(path: string, init: RequestInit): Promise<Response> {
-  // A phone between networks drops the odd request ("Load failed"): one retry keeps the words.
-  const response = await fetch(path, { method: "POST", ...init }).catch((cause: unknown) => {
-    voiceLog("system", "speech.retry", { path, message: String(cause) });
-    return new Promise<void>((resolve) => setTimeout(resolve, 800)).then(() =>
-      fetch(path, { method: "POST", ...init }),
-    );
-  });
-  if (!response.ok) {
-    const body = (await response.json().catch(() => ({}))) as { error?: unknown };
-    throw new Error(typeof body.error === "string" ? body.error : `speech ${response.status}`);
-  }
-  return response;
-}
-
-function wavOf(pcm: Float32Array): Blob {
-  const data = new DataView(new ArrayBuffer(44 + pcm.length * 2));
-  const text = (at: number, value: string) => {
-    for (let i = 0; i < value.length; i += 1) data.setUint8(at + i, value.charCodeAt(i));
-  };
-  text(0, "RIFF");
-  data.setUint32(4, 36 + pcm.length * 2, true);
-  text(8, "WAVE");
-  text(12, "fmt ");
-  data.setUint32(16, 16, true);
-  data.setUint16(20, 1, true);
-  data.setUint16(22, 1, true);
-  data.setUint32(24, 16_000, true);
-  data.setUint32(28, 32_000, true);
-  data.setUint16(32, 2, true);
-  data.setUint16(34, 16, true);
-  text(36, "data");
-  data.setUint32(40, pcm.length * 2, true);
-  for (let i = 0; i < pcm.length; i += 1) {
-    data.setInt16(44 + i * 2, Math.max(-1, Math.min(1, pcm[i]!)) * 0x7fff, true);
-  }
-  return new Blob([data.buffer], { type: "audio/wav" });
-}
-
-// Best-effort storage goes under disk pressure, and with it a finished 1.25 GB download. persist()
-// lives on the page only (not in workers); Chrome and Safari answer it without asking.
 let persisted = false;
 const persistDownloads = () => {
   if (persisted) return;
@@ -279,30 +220,18 @@ const persistDownloads = () => {
 
 /** Parakeet loads (once per call) so the first utterance does not wait for it. */
 export const startEars = () => {
-  if (onMac("parakeet")) voiceLog("system", "speech.mac", { model: "parakeet" });
-  else {
-    persistDownloads();
-    ears.start();
-  }
+  persistDownloads();
+  ears.start();
 };
 export const releaseEars = () => ears.release();
 /** Kokoro loads with the call while it is the reply voice; another reply voice frees it. */
 export const startKokoro = () => {
-  if (onPhone() || onMac("kokoro")) voiceLog("system", "speech.mac", { model: "kokoro" });
-  else voice.start();
+  voice.start();
 };
 export const releaseKokoro = () => voice.release();
 
 /** 16 kHz PCM, transcribed by Parakeet. The buffer moves to its worker. */
 export async function transcribe(pcm: Float32Array<ArrayBuffer>): Promise<string> {
-  if (onMac("parakeet")) {
-    const response = await mac("/__lalala/stt?engine=local", {
-      headers: { "content-type": "audio/wav" },
-      body: wavOf(pcm),
-    });
-    const body = (await response.json()) as { text?: unknown };
-    return typeof body.text === "string" ? body.text : "";
-  }
   const reply = await ears.ask({ type: "transcribe", pcm }, [pcm.buffer]);
   return reply.type === "text" ? reply.text : "";
 }
@@ -332,18 +261,6 @@ export function openVad(onProbability: (probability: number) => void) {
 
 /** One sentence as 24 kHz PCM from Kokoro; it reads misaki's `[word](/phonemes/)` markup. */
 export async function kokoroSpeak(text: string): Promise<Float32Array<ArrayBuffer>> {
-  if (onPhone() || onMac("kokoro")) {
-    const response = await mac("/__lalala/tts?engine=local", {
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({ text, format: "pcm" }),
-    });
-    // 16-bit little-endian 24 kHz PCM.
-    const bytes = await response.arrayBuffer();
-    const view = new DataView(bytes, 0, bytes.byteLength - (bytes.byteLength % 2));
-    const samples = new Float32Array(view.byteLength / 2);
-    for (let i = 0; i < samples.length; i += 1) samples[i] = view.getInt16(i * 2, true) / 0x8000;
-    return samples;
-  }
   const reply = await voice.ask({ type: "speak", text });
   if (reply.type !== "audio") throw new Error("Kokoro returned no audio");
   return reply.samples;

@@ -1,4 +1,5 @@
-// Parakeet TDT 0.6B v2 (parakeet.js): fp16 encoder on WebGPU, int8 on WASM without it. Files go to
+// Parakeet TDT 0.6B v2 (parakeet.js): the fp16 encoder on WebGPU, on every device (Tim, 14 Nov: the
+// large one in the browser and nothing else; no int8 or Mac fallback). Files go to
 // IndexedDB in pieces and the encoder's weights reach the runtime as external data read from disk a
 // slice at a time: buffered whole, the 1.25 GB file ended a phone's tab (13 Nov).
 import { externalGraph } from "./onnxExternal";
@@ -28,7 +29,7 @@ type ParakeetModule = {
   }): Promise<Model>;
 };
 type Build = {
-  readonly backend: "webgpu-hybrid" | "wasm";
+  readonly backend: "webgpu-hybrid";
   readonly encoder: string;
   readonly expected: number;
 };
@@ -37,11 +38,6 @@ const WEBGPU: Build = {
   backend: "webgpu-hybrid",
   encoder: "encoder-model.fp16.onnx",
   expected: 1_248_000_000,
-};
-const WASM: Build = {
-  backend: "wasm",
-  encoder: "encoder-model.int8.onnx",
-  expected: 661_000_000,
 };
 
 let model: Promise<Model> | null = null;
@@ -81,12 +77,11 @@ function blobBytes(blob: Blob): Uint8Array {
 async function loadBuild(parakeet: ParakeetModule, build: Build, keep: readonly Build[] = [build]) {
   postMessage({
     type: "load",
-    name: `parakeet 0.6b${build.backend === "wasm" ? "" : " gpu"}`,
+    name: "parakeet 0.6b gpu",
     expected: build.expected,
     cached: await isDownloaded(BASE + build.encoder),
   });
-  // Files of another build (int8 after fp16, or the other way) would only fill the phone's storage.
-  // A WebGPU failure keeps the fp16 files: it may pass, and they are 1.25 GB to fetch again.
+  // An older int8 build's files would only fill the phone's storage.
   await keepDownloads(BASE, [...keep.map(({ encoder }) => BASE + encoder), BASE + DECODER]).catch(
     () => {},
   );
@@ -123,17 +118,12 @@ async function loadBuild(parakeet: ParakeetModule, build: Build, keep: readonly 
 
 async function load() {
   const parakeet = (await import(/* @vite-ignore */ PARAKEET_JS)) as ParakeetModule;
-  let loaded: Model;
-  if (await hasWebGpu()) {
-    try {
-      loaded = await loadBuild(parakeet, WEBGPU);
-    } catch (error) {
-      stage("webgpu-failed", { message: String(error) });
-      loaded = await loadBuild(parakeet, WASM, [WEBGPU, WASM]);
-    }
-  } else {
-    loaded = await loadBuild(parakeet, WASM);
+  if (!(await hasWebGpu())) {
+    throw new Error(
+      "Speech-to-text needs WebGPU with 16-bit floats, and this browser has none. Try Chrome or Safari up to date.",
+    );
   }
+  const loaded = await loadBuild(parakeet, WEBGPU);
   postMessage({ type: "ready" });
   return loaded;
 }

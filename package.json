@@ -9,8 +9,7 @@
   },
   "scripts": {
     "start": "node server.mjs",
-    "pair": "node server.mjs pair",
-    "speech": "scripts/speech.sh"
+    "pair": "node server.mjs pair"
   },
   "dependencies": {
     "@base-ui/react": "1.9.0",

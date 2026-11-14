@@ -45,8 +45,8 @@ async function cached(file: string) {
 async function load() {
   const gpu = (navigator as Navigator & { gpu?: { requestAdapter(): Promise<unknown> } }).gpu;
   // A phone keeps its memory for Parakeet's fp16 encoder: the 93 MB quantized Kokoro on WASM there.
-  const phone = /iPhone|iPad|iPod|Android/.test(navigator.userAgent);
-  const webgpu = !phone && gpu ? (await gpu.requestAdapter().catch(() => null)) !== null : false;
+  // Phones too (Tim, 14 Nov: all speech in the browser): WASM took over 20 s a sentence on an iPhone.
+  const webgpu = gpu ? (await gpu.requestAdapter().catch(() => null)) !== null : false;
   const isCached = await cached(webgpu ? "onnx/model.onnx" : "onnx/model_quantized.onnx");
   if (isCached) void forgetDownloads(`https://huggingface.co/${MODEL}/`).catch(() => {});
   postMessage({

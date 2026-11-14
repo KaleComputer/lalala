@@ -24,9 +24,6 @@ globalThis.__lalalaUserRules = Object.values(
   import.meta.glob<string>("./voice/brain.user.md", { query: "?raw", import: "default", eager: true }),
 )[0];
 
-// This server reaches the Mac's speech service, for phones and for a model that crashed a tab.
-globalThis.__lalalaMacSpeech = true;
-
 // The app keeps layout and settings on its server; lalala.talk installs the browser adapters.
 installAdapters({
   storage: serverStorage,
