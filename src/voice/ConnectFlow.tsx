@@ -50,13 +50,18 @@ export function PairSteps(props: {
   // Starts as the remembered address, once asked.
   const [address, setAddress] = useState<string | null>(null);
   const [copied, setCopied] = useState<string | null>(null);
+  const [copyFailed, setCopyFailed] = useState(false);
   const copy = (text: string) =>
     void navigator.clipboard.writeText(text).then(
       () => {
         setCopied(text);
+        setCopyFailed(false);
         window.setTimeout(() => setCopied((now) => (now === text ? null : now)), 2000);
       },
-      () => setCopied(null),
+      () => {
+        setCopied(null);
+        setCopyFailed(true);
+      },
     );
   const streamer = useStreamerMode();
   const busy = props.working !== null;
@@ -123,7 +128,10 @@ export function PairSteps(props: {
   );
   const command = (text: string | null, missing?: string) => (
     <p data-lalala-pair-command="" data-missing={text === null ? "" : undefined}>
-      <code aria-live="polite">{text ?? missing}</code>
+      <code aria-live="polite">
+        {text ?? missing}
+        {copyFailed && text !== null ? " (Couldn't copy: select it and copy.)" : ""}
+      </code>
       <button
         type="button"
         data-lalala-settings-button=""
@@ -251,7 +259,10 @@ export function PairSteps(props: {
               <T3Path steps={["Settings", "Sharing & access", "Create link"]} />
               <details data-lalala-pair-terminal="">
                 <summary>Use a terminal instead</summary>
-                {command(connectCommand, "Paste your address in step 2 first.")}
+                {command(
+                  connectCommand,
+                  host === "" ? "Paste your address in step 2 first." : "That address isn't right; copy the MCP URL again.",
+                )}
               </details>
             </Step>
             <Step n={4} title={phone ? "Paste the link or code here" : "Paste the link or code"}>

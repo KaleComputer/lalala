@@ -1807,9 +1807,9 @@ const COMPUTER_COPY = {
       `The speech service couldn't start on this computer; this browser ${verb} with ${standIn}.`,
   },
   absent: {
-    meta: "Only when lalala is opened from that computer",
+    meta: "Only in the lalala app, not on lalala.talk",
     state: (verb: string, standIn: string) =>
-      `This page can't reach the computer; this browser ${verb} with ${standIn}.`,
+      `lalala.talk can't reach your computer's speech service; this browser ${verb} with ${standIn}.`,
   },
 } as const;
 
