@@ -23,7 +23,7 @@ let run: Promise<(window: Float32Array) => Promise<number>> | null = null;
 let queue: Promise<unknown> = Promise.resolve();
 
 async function load() {
-  const ort = (await import(/* @vite-ignore */ ORT)) as Ort;
+  const ort = (await import(/* @vite-ignore */ /* webpackIgnore: true */ /* turbopackIgnore: true */ ORT)) as Ort;
   ort.env.wasm.wasmPaths = ORT_DIST;
   ort.env.wasm.numThreads = 1;
   const session = await ort.InferenceSession.create(MODEL, { executionProviders: ["wasm"] });

@@ -83,7 +83,7 @@ async function fetchAll(onBytes: (loaded: number, total: number) => void) {
 }
 
 async function load() {
-  const ort = (await import(/* @vite-ignore */ ORT)) as Ort;
+  const ort = (await import(/* @vite-ignore */ /* webpackIgnore: true */ /* turbopackIgnore: true */ ORT)) as Ort;
   ort.env.wasm.wasmPaths = ORT.slice(0, ORT.lastIndexOf("/") + 1);
   // Cross-origin isolated pages (both hosts) run the WASM on several threads.
   ort.env.wasm.numThreads = self.crossOriginIsolated

@@ -159,7 +159,7 @@ type Ort = {
 
 /** parakeet.js sizes its zero decoder states for 2 layers; the 110M's decoder has 1. */
 async function withPredLayers(model: Model, layers: number) {
-  const ort = (await import(/* @vite-ignore */ ORT_ESM)) as Ort;
+  const ort = (await import(/* @vite-ignore */ /* webpackIgnore: true */ /* turbopackIgnore: true */ ORT_ESM)) as Ort;
   const state = model as unknown as {
     predLayers: number;
     predHidden: number;
@@ -178,14 +178,14 @@ async function withPredLayers(model: Model, layers: number) {
  * not available"), so every session it makes is pinned to the WASM provider here.
  */
 async function cpuSessions() {
-  const ort = (await import(/* @vite-ignore */ ORT_ESM)) as Ort;
+  const ort = (await import(/* @vite-ignore */ /* webpackIgnore: true */ /* turbopackIgnore: true */ ORT_ESM)) as Ort;
   const create = ort.InferenceSession.create.bind(ort.InferenceSession);
   ort.InferenceSession.create = (url, options = {}) =>
     create(url, { ...options, executionProviders: ["wasm"] });
 }
 
 async function load(choice: unknown) {
-  const parakeet = (await import(/* @vite-ignore */ PARAKEET_JS)) as ParakeetModule;
+  const parakeet = (await import(/* @vite-ignore */ /* webpackIgnore: true */ /* turbopackIgnore: true */ PARAKEET_JS)) as ParakeetModule;
   // "auto": phones the 110M, desktops the 0.6B on the GPU where WebGPU has 16-bit floats, else on the CPU.
   const build =
     choice === "110m" ? SMALL

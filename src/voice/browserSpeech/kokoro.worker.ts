@@ -64,7 +64,7 @@ async function load(build: unknown) {
     expected: dtype === "q8" ? 93_000_000 : 327_000_000,
     cached: isCached,
   });
-  const { KokoroTTS } = (await import(/* @vite-ignore */ KOKORO_JS)) as KokoroModule;
+  const { KokoroTTS } = (await import(/* @vite-ignore */ /* webpackIgnore: true */ /* turbopackIgnore: true */ KOKORO_JS)) as KokoroModule;
   const tts = await KokoroTTS.from_pretrained(MODEL, {
     dtype,
     device: dtype === "fp32" ? "webgpu" : "wasm",
@@ -192,7 +192,7 @@ const MARKUP = /\[([^\]]+)\]\(\/([^/]+)\/\)/g;
 
 /** Phonemes for text with misaki markup: listed words as given, the rest as kokoro-js would. */
 async function phonemesWithMarkup(text: string) {
-  phonemizer ??= import(/* @vite-ignore */ PHONEMIZER).then(
+  phonemizer ??= import(/* @vite-ignore */ /* webpackIgnore: true */ /* turbopackIgnore: true */ PHONEMIZER).then(
     (module: { phonemize: Phonemize }) => module.phonemize,
   );
   const phonemize = await phonemizer;
