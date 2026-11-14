@@ -51,6 +51,10 @@ const memory = () => {
   return heap ? { heapMB: Math.round(heap.usedJSHeapSize / 1e6) } : {};
 };
 
+// One model loads at a time, in the order asked (Parakeet with the call, then Kokoro): Kokoro
+// loading into WebGPU while Parakeet downloaded ended Tim's iPhone tab (14 Nov, three times).
+let modelTurn: Promise<unknown> = Promise.resolve();
+
 /** One model worker: its load state for the readout, and request/reply by id. */
 function modelWorker(key: string, spawn: () => Worker, onSettled: () => void = () => {}) {
   let worker: Worker | null = null;
@@ -89,6 +93,7 @@ function modelWorker(key: string, spawn: () => Worker, onSettled: () => void = (
     markFailed(new Error(cause.includes(NEEDS_WEBGPU) ? cause.slice(cause.indexOf(NEEDS_WEBGPU)) : MODEL_FAILED));
   };
   const release = () => {
+    queued = false;
     loadingNow.delete(key);
     markLoading(key, false);
     worker?.terminate();
@@ -100,11 +105,22 @@ function modelWorker(key: string, spawn: () => Worker, onSettled: () => void = (
     waiting.clear();
     markFailed(new Error("closed"));
   };
+  let queued = false;
   // A failed model loads again on the next ask (the bar says "tap to retry").
   const start = () => {
     if (failed) release();
-    if (worker !== null) return worker;
+    if (worker !== null || queued) return;
     arm();
+    queued = true;
+    const turn = modelTurn.then(() => {
+      if (!queued) return;
+      queued = false;
+      spawnNow();
+      return ready.catch(() => {});
+    });
+    modelTurn = turn;
+  };
+  const spawnNow = () => {
     startedAt = performance.now();
     loggedTenth = -1;
     loadingNow.add(key);
@@ -167,15 +183,14 @@ function modelWorker(key: string, spawn: () => Worker, onSettled: () => void = (
     // A worker that cannot even load (its script, its runtime) fails the model, not the page.
     spawned.onerror = (event) => fail(event.message || "the model's worker failed to load");
     spawned.postMessage({ type: "load" });
-    return spawned;
   };
 
   return {
     start,
     release,
-    started: () => worker !== null,
+    started: () => worker !== null || queued,
     ready: () => isReady,
-    loading: () => worker !== null && !isReady && !failed,
+    loading: () => (worker !== null || queued) && !isReady && !failed,
     /** Its download row; null until a download from the network is known (cached files only load). */
     model(): VoiceBarModel | null {
       if (download === null || download.cached) return null;
@@ -187,8 +202,10 @@ function modelWorker(key: string, spawn: () => Worker, onSettled: () => void = (
       return { name, loaded, total, done: false };
     },
     async ask(message: Record<string, unknown>, transfer: Transferable[] = []): Promise<Reply> {
-      const target = start();
+      start();
       await ready;
+      const target = worker;
+      if (target === null) throw new Error("closed");
       const id = nextId++;
       return new Promise<Reply>((resolve, reject) => {
         waiting.set(id, { resolve, reject });

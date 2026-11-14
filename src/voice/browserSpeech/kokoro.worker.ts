@@ -43,24 +43,30 @@ async function cached(file: string) {
 }
 
 async function load() {
-  const gpu = (navigator as Navigator & { gpu?: { requestAdapter(): Promise<unknown> } }).gpu;
-  // A phone keeps its memory for Parakeet's fp16 encoder: the 93 MB quantized Kokoro on WASM there.
-  // Phones too (Tim, 14 Nov: all speech in the browser): WASM took over 20 s a sentence on an iPhone.
-  const webgpu = gpu ? (await gpu.requestAdapter().catch(() => null)) !== null : false;
-  const isCached = await cached(webgpu ? "onnx/model.onnx" : "onnx/model_quantized.onnx");
+  const gpu = (navigator as Navigator & {
+    gpu?: { requestAdapter(): Promise<{ features?: { has(name: string): boolean } } | null> };
+  }).gpu;
+  const adapter = gpu ? await gpu.requestAdapter().catch(() => null) : null;
+  const webgpu = adapter !== null;
+  // Phones speak with the 93 MB q8 build on WASM, like lalala.talk: loading the fp32 one into WebGPU
+  // ended Tim's iPhone tab three times out of three (14 Nov), and fp16, q4f16 and q8 on WebGPU come
+  // out garbled. Desktops with WebGPU use fp32.
+  const phone = /iPhone|iPad|iPod|Android/.test(navigator.userAgent);
+  const dtype = webgpu && !phone ? "fp32" : "q8";
+  const file = dtype === "q8" ? "model_quantized" : "model";
+  const isCached = await cached(`onnx/${file}.onnx`);
   if (isCached) void forgetDownloads(`https://huggingface.co/${MODEL}/`).catch(() => {});
   postMessage({
     type: "load",
     name: "kokoro 82m",
     // The model and a voice, so the readout knows the size before the first byte.
-    expected: webgpu ? 327_000_000 : 93_000_000,
+    expected: dtype === "q8" ? 93_000_000 : 327_000_000,
     cached: isCached,
   });
   const { KokoroTTS } = (await import(/* @vite-ignore */ KOKORO_JS)) as KokoroModule;
   const tts = await KokoroTTS.from_pretrained(MODEL, {
-    // WebGPU wants the full-precision model; the quantized one suits WASM.
-    dtype: webgpu ? "fp32" : "q8",
-    device: webgpu ? "webgpu" : "wasm",
+    dtype,
+    device: dtype === "fp32" ? "webgpu" : "wasm",
     progress_callback: trackFiles((loaded, total) =>
       postMessage({ type: "progress", loaded, total }),
     ),
