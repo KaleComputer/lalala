@@ -25,12 +25,14 @@ export class TopicHold {
   private playing: string | null = null;
 
   /**
-   * The user's words went to the brain: later topics wait for its answer. The topics still held are
-   * handed back (each one's sentences), never to play by themselves.
+   * The user's words went to the brain: later topics wait for its answer. The topics still held stay
+   * and follow the answer, unless `drop` (their words replace them): then they are handed back (each
+   * one's sentences), never to play by themselves.
    */
-  awaitAnswer(now: number): string[][] {
-    const dropped = this.held.splice(0);
+  awaitAnswer(now: number, drop = true): string[][] {
     this.awaitingSince = now;
+    if (!drop) return [];
+    const dropped = this.held.splice(0);
     this.playing = null;
     return [...new Set(dropped.map(({ part }) => part))].map((part) =>
       dropped.filter((sentence) => sentence.part === part).map(({ text }) => text),

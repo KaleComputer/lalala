@@ -353,7 +353,7 @@ export function VoiceHost({
     images: ReadonlyArray<File> = [],
     files: ReadonlyArray<VoiceFileRef> = [],
   ) => {
-    const unheard = sessionRef.current?.timSpoke() ?? [];
+    const unheard = sessionRef.current?.timSpoke(text) ?? [];
     awaitedMessageRef.current = holdWords(text, images, files, unheard).messageId;
     if (linkIsDown()) voiceLog("user", "held", { text, held: heldWords().length });
     setNotSent(false);

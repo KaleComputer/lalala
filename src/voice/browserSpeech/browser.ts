@@ -227,7 +227,13 @@ const voice = modelWorker(
 );
 
 async function mac(path: string, init: RequestInit): Promise<Response> {
-  const response = await fetch(path, { method: "POST", ...init });
+  // A phone between networks drops the odd request ("Load failed"): one retry keeps the words.
+  const response = await fetch(path, { method: "POST", ...init }).catch((cause: unknown) => {
+    voiceLog("system", "speech.retry", { path, message: String(cause) });
+    return new Promise<void>((resolve) => setTimeout(resolve, 800)).then(() =>
+      fetch(path, { method: "POST", ...init }),
+    );
+  });
   if (!response.ok) {
     const body = (await response.json().catch(() => ({}))) as { error?: unknown };
     throw new Error(typeof body.error === "string" ? body.error : `speech ${response.status}`);

@@ -65,6 +65,10 @@ const HOLD_OVER_MS = 60;
 const VAD_HOLD_MS = 128;
 const VAD_OVER_FLOOR_DB = 10;
 const VAD_UNDER_REPLY_DB = 20;
+// Words that replace a reply still waiting for Tim's turn to end, instead of letting it play after.
+const REPLACES_WAITING =
+  /^(?:(?:no|okay|ok|wait)[,.!]?\s+)?(?:stop|never ?mind|forget (?:it|that|about it)|cancel(?: that)?|skip(?: it| that)?|be quiet|quiet|shut up|enough|not now|later|hold on)\b/i;
+
 // Speech the voice detector heard this recently is Tim's voice over a held reply.
 const VAD_VOICE_MS = 100;
 // A segment never runs longer than this, even while the gate stays open on loud echo.
@@ -654,14 +658,18 @@ export class VoiceSession {
   }
 
   /**
-   * Tim's words went to the brain. What it wrote and he hasn't heard (cut off, waiting for his turn
-   * to end, a held `[new topic]`) never plays by itself: it is returned for his message's tag and
-   * the brain decides. Later `[new topic]` parts wait until its answer has been heard.
+   * Tim's words went to the brain. A reply or `[new topic]` that arrived while he talked and hasn't
+   * started plays right after his turn (14 Nov: dropping it read as "you don't answer me"), unless his
+   * words replace it ("stop", "never mind"). What he cut off mid-play is returned for his message's
+   * tag and the brain decides. Later `[new topic]` parts wait until its answer has been heard.
    */
-  timSpoke(): string[] {
-    const waiting = this.waiting.map(({ text }) => text);
-    this.waiting = [];
-    const held = this.topics.awaitAnswer(performance.now());
+  timSpoke(text = ""): string[] {
+    const replaces = REPLACES_WAITING.test(text.trim());
+    if (!replaces && this.waiting.length > 0)
+      voiceLog("voice", "say.kept", { sentences: this.waiting.length });
+    const waiting = replaces ? this.waiting.map(({ text: line }) => line) : [];
+    if (replaces) this.waiting = [];
+    const held = this.topics.awaitAnswer(performance.now(), replaces);
     const lines = unheardLines([...this.unheard, waiting, ...held]);
     this.unheard = [];
     if (lines.length > 0) voiceLog("voice", "unheard", { lines });
