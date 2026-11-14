@@ -1,7 +1,8 @@
 // Kale's own small text-to-speech, no espeak: text -> words (a tiny number speller) -> IPA (a
 // CMUdict-derived word list, hand-checked overrides and a 0.9M-weight GRU for unknown words) -> token
 // ids -> Matcha-TTS (ONNX, mel) -> Vocos (ONNX, magnitude and phase) -> inverse STFT -> 22,050 Hz PCM.
-// Copied from Kale's browser demo (kale-tts.js) as an ES module; `ort` is onnxruntime-web, passed in.
+// Copied from Kale's browser demo (kale-tts.js) as an ES module, numbers said more fully here; `ort`
+// is onnxruntime-web, passed in.
 /* eslint-disable */
 
 // ------------------------------------------------------------------------------------------------ text -> words
@@ -29,21 +30,54 @@ function yearWords(n) {
   return intWords(hi) + " " + (lo === 0 ? "hundred" : lo < 10 ? "oh " + ONES[lo] : intWords(lo));
 }
 
-/** Numbers, a few symbols and abbreviations as words (the app's card-voice-text.ts does far more). */
+const ORDINAL = { one: "first", two: "second", three: "third", five: "fifth", eight: "eighth", nine: "ninth", twelve: "twelfth" };
+function ordinalWords(n) {
+  const words = intWords(n).split(" ");
+  const last = words.pop();
+  const said = ORDINAL[last] ?? (last.endsWith("y") ? last.slice(0, -1) + "ieth" : last + "th");
+  return [...words, said].join(" ");
+}
+const digits = (s) => s.split("").map((d) => ONES[+d]).join(" ");
+const decimal = (a, b) => intWords(+a) + " point " + digits(b);
+function timeWords(h, m) {
+  if (m === 0) return intWords(h) + " o'clock";
+  return intWords(h) + " " + (m < 10 ? "oh " + ONES[m] : intWords(m));
+}
+
+/**
+ * Numbers, symbols and abbreviations as words. Every digit ends up as a word: "T3" is "T three",
+ * "0.6B" "zero point six B", "4.5%" "four point five percent", "10:30" "ten thirty" (lalala's
+ * additions to Kale's demo: the token pattern below reads letters only, so a digit left over was
+ * dropped, "running T3" was said "running T", Tim 14 Nov).
+ */
 function normalize(text) {
   return text
     .replace(/[‘’]/g, "'")
     .replace(/[“”]/g, '"')
     .replace(/(\d),(?=\d{3}\b)/g, "$1")
-    .replace(/(\d+)\s?%/g, "$1 percent")
-    .replace(/\$(\d+)/g, "$1 dollars")
+    .replace(/\b([01]?\d|2[0-3]):([0-5]\d)\b/g, (_, h, m) => timeWords(+h, +m))
+    .replace(/\b(\d+(?:\.\d+)?)\s?%/g, "$1 percent")
+    .replace(/\$(\d+(?:\.\d+)?)(?:\s?([kmb]n?)\b)?/gi, (_, n, unit) => n + (unit ? " " + unit : "") + " dollars")
+    .replace(/€(\d+(?:\.\d+)?)/g, "$1 euros")
+    .replace(/£(\d+(?:\.\d+)?)/g, "$1 pounds")
     .replace(/&/g, " and ")
     .replace(/\+/g, " plus ")
     .replace(/=/g, " equals ")
+    .replace(/@/g, " at ")
+    .replace(/#(?=\d)/g, " number ")
     .replace(/\bDr\./g, "Doctor").replace(/\bMr\./g, "Mister").replace(/\bMrs\./g, "Missus").replace(/\be\.g\./gi, "for example")
-    .replace(/\b(\d+)\.(\d+)\b/g, (_, a, b) => intWords(+a) + " point " + b.split("").map((d) => ONES[+d]).join(" "))
+    .replace(/\b(\d+)(st|nd|rd|th)\b/gi, (_, n) => ordinalWords(+n))
+    .replace(/\b(1[1-9]\d0|20[0-9]0)s\b/g, (_, y) => yearWords(+y).replace(/y$/, "ie") + "s")
+    .replace(/(\d)x\b/g, "$1 times")
+    .replace(/(\d)\s?ms\b/g, "$1 milliseconds")
+    .replace(/(\d)\s?s\b/g, "$1 seconds")
+    .replace(/(\d)\s?([KMGT])B\b/g, (_, d, u) => d + " " + { K: "kilo", M: "mega", G: "giga", T: "tera" }[u] + "bytes")
+    // Digits glued to letters ("T3", "0.6B", "v2", "3D", "M5") are said apart.
+    .replace(/(\p{L})(?=\d)/gu, "$1 ")
+    .replace(/(\d)(?=\p{L})/gu, "$1 ")
+    .replace(/(\d+)\.(\d+)/g, (_, a, b) => decimal(a, b))
     .replace(/\b(1[1-9]\d\d|20[0-9]\d)\b/g, (m) => yearWords(+m))
-    .replace(/\b\d+\b/g, (m) => (m.length > 12 ? m.split("").map((d) => ONES[+d]).join(" ") : intWords(+m)));
+    .replace(/\d+/g, (m) => (m.length > 12 || (m.length > 1 && m[0] === "0") ? digits(m) : intWords(+m)));
 }
 
 /** Sentences, each one model call (as the app and the bench render). */
