@@ -247,20 +247,30 @@ const persistDownloads = () => {
     .catch(() => {});
 };
 
+// Debugging which model a device can't hold: `?speech=stt` loads only Parakeet (replies stay
+// silent), `?speech=voice` only Kokoro (type in the bar to hear replies).
+const only =
+  typeof location === "undefined" ? null : new URLSearchParams(location.search).get("speech");
+const earsOff = only === "voice";
+const voiceOff = only === "stt";
+if (only) voiceLog("system", "speech.only", { only });
+
 /** Parakeet loads (once per call) so the first utterance does not wait for it. */
 export const startEars = () => {
+  if (earsOff) return;
   persistDownloads();
   ears.start();
 };
 export const releaseEars = () => ears.release();
 /** Kokoro loads with the call while it is the reply voice; another reply voice frees it. */
 export const startKokoro = () => {
-  voice.start();
+  if (!voiceOff) voice.start();
 };
 export const releaseKokoro = () => voice.release();
 
 /** 16 kHz PCM, transcribed by Parakeet. The buffer moves to its worker. */
 export async function transcribe(pcm: Float32Array<ArrayBuffer>): Promise<string> {
+  if (earsOff) return "";
   const reply = await ears.ask({ type: "transcribe", pcm }, [pcm.buffer]);
   return reply.type === "text" ? reply.text : "";
 }
@@ -290,6 +300,7 @@ export function openVad(onProbability: (probability: number) => void) {
 
 /** One sentence as 24 kHz PCM from Kokoro; it reads misaki's `[word](/phonemes/)` markup. */
 export async function kokoroSpeak(text: string): Promise<Float32Array<ArrayBuffer>> {
+  if (voiceOff) return new Float32Array(0);
   const reply = await voice.ask({ type: "speak", text });
   if (reply.type !== "audio") throw new Error("Kokoro returned no audio");
   return reply.samples;

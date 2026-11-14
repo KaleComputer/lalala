@@ -184,28 +184,33 @@ export const useMicDeviceId = () =>
 export const useReplyVoice = () => useSyncExternalStore(subscribeSettings, replyVoice, () => "kokoro");
 
 /**
- * Which Parakeet hears on this device, in this browser: the 0.6B (default) or NVIDIA's stock 110M,
- * a fifth of the size and faster, a little less accurate (14 Nov, for phones).
+ * Which Parakeet hears on this device, in this browser: the 0.6B or NVIDIA's stock 110M, a fifth of
+ * the size and faster, a little less accurate. Phones start on the 110M: the 0.6B int8 plus Kokoro
+ * ended Tim's iPhone tab (14 Nov, 20:20 and 20:21).
  */
 export type SttModel = "0.6b" | "110m";
+export const defaultSttModel = (): SttModel =>
+  typeof navigator !== "undefined" && /iPhone|iPad|iPod|Android/.test(navigator.userAgent)
+    ? "110m"
+    : "0.6b";
 export function sttModel(): SttModel {
   try {
-    return localStorage.getItem(STT_MODEL_KEY) === "110m" ? "110m" : "0.6b";
+    const stored = localStorage.getItem(STT_MODEL_KEY);
+    return stored === "110m" || stored === "0.6b" ? stored : defaultSttModel();
   } catch {
-    return "0.6b";
+    return defaultSttModel();
   }
 }
 export function setSttModel(model: SttModel) {
   try {
-    if (model === "0.6b") localStorage.removeItem(STT_MODEL_KEY);
+    if (model === defaultSttModel()) localStorage.removeItem(STT_MODEL_KEY);
     else localStorage.setItem(STT_MODEL_KEY, model);
   } catch {
     // No storage: the default.
   }
   document.dispatchEvent(new Event(EVENT));
 }
-export const useSttModel = () =>
-  useSyncExternalStore(subscribeSettings, sttModel, (): SttModel => "0.6b");
+export const useSttModel = () => useSyncExternalStore(subscribeSettings, sttModel, defaultSttModel);
 
 /** For the brain's context tag: `default effort=high fastMode=false`. */
 export function delegatesTag(delegates = current().delegates): string {

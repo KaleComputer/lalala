@@ -30,6 +30,7 @@ import {
   pullSynced,
   setMicDeviceId,
   setReplyVoice,
+  defaultSttModel,
   setSttModel,
   topicSoundNames,
   topicSoundUrl,
@@ -1660,11 +1661,11 @@ function ExperimentsSection() {
         description="On this device, from the next thing you say. The 110M is a fifth of the size and faster, and gets a few more words wrong."
         label="Speech-to-text"
         value={ears}
-        onReset={ears === "0.6b" ? undefined : () => setSttModel("0.6b")}
+        onReset={ears === defaultSttModel() ? undefined : () => setSttModel(defaultSttModel())}
         groups={[
           {
             options: [
-              { value: "0.6b", label: "Parakeet 0.6B (default)" },
+              { value: "0.6b", label: "Parakeet 0.6B" },
               { value: "110m", label: "Parakeet 110M (lighter)" },
             ],
           },
