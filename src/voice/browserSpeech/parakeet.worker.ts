@@ -186,19 +186,21 @@ async function cpuSessions() {
 
 async function load(choice: unknown) {
   const parakeet = (await import(/* @vite-ignore */ PARAKEET_JS)) as ParakeetModule;
-  const onCpu = choice === "110m" ? SMALL : phone ? WASM : null;
-  if (onCpu !== null) {
-    await cpuSessions();
-    const loaded = await loadBuild(parakeet, onCpu);
-    postMessage({ type: "ready" });
-    return loaded;
-  }
-  if (!(await hasWebGpu())) {
+  // "auto": phones the 110M, desktops the 0.6B on the GPU where WebGPU has 16-bit floats, else on the CPU.
+  const build =
+    choice === "110m" ? SMALL
+    : choice === "0.6b-cpu" ? WASM
+    : choice === "0.6b-gpu" ? WEBGPU
+    : phone ? SMALL
+    : (await hasWebGpu()) ? WEBGPU
+    : WASM;
+  if (build.cpu) await cpuSessions();
+  else if (!(await hasWebGpu())) {
     throw new Error(
       "Speech-to-text needs WebGPU with 16-bit floats, and this browser has none. Try Chrome or Safari up to date.",
     );
   }
-  const loaded = await loadBuild(parakeet, WEBGPU);
+  const loaded = await loadBuild(parakeet, build);
   postMessage({ type: "ready" });
   return loaded;
 }

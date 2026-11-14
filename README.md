@@ -11,7 +11,9 @@ canvas next to you: a list, a comparison, a diagram, a small tool, even a game.
 Speech runs in your browser, on every device: speech-to-text is NVIDIA Parakeet 0.6B (fp16 on
 WebGPU), text-to-speech is Kokoro (on phones, Kale's own small voice, Llama Matcha; built with Llama, see
 NOTICE.md), and Silero VAD hears when you stop, all on ONNX. No audio leaves
-the device you talk on.
+the device you talk on. Settings → Sound & mic picks the model for each, with its download and memory,
+and in the app can send either one to a speech service on the computer running T3 instead (Parakeet and
+Kokoro on MLX at `127.0.0.1:5797`, `LALALA_LOCAL_PORT`; opt-in, much faster, nothing loads on the phone).
 
 ## How it works
 
@@ -192,7 +194,8 @@ Set in `.env` (see `.env.example`).
 ## Privacy
 
 - Audio, transcripts and synthesized speech stay in your browser; the models download once from
-  Hugging Face and jsDelivr.
+  Hugging Face and jsDelivr. A task you send to the computer's speech service in Settings goes to that
+  computer through the app's server instead.
 - What you say becomes a message in your brain thread, so it goes to whichever model provider that
   thread uses, exactly like typing it into T3 Code.
 - `.lalala/logs` holds a log of your calls (transcripts and timings, never audio). Delete it

@@ -512,6 +512,9 @@
   font-size: var(--s-text);
   cursor: pointer;
 }
+[data-lalala-settings-list] [role="option"][aria-disabled="true"] {
+  cursor: default;
+}
 /* The one cue for where the keyboard or mouse is; the chosen option carries the check. */
 [data-lalala-settings-list] [role="option"][data-active] {
   background: var(--s-active);
@@ -608,7 +611,8 @@
   }
   [data-lalala-settings-group]:has([data-lalala-settings-pick]) {
     display: grid;
-    grid-template-columns: minmax(0, 1fr) fit-content(14rem);
+    /* Wide enough for "Llama Matcha (Kale's voice)" and "Parakeet 0.6B · Computer" on one line. */
+    grid-template-columns: minmax(0, 1fr) fit-content(16rem);
   }
   [data-lalala-settings-group]:has([data-lalala-settings-pick]) > * {
     grid-column: 1 / -1;

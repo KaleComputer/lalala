@@ -31,17 +31,26 @@ import {
   setMicDeviceId,
   setReplyVoice,
   defaultReplyVoice,
-  defaultSttModel,
+  setAutoRetrySeconds,
   setSttModel,
+  DEFAULT_AUTO_RETRY_SECONDS,
   topicSoundNames,
   topicSoundUrl,
   updateSynced,
   useMicDeviceId,
-  useReplyVoice,
+  useAutoRetrySeconds,
+  useReplyVoicePick,
   useSttModel,
+  type SttModel,
   useSyncedSettings,
 } from "./settingsStore";
 import { replyVoicePlugins, subscribeReplyVoices } from "./replyVoices";
+import {
+  checkComputerSpeech,
+  checkGpu,
+  computerStandIn,
+  type ComputerSpeech,
+} from "./browserSpeech/browser";
 import { useLook } from "./extras/look";
 import { ThemeGallery } from "./extras/ThemeGallery";
 import { setSoundVolume, soundOutput, useSoundVolume, withSoundVolume } from "./extras/soundVolume";
@@ -712,7 +721,8 @@ function AppSettings(props: { readonly section: string; readonly onClose: () => 
       content: (
         <>
           <SoundSection />
-          <ExperimentsSection />
+          <SpeechSection />
+          <RetrySection />
           <CreditsSection />
         </>
       ),
@@ -874,6 +884,8 @@ type PickOption = {
   readonly playable?: boolean;
   /** The label can identify the user (a device name, a project title): streamer mode scrambles it. */
   readonly hidden?: boolean;
+  /** Listed with its reason (in `meta`) but can't be picked here. */
+  readonly disabled?: boolean | undefined;
 };
 const PickLabel = (props: { readonly option: PickOption | undefined }) =>
   props.option?.hidden ? <StreamerText text={props.option.label} /> : (props.option?.label ?? "None");
@@ -946,6 +958,8 @@ export function PickRow(props: {
   /** Plays a playable option: from its button, and as the keyboard moves onto it. */
   readonly onPlay?: (value: string) => void;
   readonly busy?: boolean | undefined;
+  /** The description is a problem (Row's error look and alert). */
+  readonly error?: boolean | undefined;
   readonly onChange: (value: string) => void;
 }) {
   const id = useId();
@@ -990,6 +1004,7 @@ export function PickRow(props: {
   };
   const pick = (index: number) => {
     const option = options[index];
+    if (option?.disabled) return;
     if (option && option.value !== props.value && !props.busy) {
       props.onChange(option.value);
     }
@@ -1026,7 +1041,12 @@ export function PickRow(props: {
   };
 
   return (
-    <Row title={props.title} description={props.description} onReset={props.onReset}>
+    <Row
+      title={props.title}
+      description={props.description}
+      onReset={props.onReset}
+      error={props.error}
+    >
       {(describedBy) => (
         <>
           <button
@@ -1080,6 +1100,7 @@ export function PickRow(props: {
                         id={optionId(at)}
                         role="option"
                         aria-selected={at === selected}
+                        aria-disabled={option.disabled || undefined}
                         data-active={at === active ? "" : undefined}
                         onMouseDown={(event) => event.preventDefault()}
                         onMouseMove={() => at !== active && setActive(at)}
@@ -1651,45 +1672,256 @@ export function SoundSection() {
   );
 }
 
-/** Which Parakeet hears on this device, and reply voices the user's cards added (replyVoices.ts). */
-function ExperimentsSection() {
-  const voice = useReplyVoice();
+const STT_LABELS: Record<Exclude<SttModel, "auto">, string> = {
+  "0.6b-gpu": "Parakeet 0.6B · GPU",
+  "0.6b-cpu": "Parakeet 0.6B · CPU",
+  "110m": "Parakeet 110M",
+  computer: "Parakeet 0.6B · Computer",
+};
+const VOICE_LABELS: Record<string, string> = {
+  "kokoro-gpu": "Kokoro 82M · GPU",
+  "kokoro-cpu": "Kokoro 82M · CPU",
+  matcha: "Llama Matcha (Kale's voice)",
+  computer: "Kokoro 82M · Computer",
+};
+/** What this device can run, and whether the computer running T3 answers; asked when the page opens. */
+function useSpeechHost() {
+  const [gpu, setGpu] = useState<{ f16: boolean; any: boolean } | null>(null);
+  const [computer, setComputer] = useState<ComputerSpeech | "checking">("checking");
+  const [standIn, setStandIn] = useState(computerStandIn);
+  // oxlint-disable-next-line t3code/no-unreasoned-state-sync -- asks the browser's GPU and the computer's speech service, and follows a computer that stops answering mid-call
+  useEffect(() => {
+    let live = true;
+    void checkGpu().then((found) => live && setGpu(found));
+    const check = () =>
+      void checkComputerSpeech().then((found) => {
+        if (!live) return;
+        setComputer(found);
+        setStandIn(computerStandIn());
+      });
+    check();
+    document.addEventListener("lalala:computer-speech", check);
+    return () => {
+      live = false;
+      document.removeEventListener("lalala:computer-speech", check);
+    };
+  }, []);
+  return { gpu, computer, standIn };
+}
+
+/** The computer option's line in the list: its state while it isn't plainly ready. */
+function computerMeta(computer: ComputerSpeech | "checking"): { meta: string; disabled?: boolean } {
+  if (computer === "checking") return { meta: "Checking…" };
+  if (computer === "absent")
+    return { meta: "Only in lalala opened from that computer", disabled: true };
+  if (computer === "down") return { meta: "Not answering" };
+  if (computer === "loading") return { meta: "Still loading its models" };
+  return { meta: "Nothing downloads here" };
+}
+
+/**
+ * Which model hears you and which speaks, and where each runs: in this browser or on the computer
+ * running T3 (opt-in, never automatic). Saved on this device; the two don't have to match.
+ */
+function SpeechSection() {
   const ears = useSttModel();
+  const voice = useReplyVoicePick();
   const plugins = useSyncExternalStore(subscribeReplyVoices, replyVoicePlugins, replyVoicePlugins);
+  const { gpu, computer, standIn } = useSpeechHost();
+  // The device, not the sheet's width: the speech code picks models by user agent too.
+  const phone = /iPhone|iPad|iPod|Android/.test(navigator.userAgent);
+
+  const autoEars: Exclude<SttModel, "auto" | "computer"> | null = phone
+    ? "110m"
+    : gpu === null
+      ? null
+      : gpu.f16
+        ? "0.6b-gpu"
+        : "0.6b-cpu";
+  const autoVoice = phone ? "matcha" : gpu === null ? null : gpu.any ? "kokoro-gpu" : "kokoro-cpu";
+  const autoName = (name: string | undefined) => name ?? "…";
+  const earsAuto = autoName(autoEars === null ? undefined : STT_LABELS[autoEars]);
+  const voiceAuto = autoName(autoVoice === null ? undefined : VOICE_LABELS[autoVoice]);
+  const onComputer = computerMeta(computer);
+  const away = computer !== "ready" && computer !== "checking";
+  const tooBig = phone ? "may close a phone tab" : undefined;
+
+  // The second sentence of each description: where the task runs now, honestly.
+  const state = (picked: string, task: "hears you" | "speaks", auto: string) => {
+    if (picked === "auto") return { text: `Automatic: ${auto}, in this browser.`, error: false };
+    if (picked !== "computer") return { text: "Runs in this browser.", error: false };
+    if (computer === "checking")
+      return { text: "Checking the computer running T3…", error: false };
+    if (computer === "absent")
+      return {
+        text: `This page can't reach the computer running T3 (open lalala from it), so this browser ${task} with ${auto}.`,
+        error: true,
+      };
+    if (away || standIn)
+      return {
+        text: `The computer's speech service isn't answering, so this browser ${task} with ${auto} until it does.`,
+        error: true,
+      };
+    return { text: "Runs on the computer running T3; nothing loads on this device.", error: false };
+  };
+  const earsState = state(ears, "hears you", earsAuto);
+  const voiceState = state(voice, "speaks", voiceAuto);
+  // Before 15 Nov "kokoro" let the device pick Kokoro's build: shown as the build it picks.
+  const voiceValue = voice === "kokoro" ? (autoVoice === "kokoro-cpu" ? "kokoro-cpu" : "kokoro-gpu") : voice;
+
   return (
-    <Section title="Experiments">
+    <Section title="Speech">
       <PickRow
         title="Speech-to-text"
-        description="On this device, from the next thing you say. The 110M is a fifth of the size and faster, and gets a few more words wrong."
+        description={`Hears you, from the next thing you say. ${earsState.text}`}
+        error={earsState.error}
         label="Speech-to-text"
         value={ears}
-        onReset={ears === defaultSttModel() ? undefined : () => setSttModel(defaultSttModel())}
+        onReset={ears === "auto" ? undefined : () => setSttModel("auto")}
         groups={[
+          { options: [{ value: "auto", label: "Automatic", detail: earsAuto }] },
           {
+            label: "In this browser",
             options: [
-              { value: "0.6b", label: "Parakeet 0.6B" },
-              { value: "110m", label: "Parakeet 110M (lighter)" },
+              gpu !== null && !gpu.f16
+                ? {
+                    value: "0.6b-gpu",
+                    label: STT_LABELS["0.6b-gpu"],
+                    meta: "Needs WebGPU with 16-bit floats",
+                    disabled: true,
+                  }
+                : {
+                    value: "0.6b-gpu",
+                    label: STT_LABELS["0.6b-gpu"],
+                    detail: tooBig ?? "best accuracy",
+                    meta: "1.25 GB download · ~1.3 GB memory",
+                  },
+              {
+                value: "0.6b-cpu",
+                label: STT_LABELS["0.6b-cpu"],
+                detail: "same accuracy, slower",
+                meta: "661 MB download · ~0.8 GB memory",
+              },
+              {
+                value: "110m",
+                label: STT_LABELS["110m"],
+                detail: "fastest here, a few more wrong words",
+                meta: "137 MB download · ~0.25 GB memory",
+              },
+            ],
+          },
+          {
+            label: "On the computer running T3",
+            options: [
+              {
+                value: "computer",
+                label: STT_LABELS.computer,
+                detail: "0.07 s for 3.4 s of speech",
+                ...onComputer,
+              },
             ],
           },
         ]}
-        onChange={(value) => setSttModel(value === "110m" ? "110m" : "0.6b")}
+        onChange={(value) => setSttModel(value as SttModel)}
       />
       <PickRow
         title="Reply voice"
-        description="On this device, from the next sentence. All run in this browser; Llama Matcha is the lighter and faster one, Kokoro the more natural. The call's log has each sentence's render time."
+        description={`Speaks the answers, from the next sentence. ${voiceState.text}`}
+        error={voiceState.error}
         label="Reply voice"
-        value={voice}
-        onReset={voice === defaultReplyVoice() ? undefined : () => setReplyVoice(defaultReplyVoice())}
+        value={voiceValue}
+        onReset={voice === "auto" ? undefined : () => setReplyVoice("auto")}
         groups={[
+          { options: [{ value: "auto", label: "Automatic", detail: voiceAuto }] },
           {
+            label: "In this browser",
             options: [
-              { value: "kokoro", label: "Kokoro" },
-              { value: "matcha", label: "Llama Matcha, Kale's voice (lighter, faster)" },
-              ...plugins.map((plugin) => ({ value: plugin.id, label: plugin.label })),
+              gpu !== null && !gpu.any
+                ? {
+                    value: "kokoro-gpu",
+                    label: VOICE_LABELS["kokoro-gpu"]!,
+                    meta: "Needs WebGPU",
+                    disabled: true,
+                  }
+                : {
+                    value: "kokoro-gpu",
+                    label: VOICE_LABELS["kokoro-gpu"]!,
+                    detail: tooBig ?? "most natural",
+                    meta: "327 MB download · ~0.4 GB memory",
+                  },
+              {
+                value: "kokoro-cpu",
+                label: VOICE_LABELS["kokoro-cpu"]!,
+                detail: phone ? "about 2× a sentence's length to render" : "same voice, slower",
+                meta: "93 MB download · ~0.2 GB memory",
+              },
+              {
+                value: "matcha",
+                label: VOICE_LABELS.matcha!,
+                detail: "19× faster than Kokoro on the CPU",
+                meta: "45 MB download · ~0.1 GB memory",
+              },
+            ],
+          },
+          ...(plugins.length > 0
+            ? [
+                {
+                  label: "From your cards",
+                  options: plugins.map((plugin) => ({ value: plugin.id, label: plugin.label })),
+                },
+              ]
+            : []),
+          {
+            label: "On the computer running T3",
+            options: [
+              {
+                value: "computer",
+                label: VOICE_LABELS.computer!,
+                detail: "same voice, 0.15 s for a 3.8 s sentence",
+                ...onComputer,
+              },
             ],
           },
         ]}
         onChange={(value) => setReplyVoice(value)}
+      />
+    </Section>
+  );
+}
+
+const RETRY_CHOICES = [5, 15, 60] as const;
+
+/** Whether lalala tries again on its own when the page or a speech model fails to load. */
+function RetrySection() {
+  const seconds = useAutoRetrySeconds();
+  return (
+    <Section title="Loading">
+      <PickRow
+        title="Retry when loading fails"
+        description="When lalala or a speech model doesn't load, it tries again on its own."
+        label="Retry when loading fails"
+        value={seconds === null ? "off" : String(seconds)}
+        onReset={
+          seconds === DEFAULT_AUTO_RETRY_SECONDS
+            ? undefined
+            : () => setAutoRetrySeconds(DEFAULT_AUTO_RETRY_SECONDS)
+        }
+        groups={[
+          {
+            options: [
+              ...RETRY_CHOICES.map((every) => ({
+                value: String(every),
+                label:
+                  every === DEFAULT_AUTO_RETRY_SECONDS ? `Every ${every} s (default)` : `Every ${every} s`,
+              })),
+              ...(seconds !== null && !RETRY_CHOICES.some((every) => every === seconds)
+                ? [{ value: String(seconds), label: `Every ${seconds} s` }]
+                : []),
+              { value: "off", label: "Off" },
+            ],
+          },
+        ]}
+        onChange={(value) => setAutoRetrySeconds(value === "off" ? null : Number(value))}
       />
     </Section>
   );

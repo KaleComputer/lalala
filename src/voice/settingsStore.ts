@@ -138,6 +138,23 @@ export function setMicDeviceId(id: string | null) {
 const phone = () =>
   typeof navigator !== "undefined" && /iPhone|iPad|iPod|Android/.test(navigator.userAgent);
 
+const read = (key: string): string | null => {
+  try {
+    return localStorage.getItem(key);
+  } catch {
+    return null;
+  }
+};
+const write = (key: string, value: string | null) => {
+  try {
+    if (value === null) localStorage.removeItem(key);
+    else localStorage.setItem(key, value);
+  } catch {
+    // No storage: the default.
+  }
+  document.dispatchEvent(new Event(EVENT));
+};
+
 /**
  * The reply voice a device starts on: Kale's own Matcha voice on phones, where Kokoro on the CPU
  * took about twice a sentence's length to render it (Tim's iPhone, 14 Nov); Kokoro elsewhere.
@@ -145,26 +162,50 @@ const phone = () =>
 export const defaultReplyVoice = (): string => (phone() ? "matcha" : "kokoro");
 
 /**
- * Who speaks the replies on this device, in this browser: Kokoro or Kale's Matcha voice
- * (browserSpeech/), or a voice the user's cards registered (replyVoices.ts) by its id.
+ * Who speaks the replies on this device: "auto" (nothing stored: defaultReplyVoice), "kokoro" (its
+ * build picked by the device), "kokoro-gpu", "kokoro-cpu", Kale's "matcha", "computer" (Kokoro on
+ * the computer running T3, opt-in), or a voice the user's cards registered (replyVoices.ts) by its id.
  */
-export function replyVoice(): string {
-  try {
-    return localStorage.getItem(REPLY_VOICE_KEY) ?? defaultReplyVoice();
-  } catch {
-    return defaultReplyVoice();
-  }
-}
+export const replyVoicePick = (): string => read(REPLY_VOICE_KEY) ?? "auto";
+export const setReplyVoice = (voice: string) => write(REPLY_VOICE_KEY, voice === "auto" ? null : voice);
+/** The voice that speaks now, with "auto" resolved for this device. */
+export const replyVoice = (): string => {
+  const pick = replyVoicePick();
+  return pick === "auto" ? defaultReplyVoice() : pick;
+};
 
-export function setReplyVoice(voice: string) {
-  try {
-    if (voice === defaultReplyVoice()) localStorage.removeItem(REPLY_VOICE_KEY);
-    else localStorage.setItem(REPLY_VOICE_KEY, voice);
-  } catch {
-    // No storage: the default.
-  }
-  document.dispatchEvent(new Event(EVENT));
+/**
+ * What hears on this device: a Parakeet in this browser, "auto" picking by device (phones the 110M, a
+ * desktop with WebGPU 16-bit floats the 0.6B on the GPU, else the 0.6B on the CPU; the 0.6B int8 plus
+ * Kokoro ended Tim's iPhone tab, 14 Nov), or "computer" (Parakeet on the computer running T3, opt-in).
+ */
+export type SttModel = "auto" | "0.6b-gpu" | "0.6b-cpu" | "110m" | "computer";
+const STT_MODELS: ReadonlyArray<SttModel> = ["auto", "0.6b-gpu", "0.6b-cpu", "110m", "computer"];
+export function sttModel(): SttModel {
+  const stored = read(STT_MODEL_KEY);
+  // Before 15 Nov "0.6b" was the GPU build on desktops and the CPU one on phones.
+  if (stored === "0.6b") return phone() ? "0.6b-cpu" : "0.6b-gpu";
+  return STT_MODELS.find((model) => model === stored) ?? "auto";
 }
+export const setSttModel = (model: SttModel) => write(STT_MODEL_KEY, model === "auto" ? null : model);
+
+/**
+ * Whether lalala retries on its own when loading fails (the page's boot loader, a speech model):
+ * "lalala:auto-retry" is "off" or a number of seconds; nothing stored is on, every 5 s.
+ */
+const AUTO_RETRY_KEY = "lalala:auto-retry";
+export const DEFAULT_AUTO_RETRY_SECONDS = 5;
+export function autoRetrySeconds(): number | null {
+  const stored = read(AUTO_RETRY_KEY);
+  if (stored === "off") return null;
+  const seconds = Number(stored);
+  return stored !== null && Number.isFinite(seconds) && seconds > 0 ? seconds : DEFAULT_AUTO_RETRY_SECONDS;
+}
+export const setAutoRetrySeconds = (seconds: number | null) =>
+  write(
+    AUTO_RETRY_KEY,
+    seconds === null ? "off" : seconds === DEFAULT_AUTO_RETRY_SECONDS ? null : String(seconds),
+  );
 
 export const subscribeSettings = (listener: () => void) => {
   const onStorage = (event: StorageEvent) => {
@@ -172,7 +213,8 @@ export const subscribeSettings = (listener: () => void) => {
       event.key !== SYNCED_KEY &&
       event.key !== MIC_KEY &&
       event.key !== REPLY_VOICE_KEY &&
-      event.key !== STT_MODEL_KEY
+      event.key !== STT_MODEL_KEY &&
+      event.key !== AUTO_RETRY_KEY
     )
       return;
     synced = null;
@@ -190,34 +232,12 @@ export const useSyncedSettings = () =>
   useSyncExternalStore(subscribeSettings, syncedSettings, () => DEFAULTS);
 export const useMicDeviceId = () =>
   useSyncExternalStore(subscribeSettings, micDeviceId, () => null);
-export const useReplyVoice = () =>
-  useSyncExternalStore(subscribeSettings, replyVoice, defaultReplyVoice);
-
-/**
- * Which Parakeet hears on this device, in this browser: the 0.6B or NVIDIA's stock 110M, a fifth of
- * the size and faster, a little less accurate. Phones start on the 110M: the 0.6B int8 plus Kokoro
- * ended Tim's iPhone tab (14 Nov, 20:20 and 20:21).
- */
-export type SttModel = "0.6b" | "110m";
-export const defaultSttModel = (): SttModel => (phone() ? "110m" : "0.6b");
-export function sttModel(): SttModel {
-  try {
-    const stored = localStorage.getItem(STT_MODEL_KEY);
-    return stored === "110m" || stored === "0.6b" ? stored : defaultSttModel();
-  } catch {
-    return defaultSttModel();
-  }
-}
-export function setSttModel(model: SttModel) {
-  try {
-    if (model === defaultSttModel()) localStorage.removeItem(STT_MODEL_KEY);
-    else localStorage.setItem(STT_MODEL_KEY, model);
-  } catch {
-    // No storage: the default.
-  }
-  document.dispatchEvent(new Event(EVENT));
-}
-export const useSttModel = () => useSyncExternalStore(subscribeSettings, sttModel, defaultSttModel);
+export const useReplyVoicePick = () =>
+  useSyncExternalStore(subscribeSettings, replyVoicePick, () => "auto");
+export const useSttModel = () =>
+  useSyncExternalStore(subscribeSettings, sttModel, () => "auto" as SttModel);
+export const useAutoRetrySeconds = () =>
+  useSyncExternalStore(subscribeSettings, autoRetrySeconds, () => DEFAULT_AUTO_RETRY_SECONDS);
 
 /** For the brain's context tag: `default effort=high fastMode=false`. */
 export function delegatesTag(delegates = current().delegates): string {

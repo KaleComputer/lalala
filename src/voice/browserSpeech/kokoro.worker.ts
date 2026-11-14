@@ -42,7 +42,7 @@ async function cached(file: string) {
   }
 }
 
-async function load() {
+async function load(build: unknown) {
   const gpu = (navigator as Navigator & {
     gpu?: { requestAdapter(): Promise<{ features?: { has(name: string): boolean } } | null> };
   }).gpu;
@@ -50,9 +50,10 @@ async function load() {
   const webgpu = adapter !== null;
   // Phones speak with the 93 MB q8 build on WASM, like lalala.talk: loading the fp32 one into WebGPU
   // ended Tim's iPhone tab three times out of three (14 Nov), and fp16, q4f16 and q8 on WebGPU come
-  // out garbled. Desktops with WebGPU use fp32.
+  // out garbled. Desktops with WebGPU use fp32. Settings can ask for either build ("gpu" / "cpu").
   const phone = /iPhone|iPad|iPod|Android/.test(navigator.userAgent);
-  const dtype = webgpu && !phone ? "fp32" : "q8";
+  if (build === "gpu" && !webgpu) throw new Error("Kokoro on the GPU needs WebGPU, and this browser has none.");
+  const dtype = build === "gpu" ? "fp32" : build === "cpu" ? "q8" : webgpu && !phone ? "fp32" : "q8";
   const file = dtype === "q8" ? "model_quantized" : "model";
   const isCached = await cached(`onnx/${file}.onnx`);
   if (isCached) void forgetDownloads(`https://huggingface.co/${MODEL}/`).catch(() => {});
@@ -218,10 +219,12 @@ async function render(tts: KokoroTTS, text: string) {
   return tts.generate_from_ids(input_ids, { voice: VOICE });
 }
 
-self.onmessage = (event: MessageEvent<{ type: string; id?: number; text?: string }>) => {
+self.onmessage = (
+  event: MessageEvent<{ type: string; id?: number; text?: string; build?: string }>,
+) => {
   const message = event.data;
   if (model === null) {
-    model = load();
+    model = load(message.build);
     model.catch((error: unknown) => postMessage({ type: "failed", message: String(error) }));
   }
   if (message.type !== "speak") return;

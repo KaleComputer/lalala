@@ -3,7 +3,7 @@
 // They start loading when the page opens and stay loaded for the page's life, across calls and tab
 // hides: setting a model up takes seconds on a phone (Tim, 14 Nov: "always a cold start").
 import type { VoiceBarModel } from "../VoiceBar";
-import { replyVoice, sttModel } from "../settingsStore";
+import { autoRetrySeconds, replyVoice, sttModel } from "../settingsStore";
 import { voiceLog } from "../voiceLog";
 import type { LoadMessage } from "./readout";
 
@@ -106,12 +106,13 @@ function modelWorker(
     failed = true;
     // A browser without what the model needs says so; anything else is the general line.
     markFailed(new Error(cause.includes(NEEDS_WEBGPU) ? cause.slice(cause.indexOf(NEEDS_WEBGPU)) : MODEL_FAILED));
-    if (retries < 2 && !cause.includes(NEEDS_WEBGPU)) {
+    const every = autoRetrySeconds();
+    if (every !== null && retries < 2 && !cause.includes(NEEDS_WEBGPU)) {
       retries += 1;
       retryTimer = window.setTimeout(() => {
         retryTimer = 0;
         if (failed) start();
-      }, 3000 * retries);
+      }, every * 1000);
     }
   };
   const release = () => {
@@ -246,19 +247,33 @@ function modelWorker(
 const ears = modelWorker(
   "parakeet",
   () => new Worker(new URL("./parakeet.worker.ts", import.meta.url), { type: "module" }),
-  () => ({ model: sttModel() }),
+  // With the computer picked, the browser only hears while the computer doesn't answer: automatic.
+  () => ({ model: sttModel() === "computer" ? "auto" : sttModel() }),
 );
-// A device that switches its speech-to-text model loads the new one with the next call or utterance.
-let earsModel = sttModel();
-document.addEventListener("lalala:settings", () => {
-  if (sttModel() === earsModel) return;
-  earsModel = sttModel();
-  ears.release();
-});
+const kokoroBuild = () => {
+  const picked = replyVoice();
+  return picked === "kokoro-gpu" ? "gpu" : picked === "kokoro-cpu" ? "cpu" : "auto";
+};
 const voice = modelWorker(
   "kokoro",
   () => new Worker(new URL("./kokoro.worker.ts", import.meta.url), { type: "module" }),
+  () => ({ build: kokoroBuild() }),
 );
+// A device that switches a model, or sends a task to the computer, frees the old one; the new one
+// loads with the next utterance or sentence (the call's player asks for it).
+let earsModel = sttModel();
+let voiceBuild = kokoroBuild();
+document.addEventListener("lalala:settings", () => {
+  if (sttModel() !== earsModel) {
+    earsModel = sttModel();
+    ears.release();
+    if (earsModel !== "computer" && speechPrewarmed) startEars();
+  }
+  if (kokoroBuild() !== voiceBuild) {
+    voiceBuild = kokoroBuild();
+    voice.release();
+  }
+});
 const matcha = modelWorker(
   "matcha",
   () => new Worker(new URL("./matcha.worker.ts", import.meta.url), { type: "module" }),
@@ -282,16 +297,75 @@ const earsOff = only === "voice";
 const voiceOff = only === "stt";
 if (only) voiceLog("system", "speech.only", { only });
 
+// The computer running T3 (its speech service, through this app's server): picked per task in Settings.
+// When it doesn't answer, this browser takes the task with its automatic model for a minute, then the
+// next utterance or sentence asks the computer again.
+const COMPUTER_PAUSE_MS = 60_000;
+let computerDownUntil = 0;
+const computerUp = () => Date.now() >= computerDownUntil;
+const onComputer = {
+  stt: () => sttModel() === "computer" && computerUp(),
+  voice: () => replyVoice() === "computer" && computerUp(),
+};
+const computerFailed = (task: string, error: unknown) => {
+  computerDownUntil = Date.now() + COMPUTER_PAUSE_MS;
+  voiceLog("system", "speech.computer-down", { task, message: String(error) });
+  document.dispatchEvent(new Event("lalala:computer-speech"));
+};
+/** The computer was picked but didn't answer lately: this browser stands in (Settings say so). */
+export const computerStandIn = () => !computerUp();
+let speechPrewarmed = false;
+
+async function computer(path: string, init: RequestInit): Promise<Response> {
+  // A phone between networks drops the odd request ("Load failed"): one retry keeps the words.
+  const send = () => fetch(`/__lalala${path}`, { method: "POST", ...init });
+  const response = await send().catch((cause: unknown) => {
+    voiceLog("system", "speech.retry", { path, message: String(cause) });
+    return new Promise<void>((resolve) => setTimeout(resolve, 800)).then(send);
+  });
+  if (!response.ok) {
+    const body = (await response.json().catch(() => ({}))) as { error?: unknown };
+    throw new Error(
+      typeof body.error === "string" ? body.error : "The computer's speech service didn't answer",
+    );
+  }
+  return response;
+}
+
+function wavOf(pcm: Float32Array): Blob {
+  const data = new DataView(new ArrayBuffer(44 + pcm.length * 2));
+  const text = (at: number, value: string) => {
+    for (let i = 0; i < value.length; i += 1) data.setUint8(at + i, value.charCodeAt(i));
+  };
+  text(0, "RIFF");
+  data.setUint32(4, 36 + pcm.length * 2, true);
+  text(8, "WAVE");
+  text(12, "fmt ");
+  data.setUint32(16, 16, true);
+  data.setUint16(20, 1, true);
+  data.setUint16(22, 1, true);
+  data.setUint32(24, 16_000, true);
+  data.setUint32(28, 32_000, true);
+  data.setUint16(32, 2, true);
+  data.setUint16(34, 16, true);
+  text(36, "data");
+  data.setUint32(40, pcm.length * 2, true);
+  for (let i = 0; i < pcm.length; i += 1) {
+    data.setInt16(44 + i * 2, Math.max(-1, Math.min(1, pcm[i]!)) * 0x7fff, true);
+  }
+  return new Blob([data.buffer], { type: "audio/wav" });
+}
+
 /** Parakeet loads (once per call) so the first utterance does not wait for it. */
 export const startEars = () => {
-  if (earsOff) return;
+  if (earsOff || onComputer.stt()) return;
   persistDownloads();
   ears.start();
 };
 export const releaseEars = () => ears.release();
 /** Kokoro loads with the call while it is the reply voice; another reply voice frees it. */
 export const startKokoro = () => {
-  if (!voiceOff) voice.start();
+  if (!voiceOff && !onComputer.voice()) voice.start();
 };
 export const releaseKokoro = () => voice.release();
 /** The same for Kale's Matcha voice. */
@@ -303,6 +377,18 @@ export const releaseMatcha = () => matcha.release();
 /** 16 kHz PCM, transcribed by Parakeet. The buffer moves to its worker. */
 export async function transcribe(pcm: Float32Array<ArrayBuffer>): Promise<string> {
   if (earsOff) return "";
+  if (onComputer.stt()) {
+    try {
+      const response = await computer("/stt", {
+        headers: { "content-type": "audio/wav" },
+        body: wavOf(pcm),
+      });
+      const body = (await response.json()) as { text?: unknown };
+      return typeof body.text === "string" ? body.text : "";
+    } catch (error) {
+      computerFailed("stt", error);
+    }
+  }
   const reply = await ears.ask({ type: "transcribe", pcm }, [pcm.buffer]);
   return reply.type === "text" ? reply.text : "";
 }
@@ -333,6 +419,26 @@ export function openVad(onProbability: (probability: number) => void) {
 /** One sentence as 24 kHz PCM from Kokoro; it reads misaki's `[word](/phonemes/)` markup. */
 export async function kokoroSpeak(text: string): Promise<Float32Array<ArrayBuffer>> {
   if (voiceOff) return new Float32Array(0);
+  // The computer's Kokoro, and a phone's stand-in Matcha, read plain text: the markup keeps the word.
+  const plain = () => text.replace(/\[([^\]]+)\]\(\/[^)]*\/\)/g, "$1");
+  if (onComputer.voice()) {
+    try {
+      const response = await computer("/tts", {
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ text: plain() }),
+      });
+      // 16-bit little-endian 24 kHz PCM.
+      const bytes = await response.arrayBuffer();
+      const view = new DataView(bytes, 0, bytes.byteLength - (bytes.byteLength % 2));
+      const samples = new Float32Array(view.byteLength / 2);
+      for (let i = 0; i < samples.length; i += 1) samples[i] = view.getInt16(i * 2, true) / 0x8000;
+      return samples;
+    } catch (error) {
+      computerFailed("voice", error);
+    }
+  }
+  // Standing in for the computer, a phone speaks with its automatic voice, Matcha.
+  if (replyVoice() === "computer" && phone) return (await matchaSpeak(plain())).samples;
   const reply = await voice.ask({ type: "speak", text });
   if (reply.type !== "audio") throw new Error("Kokoro returned no audio");
   return reply.samples;
@@ -353,11 +459,14 @@ export async function matchaSpeak(
  * so a call finds them ready. A voice the user's cards registered loads with the call instead.
  */
 export function prewarm() {
+  speechPrewarmed = true;
   startEars();
   const voice = replyVoice();
   if (voice === "matcha") startMatcha();
-  else if (voice === "kokoro") startKokoro();
+  else if (voice.startsWith("kokoro")) startKokoro();
 }
+
+const phone = /iPhone|iPad|iPod|Android/.test(navigator.userAgent);
 
 /** A model is still downloading or loading; a reload now would throw that away (callGuard). */
 export const speechLoading = (): boolean =>
@@ -371,4 +480,30 @@ export function speechProgress(): ReadonlyArray<VoiceBarModel> | null {
   const loading = [ears, voice, matcha].filter((model) => model.started() && !model.gaveUp());
   if (loading.every((model) => model.ready())) return null;
   return loading.map((model) => model.model()).filter((model) => model !== null);
+}
+
+/**
+ * Whether the computer running T3 can take a speech task: "ready", "loading" (its models are still
+ * loading), "down" (this app's server can't reach it) or "absent" (this page has no route to it, as on
+ * lalala.talk). Settings ask when they open; nothing here starts the service.
+ */
+export type ComputerSpeech = "ready" | "loading" | "down" | "absent";
+export async function checkComputerSpeech(): Promise<ComputerSpeech> {
+  try {
+    const response = await fetch("/__lalala/local/health", { signal: AbortSignal.timeout(4_000) });
+    if (!response.ok || !response.headers.get("content-type")?.includes("json")) return "absent";
+    const body = (await response.json()) as { ready?: unknown; down?: unknown };
+    return body.ready === true ? "ready" : body.down === true ? "down" : "loading";
+  } catch {
+    return "absent";
+  }
+}
+
+/** This browser has WebGPU with 16-bit floats (the 0.6B on the GPU) / any WebGPU (Kokoro on the GPU). */
+export async function checkGpu(): Promise<{ f16: boolean; any: boolean }> {
+  const gpu = (navigator as Navigator & {
+    gpu?: { requestAdapter(): Promise<{ features?: { has(name: string): boolean } } | null> };
+  }).gpu;
+  const adapter = gpu ? await gpu.requestAdapter().catch(() => null) : null;
+  return { f16: adapter?.features?.has("shader-f16") === true, any: adapter !== null };
 }
