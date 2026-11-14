@@ -94,15 +94,28 @@ function modelWorker(
     loadingNow.delete(key);
     markLoading(key, false);
   };
+  // iOS can refuse a model's WASM memory right after a reload ("RangeError: Out of memory", Tim's
+  // iPhone, 14 Nov) and grant it seconds later: a failed load tries again on its own, twice.
+  let retries = 0;
+  let retryTimer = 0;
   const fail = (cause: string) => {
     console.warn("lalala: a speech model didn't load", cause);
-    voiceLog("system", "speech.failed", { model: key, message: cause, ...memory() });
+    voiceLog("system", "speech.failed", { model: key, message: cause, retries, ...memory() });
     settle();
     failed = true;
     // A browser without what the model needs says so; anything else is the general line.
     markFailed(new Error(cause.includes(NEEDS_WEBGPU) ? cause.slice(cause.indexOf(NEEDS_WEBGPU)) : MODEL_FAILED));
+    if (retries < 2 && !cause.includes(NEEDS_WEBGPU)) {
+      retries += 1;
+      retryTimer = window.setTimeout(() => {
+        retryTimer = 0;
+        if (failed) start();
+      }, 3000 * retries);
+    }
   };
   const release = () => {
+    window.clearTimeout(retryTimer);
+    retryTimer = 0;
     queued = false;
     loadingNow.delete(key);
     markLoading(key, false);
@@ -179,6 +192,7 @@ function modelWorker(
           ...memory(),
         });
         isReady = true;
+        retries = 0;
         settle();
         markReady();
       } else if (data.type === "failed") {
@@ -201,6 +215,8 @@ function modelWorker(
     started: () => worker !== null || queued,
     ready: () => isReady,
     loading: () => (worker !== null || queued) && !isReady && !failed,
+    /** Failed with no retry left: not loading any more (the next ask tries again). */
+    gaveUp: () => failed && retryTimer === 0,
     /** Its download row; null until a download from the network is known (cached files only load). */
     model(): VoiceBarModel | null {
       if (download === null || download.cached) return null;
@@ -340,7 +356,7 @@ export const speechLoading = (): boolean =>
  * before a worker has said which), null once all are ready.
  */
 export function speechProgress(): ReadonlyArray<VoiceBarModel> | null {
-  const loading = [ears, voice, matcha].filter((model) => model.started());
+  const loading = [ears, voice, matcha].filter((model) => model.started() && !model.gaveUp());
   if (loading.every((model) => model.ready())) return null;
   return loading.map((model) => model.model()).filter((model) => model !== null);
 }
