@@ -38,6 +38,7 @@ const DEFAULTS: SyncedSettings = {
 const SYNCED_KEY = "lalala:settings";
 const MIC_KEY = "lalala:mic";
 const REPLY_VOICE_KEY = "lalala:reply-voice";
+const STT_MODEL_KEY = "lalala:stt-model";
 const EVENT = "lalala:settings";
 const storage = () => {
   const adapter = globalThis.__lalalaAdapters?.storage;
@@ -158,7 +159,13 @@ export function setReplyVoice(voice: string) {
 
 export const subscribeSettings = (listener: () => void) => {
   const onStorage = (event: StorageEvent) => {
-    if (event.key !== SYNCED_KEY && event.key !== MIC_KEY && event.key !== REPLY_VOICE_KEY) return;
+    if (
+      event.key !== SYNCED_KEY &&
+      event.key !== MIC_KEY &&
+      event.key !== REPLY_VOICE_KEY &&
+      event.key !== STT_MODEL_KEY
+    )
+      return;
     synced = null;
     listener();
   };
@@ -175,6 +182,30 @@ export const useSyncedSettings = () =>
 export const useMicDeviceId = () =>
   useSyncExternalStore(subscribeSettings, micDeviceId, () => null);
 export const useReplyVoice = () => useSyncExternalStore(subscribeSettings, replyVoice, () => "kokoro");
+
+/**
+ * Which Parakeet hears on this device, in this browser: the 0.6B (default) or NVIDIA's stock 110M,
+ * a fifth of the size and faster, a little less accurate (14 Nov, for phones).
+ */
+export type SttModel = "0.6b" | "110m";
+export function sttModel(): SttModel {
+  try {
+    return localStorage.getItem(STT_MODEL_KEY) === "110m" ? "110m" : "0.6b";
+  } catch {
+    return "0.6b";
+  }
+}
+export function setSttModel(model: SttModel) {
+  try {
+    if (model === "0.6b") localStorage.removeItem(STT_MODEL_KEY);
+    else localStorage.setItem(STT_MODEL_KEY, model);
+  } catch {
+    // No storage: the default.
+  }
+  document.dispatchEvent(new Event(EVENT));
+}
+export const useSttModel = () =>
+  useSyncExternalStore(subscribeSettings, sttModel, (): SttModel => "0.6b");
 
 /** For the brain's context tag: `default effort=high fastMode=false`. */
 export function delegatesTag(delegates = current().delegates): string {

@@ -8,15 +8,14 @@ import { GET } from "../site/api/x.mjs";
 export function isolationPlugin() {
   return {
     name: "lalala-isolation",
-    config: () => ({
-      server: {
-        headers: {
-          "Cross-Origin-Opener-Policy": "same-origin",
-          "Cross-Origin-Embedder-Policy": "require-corp",
-        },
-      },
-    }),
     configureServer(server) {
+      // Every response, worker scripts (?worker_file) included: Chrome won't start a dedicated worker
+      // without COEP on an isolated page, and Vite's worker route skips server.headers.
+      server.middlewares.use((_req, res, next) => {
+        res.setHeader("Cross-Origin-Opener-Policy", "same-origin");
+        res.setHeader("Cross-Origin-Embedder-Policy", "require-corp");
+        next();
+      });
       server.middlewares.use("/x/", (req, res) => {
         const url = new URL(`/x${req.url ?? "/"}`, "http://lalala.local");
         const request = new Request(url, { headers: { accept: String(req.headers.accept ?? "*/*") } });

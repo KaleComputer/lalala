@@ -30,11 +30,13 @@ import {
   pullSynced,
   setMicDeviceId,
   setReplyVoice,
+  setSttModel,
   topicSoundNames,
   topicSoundUrl,
   updateSynced,
   useMicDeviceId,
   useReplyVoice,
+  useSttModel,
   useSyncedSettings,
 } from "./settingsStore";
 import { replyVoicePlugins, subscribeReplyVoices } from "./replyVoices";
@@ -1646,13 +1648,30 @@ export function SoundSection() {
   );
 }
 
-/** Reply voices the user's cards added (replyVoices.ts); nothing to pick without one. */
+/** Which Parakeet hears on this device, and reply voices the user's cards added (replyVoices.ts). */
 function ExperimentsSection() {
   const voice = useReplyVoice();
+  const ears = useSttModel();
   const plugins = useSyncExternalStore(subscribeReplyVoices, replyVoicePlugins, replyVoicePlugins);
-  if (plugins.length === 0) return null;
   return (
     <Section title="Experiments">
+      <PickRow
+        title="Speech-to-text"
+        description="On this device, from the next thing you say. The 110M is a fifth of the size and faster, and gets a few more words wrong."
+        label="Speech-to-text"
+        value={ears}
+        onReset={ears === "0.6b" ? undefined : () => setSttModel("0.6b")}
+        groups={[
+          {
+            options: [
+              { value: "0.6b", label: "Parakeet 0.6B (default)" },
+              { value: "110m", label: "Parakeet 110M (lighter)" },
+            ],
+          },
+        ]}
+        onChange={(value) => setSttModel(value === "110m" ? "110m" : "0.6b")}
+      />
+      {plugins.length === 0 ? null : (
       <PickRow
         title="Reply voice"
         description="On this device, from the next sentence, to compare how fast each answers. Both run in this browser; the call's log has each sentence's render time."
@@ -1669,6 +1688,7 @@ function ExperimentsSection() {
         ]}
         onChange={(value) => setReplyVoice(value)}
       />
+      )}
     </Section>
   );
 }

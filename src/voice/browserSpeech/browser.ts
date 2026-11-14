@@ -2,6 +2,7 @@
 // listens, Kokoro speaks, each on ONNX in its own worker. Both load with the call and are terminated
 // when it ends, so the page holds none of their memory between calls.
 import type { VoiceBarModel } from "../VoiceBar";
+import { sttModel } from "../settingsStore";
 import { voiceLog } from "../voiceLog";
 import type { LoadMessage } from "./readout";
 
@@ -56,7 +57,11 @@ const memory = () => {
 let modelTurn: Promise<unknown> = Promise.resolve();
 
 /** One model worker: its load state for the readout, and request/reply by id. */
-function modelWorker(key: string, spawn: () => Worker, onSettled: () => void = () => {}) {
+function modelWorker(
+  key: string,
+  spawn: () => Worker,
+  loadMessage: () => Record<string, unknown> = () => ({}),
+) {
   let worker: Worker | null = null;
   let download: { name: string; loaded: number; total: number; cached: boolean } | null = null;
   let isReady = false;
@@ -82,7 +87,6 @@ function modelWorker(key: string, spawn: () => Worker, onSettled: () => void = (
   const settle = () => {
     loadingNow.delete(key);
     markLoading(key, false);
-    onSettled();
   };
   const fail = (cause: string) => {
     console.warn("lalala: a speech model didn't load", cause);
@@ -182,7 +186,7 @@ function modelWorker(key: string, spawn: () => Worker, onSettled: () => void = (
     };
     // A worker that cannot even load (its script, its runtime) fails the model, not the page.
     spawned.onerror = (event) => fail(event.message || "the model's worker failed to load");
-    spawned.postMessage({ type: "load" });
+    spawned.postMessage({ ...loadMessage(), type: "load" });
   };
 
   return {
@@ -219,7 +223,15 @@ function modelWorker(key: string, spawn: () => Worker, onSettled: () => void = (
 const ears = modelWorker(
   "parakeet",
   () => new Worker(new URL("./parakeet.worker.ts", import.meta.url), { type: "module" }),
+  () => ({ model: sttModel() }),
 );
+// A device that switches its speech-to-text model loads the new one with the next call or utterance.
+let earsModel = sttModel();
+document.addEventListener("lalala:settings", () => {
+  if (sttModel() === earsModel) return;
+  earsModel = sttModel();
+  ears.release();
+});
 const voice = modelWorker(
   "kokoro",
   () => new Worker(new URL("./kokoro.worker.ts", import.meta.url), { type: "module" }),
