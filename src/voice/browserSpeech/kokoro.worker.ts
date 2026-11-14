@@ -59,7 +59,7 @@ async function load(build: unknown) {
   if (isCached) void forgetDownloads(`https://huggingface.co/${MODEL}/`).catch(() => {});
   postMessage({
     type: "load",
-    name: "kokoro 82m",
+    name: dtype === "fp32" ? "kokoro 82m gpu" : "kokoro 82m cpu",
     // The model and a voice, so the readout knows the size before the first byte.
     expected: dtype === "q8" ? 93_000_000 : 327_000_000,
     cached: isCached,

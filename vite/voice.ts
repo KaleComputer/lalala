@@ -1,3 +1,6 @@
+import * as NodeChildProcess from "node:child_process";
+import * as NodeFS from "node:fs";
+import * as NodeOS from "node:os";
 import * as NodePath from "node:path";
 import type { Connect, Plugin } from "vite";
 
@@ -12,7 +15,35 @@ import { appendSessionEvents } from "./sessionLog";
 const PREFIX = "/__lalala";
 // The speech service on this computer (Parakeet + Kokoro on MLX); this server only proxies to it on
 // loopback and never starts or stops it.
-const SPEECH = `http://127.0.0.1:${Number(process.env.LALALA_LOCAL_PORT?.trim() || 5797)}`;
+const SPEECH_PORT = Number(process.env.LALALA_LOCAL_PORT?.trim() || 5797);
+const SPEECH = `http://127.0.0.1:${SPEECH_PORT}`;
+// Picking "on the computer" in Settings starts the service (scripts/speech.sh, detached so it outlives
+// this server); it loads in ~10 s, longer the first time (a venv and ~2.6 GB of models).
+const SPEECH_SCRIPT = NodePath.join(import.meta.dirname, "../scripts/speech.sh");
+const SPEECH_LOG = NodePath.join(
+  process.env.LALALA_SPEECH_HOME?.trim() || NodePath.join(NodeOS.homedir(), ".cache/lalala"),
+  `speech-${SPEECH_PORT}.log`,
+);
+const STARTING_MS = 120_000;
+let startedAt = 0;
+function startSpeech(force: boolean): boolean {
+  const now = Date.now();
+  if (force || now - startedAt >= STARTING_MS) {
+    startedAt = now;
+    NodeChildProcess.spawn(SPEECH_SCRIPT, ["start"], { detached: true, stdio: "ignore" }).unref();
+  }
+  return Date.now() - startedAt < STARTING_MS;
+}
+/** Why the service didn't come up: the last line its log says it failed with, if any. */
+function speechFailure(): string {
+  try {
+    const lines = NodeFS.readFileSync(SPEECH_LOG, "utf8").trim().split("\n").slice(-20);
+    const reason = lines.reverse().find((line) => /needs|error|Error|failed|No such file/.test(line));
+    return reason?.trim().slice(0, 200) ?? "It didn't start; the log is " + SPEECH_LOG;
+  } catch {
+    return "It didn't start.";
+  }
+}
 const SPEECH_DOWN = "The computer's speech service isn't running";
 // No length limit worth hitting on what the user says: 64 MiB is ~35 min of 16 kHz speech.
 const MAX_AUDIO_BYTES = 64 * 1024 * 1024;
@@ -125,7 +156,13 @@ export function lalalaPlugin(): Plugin {
             tts: typeof body.tts === "string" ? body.tts : null,
           });
         })
-        .catch(() => sendJson(res, 200, { ready: false, down: true }));
+        .catch(() => {
+          // Not up: a page with a task on the computer starts it ("start=auto"; "start=1" is Try again).
+          const start = new URLSearchParams((req.url ?? "").split("?")[1] ?? "").get("start");
+          if (start === null) sendJson(res, 200, { ready: false, off: true });
+          else if (startSpeech(start === "1")) sendJson(res, 200, { ready: false, starting: true });
+          else sendJson(res, 200, { ready: false, down: true, reason: speechFailure() });
+        });
       return;
     }
 

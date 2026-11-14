@@ -105,7 +105,7 @@ export default function Landing() {
       id: "general",
       title: "General",
       icon: PAGE_ICONS.general,
-      value: autoStart ? "Starts by itself" : "Starts on a tap",
+      value: autoStart ? "Starts by itself" : "Starts when you press Start",
       content: <OpeningSection />,
     },
     {

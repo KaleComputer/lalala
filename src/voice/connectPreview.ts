@@ -10,5 +10,3 @@ export const connectPreview =
 export const TALK_PAIR_COMMAND = "npx t3 pair --label lalala.talk";
 export const TALK_CONNECT_COMMAND =
   "npx t3 auth pairing create --base-url https://<your T3 Connect address> --label lalala.talk";
-export const TALK_NOTE =
-  "Speech stays in this browser; only your words, as text, reach T3 Code.";

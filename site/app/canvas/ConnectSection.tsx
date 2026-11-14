@@ -243,13 +243,21 @@ export function ConnectSection(props: { readonly part: "connection" | "brain" })
 
   if (connected === null) {
     return (
-      <Section title={title} note={note}>
+      <Section title={title}>
         <PairSteps
           command={PAIR_COMMAND}
           connectCommand={CONNECT_COMMAND}
           working={working}
           problem={problem}
-          onPair={(input) => pair(input)}
+          onPair={(input, via) => {
+            // The "Another computer" path pairs through the T3 Connect address typed above the link.
+            const address = via === undefined ? null : readAddress(via);
+            if (via !== undefined && address === null) {
+              setProblem("That isn't an https address. Copy the MCP URL again.");
+              return;
+            }
+            pair(input, address ?? undefined);
+          }}
           ask={
             ask && {
               address: ask.address,

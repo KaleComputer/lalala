@@ -13,7 +13,9 @@ WebGPU), text-to-speech is Kokoro (on phones, Kale's own small voice, Llama Matc
 NOTICE.md), and Silero VAD hears when you stop, all on ONNX. No audio leaves
 the device you talk on. Settings → Sound & mic picks the model for each, with its download and memory,
 and in the app can send either one to a speech service on the computer running T3 instead (Parakeet and
-Kokoro on MLX at `127.0.0.1:5797`, `LALALA_LOCAL_PORT`; opt-in, much faster, nothing loads on the phone).
+Kokoro on MLX at `127.0.0.1:5797`, `LALALA_LOCAL_PORT`; much faster, nothing loads on the phone). The app
+starts that service by itself when a task is set to the computer (`scripts/speech.sh`, Apple Silicon and
+`uv` needed); `npm run speech` runs it by hand.
 
 ## How it works
 

@@ -72,6 +72,8 @@ export const subscribeSpeechState = (listener: () => void) => {
 };
 export type ModelStatus = {
   readonly phase: "idle" | "downloading" | "loading" | "ready" | "failed";
+  /** What the worker said it loads ("parakeet 110m", "kokoro 82m gpu"…), once it has. */
+  readonly name: string | null;
   readonly loaded: number;
   readonly total: number;
   readonly error: string | null;
@@ -290,6 +292,7 @@ function modelWorker(
         : "loading";
       return {
         phase,
+        name: download?.name ?? null,
         loaded: download?.loaded ?? 0,
         total: download?.total ?? 0,
         error: failed ? failure : null,
@@ -428,7 +431,7 @@ function scheduleComputer() {
   window.clearTimeout(computerTimer);
   computerTimer = 0;
   const every =
-    computerState === "loading" ? COMPUTER_LOADING_MS / 1000
+    computerState === "loading" || computerState === "starting" ? COMPUTER_LOADING_MS / 1000
     : computerState === "down" ? autoRetrySeconds()
     : null;
   if (every !== null) computerTimer = window.setTimeout(() => void refreshComputerSpeech(), every * 1000);
@@ -443,9 +446,13 @@ function setComputer(state: ComputerSpeech) {
   }
   if (speechPrewarmed) fitModels();
 }
-/** Asks the computer's speech service whether it can take a task now. */
-export async function refreshComputerSpeech() {
-  setComputer(await checkComputerSpeech());
+/**
+ * Asks the computer's speech service whether it can take a task now; with a task on the computer it
+ * starts the service if it isn't running (`force`: Try again, even right after a failed start).
+ */
+export async function refreshComputerSpeech(force = false) {
+  const wanted = sttModel() === "computer" || replyVoice() === "computer";
+  setComputer(await checkComputerSpeech(force ? "force" : wanted ? "auto" : undefined));
 }
 let speechPrewarmed = false;
 
@@ -611,6 +618,23 @@ function prewarmVoice() {
   else if (picked.startsWith("kokoro")) startKokoro();
 }
 
+/** What actually runs a task on this device right now, for Settings and the settings tab's readout. */
+export type ActiveSpeech =
+  | { readonly where: "computer"; readonly name: string }
+  | { readonly where: "browser"; readonly status: ModelStatus }
+  | { readonly where: "card"; readonly name: string };
+export function activeSpeech(task: "stt" | "voice"): ActiveSpeech {
+  if (task === "stt")
+    return onComputer.stt()
+      ? { where: "computer", name: "parakeet 0.6b mlx" }
+      : { where: "browser", status: ears.status() };
+  const picked = replyVoice();
+  if (onComputer.voice()) return { where: "computer", name: "kokoro 82m mlx" };
+  if (picked === "matcha" || picked === "computer") return { where: "browser", status: matcha.status() };
+  if (picked.startsWith("kokoro")) return { where: "browser", status: voice.status() };
+  return { where: "card", name: picked };
+}
+
 /** What a task's browser model is doing, for Settings; null while the computer or a card voice has it. */
 export function speechStatus(task: "stt" | "voice"): ModelStatus | null {
   if (task === "stt") return onComputer.stt() ? null : ears.status();
@@ -640,15 +664,34 @@ export function speechProgress(): ReadonlyArray<VoiceBarModel> | null {
  * loading), "down" (this app's server can't reach it) or "absent" (this page has no route to it, as on
  * lalala.talk). Settings ask when they open; nothing here starts the service.
  */
-export type ComputerSpeech = "ready" | "loading" | "down" | "absent";
-export async function checkComputerSpeech(): Promise<ComputerSpeech> {
+export type ComputerSpeech = "ready" | "loading" | "starting" | "off" | "down" | "absent";
+let computerReason: string | null = null;
+/** Why the computer's speech service couldn't start, as its server read it from the log. */
+export const computerSpeechReason = () => computerReason;
+export async function checkComputerSpeech(start?: "auto" | "force"): Promise<ComputerSpeech> {
   try {
-    const response = await fetch("/__lalala/local/health", { signal: AbortSignal.timeout(4_000) });
+    const query = start === "force" ? "?start=1" : start === "auto" ? "?start=auto" : "";
+    const response = await fetch(`/__lalala/local/health${query}`, { signal: AbortSignal.timeout(4_000) });
     // No route here (lalala.talk answers with its own page or a 404): out of reach for good.
     if (!response.headers.get("content-type")?.includes("json")) return "absent";
     if (!response.ok) return "down";
-    const body = (await response.json()) as { ready?: unknown; down?: unknown };
-    return body.ready === true ? "ready" : body.down === true ? "down" : "loading";
+    const body = (await response.json()) as {
+      ready?: unknown;
+      down?: unknown;
+      starting?: unknown;
+      off?: unknown;
+      reason?: unknown;
+    };
+    computerReason = typeof body.reason === "string" ? body.reason : null;
+    return body.ready === true
+      ? "ready"
+      : body.starting === true
+        ? "starting"
+        : body.off === true
+          ? "off"
+          : body.down === true
+            ? "down"
+            : "loading";
   } catch {
     // A dropped or slow request (a phone between networks) is no proof the route is missing.
     return "down";

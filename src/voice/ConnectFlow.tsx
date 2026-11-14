@@ -31,7 +31,8 @@ export function PairSteps(props: {
   readonly connectCommand?: string | undefined;
   readonly working: string | null;
   readonly problem: string | null;
-  readonly onPair: (input: string) => void;
+  /** `via`: the T3 Connect address typed on the "Another computer" path, to pair through. */
+  readonly onPair: (input: string, via?: string) => void;
   /** lalala.talk: this device couldn't reach the pasted link's local address; asks for the T3 Connect address (the remembered one first). */
   readonly ask?: {
     readonly address: string;
@@ -63,7 +64,7 @@ export function PairSteps(props: {
     const value = input.trim();
     if (value === "" || busy) return;
     if (ask) ask.onAddress(value);
-    else props.onPair(value);
+    else props.onPair(value, path === "other" && connectAddress.trim() !== "" ? connectAddress.trim() : undefined);
   };
   const value = ask ? (address ?? ask.address) : link;
   const setValue = ask ? setAddress : setLink;
@@ -90,6 +91,8 @@ export function PairSteps(props: {
         type={ask ? "url" : "text"}
         inputMode={ask ? "url" : undefined}
         aria-label={ask ? "Your T3 Connect address" : label}
+        aria-invalid={props.problem ? true : undefined}
+        aria-describedby={props.problem ? `${choiceId}e` : undefined}
         placeholder={ask ? "https://….t3coderelay.com/mcp" : placeholder}
         autoComplete="off"
         autoCapitalize="off"
@@ -120,12 +123,11 @@ export function PairSteps(props: {
   );
   const command = (text: string | null, missing?: string) => (
     <p data-lalala-pair-command="" data-missing={text === null ? "" : undefined}>
-      <code>{text ?? missing}</code>
+      <code aria-live="polite">{text ?? missing}</code>
       <button
         type="button"
         data-lalala-settings-button=""
         data-quiet=""
-        aria-live="polite"
         disabled={text === null}
         onClick={() => text !== null && copy(text)}
       >
@@ -181,16 +183,18 @@ export function PairSteps(props: {
       ) : (
         <div data-lalala-settings-row="" data-lalala-pair="">
           <div>
-            <h3>T3 Code</h3>
+            <div data-lalala-pair-title="">
+              <h3>T3 Code</h3>
+              {status}
+            </div>
             <p>
               {ask
                 ? `${phone ? "Your phone" : "This browser"} can't reach T3 Code's local address. Paste your T3 Connect address instead.`
                 : remote
-                  ? "T3 Code runs on your computer: do steps 1 to 3 there, then bring the link to this phone."
+                  ? "Steps 1 and 3 happen in T3 Code on your computer; the pasting happens here."
                   : "Pair once; lalala remembers it on this device."}
             </p>
           </div>
-          <div data-lalala-settings-control="">{status}</div>
         </div>
       )}
       {/* role=list: list-style none drops the list's semantics in Safari. */}
@@ -222,12 +226,11 @@ export function PairSteps(props: {
           <>
             <Step n={1} title="Turn these on in T3 Code">
               <T3Path steps={["Settings", "Sharing & access"]} />
+              <p data-lalala-pair-or="">Like this, both on (T3 Connect asks you to sign in first):</p>
               <T3Switches names={["T3 Connect", "Network access"]} />
-              <p data-lalala-pair-or="">How they look in T3 Code once on. Sign in first if T3 Connect asks.</p>
             </Step>
             <Step n={2} title="Paste your T3 Connect address">
               <T3Path steps={["Settings", "Environments", "⋯", "Copy MCP URL"]} />
-              <p data-lalala-pair-or="">It fills in the command in step 3.</p>
               <div data-lalala-pair-field="" data-plain="">
                 <input
                   type="url"
@@ -244,15 +247,22 @@ export function PairSteps(props: {
                 />
               </div>
             </Step>
-            <Step n={3} title="Run this on the computer with T3 Code">
-              {command(connectCommand, "Add your address in step 2 first.")}
+            <Step n={3} title="Create a pairing link in T3 Code">
+              <T3Path steps={["Settings", "Sharing & access", "Create link"]} />
+              <details data-lalala-pair-terminal="">
+                <summary>Use a terminal instead</summary>
+                {command(connectCommand, "Paste your address in step 2 first.")}
+              </details>
             </Step>
-            <Step n={4} title={phone ? "Paste the link it prints, on this phone" : "Paste the link it prints"}>
-              {field("Paste the printed link", "Pairing link")}
+            <Step n={4} title={phone ? "Paste the link or code here" : "Paste the link or code"}>
+              {field("Paste link or code", "Pairing link or code")}
             </Step>
           </>
         )}
       </ol>
+      {remote ? (
+        <p data-lalala-pair-privacy="">Speech stays in this browser; only your words, as text, reach T3 Code.</p>
+      ) : null}
       {props.working ? (
         <p data-lalala-settings-info="" role="status">
           {props.working}
@@ -265,7 +275,7 @@ export function PairSteps(props: {
         </p>
       ) : null}
       {props.problem ? (
-        <p data-lalala-settings-error="" role="alert">
+        <p id={`${choiceId}e`} data-lalala-settings-error="" role="alert">
           <StreamerText text={props.problem} />
         </p>
       ) : null}
@@ -319,10 +329,11 @@ function T3Path(props: { readonly steps: ReadonlyArray<string> }) {
   return (
     <p data-lalala-t3-path="">
       <span data-lalala-settings-sr="">In T3 Code: </span>
+      {/* A chip keeps the › after it, so a wrapped line never starts with one. */}
       {props.steps.map((step, index) => (
         <span key={step}>
-          {index > 0 ? <i aria-hidden="true">›</i> : null}
           <b>{step}</b>
+          {index < props.steps.length - 1 ? <i aria-hidden="true">›</i> : null}
         </span>
       ))}
     </p>

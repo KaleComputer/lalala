@@ -18,7 +18,7 @@ import { Tooltip, TooltipPopup, TooltipTrigger } from "../components/ui/tooltip"
 import { useVoiceBrainContext } from "../state/voiceBrainContext";
 import { formatTokens, useSharedBrainThread } from "./brainCompaction";
 import { ConnectedRows, PairSteps } from "./ConnectFlow";
-import { connectPreview, TALK_CONNECT_COMMAND, TALK_NOTE, TALK_PAIR_COMMAND } from "./connectPreview";
+import { connectPreview, TALK_CONNECT_COMMAND, TALK_PAIR_COMMAND } from "./connectPreview";
 import { isFollowing, setFollowing, subscribeFollow } from "./follow";
 import { isPairingCode, pairingLink } from "./pairing";
 import { setStreamerMode, StreamerText, useStreamerMode } from "./streamerMode";
@@ -54,7 +54,9 @@ import {
   checkGpu,
   computerSpeechState,
   NEEDS_WEBGPU,
-  type ModelStatus,
+  activeSpeech,
+  type ActiveSpeech,
+  computerSpeechReason,
   refreshComputerSpeech,
   speechStateVersion,
   speechStatus,
@@ -714,7 +716,7 @@ function AppSettings(props: { readonly section: string; readonly onClose: () => 
       id: "general",
       title: "General",
       icon: PAGE_ICONS.general,
-      value: autoStart ? "Starts by itself" : "Starts on a tap",
+      value: autoStart ? "Starts by itself" : "Starts when you press Start",
       content: <OpeningSection />,
     },
     {
@@ -1291,7 +1293,7 @@ const describe = (cause: unknown) => {
 function ConnectPreview() {
   const [problem, setProblem] = useState<string | null>(null);
   return (
-    <Section title="Connection" note={TALK_NOTE}>
+    <Section title="Connection">
       <PairSteps
         command={TALK_PAIR_COMMAND}
         connectCommand={TALK_CONNECT_COMMAND}
@@ -1789,15 +1791,21 @@ const COMPUTER_COPY = {
     meta: "No download",
     state: () => "Runs on the computer running T3; nothing loads here.",
   },
-  loading: {
-    meta: "Still loading its models",
+  off: { meta: "Starts when you pick it", state: () => "Starting the speech service on your computer…" },
+  starting: {
+    meta: "Starting…",
     state: (verb: string, standIn: string) =>
-      `The computer is still loading; this browser ${verb} with ${standIn} meanwhile.`,
+      `Starting the speech service on your computer; this browser ${verb} with ${standIn} meanwhile.`,
+  },
+  loading: {
+    meta: "Loading its models…",
+    state: (verb: string, standIn: string) =>
+      `The computer is loading its models; this browser ${verb} with ${standIn} meanwhile.`,
   },
   down: {
-    meta: "Not answering",
+    meta: "Couldn't start",
     state: (verb: string, standIn: string) =>
-      `The computer isn't answering; this browser ${verb} with ${standIn}, the lightest, until it does.`,
+      `The speech service couldn't start on this computer; this browser ${verb} with ${standIn}.`,
   },
   absent: {
     meta: "Only when lalala is opened from that computer",
@@ -1806,10 +1814,41 @@ const COMPUTER_COPY = {
   },
 } as const;
 
+/** The workers' own names for what they load, as Settings call them. */
+const LOADED_NAMES: Record<string, string> = {
+  "parakeet 0.6b gpu": "Parakeet 0.6B\u00a0·\u00a0GPU",
+  "parakeet 0.6b": "Parakeet 0.6B\u00a0·\u00a0CPU",
+  "parakeet 110m": "Parakeet 110M",
+  "kokoro 82m gpu": "Kokoro 82M\u00a0·\u00a0GPU",
+  "kokoro 82m cpu": "Kokoro 82M\u00a0·\u00a0CPU",
+  "llama matcha": "Llama Matcha (Kale's voice)",
+  "parakeet 0.6b mlx": "Parakeet 0.6B",
+  "kokoro 82m mlx": "Kokoro 82M",
+};
+const loadedName = (name: string) => LOADED_NAMES[name] ?? name;
+
+/** What runs a task right now, in a few words: "Llama Matcha (Kale's voice), in this browser · ready". */
+export function nowText(active: ActiveSpeech, waiting: string): string {
+  if (active.where === "computer") return `${loadedName(active.name)}, on the computer running T3 · ready`;
+  if (active.where === "card") return "a voice from your cards";
+  const { status } = active;
+  const name = status.name === null ? waiting : loadedName(status.name);
+  const phase =
+    status.phase === "ready"
+      ? `ready${status.total > 0 ? `, ${MB(status.total)}` : ""}`
+      : status.phase === "downloading" && status.total > 0
+        ? `downloading ${MB(status.loaded)} of ${MB(status.total)}`
+        : status.phase === "loading"
+          ? "loading"
+          : status.phase === "failed"
+            ? "didn't load"
+            : "loads with the call";
+  return `${name}, in this browser · ${phase}`;
+}
+
 /**
- * A task's state after its description: where it runs now and its browser model's own state. The
- * sentence is announced politely when it changes and turns amber only for a problem; download steps
- * sit beside it, outside the announcement.
+ * Under a task's description: what went wrong with the computer, if anything (only that clause amber),
+ * then "Now:" what actually runs the task on this device and its state, announced politely.
  */
 function TaskState(props: {
   readonly picked: string;
@@ -1817,46 +1856,57 @@ function TaskState(props: {
   readonly standIn: string;
   readonly verb: "hears you" | "speaks";
   readonly computer: ReturnType<typeof computerSpeechState>;
-  readonly status: ModelStatus | null;
-  /** The picked browser model's cost, so a closed list still shows it. */
+  readonly active: ActiveSpeech;
+  /** The picked (or automatic) browser model's cost, while nothing is loaded yet. */
   readonly cost?: string | undefined;
 }) {
-  const { picked, auto, standIn, verb, computer, status } = props;
-  const retrying = useAutoRetrySeconds() !== null;
+  const { picked, auto, standIn, verb, computer, active } = props;
+  const status = active.where === "browser" ? active.status : null;
   const failed = status?.phase === "failed";
-  let state =
-    picked === "computer"
-      ? computer === "down" && !retrying
-        ? `The computer isn't answering; this browser ${verb} with ${standIn} until Settings or the page open again.`
-        : COMPUTER_COPY[computer].state(verb, standIn)
-      : picked === "auto"
-        ? auto === CHECKING
-          ? "Automatic: checking this browser…"
-          : `Automatic: ${auto}, in this browser${props.cost ? ` (${props.cost})` : ""}.`
-        : `Runs in this browser${props.cost ? ` (${props.cost})` : ""}.`;
-  if (status?.phase === "ready" && picked !== "computer") state = state.replace(/\.$/, "; ready.");
-  if (status?.phase === "idle" && picked !== "computer") state += " Loads with the call.";
-  if (failed) {
-    state += status.error?.includes(NEEDS_WEBGPU)
-      ? ` ${status.error} Pick Automatic or a CPU model.`
-      : ` ${status.error ?? "It didn't load."}${
-          status.retryAt > 0 ? " Trying again shortly." : " It tries again from the next call."
-        }`;
-  }
-  const problem = failed || (picked === "computer" && (computer === "down" || computer === "absent"));
-  const progress =
-    status?.phase === "downloading" && status.total > 0
-      ? `Downloading ${MB(status.loaded)} of ${MB(status.total)}.`
-      : status?.phase === "loading"
-        ? "Loading…"
-        : "";
+  // The computer, when it was picked and can't take the task now.
+  const away =
+    picked === "computer" && computer !== "ready" ? COMPUTER_COPY[computer].state(verb, standIn) : null;
+  const reason = computer === "down" ? computerSpeechReason() : null;
+  const awayProblem = picked === "computer" && (computer === "down" || computer === "absent");
+  const waiting = picked === "computer" ? standIn : picked === "auto" ? auto : (STT_LABELS[picked as Exclude<SttModel, "auto">] ?? VOICE_LABELS[picked as VoiceBuild] ?? auto);
+  let now = `Now: ${nowText(active, waiting)}`;
+  if (status?.phase === "idle" && props.cost) now += ` (${props.cost.split(" download")[0]})`;
+  if (picked === "auto" && auto !== CHECKING) now += " · automatic";
+  if (failed)
+    now += status.error?.includes(NEEDS_WEBGPU)
+      ? `. ${status.error} Pick Automatic or a CPU model.`
+      : `. ${status.error ?? ""}${status.retryAt > 0 ? " Trying again shortly." : " It tries again from the next call."}`;
   return (
     <>
-      {" "}
-      <span role="status" data-lalala-settings-state={problem ? "problem" : ""}>
-        {state}
+      {away ? (
+        <span data-lalala-settings-state="">
+          {awayProblem && away.includes(";") ? (
+            <>
+              <span data-lalala-settings-problem="">{away.slice(0, away.indexOf(";") + 1)}</span>
+              {away.slice(away.indexOf(";") + 1)}
+            </>
+          ) : (
+            away
+          )}
+          {reason ? <span data-lalala-settings-reason=""> {reason}</span> : null}
+          {picked === "computer" && computer === "down" ? (
+            <>
+              {" "}
+              <button
+                type="button"
+                data-lalala-settings-button=""
+                data-quiet=""
+                onClick={() => void refreshComputerSpeech(true)}
+              >
+                Try again
+              </button>
+            </>
+          ) : null}
+        </span>
+      ) : null}
+      <span role="status" data-lalala-settings-state="">
+        {failed ? <span data-lalala-settings-problem="">{now}</span> : now}
       </span>
-      {progress ? <span data-lalala-settings-progress="">{progress}</span> : null}
     </>
   );
 }
@@ -1917,7 +1967,7 @@ export function SpeechSection() {
               standIn={STT_LABELS["110m"]}
               verb="hears you"
               computer={computer}
-              status={speechStatus("stt")}
+              active={activeSpeech("stt")}
             />
           </>
         }
@@ -1985,7 +2035,7 @@ export function SpeechSection() {
               standIn={VOICE_LABELS.matcha}
               verb="speaks"
               computer={computer}
-              status={speechStatus("voice")}
+              active={activeSpeech("voice")}
             />
           </>
         }
@@ -2065,10 +2115,10 @@ export function OpeningSection() {
   const seconds = useAutoRetrySeconds();
   const autoStart = useAutoStartCall();
   return (
-    <Section title="Starting and loading">
+    <Section title="General">
       <Row
         title="Start the call when lalala opens"
-        description="Starts from the next time lalala opens; turning it off applies right away. Safari and phones wait for a first tap or Enter."
+        description="Safari and phones wait for a first tap."
       >
         {(describedBy) => (
           <Toggle

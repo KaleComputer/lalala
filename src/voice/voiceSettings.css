@@ -389,12 +389,16 @@
   margin-bottom: 4px;
   padding: 0;
 }
-/* A model's download under its row's sentence, on a line of its own. */
+/* A speech row: what the task is, then where it runs now on a quieter line, then any download. */
+[data-lalala-settings-state] {
+  display: block;
+  margin-top: 2px;
+}
 [data-lalala-settings-progress] {
   display: block;
   font-variant-numeric: tabular-nums;
 }
-:is([data-lalala-settings-error], [data-lalala-settings-status], [data-lalala-settings-state="problem"]) {
+:is([data-lalala-settings-error], [data-lalala-settings-status], [data-lalala-settings-problem]) {
   color: var(--s-warn);
 }
 [data-lalala-settings-row] > div > [data-lalala-settings-error] {
@@ -982,6 +986,24 @@
   font-family: var(--s-sans);
   user-select: none;
 }
+[data-lalala-pair-privacy] {
+  margin: 0;
+  padding: 0 var(--s-inset) 12px;
+  color: var(--s-fg-2);
+  font-size: 11px;
+  line-height: 1.5;
+}
+[data-lalala-pair-title] {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 4px 12px;
+}
+[data-lalala-pair-command] > button:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
 [data-lalala-pair-command] > button {
   height: 24px;
   padding: 0 8px;
@@ -1013,8 +1035,10 @@
   color: var(--s-fg-2);
   font-style: normal;
 }
+/* A picture of T3 Code's switches: framed, a little faded, never tappable. */
 [data-lalala-t3-switches] {
   pointer-events: none;
+  opacity: 0.85;
   display: grid;
   gap: 0;
   max-width: 20rem;
@@ -1058,6 +1082,9 @@
 /* A paste that failed: the field takes the warning colour until the next try. Never red before that. */
 [data-lalala-pair-field][data-failed] {
   background: var(--s-warn);
+}
+[data-lalala-pair-field][data-failed]:focus-within {
+  background: var(--s-ring);
 }
 /* Fingers: every small control gets T3's 44px hit area. */
 @media (pointer: coarse) {
