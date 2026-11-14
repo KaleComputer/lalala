@@ -19,6 +19,8 @@ type Reply =
   | { type: "error"; id: number; message: string };
 
 const MODEL_FAILED = "The voice models didn't load.";
+/** The worker's words when a model can't fit this browser's storage (parakeet.worker's NO_ROOM). */
+const NO_ROOM = /Not enough storage for the voice models/;
 export const NEEDS_WEBGPU = "needs WebGPU";
 
 // A model that was loading when the page ended without a pagehide took the tab down with it (iOS
@@ -81,6 +83,10 @@ export type ModelStatus = {
   readonly retryAt: number;
 };
 
+// The largest speech-to-text build this page's storage took (parakeet.worker's storage-fallback):
+// a retry starts there instead of filling the storage again.
+let storageCeiling: string | null = null;
+
 // One model loads at a time, in the order asked (Parakeet with the call, then Kokoro): Kokoro
 // loading into WebGPU while Parakeet downloaded ended Tim's iPhone tab (14 Nov, three times).
 let modelTurn: Promise<unknown> = Promise.resolve();
@@ -133,7 +139,9 @@ function modelWorker(
   const scheduleRetry = () => {
     cancelRetry();
     const every = autoRetrySeconds();
-    if (!failed || every === null || failure?.includes(NEEDS_WEBGPU)) return;
+    // Retrying can't give a browser WebGPU or more storage.
+    if (!failed || every === null || failure?.includes(NEEDS_WEBGPU) || NO_ROOM.test(failure ?? ""))
+      return;
     retryAt = Date.now() + every * 1000;
     retryTimer = window.setTimeout(() => {
       retryTimer = 0;
@@ -148,7 +156,10 @@ function modelWorker(
     failed = true;
     retries += 1;
     // A browser without what the model needs says so; anything else is the general line.
-    failure = cause.includes(NEEDS_WEBGPU) ? cause.replace(/^\w*Error:\s*/, "") : MODEL_FAILED;
+    failure =
+      cause.includes(NEEDS_WEBGPU) || NO_ROOM.test(cause)
+        ? cause.replace(/^\w*Error:\s*/, "")
+        : MODEL_FAILED;
     markFailed(new Error(failure));
     scheduleRetry();
     notify();
@@ -229,6 +240,8 @@ function modelWorker(
         });
       } else if (data.type === "stage") {
         const { type: _type, ...detail } = data;
+        if (detail.stage === "storage-fallback" && typeof detail.to === "string")
+          storageCeiling = detail.to;
         voiceLog("system", "speech.stage", {
           model: key,
           ...detail,
@@ -338,7 +351,10 @@ const ears = modelWorker(
   "parakeet",
   () => new Worker(new URL("./parakeet.worker.ts", import.meta.url), { type: "module" }),
   // While the computer is wanted (by hand or by Automatic), the browser only stands in: the lightest.
-  () => ({ model: sttModel() === "computer" || wantsComputer.stt() ? "110m" : sttModel() }),
+  () => ({
+    model: sttModel() === "computer" || wantsComputer.stt() ? "110m" : sttModel(),
+    ceiling: storageCeiling,
+  }),
 );
 const kokoroBuild = () => {
   const picked = replyVoice();

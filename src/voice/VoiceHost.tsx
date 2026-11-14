@@ -620,6 +620,8 @@ export function VoiceHost({
       // Muted before the call: it starts muted.
       if (muted) session.setMuted(true);
     } catch (cause) {
+      // Whatever the start opened (the audio context, a mic it did get) is let go at once.
+      session.stop();
       sessionRef.current = null;
       setError(voiceErrorText(cause));
     } finally {

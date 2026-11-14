@@ -232,6 +232,20 @@ export async function downloadFile(
   return new Blob(full.blobs);
 }
 
+/**
+ * Drops every saved download at once. Deleted rows don't give a full origin its room back in time
+ * for the next try; a deleted database does.
+ */
+export async function dropAllDownloads(): Promise<void> {
+  const current = opened;
+  opened = null;
+  (await current?.catch(() => null))?.close();
+  await new Promise<void>((resolve) => {
+    const request = indexedDB.deleteDatabase(DB);
+    request.onsuccess = request.onerror = request.onblocked = () => resolve();
+  });
+}
+
 /** The whole file is in IndexedDB. */
 export async function isDownloaded(url: string): Promise<boolean> {
   const saved = await stored(url).catch(() => null);

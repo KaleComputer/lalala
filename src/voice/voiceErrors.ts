@@ -75,6 +75,12 @@ export function errorTag(message: string, live: boolean): ErrorTag {
       hint: retry,
       said: `The voice models didn't load.${again}`,
     };
+  if (/microphone is in use/i.test(message))
+    return { tag: "Mic in use", hint: "End it there, tap to retry", said: message };
+  if (/no microphone/i.test(message))
+    return { tag: "No mic found", hint: "Tap to retry", said: message };
+  if (/not enough storage/i.test(message))
+    return { tag: "Not enough storage", hint: "Use a normal window", said: message };
   if (/microphone|\bmic\b|notallowed|permission/i.test(message))
     return {
       tag: "Mic blocked",

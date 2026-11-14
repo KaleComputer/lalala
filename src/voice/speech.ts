@@ -229,6 +229,19 @@ function isInterruption(heard: string, spoken: ReadonlyArray<string>): boolean {
   return all.length <= MAX_SHORT_INTERRUPTION || theirs.length / all.length >= MIN_THEIR_SHARE;
 }
 
+/**
+ * Plain words for a microphone the browser wouldn't open. Chrome says NotReadableError when another
+ * tab or app holds it (another lalala tab in a call, a meeting app).
+ */
+function micProblem(cause: unknown): string {
+  const name = (cause as { name?: string } | null)?.name ?? "";
+  if (name === "NotAllowedError" || name === "SecurityError")
+    return "The browser blocked the microphone. Allow it in the browser's site settings.";
+  if (name === "NotFoundError" || name === "OverconstrainedError")
+    return "No microphone found. Plug one in, then tap to retry.";
+  return "The microphone is in use by another tab or app. End the call there, then tap to retry.";
+}
+
 export class VoiceSession {
   private stream: MediaStream | null = null;
   private context: AudioContext | null = null;
@@ -483,6 +496,10 @@ export class VoiceSession {
         }
         voiceLog("system", "error", { where: "mic.device", message: String(cause) });
         return navigator.mediaDevices.getUserMedia({ audio: constraints });
+      })
+      .catch((cause: unknown) => {
+        voiceLog("system", "error", { where: "mic.open", message: String(cause) });
+        throw new Error(micProblem(cause));
       });
   }
 

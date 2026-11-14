@@ -5,7 +5,7 @@
 // slice at a time: buffered whole, the 1.25 GB file ended a phone's tab (13 Nov).
 import { externalGraph } from "./onnxExternal";
 import { trackFiles } from "./readout";
-import { downloadFile, isDownloaded, keepDownloads } from "./resumableFetch";
+import { downloadFile, dropAllDownloads, isDownloaded, keepDownloads } from "./resumableFetch";
 
 const PARAKEET_JS = "https://cdn.jsdelivr.net/npm/parakeet.js@1.4.4/+esm";
 const BASE_06B = "https://huggingface.co/ysdede/parakeet-tdt-0.6b-v2-onnx/resolve/main/";
@@ -184,7 +184,26 @@ async function cpuSessions() {
     create(url, { ...options, executionProviders: ["wasm"] });
 }
 
-async function load(choice: unknown) {
+/** Bytes this origin may still store (a private window gets little); null when the browser won't say. */
+async function storageRoom(): Promise<number | null> {
+  const estimate = await navigator.storage?.estimate?.().catch(() => null);
+  if (!estimate || typeof estimate.quota !== "number") return null;
+  return estimate.quota - (estimate.usage ?? 0);
+}
+
+const isQuota = (error: unknown) =>
+  (error instanceof DOMException && error.name === "QuotaExceededError") ||
+  /quota/i.test(String(error));
+
+/** The next smaller build, for a browser without room for this one. */
+const smaller = (build: Build): Build | null =>
+  build === WEBGPU ? WASM : build === WASM ? SMALL : null;
+const byName = (name: unknown) => [WEBGPU, WASM, SMALL].find((build) => build.name === name);
+
+const NO_ROOM =
+  "Not enough storage for the voice models in this window. Private windows get little: open lalala.talk in a normal window.";
+
+async function load(choice: unknown, ceiling: unknown) {
   const parakeet = (await import(/* @vite-ignore */ /* webpackIgnore: true */ /* turbopackIgnore: true */ PARAKEET_JS)) as ParakeetModule;
   // "auto": phones the 110M, desktops the 0.6B on the GPU where WebGPU has 16-bit floats, else on the CPU.
   const build =
@@ -194,23 +213,51 @@ async function load(choice: unknown) {
     : phone ? SMALL
     : (await hasWebGpu()) ? WEBGPU
     : WASM;
-  if (build.cpu) await cpuSessions();
-  else if (!(await hasWebGpu())) {
-    throw new Error(
-      "Speech-to-text needs WebGPU with 16-bit floats, and this browser has none. Try Chrome or Safari up to date.",
-    );
+  // A build that ran out of storage on this page isn't tried again (`ceiling`), and one that can't
+  // fit the room left (a private window) steps down before downloading anything.
+  const cap = byName(ceiling)?.expected ?? Infinity;
+  const room = await storageRoom();
+  let fits: Build | null = build;
+  while (fits !== null && (fits.expected > cap || (room !== null && room < fits.expected * 1.1)))
+    fits = smaller(fits);
+  if (fits === null) throw new Error(NO_ROOM);
+  if (fits !== build) stage("storage-fallback", { from: build.name, to: fits.name, room });
+  let pick = fits;
+  for (;;) {
+    if (pick.cpu) await cpuSessions();
+    else if (!(await hasWebGpu())) {
+      throw new Error(
+        "Speech-to-text needs WebGPU with 16-bit floats, and this browser has none. Try Chrome or Safari up to date.",
+      );
+    }
+    try {
+      const loaded = await loadBuild(parakeet, pick);
+      postMessage({ type: "ready" });
+      return loaded;
+    } catch (error) {
+      if (!isQuota(error)) throw error;
+      // Storage ran out mid-download: free everything saved and try the next smaller build.
+      await dropAllDownloads().catch(() => {});
+      const next = smaller(pick);
+      if (next === null) throw new Error(NO_ROOM);
+      stage("storage-fallback", { from: pick.name, to: next.name, quota: true });
+      pick = next;
+    }
   }
-  const loaded = await loadBuild(parakeet, build);
-  postMessage({ type: "ready" });
-  return loaded;
 }
 
 self.onmessage = (
-  event: MessageEvent<{ type: string; id?: number; pcm?: Float32Array; model?: string }>,
+  event: MessageEvent<{
+    type: string;
+    id?: number;
+    pcm?: Float32Array;
+    model?: string;
+    ceiling?: string | null;
+  }>,
 ) => {
   const message = event.data;
   if (model === null) {
-    model = load(message.model);
+    model = load(message.model, message.ceiling);
     model.catch((error: unknown) => postMessage({ type: "failed", message: String(error) }));
   }
   if (message.type !== "transcribe") return;
