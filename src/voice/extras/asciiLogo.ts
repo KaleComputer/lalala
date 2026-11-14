@@ -121,6 +121,13 @@ function glitch(text: string, seed: number): string {
   return rows.join("\n") + "\n";
 }
 
+/** What the boot logo's worker (logoWorker.ts) needs to draw the same mark on a canvas. */
+export const LOGO = { cols: W, rows: H, rest: REST, spin: SPIN, frameMs: FRAME_MS, glyphs: RAMP + NOISE };
+
+/** The mark at `angle` as lines of text; torn up when `glitchSeed` is a number. */
+export const logoText = (angle: number, glitchSeed: number | null) =>
+  glitchSeed === null ? drawLogo(angle) : glitch(drawLogo(angle), glitchSeed);
+
 /**
  * Draws the mark into `target` and turns it until `stopWhen` says so (checked each frame) or the
  * returned stop is called; then it rests at the still angle. While `glitchWhen` says so it keeps

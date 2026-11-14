@@ -189,18 +189,13 @@
       <div class="lala-boot-bar" aria-hidden="true"><i></i></div>
     </div>
     <script type="module">
-      // The mark's drawing and frame loop are the canvas's PageLoader's (one source); it turns until
-      // the boot screen goes, glitching once the load fails. A module, so it starts just before the
-      // app's.
-      import { runLogo } from "/src/voice/extras/asciiLogo.ts";
+      // The mark turns in its own worker where it can (extras/bootLogo.ts), so the page loading can't
+      // make it stutter, until the boot screen goes, glitching once the load fails. A module, so it
+      // starts just before the app's.
+      import { startBootLogo } from "/src/voice/extras/bootLogo.ts";
       const boot = document.getElementById("lala-boot");
       const pre = boot?.querySelector("pre");
-      if (pre)
-        runLogo(
-          pre,
-          () => !boot.isConnected,
-          () => boot.classList.contains("is-failed"),
-        );
+      if (boot && pre) startBootLogo(boot, pre);
     </script>
     <script type="module" src="/src/main.tsx"></script>
   </body>
