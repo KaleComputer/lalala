@@ -208,7 +208,8 @@ export function VoiceSettings(props: {
             ) : (
               <AppSettings section={at} onClose={close} />
             ),
-            document.body,
+            // The page's body, or the states card's frame for a preview bar (extras/BarStates).
+            props.tabHost.ownerDocument.body,
           )
         : null}
     </>
@@ -819,6 +820,8 @@ type PickOption = {
   readonly value: string;
   readonly label: string;
   readonly detail?: string | undefined;
+  /** A second line under the label, in the same small box on every option (a clip's length). */
+  readonly meta?: string | undefined;
   /** The row gets a play button (onPlay). */
   readonly playable?: boolean;
   /** The label can identify the user (a device name, a project title): streamer mode scrambles it. */
@@ -836,6 +839,30 @@ const modelGroups = (providers: ReadonlyArray<Provider>): PickGroup[] =>
       label: model.name,
     })),
   }));
+
+/** Lengths of the extras/topicSounds-*.mp3 files (ffprobe); a sound missing here sorts last with no length. */
+const TOPIC_SOUND_SECONDS: Readonly<Record<string, number>> = {
+  "double-blip": 0.48,
+  "glass-tick": 0.48,
+  "wood-knock": 0.48,
+  "arcade-coin": 0.6,
+  "soft-ping": 0.6,
+  "neon-zap": 0.68,
+  "marimba-up": 0.8,
+  "page-swipe": 0.8,
+  "cyber-glitch": 0.88,
+  "new-topic": 1.08,
+  "swoosh-hit": 1.2,
+  "next-up": 1.23,
+  meanwhile: 1.28,
+  "breaking-whoosh": 1.36,
+  "news-sting": 1.76,
+  "newsroom-pulse": 1.76,
+  "wind-chimes": 1.76,
+  "singing-bowl": 2.04,
+  "pad-swell": 2.2,
+  "and-now": 2.48,
+};
 
 let previewAudio: HTMLAudioElement | null = null;
 function playTopicSound(name: string): void {
@@ -1030,6 +1057,9 @@ export function PickRow(props: {
                         <span>
                           <PickLabel option={option} />
                           {option.detail ? <small> · {option.detail}</small> : null}
+                          {option.meta ? (
+                            <span data-lalala-settings-meta="">{option.meta}</span>
+                          ) : null}
                         </span>
                         {at === selected ? (
                           <svg viewBox="0 0 12 12" aria-hidden="true">
@@ -1539,14 +1569,23 @@ export function SoundSection() {
             options: [
               { value: "none", label: "None" },
               { value: BUILT_IN_TOPIC_SOUND, label: "Chime (built in)", playable: true },
-              {
-                value: DEFAULT_TOPIC_SOUND,
-                label: `${soundTitle(DEFAULT_TOPIC_SOUND)} (default)`,
-                playable: true,
-              },
               ...names
-                .filter((name) => name !== DEFAULT_TOPIC_SOUND)
-                .map((name) => ({ value: name, label: soundTitle(name), playable: true })),
+                .toSorted(
+                  (a, b) =>
+                    (TOPIC_SOUND_SECONDS[a] ?? Infinity) - (TOPIC_SOUND_SECONDS[b] ?? Infinity),
+                )
+                .map((name) => {
+                  const seconds = TOPIC_SOUND_SECONDS[name];
+                  return {
+                    value: name,
+                    label:
+                      name === DEFAULT_TOPIC_SOUND
+                        ? `${soundTitle(name)} (default)`
+                        : soundTitle(name),
+                    meta: seconds === undefined ? undefined : `${seconds.toFixed(1)} s`,
+                    playable: true,
+                  };
+                }),
             ],
           },
         ]}

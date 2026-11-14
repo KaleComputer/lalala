@@ -34,7 +34,8 @@ type Picked =
       readonly name: string;
       readonly progress: number;
       readonly ref: VoiceFileRef | null;
-      readonly failed: boolean;
+      /** Why the upload failed; a failed file stays as a tile but never holds back the send. */
+      readonly error: string | null;
     };
 
 /** Typed text, pictures and uploaded files for the voice thread; resolves true once the thread has them. */
@@ -105,13 +106,14 @@ export function VoiceInput(props: {
         uploads.delete(id);
         update(id, (item) => ({ ...item, ref, progress: 1 }));
       },
-      () => {
+      (cause: unknown) => {
         if (!uploads.delete(id)) return;
-        setProblem("Upload failed");
-        update(id, (item) => ({ ...item, failed: true }));
+        const reason = cause instanceof Error && cause.message ? cause.message : "upload failed";
+        setProblem(`${file.name || "file"} didn't upload (${reason}); a send goes without it`);
+        update(id, (item) => ({ ...item, error: reason }));
       },
     );
-    return { id, kind: "file", name: file.name || "file", progress: 0, ref: null, failed: false };
+    return { id, kind: "file", name: file.name || "file", progress: 0, ref: null, error: null };
   };
 
   // One bar panel at a time: the canvas list closes.
@@ -170,10 +172,12 @@ export function VoiceInput(props: {
   const closeByOther = useEffectEvent(close);
 
   const files = picked.filter((item) => item.kind === "file");
-  const uploading = files.filter((item) => item.ref === null && !item.failed);
-  const failed = files.some((item) => item.failed);
+  const uploading = files.filter((item) => item.ref === null && item.error === null);
+  const failed = files.some((item) => item.error !== null);
   const ready =
-    !busy && uploading.length === 0 && !failed && (text.trim() !== "" || picked.length > 0);
+    !busy &&
+    uploading.length === 0 &&
+    (text.trim() !== "" || picked.some((item) => item.kind === "image" || item.ref !== null));
 
   const submit = async () => {
     if (!ready) return;
@@ -329,9 +333,9 @@ export function VoiceInput(props: {
               <li
                 key={item.id}
                 data-file={item.kind === "file" ? "" : undefined}
-                data-failed={item.kind === "file" && item.failed ? "" : undefined}
+                data-failed={item.kind === "file" && item.error !== null ? "" : undefined}
                 style={
-                  item.kind === "file" && item.ref === null && !item.failed
+                  item.kind === "file" && item.ref === null && item.error === null
                     ? ({ "--lalala-upload": item.progress } as CSSProperties)
                     : undefined
                 }
@@ -344,7 +348,7 @@ export function VoiceInput(props: {
                       <StreamerText text={item.name} />
                     </span>
                     <span>
-                      {item.failed
+                      {item.error !== null
                         ? "failed"
                         : item.ref === null
                           ? `${Math.round(item.progress * 100)}%`

@@ -524,6 +524,22 @@
   min-width: 0;
   overflow-wrap: anywhere;
 }
+/* Metadata sits under the label in one fixed box, so every option's lines up at the same spot. */
+[data-lalala-settings-meta] {
+  display: block;
+  width: fit-content;
+  min-width: 6ch;
+  margin-top: 2px;
+  padding: 0 5px;
+  border: 1px solid var(--s-border);
+  border-radius: 4px;
+  background: var(--s-input-bg);
+  color: var(--s-fg-2);
+  font: 600 11px / 16px var(--lala-font, var(--s-mono));
+  letter-spacing: 0.04em;
+  font-variant-numeric: tabular-nums;
+  text-align: center;
+}
 [data-lalala-settings-list] [role="option"] > svg {
   stroke: var(--s-primary);
   stroke-width: 1.75;

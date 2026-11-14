@@ -6,6 +6,8 @@ import {
   useState,
   useSyncExternalStore,
 } from "react";
+import "./cutFrame.css";
+import { Hidden } from "./streamer";
 import {
   type Rect,
   boxKey,
@@ -13,13 +15,17 @@ import {
   getCamera,
   getCanvases,
   getCards,
+  getSelected,
   homeOf,
   isDrawn,
+  isLayered,
   mountCard,
   scrollTops,
   subscribe,
   subscribeCanvases,
 } from "./canvasStore";
+import { holdScroll } from "./cardState";
+import { cardThreads } from "./cardThreads";
 
 declare global {
   /** The session log, set by the page that has one (VoiceExtrasSlot); this folder may not import it. */
@@ -87,24 +93,31 @@ class CardBoundary extends Component<
   }
 }
 
+declare global {
+  var __lalalaOpenThread: ((threadId: string) => void) | undefined;
+}
+
 /**
- * A card on the canvas: `at` is where it starts (world px; it narrows to fit a phone), and after
- * that it stays wherever the user drags its header or corner (canvasStore remembers it). It shows only
- * on its `canvas` (an id or a name), or on Main without one.
+ * A card on the canvas: `at` is where it starts (world px), then it stays where the user drags it. It
+ * shows only on its `canvas` (id or name), else on Main. A grouped card lands with its `group`;
+ * `exact` pins an ungrouped one right at `at` unless that overlaps a card.
  */
 export function CanvasCard(props: {
   readonly id: string;
   readonly title: string;
   readonly at: Rect;
   readonly canvas?: string;
+  readonly exact?: boolean;
+  readonly group?: string;
   /** Gives the card a close button (lalala.talk, where visitors arrange the canvas themselves). */
   readonly onRemove?: () => void;
   readonly children: ReactNode;
 }) {
   const ref = useRef<HTMLElement>(null);
-  const { id, title, canvas } = props;
+  const { id, title, canvas, exact = false, group } = props;
+  const thread = cardThreads[id];
   // Idempotent: lets focus find a card on any canvas, shown or not.
-  declareCard(id, canvas, title);
+  declareCard(id, canvas, title, group);
   // Only the first place counts; after that the card is wherever it was put.
   const [at] = useState(props.at);
   const { active, list } = useSyncExternalStore(subscribeCanvases, getCanvases);
@@ -118,10 +131,14 @@ export function CanvasCard(props: {
     // A swap remounts every card: its list opens where it was scrolled to, before paint.
     const body = ref.current?.querySelector<HTMLElement>("[data-lalala-card-body]");
     if (body && scrollTops[key]) body.scrollTop = scrollTops[key];
+    // After a reload the content may still be short of where it was scrolled to.
+    const release = body ? holdScroll(body, scrollTops[key] ?? 0) : undefined;
     let last: Rect | undefined;
     let lastCamera: unknown;
     // The element outlives a change of canvas: carry on from what it shows.
     let off = ref.current?.hasAttribute("data-lalala-card-off") ?? false;
+    let flat = ref.current?.hasAttribute("data-lalala-card-flat") ?? false;
+    let picked = ref.current?.hasAttribute("data-lalala-card-selected") ?? false;
     let titleSize = -1;
     const apply = () => {
       const card = ref.current;
@@ -139,6 +156,14 @@ export function CanvasCard(props: {
         // A list not drawn has no height to scroll: back where it was.
         if (!off && body && scrollTops[key]) body.scrollTop = scrollTops[key];
       }
+      if (picked !== (getSelected() === key)) {
+        picked = !picked;
+        card.toggleAttribute("data-lalala-card-selected", picked);
+      }
+      if (flat === isLayered(key)) {
+        flat = !flat;
+        card.toggleAttribute("data-lalala-card-flat", flat);
+      }
       // A frame's title stays readable however far out: it is all the card shows.
       const size = off && rect ? Math.round(Math.min(12 / camera.z, rect.w / 10, rect.h / 5)) : 0;
       if (size !== titleSize) {
@@ -149,6 +174,7 @@ export function CanvasCard(props: {
     apply();
     const unsubscribe = subscribe(apply);
     return () => {
+      release?.();
       unsubscribe();
       unmount();
     };
@@ -157,7 +183,25 @@ export function CanvasCard(props: {
   if (!shown) return null;
   return (
     <section ref={ref} data-lalala-card={key} style={style(getCards()[key])}>
-      <header data-lalala-card-grip="">{title}</header>
+      <header data-lalala-card-grip="">
+        <span data-lalala-card-title="">
+          <Hidden text={title} name />
+        </span>
+        {thread ? (
+          <button
+            type="button"
+            data-lalala-card-thread=""
+            data-cut=""
+            aria-label={`Open the thread for ${title} in T3 Code`}
+            onClick={() => globalThis.__lalalaOpenThread?.(thread)}
+          >
+            T3Code
+            <svg viewBox="0 0 10 10" aria-hidden>
+              <path d="M3 1.5h5.5V7M8.5 1.5 1.5 8.5" />
+            </svg>
+          </button>
+        ) : null}
+      </header>
       {/* Beside the header, not in it: a press there would start a move. */}
       {props.onRemove ? (
         <button

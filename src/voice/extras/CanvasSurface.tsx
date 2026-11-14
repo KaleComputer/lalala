@@ -3,24 +3,42 @@ import {
   type Rect,
   getCamera,
   getCards,
+  getSelected,
+  groupAreas,
+  groupKey,
+  select,
   holdCard,
+  isLayoutReady,
   setCamera,
   setCard,
   setView,
   subscribe,
+  touchCard,
   zoomAt,
+  groupAt,
+  holdGroup,
+  moveGroup,
+  resizeGroup,
+  type GroupGrab,
 } from "./canvasStore";
+import { GroupAreas } from "./GroupAreas";
 import "./canvasSurface.css";
 
 type Point = { x: number; y: number };
 type Gesture =
   | { kind: "pan"; from: Point; camera: { x: number; y: number } }
   | { kind: "pinch"; distance: number; mid: Point; camera: { x: number; y: number; z: number } }
-  | { kind: "move" | "resize"; id: string; from: Point; rect: Rect };
+  | { kind: "move" | "resize"; id: string; from: Point; rect: Rect }
+  | { kind: "group"; part: "head" | "corner"; grab: GroupGrab; from: Point };
 
 /** A zoom redraws the cards sharp at its new scale once it has been still this long; shorter, and
  * quick zooming in and out would redraw between every move. */
 const SETTLE_MS = 400;
+
+/** How far (screen px, at any zoom) past a card's bottom-right corner a press still resizes it. */
+const CORNER_REACH = 64;
+/** A group's corner takes presses this far (screen px) inside it, over its drawn corner mark. */
+const GROUP_CORNER = 48;
 
 const wheelPixels = (event: WheelEvent, delta: number) =>
   event.deltaMode === 1 ? delta * 16 : event.deltaMode === 2 ? delta * 400 : delta;
@@ -46,6 +64,7 @@ export function CanvasSurface({ children }: { readonly children: ReactNode }) {
     let frame = 0;
     let sharpZ = getCamera().z;
     const sharpen = () => {
+      surface.toggleAttribute("data-lalala-waiting", !isLayoutReady());
       const { z } = getCamera();
       if (z === sharpZ) return;
       window.clearTimeout(settle);
@@ -59,6 +78,7 @@ export function CanvasSurface({ children }: { readonly children: ReactNode }) {
       }, SETTLE_MS);
     };
     const unsubscribe = subscribe(sharpen);
+    sharpen();
 
     const measure = () => setView(surface.clientWidth, surface.clientHeight);
     measure();
@@ -103,6 +123,91 @@ export function CanvasSurface({ children }: { readonly children: ReactNode }) {
       }
     };
 
+    /**
+     * The selected card, when a press outside it lands in its corner reach. A card's
+     * header and a drawn card's content keep their own drags and taps; empty space, a group area,
+     * a card's frame and a card not drawn give way.
+     */
+    const cornerAt = (at: Point, target: Element | null): HTMLElement | undefined => {
+      if (target?.closest("[data-lalala-card-grip], [data-lalala-card-resize]")) return;
+      const over = target?.closest("[data-lalala-card]");
+      if (
+        over &&
+        !over.hasAttribute("data-lalala-card-off") &&
+        target?.closest("[data-lalala-card-body]")
+      ) {
+        return;
+      }
+      const { x, y, z } = getCamera();
+      const cards = getCards();
+      let best: HTMLElement | undefined;
+      let nearest = Infinity;
+      const picked = getSelected();
+      for (const card of world.querySelectorAll<HTMLElement>(":scope > [data-lalala-card]")) {
+        if (card.dataset.lalalaCard !== picked) continue;
+        const rect = cards[picked];
+        if (!rect) continue;
+        const dx = at.x - (x + (rect.x + rect.w) * z);
+        const dy = at.y - (y + (rect.y + rect.h) * z);
+        if (dx > CORNER_REACH || dy > CORNER_REACH || (dx < 0 && dy < 0)) continue;
+        if (dx < -Math.min(CORNER_REACH, rect.w * z) || dy < -Math.min(CORNER_REACH, rect.h * z)) {
+          continue;
+        }
+        const distance = Math.hypot(dx, dy);
+        if (distance < nearest) [best, nearest] = [card, distance];
+      }
+      return best;
+    };
+    /** A group's headline, or the selected group's corner, under a press that no card takes. */
+    const groupUnder = (at: Point, target: Element | null) => {
+      if (target?.closest("[data-lalala-card]")) return undefined;
+      const group = groupAt(at.x, at.y, GROUP_CORNER);
+      if (group?.part === "corner" && groupKey(group.grab.label) !== getSelected())
+        return undefined;
+      return group;
+    };
+    /**
+     * A press picks what its resize corner is for: the card under it, or the group whose area or
+     * corner reach it lands in; anywhere else drops the pick.
+     */
+    const pick = (at: Point, target: Element | null) => {
+      const card = target?.closest<HTMLElement>("[data-lalala-card]")?.dataset.lalalaCard;
+      if (card) return select(card);
+      const group = groupUnder(at, target);
+      if (group) return select(groupKey(group.grab.label));
+      const { x, y, z } = getCamera();
+      const wx = (at.x - x) / z;
+      const wy = (at.y - y) / z;
+      const area = groupAreas().find(
+        ({ rect }) =>
+          wx >= rect.x && wx <= rect.x + rect.w && wy >= rect.y && wy <= rect.y + rect.h,
+      );
+      select(area ? groupKey(area.label) : null);
+    };
+    /**
+     * A card's corner under the press, unless it lands past a group's edge by its corner: there
+     * the group's corner wins (zoomed out, an edge card's corner is a few px from the group's).
+     */
+    const cardCornerAt = (at: Point, target: Element | null) => {
+      const group = groupUnder(at, target);
+      if (group?.part === "corner") {
+        const { x, y, z } = getCamera();
+        const { area } = group.grab;
+        if (at.x > x + (area.x + area.w) * z || at.y > y + (area.y + area.h) * z) return undefined;
+      }
+      return cornerAt(at, target);
+    };
+    let hoverCursor = "";
+    const hover = (event: PointerEvent) => {
+      const target = event.target instanceof Element ? event.target : null;
+      const at = local(event);
+      const part = cardCornerAt(at, target) ? "corner" : groupUnder(at, target)?.part;
+      const cursor = part === "corner" ? "nwse-resize" : part === "head" ? "grab" : "";
+      if (cursor === hoverCursor) return;
+      hoverCursor = cursor;
+      surface.style.cursor = cursor;
+    };
+
     /** One pointer alone: pan empty space, move or resize a card from its header or corner. */
     const begin = (pointerId: number): boolean => {
       const at = pointers.get(pointerId);
@@ -111,7 +216,10 @@ export function CanvasSurface({ children }: { readonly children: ReactNode }) {
       const card = target?.closest<HTMLElement>("[data-lalala-card]");
       const id = card?.dataset.lalalaCard;
       if (card && id) {
-        const grip = target?.closest("[data-lalala-card-grip]");
+        // The header's thread button is a tap, not a handle.
+        const grip =
+          target?.closest("[data-lalala-card-grip]") &&
+          !target.closest("[data-lalala-card-thread]");
         const corner = target?.closest("[data-lalala-card-resize]");
         const rect = getCards()[id];
         // Anywhere else in a card: its own taps and scrolling.
@@ -122,6 +230,13 @@ export function CanvasSurface({ children }: { readonly children: ReactNode }) {
         return true;
       }
       capture(pointerId);
+      // A group's headline moves it with its cards; its corner resizes it.
+      const group = groupUnder(at, target);
+      if (group) {
+        gesture = { kind: "group", ...group, from: at };
+        holdGroup(group.grab);
+        return true;
+      }
       startPan(at);
       return true;
     };
@@ -169,14 +284,20 @@ export function CanvasSurface({ children }: { readonly children: ReactNode }) {
     const down = (event: PointerEvent) => {
       lastPointerType = event.pointerType;
       if (event.pointerType === "mouse" && event.button !== 0) return;
-      const target = event.target instanceof Element ? event.target : null;
+      const at = local(event);
+      const pressed = event.target instanceof Element ? event.target : null;
+      // Pressed in a card's corner reach: as if on its corner.
+      const target =
+        cardCornerAt(at, pressed)?.querySelector("[data-lalala-card-resize]") ?? pressed;
       const card = target?.closest<HTMLElement>("[data-lalala-card]");
       // A mouse has one pointer: anything still held from before is stale.
       if (event.pointerType === "mouse") clear();
-      pointers.set(event.pointerId, local(event));
+      pointers.set(event.pointerId, at);
       starts.set(event.pointerId, { type: event.pointerType, target });
       if (card) card.style.zIndex = String(++top);
+      if (card?.dataset.lalalaCard) touchCard(card.dataset.lalalaCard);
 
+      if (pointers.size === 1) pick(at, target);
       if (pointers.size >= 2) {
         // A second finger anywhere, even on a card, makes it a pinch; the first one stops what it did.
         for (const pointer of pointers.keys()) capture(pointer);
@@ -189,6 +310,7 @@ export function CanvasSurface({ children }: { readonly children: ReactNode }) {
     };
 
     const move = (event: PointerEvent) => {
+      if (pointers.size === 0 && event.pointerType === "mouse") hover(event);
       if (!pointers.has(event.pointerId)) return;
       const at = local(event);
       pointers.set(event.pointerId, at);
@@ -208,12 +330,19 @@ export function CanvasSurface({ children }: { readonly children: ReactNode }) {
         // The world point under the fingers' first midpoint follows their midpoint.
         const wx = (gesture.mid.x - start.x) / start.z;
         const wy = (gesture.mid.y - start.y) / start.z;
-        setCamera({ x: both.mid.x - wx * z, y: both.mid.y - wy * z, z });
+        setCamera({ x: both.mid.x - wx * z, y: both.mid.y - wy * z, z }, true);
         // Clamped zoom: keep the pinch anchored to where it ended up.
         const camera = getCamera();
         if (camera.z !== z) {
           gesture = { kind: "pinch", ...both, camera };
         }
+      } else if (gesture.kind === "group") {
+        const { z } = getCamera();
+        const dx = (at.x - gesture.from.x) / z;
+        const dy = (at.y - gesture.from.y) / z;
+        const { grab } = gesture;
+        if (gesture.part === "head") moveGroup(grab, dx, dy);
+        else resizeGroup(grab, grab.area.w + dx, grab.area.h + dy);
       } else {
         const { z } = getCamera();
         const dx = (at.x - gesture.from.x) / z;
@@ -356,6 +485,7 @@ export function CanvasSurface({ children }: { readonly children: ReactNode }) {
 
   return (
     <div ref={surfaceRef} data-lalala-surface="">
+      <GroupAreas />
       <div ref={worldRef} data-lalala-world="">
         {children}
       </div>

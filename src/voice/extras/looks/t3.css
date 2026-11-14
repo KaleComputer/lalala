@@ -1,0 +1,627 @@
+/* The T3 Code look (look.ts): the canvas dressed as T3 Code's own UI. Every colour reads T3's active
+   theme (--app-theme-*, else index.css's semantic tokens), so it follows light, dark and custom themes.
+   Scoped under :root[data-lala-look="t3"] (one step stronger than the neon rules it restyles); nothing
+   moves on its own, and no card changes its box. */
+
+:root[data-lala-look="t3"] {
+  --t3l-canvas: var(--app-theme-canvas, var(--background, #fcfcfc));
+  --t3l-surface: var(--app-theme-surface, var(--card, #fff));
+  --t3l-text: var(--app-theme-text, var(--foreground, #27272a));
+  --t3l-muted: var(--app-theme-text-muted, var(--muted-foreground, #71717b));
+  --t3l-border: var(--app-theme-border, var(--border, #e4e4e7));
+  --t3l-input: var(--app-theme-input, var(--input, #d4d4d8));
+  --t3l-hover: var(--app-theme-accent-surface, var(--accent, #f4f4f5));
+  --t3l-primary: var(--app-theme-accent, var(--primary, #1b4ed8));
+  --t3l-primary-ink: var(--app-theme-accent-foreground, var(--primary-foreground, #fff));
+  /* Opaque edges for the bar's layered tabs (a see-through edge doubles where layers overlap). */
+  --t3l-edge: color-mix(in srgb, var(--t3l-text) 12%, var(--t3l-surface));
+  --t3l-edge-strong: color-mix(in srgb, var(--t3l-text) 20%, var(--t3l-surface));
+  --t3l-shadow: 0 1px 2px rgb(0 0 0 / 5%);
+  --t3l-float: 0 1px 2px rgb(0 0 0 / 6%), 0 10px 28px -14px rgb(0 0 0 / 22%);
+
+  --lala-bg: var(--t3l-canvas);
+  --lala-surface: var(--t3l-surface);
+  --lala-surface-solid: var(--t3l-surface);
+  --lala-raise: var(--t3l-hover);
+  --lala-raise-2: var(--app-theme-surface-overlay, var(--popover, var(--t3l-surface)));
+  --lala-settings-ink: var(--t3l-text);
+  --lala-ink: var(--t3l-text);
+  --lala-ink-dim: var(--t3l-muted);
+  /* The primary pulled toward the text (more in dark, where T3's blue is under 4.5:1 on the surface)
+     so it reads as text; the canvas colour reads on it as a fill. T3's primary stays on its buttons. */
+  --lala-accent: color-mix(in oklab, var(--t3l-primary) 90%, var(--t3l-text));
+  --lala-accent-ink: var(--t3l-canvas);
+  --lala-line: var(--t3l-border);
+  --lala-line-soft: color-mix(in srgb, var(--t3l-border) 60%, transparent);
+  --lala-info: var(--info-foreground, #1d4ed8);
+  --lala-warn: var(--app-theme-warning-foreground, var(--warning-foreground, #bb4d00));
+  --lala-danger: var(--app-theme-error-foreground, var(--destructive-foreground, #c10007));
+  --lala-font: var(
+    --font-sans,
+    -apple-system,
+    BlinkMacSystemFont,
+    "Inter Variable",
+    system-ui,
+    sans-serif
+  );
+  --lala-font-sans: var(--lala-font);
+  --lala-font-mono: var(--font-mono, ui-monospace, "SF Mono", Menlo, monospace);
+  --lala-radius: 12px;
+  --lala-border-width: 1px;
+  --lala-shadow: var(--t3l-shadow);
+}
+:root.dark[data-lala-look="t3"] {
+  --lala-accent: color-mix(in oklab, var(--t3l-primary) 76%, var(--t3l-text));
+  --t3l-shadow: 0 1px 2px rgb(0 0 0 / 40%);
+  --t3l-float: 0 14px 32px -18px rgb(0 0 0 / 75%), 0 1px 2px rgb(0 0 0 / 50%);
+}
+
+/* ------------------------------------------------------------------ the canvas: plain, like T3's */
+:root[data-lala-look="t3"] body:has([data-lalala-page]) {
+  background-color: var(--t3l-canvas) !important;
+}
+:root[data-lala-look="t3"] [data-lalala-page] {
+  color-scheme: light;
+  background-color: var(--t3l-canvas);
+}
+:root.dark[data-lala-look="t3"] [data-lalala-page] {
+  color-scheme: dark;
+}
+
+/* ------------------------------------------------------------------ cards: T3's rounded-xl panels */
+:root[data-lala-look="t3"] [data-lalala-card] {
+  overflow: hidden;
+  font-size: 12.5px;
+  line-height: 1.45;
+  -webkit-font-smoothing: antialiased;
+}
+:root[data-lala-look="t3"] [data-lalala-card] > header {
+  padding: 9px 14px 8px;
+  color: var(--t3l-text);
+  font-size: 13px;
+  font-weight: 500;
+  line-height: 18px;
+  letter-spacing: 0;
+  text-transform: none;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+:root[data-lala-look="t3"] [data-lalala-card] > header > [data-lalala-card-title]::first-letter {
+  text-transform: uppercase;
+}
+:root[data-lala-look="t3"] [data-lalala-card-body] {
+  padding: 10px 14px 14px;
+}
+/* The resize corner: a quiet two-line grip in the muted ink. */
+:root[data-lala-look="t3"] [data-lalala-card-resize]::after {
+  right: 4px;
+  bottom: 4px;
+  width: 9px;
+  height: 9px;
+  border: 0;
+  opacity: 0.7;
+  background: linear-gradient(
+    135deg,
+    transparent 0 46%,
+    var(--t3l-muted) 46% 54%,
+    transparent 54% 70%,
+    var(--t3l-muted) 70% 78%,
+    transparent 78%
+  );
+}
+
+/* ------------------------------------------------------------------ the bar: T3's composer */
+:root[data-lala-look="t3"] [data-lalala-presence] {
+  color-scheme: light;
+  --color-bg: var(--t3l-canvas);
+  --color-surface: var(--t3l-surface);
+  --color-raise: var(--t3l-hover);
+  --color-ink: var(--t3l-text);
+  --color-ink-2: var(--t3l-muted);
+  --color-ink-3: var(--t3l-muted);
+  --color-hair: var(--t3l-border);
+  --color-edge: var(--t3l-input);
+  --hud: var(--lala-accent);
+  --hud-2: var(--t3l-muted);
+  --hud-3: var(--t3l-edge-strong);
+  --hud-4: color-mix(in srgb, var(--t3l-primary) 12%, transparent);
+  --hud-ink: var(--lala-accent-ink);
+  --cyan: var(--lala-info);
+  --cyan-2: color-mix(in srgb, var(--lala-info) 70%, transparent);
+  --cyan-3: color-mix(in srgb, var(--lala-info) 35%, transparent);
+  --bar-amber: var(--lala-accent);
+  --font-sans: var(--lala-font-sans);
+  --font-mono: var(--lala-font-mono);
+  --font-tag: var(--lala-font-sans);
+  --font-hud: var(--lala-font-sans);
+  --lalala-fill: var(--t3l-surface);
+}
+:root.dark[data-lala-look="t3"] [data-lalala-presence] {
+  color-scheme: dark;
+}
+:root[data-lala-look="t3"] [data-lalala-presence] .fr,
+:root[data-lala-look="t3"] [data-lalala-presence] .fr[data-look] {
+  --fe: var(--t3l-edge);
+}
+:root[data-lala-look="t3"] [data-lalala-presence] .fr[data-look~="hot"] {
+  --fe: color-mix(in srgb, var(--t3l-primary) 55%, var(--t3l-surface));
+}
+:root[data-lala-look="t3"] [data-lalala-presence] :is(.fr-body, .fr-in) {
+  clip-path: none;
+}
+:root[data-lala-look="t3"] [data-lalala-presence] .fr-body {
+  border-radius: 16px;
+  box-shadow: var(--t3l-float);
+}
+:root[data-lala-look="t3"] [data-lalala-presence] .fr-in {
+  border-radius: 15px;
+  background: var(--t3l-surface);
+}
+:root.dark[data-lala-look="t3"] [data-lalala-presence] .fr-in {
+  box-shadow: inset 0 1px 0 rgb(255 255 255 / 3%);
+}
+:root[data-lala-look="t3"] [data-lalala-presence] .fr-in::after,
+:root[data-lala-look="t3"] [data-lalala-presence] .fr-hatch,
+:root[data-lala-look="t3"] [data-lalala-presence] .fr-bk,
+:root[data-lala-look="t3"] [data-lalala-presence] .fr-rail {
+  display: none;
+}
+:root[data-lala-look="t3"] [data-lalala-presence] .fr[data-look~="draw"] .fr-body::before,
+:root[data-lala-look="t3"] [data-lalala-presence] .fr[data-look~="draw"] .fr-body::after {
+  left: 16px;
+  background: linear-gradient(90deg, transparent, var(--t3l-primary), transparent);
+  box-shadow: none;
+}
+/* Start call: T3's primary button. */
+:root[data-lala-look="t3"] [data-lalala-presence] .fr-plate {
+  gap: 7px;
+  padding: 0 12px 0 10px;
+  border-radius: 8px;
+  clip-path: none;
+  color: var(--t3l-primary-ink);
+  background: var(--t3l-primary);
+  box-shadow:
+    inset 0 1px 0 rgb(255 255 255 / 16%),
+    0 1px 2px rgb(0 0 0 / 12%);
+  font: 500 13px / 1 var(--lala-font-sans);
+  letter-spacing: 0;
+  text-transform: capitalize;
+  text-shadow: none;
+}
+:root[data-lala-look="t3"] [data-lalala-presence] .fr-plate::before,
+:root[data-lala-look="t3"] [data-lalala-presence] .fr-plate::after {
+  display: none;
+}
+:root[data-lala-look="t3"] [data-lalala-presence] .fr-plate svg {
+  width: 14px;
+  height: 14px;
+}
+:root[data-lala-look="t3"] [data-lalala-presence] .bar-line:has(.bar-talk:hover) .fr-plate {
+  background: color-mix(in srgb, var(--t3l-primary) 90%, var(--t3l-primary-ink));
+}
+:root[data-lala-look="t3"] [data-lalala-presence] .bar-talk:focus-visible {
+  border-radius: 15px;
+  box-shadow: inset 0 0 0 2px var(--t3l-primary);
+}
+/* Not connected: a warning outline button split from its filled action. */
+:root[data-lala-look="t3"] [data-lalala-offline] button {
+  overflow: hidden;
+  border-radius: 8px;
+  clip-path: none;
+  font: 500 13px / 1 var(--lala-font-sans);
+  letter-spacing: 0;
+  text-transform: none;
+}
+:root[data-lala-look="t3"] [data-lalala-offline] button::before {
+  display: none;
+}
+:root[data-lala-look="t3"] [data-lalala-offline] button:focus-visible {
+  outline: 2px solid var(--t3l-primary);
+  outline-offset: 2px;
+}
+/* The mini-map: an inset well at the composer's right end. */
+:root[data-lala-look="t3"] [data-lalala-presence] .fr-map {
+  --hud: var(--t3l-primary);
+  --hud-3: color-mix(in srgb, var(--t3l-muted) 55%, transparent);
+  --hud-4: color-mix(in srgb, var(--t3l-primary) 16%, transparent);
+  top: 6px;
+  bottom: 6px;
+  right: 6px;
+  width: calc(var(--lalala-map-w) - 8px);
+  padding: 3px;
+  border: 1px solid var(--t3l-border);
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--t3l-text) 3%, var(--t3l-surface));
+}
+:root[data-lala-look="t3"] [data-lalala-presence] .fr-map::before {
+  display: none;
+}
+/* The voice lines are drawn mint; T3's blue instead. */
+:root[data-lala-look="t3"] [data-lalala-presence] .fr-wv {
+  filter: hue-rotate(95deg) saturate(1.3);
+}
+:root[data-lala-look="t3"] [data-lalala-presence] .lalala-voice {
+  background: radial-gradient(
+    farthest-side at 50% 55%,
+    color-mix(in srgb, var(--t3l-primary) 22%, transparent),
+    color-mix(in srgb, var(--t3l-primary) 10%, transparent) 45%,
+    transparent
+  );
+}
+/* The tabs on the composer's top edge: rounded on top, clear of its rounded ends. */
+:root[data-lala-look="t3"] [data-lalala-presence] .lalala-tabs-clip {
+  right: 16px;
+}
+:root[data-lala-look="t3"] [data-lalala-presence] .lalala-lead {
+  left: 18px;
+}
+:root[data-lala-look="t3"]
+  [data-lalala-presence]
+  :is(
+    [data-lalala-canvas-name],
+    [data-lalala-input-tab],
+    [data-lalala-mic],
+    [data-lalala-settings-tab]
+  )::before,
+:root[data-lala-look="t3"]
+  [data-lalala-presence]
+  :is(
+    [data-lalala-canvas-name],
+    [data-lalala-input-tab],
+    [data-lalala-mic],
+    [data-lalala-settings-tab]
+  )::after,
+:root[data-lala-look="t3"] [data-lalala-presence] .lalala-tabs > .fr-tab,
+:root[data-lala-look="t3"] [data-lalala-presence] .lalala-tabs > .fr-tab::before,
+:root[data-lala-look="t3"] [data-lalala-presence] .lalala-lead::before,
+:root[data-lala-look="t3"] [data-lalala-presence] .lalala-lead::after {
+  clip-path: none;
+  border-radius: 6px 6px 0 0;
+}
+:root[data-lala-look="t3"]
+  [data-lalala-presence]
+  :is(
+    [data-lalala-canvas-name],
+    [data-lalala-input-tab],
+    [data-lalala-mic],
+    [data-lalala-settings-tab],
+    [data-lalala-update]
+  ) {
+  color: var(--t3l-muted);
+}
+:root[data-lala-look="t3"]
+  [data-lalala-presence]
+  :is(
+    [data-lalala-canvas-name],
+    [data-lalala-input-tab],
+    [data-lalala-mic],
+    [data-lalala-settings-tab]
+  ):is(:hover, :focus-visible) {
+  color: var(--t3l-text);
+}
+:root[data-lala-look="t3"]
+  [data-lalala-presence]
+  :is(
+    [data-lalala-canvas-name],
+    [data-lalala-input-tab],
+    [data-lalala-mic],
+    [data-lalala-settings-tab]
+  ):is(:hover, :focus-visible)::after {
+  background: linear-gradient(var(--t3l-hover), var(--t3l-hover)), var(--lalala-fill);
+}
+:root[data-lala-look="t3"]
+  [data-lalala-presence]
+  :is(
+    [data-lalala-canvas-name],
+    [data-lalala-input-tab],
+    [data-lalala-settings-tab]
+  )[data-open] {
+  color: var(--lala-accent);
+}
+:root[data-lala-look="t3"]
+  [data-lalala-presence]
+  :is(
+    [data-lalala-canvas-name],
+    [data-lalala-input-tab],
+    [data-lalala-settings-tab]
+  )[data-open]::after {
+  background:
+    linear-gradient(
+      color-mix(in srgb, var(--t3l-primary) 14%, transparent),
+      color-mix(in srgb, var(--t3l-primary) 14%, transparent)
+    ),
+    var(--lalala-fill);
+}
+:root[data-lala-look="t3"]
+  [data-lalala-presence]
+  :is([data-lalala-mic][data-muted], [data-lalala-input-tab][data-failed]) {
+  color: var(--lala-warn);
+}
+:root[data-lala-look="t3"] [data-lalala-presence] .fr-tab .fr-tmr {
+  color: var(--t3l-muted);
+  font: 500 calc(var(--tab-fs) + 1px) / 1 var(--lala-font-mono);
+  letter-spacing: 0;
+  margin-right: 0;
+}
+:root[data-lala-look="t3"] [data-lalala-presence] .lalala-tabs-clip::after {
+  box-shadow: none;
+}
+:root[data-lala-look="t3"] [data-lalala-presence] [data-lalala-beam] {
+  display: none;
+}
+/* The canvas list: T3's popover menu. */
+:root[data-lala-look="t3"] [data-lalala-presence] [data-lalala-canvas-panel] {
+  overflow: hidden;
+  padding: 0;
+  border: 1px solid var(--t3l-border);
+  border-radius: 12px;
+  clip-path: none;
+  background: var(--t3l-border);
+  box-shadow: var(--t3l-float);
+  animation: none;
+}
+:root[data-lala-look="t3"]
+  [data-lalala-presence]
+  :is([data-lalala-canvas-panel] > ul, [data-lalala-canvas-head]) {
+  clip-path: none;
+  background: var(--lala-raise-2);
+}
+:root[data-lala-look="t3"] [data-lalala-presence] [data-lalala-canvas-panel] > ul {
+  padding: 4px;
+}
+:root[data-lala-look="t3"] [data-lalala-presence] [data-lalala-canvas-confirm] {
+  padding: 8px 12px;
+  color: var(--t3l-text);
+  background: var(--lala-raise-2);
+  font: 400 13px / 1.4 var(--lala-font-sans);
+  letter-spacing: 0;
+}
+:root[data-lala-look="t3"] [data-lalala-presence] [data-lalala-canvas-head] {
+  padding: 8px 12px 6px;
+  color: var(--t3l-text);
+  font: 500 13px / 1.3 var(--lala-font-sans);
+  letter-spacing: 0;
+  text-transform: none;
+}
+:root[data-lala-look="t3"] [data-lalala-presence] [data-lalala-canvas-head] > span:first-child {
+  color: var(--t3l-muted);
+  font-size: 12px;
+  letter-spacing: 0;
+}
+:root[data-lala-look="t3"] [data-lalala-presence] [data-lalala-canvas-panel] li > button {
+  padding: 6px 8px;
+  border-radius: 6px;
+  color: var(--t3l-text);
+  font: 400 13px / 1.3 var(--lala-font-sans);
+  letter-spacing: 0;
+  text-transform: none;
+}
+:root[data-lala-look="t3"] [data-lalala-presence] [data-lalala-canvas-panel] li > button::before {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--t3l-input);
+}
+:root[data-lala-look="t3"]
+  [data-lalala-presence]
+  [data-lalala-canvas-panel]
+  li
+  > button:is(:hover, :focus-visible),
+:root[data-lala-look="t3"]
+  [data-lalala-presence]
+  [data-lalala-canvas-panel]
+  li[data-active]
+  > button {
+  color: var(--t3l-text);
+  background: var(--t3l-hover);
+}
+:root[data-lala-look="t3"]
+  [data-lalala-presence]
+  [data-lalala-canvas-panel]
+  li[data-active]
+  > button
+  > svg {
+  color: var(--lala-accent);
+}
+:root[data-lala-look="t3"] [data-lalala-presence] [data-lalala-canvas-panel] li > input {
+  height: 26px;
+  border: 1px solid var(--t3l-primary);
+  border-radius: 6px;
+  color: var(--t3l-text);
+  font: 400 13px / 1 var(--lala-font-sans);
+  letter-spacing: 0;
+}
+:root[data-lala-look="t3"] [data-lalala-presence] [data-lalala-canvas-actions] > button {
+  height: 28px;
+  color: var(--t3l-text);
+  background: var(--lala-raise-2);
+  font: 500 12px / 1 var(--lala-font-sans);
+  letter-spacing: 0;
+  text-transform: none;
+}
+:root[data-lala-look="t3"]
+  [data-lalala-presence]
+  [data-lalala-canvas-actions]
+  > button:is(:hover, :focus-visible) {
+  background: linear-gradient(var(--t3l-hover), var(--t3l-hover)), var(--lala-raise-2);
+}
+:root[data-lala-look="t3"] [data-lalala-presence] [data-lalala-canvas-actions] > [data-danger] {
+  color: var(--lala-danger);
+}
+/* The typing field: T3's input, rounded-lg. */
+:root[data-lala-look="t3"]
+  [data-lalala-presence]
+  :is(
+    [data-lalala-input-field],
+    [data-lalala-input-field] > div,
+    [data-lalala-input-tiles] > li,
+    [data-lalala-input-tiles] img,
+    [data-lalala-input-tiles] > li[data-file] > span
+  ) {
+  clip-path: none;
+  border-radius: 10px;
+}
+:root[data-lala-look="t3"] [data-lalala-presence] [data-lalala-input-field] > div {
+  border-radius: 9px;
+  background: var(--t3l-surface);
+}
+:root[data-lala-look="t3"] [data-lalala-presence] [data-lalala-input-field] textarea {
+  color: var(--t3l-text);
+  caret-color: var(--t3l-text);
+  font: 400 14px / 18px var(--lala-font-sans);
+  padding-block: 7px;
+}
+:root[data-lala-look="t3"]
+  [data-lalala-presence]
+  [data-lalala-input-field]
+  textarea::placeholder {
+  color: var(--t3l-muted);
+}
+:root[data-lala-look="t3"]
+  [data-lalala-presence]
+  [data-lalala-input-cell][data-send]:not(:disabled) {
+  color: var(--lala-accent);
+}
+:root[data-lala-look="t3"]
+  [data-lalala-presence]
+  [data-lalala-input-cell]:is(:hover, :focus-visible):not(:disabled) {
+  background: var(--t3l-hover);
+}
+:root[data-lala-look="t3"]
+  [data-lalala-presence]
+  [data-lalala-input-tiles]
+  > li[data-file]
+  > span {
+  color: var(--t3l-text);
+  font: 400 11px / 1 var(--lala-font-sans);
+}
+:root[data-lala-look="t3"]
+  [data-lalala-presence]
+  [data-lalala-input-tiles]
+  > li[data-file]
+  > span
+  > span
+  + span {
+  color: var(--t3l-muted);
+  letter-spacing: 0;
+  text-transform: none;
+}
+:root[data-lala-look="t3"] [data-lalala-presence] [data-lalala-input-problem] {
+  font: 500 12px / 1.3 var(--lala-font-sans);
+  letter-spacing: 0;
+  text-transform: none;
+}
+:root[data-lala-look="t3"] [data-lalala-presence] .bar-incoming li {
+  color: var(--t3l-muted);
+}
+:root[data-lala-look="t3"] [data-lalala-presence] .fr-rl {
+  letter-spacing: 0.02em;
+  text-transform: none;
+  font-weight: 500;
+}
+
+/* The reaction game's pad (its colours are literal neon): T3's blue, red to wait, amber too early. */
+:root[data-lala-look="t3"] [data-lalala-reaction] button {
+  border: 1px dashed var(--t3l-input);
+  border-radius: 8px;
+  color: var(--lala-accent);
+  background: color-mix(in srgb, var(--t3l-text) 2%, transparent);
+  font-weight: 600;
+}
+:root[data-lala-look="t3"] [data-lalala-reaction] button span {
+  color: var(--t3l-muted);
+  font-weight: 500;
+  letter-spacing: 0;
+  opacity: 1;
+}
+:root[data-lala-look="t3"] [data-lalala-reaction] button[data-phase="wait"] {
+  border: 1px solid color-mix(in srgb, var(--lala-danger) 50%, transparent);
+  color: var(--lala-danger);
+  background: color-mix(in srgb, var(--lala-danger) 10%, transparent);
+}
+:root[data-lala-look="t3"] [data-lalala-reaction] button[data-phase="go"] {
+  border: 1px solid var(--t3l-primary);
+  color: var(--t3l-primary-ink);
+  background: var(--t3l-primary);
+}
+:root[data-lala-look="t3"] [data-lalala-reaction] button[data-phase="go"] span {
+  color: inherit;
+}
+:root[data-lala-look="t3"] [data-lalala-reaction] button[data-phase="early"] {
+  border: 1px solid color-mix(in srgb, var(--lala-warn) 50%, transparent);
+  color: var(--lala-warn);
+}
+:root[data-lala-look="t3"] [data-lalala-reaction] p {
+  color: var(--t3l-muted);
+  font-weight: 500;
+  letter-spacing: 0;
+}
+
+/* The recap's "waiting" tone is a literal light blue, too pale on a light surface. */
+:root[data-lala-look="t3"] [data-lalala-recap] em[data-tone="waiting"] {
+  color: var(--lala-info);
+}
+
+/* ------------------------------------------------------------------ settings: T3's settings, in its theme */
+:root[data-lala-look="t3"] [data-lalala-settings] {
+  --s-fg-2: var(--t3l-muted);
+  --s-fg-3: color-mix(in srgb, var(--t3l-muted) 75%, transparent);
+  --s-frame: var(--t3l-border);
+  --s-border: var(--t3l-border);
+  --s-divider: var(--t3l-border);
+  --s-input: var(--t3l-input);
+  --s-accent: var(--t3l-hover);
+  --s-primary: var(--t3l-primary);
+  --s-primary-ink: var(--t3l-primary-ink);
+  --s-ring: color-mix(in srgb, var(--t3l-primary) 24%, transparent);
+  --s-warn: var(--lala-warn);
+  --s-danger: var(--lala-danger);
+  --s-shadow: var(--t3l-float);
+  color-scheme: light;
+  background: rgb(0 0 0 / 32%);
+}
+:root.dark[data-lala-look="t3"] [data-lalala-settings] {
+  color-scheme: dark;
+  background: rgb(0 0 0 / 60%);
+}
+:root[data-lala-look="t3"] [data-lalala-settings-panel] {
+  box-shadow: var(--t3l-float);
+}
+/* Where the primary is text, the AA blue. */
+:root[data-lala-look="t3"]
+  :is(
+    [data-lalala-settings-status][data-ok],
+    [data-lalala-settings-step="done"] [data-lalala-settings-step-n],
+    [data-lalala-settings-list] [role="option"] > button,
+    [data-lalala-settings-back] > button
+  ) {
+  color: var(--lala-accent);
+}
+:root[data-lala-look="t3"] [data-lalala-settings-list] [role="option"] > svg {
+  stroke: var(--lala-accent);
+}
+:root[data-lala-look="t3"] [data-lalala-settings-switch][aria-checked="true"] > span {
+  background: var(--t3l-primary-ink);
+}
+
+/* ------------------------------------------------------------------ a picture full screen */
+:root[data-lala-look="t3"] [data-lalala-zoom]::backdrop {
+  background: color-mix(in srgb, var(--t3l-canvas) 94%, transparent);
+}
+:root[data-lala-look="t3"]
+  [data-lalala-zoom]
+  :is([data-lalala-zoom-close], [data-lalala-zoom-step]) {
+  border: 1px solid var(--t3l-border);
+  border-radius: 8px;
+  color: var(--t3l-text);
+  background: var(--t3l-surface);
+  box-shadow: var(--t3l-float);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  :root[data-lala-look="t3"] [data-lalala-presence] .fr[data-look~="draw"] .fr-body::before,
+  :root[data-lala-look="t3"] [data-lalala-presence] .fr[data-look~="draw"] .fr-body::after {
+    display: none;
+  }
+}

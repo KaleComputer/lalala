@@ -5,6 +5,7 @@ export const COLS = 48;
 export const ROWS = 3;
 
 export type Disk = {
+  readonly cols: number;
   readonly used: readonly boolean[];
   /** The step that empties each cell (its block moved to the front), or Infinity. */
   readonly emptiedAt: readonly number[];
@@ -14,8 +15,11 @@ export type Disk = {
   readonly steps: number;
 };
 
-/** A fragmented disk, the same for the same seed; packing it front to back fills `steps` cells. */
-export function createDisk(seed: number): Disk {
+/**
+ * A fragmented disk of `cols` columns, the same for the same seed; packing it front to back fills
+ * `steps` cells.
+ */
+export function createDisk(seed: number, cols = COLS): Disk {
   let state = seed >>> 0;
   const random = () => {
     state = (state + 0x6d2b79f5) >>> 0;
@@ -24,7 +28,7 @@ export function createDisk(seed: number): Disk {
     t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
     return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
   };
-  const cells = COLS * ROWS;
+  const cells = cols * ROWS;
   const used = Array.from({ length: cells }, () => random() < 0.6);
   const blocks = used.filter(Boolean).length;
   const emptiedAt = Array.from({ length: cells }, () => Infinity);
@@ -39,16 +43,23 @@ export function createDisk(seed: number): Disk {
     emptiedAt[last] = step;
     source[step] = last;
   }
-  return { used, emptiedAt, source, steps: blocks };
+  return { cols, used, emptiedAt, source, steps: blocks };
 }
 
 /**
- * How far the defrag is, 0 to 1, after `elapsedMs` of a compaction expected to take `estimateMs`:
- * even to 85% at the estimate, then ever slower toward 99%, so a long run eases instead of looping.
+ * Where the defrag is after `elapsedMs` of a compaction expected to take `estimateMs`: which pass,
+ * and how far through it, 0 to 1. A pass packs a whole disk in the estimate and holds it packed for
+ * `holdMs`; a compaction that runs on then starts the next pass, on a new disk.
  */
-export function defragProgress(elapsedMs: number, estimateMs: number): number {
-  const t = Math.max(0, elapsedMs) / Math.max(1, estimateMs);
-  return t <= 1 ? 0.85 * t : 0.85 + 0.14 * (1 - Math.exp(-(t - 1) / 0.8));
+export function defragPass(
+  elapsedMs: number,
+  estimateMs: number,
+  holdMs: number,
+): { readonly pass: number; readonly progress: number } {
+  const estimate = Math.max(1, estimateMs);
+  const elapsed = Math.max(0, elapsedMs);
+  const pass = Math.floor(elapsed / (estimate + holdMs));
+  return { pass, progress: Math.min(1, (elapsed - pass * (estimate + holdMs)) / estimate) };
 }
 
 export type DefragColors = { readonly block: string; readonly head: string };
@@ -72,11 +83,11 @@ export function drawDisk(
   const context = canvas.getContext("2d");
   if (context === null) return;
   context.clearRect(0, 0, width, height);
-  const cellW = width / COLS;
+  const cellW = width / disk.cols;
   const cellH = height / ROWS;
   const gap = Math.max(1, Math.round(ratio * 1.5));
   const reading = step < disk.steps ? (disk.source[step] ?? -1) : -1;
-  for (let cell = 0; cell < COLS * ROWS; cell++) {
+  for (let cell = 0; cell < disk.cols * ROWS; cell++) {
     // Column-major, like a disk map read left to right.
     const x = Math.floor(cell / ROWS) * cellW;
     const y = (cell % ROWS) * cellH;

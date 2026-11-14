@@ -9,7 +9,11 @@
   right: 1px;
   z-index: 5;
 }
-[data-lalala-presence] .fr-rail,
+/* The tick rail runs to the room's right end (the user, 10 Nov: it stopped 12px short, Presence's inset
+   from the key); the frame's cut corner or the map's divider ends it. */
+[data-lalala-presence] .fr-rail {
+  right: 0;
+}
 [data-lalala-presence] .fr-segs {
   right: 12px;
 }
@@ -341,7 +345,10 @@
 [data-lalala-canvas] [data-lalala-presence] .fr-wv {
   right: calc(var(--lalala-map-w) + 1px);
 }
-[data-lalala-canvas] [data-lalala-presence] :is(.fr-rail, .fr-segs) {
+[data-lalala-canvas] [data-lalala-presence] .fr-rail {
+  right: var(--lalala-map-w);
+}
+[data-lalala-canvas] [data-lalala-presence] .fr-segs {
   right: calc(var(--lalala-map-w) + 12px);
 }
 
@@ -776,8 +783,8 @@
 [data-lalala-note="paused"] {
   background: var(--color-surface);
 }
-/* NEW TOPIC (picked 9 Nov): the HUD's red wipes over the room by the plate's notch and goes back,
-   the wave running on beneath it. One run per topic; it ends with the note (TOPIC_LABEL_MS, 2.4 s). */
+/* UPDATE (was NEW TOPIC): the HUD's red wipes over the room by the plate's notch and goes back,
+   the wave running on beneath it. One run per topic, as long as the update sound (--lalala-topic-ms, set by VoiceBar). */
 [data-lalala-note="topic"] {
   animation: none;
 }
@@ -800,7 +807,7 @@
   text-indent: 0.2em;
   text-transform: uppercase;
   white-space: nowrap;
-  animation: lalala-topic-wipe 2400ms both;
+  animation: lalala-topic-wipe var(--lalala-topic-ms, 627ms) both;
 }
 /* The one live line along its foot. */
 [data-lalala-note="topic"] > b::after {
@@ -885,7 +892,26 @@
 /* The models loading (6 Nov: design A's text on the ASCII line, D's fill): a line each at the room's
    left end, the connecting ASCII line running and filling with their bytes behind it; the numbers brightest. */
 [data-lalala-presence] [data-lalala-note="models"] {
+  grid-auto-flow: column;
+  justify-content: space-between;
   justify-items: start;
+  column-gap: 8px;
+}
+/* A compaction while the models load: the defrag gives the room to their rows and COMPACTING shrinks to
+   a small tag at its right end, the defrag readout's cyan cut frame (compactingDefrag.css). */
+[data-lalala-presence]:has([data-lalala-note="models"]) [data-lalala-defrag] {
+  visibility: hidden;
+}
+[data-lalala-note="models"] > [data-lalala-compacting] {
+  --cut-tl: 5px;
+  --cut-line: var(--lalala-live, #26f3ec);
+  padding: 4px 7px 4px 8px;
+  background: var(--color-surface);
+  color: var(--lalala-live, #26f3ec);
+  font: 400 calc(var(--tab-fs, 10px) - 2px) / 1 var(--font-mono);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  white-space: nowrap;
 }
 [data-lalala-note="models"] > ol {
   display: grid;
@@ -1403,7 +1429,7 @@
 /* The cyberpunk look's bar (committee, 8 Nov), in Cyberpunk 2077's UI language from round 12 (the user): one red
    for the HUD's chrome (frame, tabs, icons, map, DELETE); cyan for what is live (the agent's wave, an open tab,
    the time, the current canvas, focus, the defrag's head); yellow for the user's own voice (his wash) and the one
-   thing to do (START, CONNECT, COMPACTING); warm white for information (the defrag's blocks); NEW TOPIC in the red.
+   thing to do (START, CONNECT, COMPACTING); warm white for information (the defrag's blocks); UPDATE in the red.
    Cut plates, corner brackets, static scanlines, mono micro-text; glitch only for errors. The canvas around it
    stays green. Paper and T3 dress the bar themselves. */
 :where(:root:not([data-lala-look]), :root[data-lala-look="neon"]) [data-lalala-presence] {
@@ -1513,6 +1539,38 @@
   /* The time appears plainly; glitch is for errors only. */
   & .lalala-tabs > .fr-tab:has(> .fr-tmr:not([hidden])) > .fr-tmr {
     animation: lalala-fade-in 150ms ease-out;
+  }
+  /* What the user types is information, warm white; the caret is live, cyan. */
+  & [data-lalala-input-field] textarea {
+    color: var(--lalala-info);
+    caret-color: var(--lalala-cyan);
+  }
+  /* The hint in the field's own type, so it sits where typed text will and the caret matches it. */
+  & [data-lalala-input-field] textarea::placeholder {
+    color: var(--lala-ink-dim);
+  }
+  /* Enabled send is yellow across its whole cell, edge to edge (the user, 10 Nov: no dark border inside it),
+     apart from attach by the cell's seam; empty, just the dim arrow, no box around it. */
+  & [data-lalala-input-cell][data-send]:not(:disabled) {
+    color: var(--hud-ink);
+    background: var(--lalala-yellow);
+  }
+  /* Focused: the cyan ring every control has, a dark line inside it so it reads on the yellow. */
+  & [data-lalala-input-cell][data-send]:not(:disabled):focus-visible {
+    box-shadow:
+      inset 0 0 0 2px var(--lalala-cyan),
+      inset 0 0 0 3px var(--color-surface);
+  }
+  & [data-lalala-input-cell][data-send] svg {
+    position: relative;
+  }
+  @media (hover: hover) {
+    & [data-lalala-input-cell][data-send]:not(:disabled):hover {
+      background: color-mix(in srgb, var(--lalala-yellow) 76%, white);
+    }
+  }
+  & [data-lalala-input-cell][data-send]:disabled {
+    color: color-mix(in srgb, var(--lalala-red) 85%, var(--color-surface));
   }
   /* The field's attach and send icons at 3:1 and more. */
   & [data-lalala-input-cell] {

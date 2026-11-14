@@ -6,7 +6,7 @@ import {
   getView,
   isMounted,
   lookAt,
-  reach,
+  contentBox,
   subscribe,
 } from "./canvasStore";
 
@@ -80,10 +80,10 @@ function drawInto(slot: HTMLElement) {
       .filter(([id]) => isMounted(id))
       .map(([, rect]) => rect);
     const view = viewRect();
-    // The view's reach, not where it is: the frame stays put as the view moves. The view is in it
-    // except from a camera saved before there were edges, until the first pan.
-    const room = reach();
-    bounds = held ?? union(room ? [room, view] : [view]);
+    // The cards and their groups, not the view: the frame stays put as the view moves or zooms out
+    // into the void; a view bigger than the cards shows as lit past the map's edges.
+    const content = contentBox();
+    bounds = held ?? union(content ? [content] : [view]);
     const scale = Math.min(width / bounds.w, height / bounds.h);
     fit = {
       scale,

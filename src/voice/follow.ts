@@ -1,6 +1,6 @@
 /**
- * Follow mode, per device: while on, `[focus: <card id>]` in the brain's replies moves the canvas
- * to that card. Off, only a turn where the user asked to be shown something moves it.
+ * Follow mode, per device: the brief tells the brain, which tags `[focus: <card id>]` on replies
+ * about a card while on, and off only when the user asked to see one. The tag moves the canvas there.
  */
 const KEY = "lalala:follow";
 const EVENT = "lalala:follow";
@@ -35,10 +35,6 @@ export function followCommand(text: string): boolean | undefined {
   if (words.length <= 4 && /\bfollow(ing)?\b/.test(said)) return true;
   return undefined;
 }
-
-/** The user asked to see something this turn, so its focus tag applies even with follow off. */
-export const asksToSee = (text: string) =>
-  /\b(show|take me to|zoom|highlight|go to|jump to|where is|where's|find)\b/i.test(text);
 
 const FOCUS_TAG = /\[focus:\s*([^\]]*)\]\s*/gi;
 

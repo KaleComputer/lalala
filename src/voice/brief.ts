@@ -34,15 +34,21 @@ export function withBrief(text: string): string {
 }
 
 /**
- * The open canvas, follow mode and the settings for new threads, for the brain:
+ * the user's open canvas, follow mode and the settings for new threads, for the brain:
  * `[canvas: Ideas (id c1x) · follow on · delegates: default effort=high fastMode=false]`.
+ * Before it, what the brain wrote that he didn't hear, if anything (topicHold's unheardLines):
+ * `[unheard: "Kokoro: done. It took ten…" · "Step two: open…"]`.
  */
-export function withCanvas(text: string): string {
+export function withCanvas(text: string, unheard: ReadonlyArray<string> = []): string {
   const canvases = globalThis.__lalalaCanvases?.snapshot();
   const open = canvases?.list.find((canvas) => canvas.id === canvases.active);
   const follow = isFollowing() ? "on" : "off";
   const canvas = open ? `${open.name} (id ${open.id})` : "none";
-  return `${text}\n\n[canvas: ${canvas} · follow ${follow} · delegates: ${delegatesTag()}]`;
+  const missed =
+    unheard.length === 0
+      ? ""
+      : `[unheard: ${unheard.map((line) => `"${line.replace(/[[\]]/g, "")}"`).join(" · ")}]\n`;
+  return `${text}\n\n${missed}[canvas: ${canvas} · follow ${follow} · delegates: ${delegatesTag()}]`;
 }
 
 export function needsBrief(

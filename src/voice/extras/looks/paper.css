@@ -1,0 +1,674 @@
+/* The paper look (look.ts): a cozy notebook desk. Cream dotted paper, cards as index cards held by
+   washi tape, hand-lettered titles over highlighter, the bar a stitched leather pencil case.
+   Everything is scoped under :root[data-lala-look="paper"] (one step stronger than the neon rules it
+   restyles); nothing here moves on its own, and no card changes its box. */
+
+:root[data-lala-look="paper"] {
+  --lala-bg: #f6eddc;
+  --lala-surface: #fffaf0;
+  --lala-surface-solid: #fffaf0;
+  --lala-raise: #f5ead6;
+  --lala-raise-2: #fffaf1;
+  --lala-settings-ink: #4a3426;
+  --lala-ink: #4a3426;
+  --lala-ink-dim: rgba(74, 52, 38, 0.72);
+  --lala-accent: #3f7d38;
+  --lala-accent-ink: #fffaf0;
+  --lala-line: rgba(122, 88, 56, 0.24);
+  --lala-line-soft: rgba(122, 88, 56, 0.13);
+  --lala-info: #3a6db0;
+  --lala-warn: #9a5d0c;
+  --lala-danger: #c23d55;
+  --lala-font:
+    ui-rounded, "SF Pro Rounded", "Avenir Next", "Nunito", "Segoe UI", system-ui, sans-serif;
+  --lala-font-sans:
+    ui-rounded, "SF Pro Rounded", "Avenir Next", "Nunito", "Segoe UI", system-ui, sans-serif;
+  --lala-font-mono: ui-monospace, "SF Mono", Menlo, monospace;
+  --lala-radius: 6px;
+  --lala-border-width: 1px;
+  --lala-shadow:
+    0 1px 1px rgba(110, 76, 40, 0.12), 0 4px 8px -3px rgba(110, 76, 40, 0.2),
+    0 18px 30px -14px rgba(110, 76, 40, 0.4);
+
+  /* The look's own palette, coloured pencils and highlighters. */
+  --paper-hand:
+    "Chalkboard SE", "Marker Felt", "Comic Sans MS", "Bradley Hand", ui-rounded, cursive;
+  --paper-desk: #f6eddc;
+  --paper-sheet: #fffaf0;
+  --paper-sheet-2: #fcf3e2;
+  --paper-ink: #4a3426;
+  --paper-rule: rgba(96, 140, 196, 0.13);
+  --paper-margin: rgba(226, 120, 136, 0.5);
+  --paper-pink: #f6b3c0;
+  --paper-yellow: #f8db73;
+  --paper-green: #b9dd98;
+  --paper-lilac: #d4c3f1;
+  --paper-blue: #b5d5f4;
+  --paper-leather: #9b5a32;
+  --paper-leather-dark: #6f3b1d;
+  --paper-stitch: rgba(255, 228, 190, 0.7);
+  --paper-grain: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.85' numOctaves='2' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 .35 0 0 0 0 .24 0 0 0 0 .13 0 0 0 .09 0'/%3E%3C/filter%3E%3Crect width='160' height='160' filter='url(%23n)'/%3E%3C/svg%3E");
+}
+
+/* ------------------------------------------------------------------ the desk */
+:root[data-lala-look="paper"] body:has([data-lalala-page]) {
+  background-color: var(--paper-desk) !important;
+}
+:root[data-lala-look="paper"] [data-lalala-page] {
+  color-scheme: light;
+  background-color: var(--paper-desk);
+  background-image:
+    radial-gradient(circle at 1.5px 1.5px, rgba(150, 112, 72, 0.26) 1.1px, transparent 1.7px),
+    var(--paper-grain),
+    radial-gradient(120% 90% at 50% 35%, rgba(255, 252, 244, 0.75), rgba(255, 252, 244, 0) 70%);
+  background-size:
+    22px 22px,
+    160px 160px,
+    100% 100%;
+}
+/* A few doodles in the desk's margins, under the cards. */
+:root[data-lala-look="paper"] [data-lalala-surface]::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background:
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 60 70' fill='none' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M18 4l3 8 8 3-8 3-3 8-3-8-8-3 8-3z' stroke='%23e9b949' stroke-width='2'/%3E%3Cpath d='M44 22l2 5 5 2-5 2-2 5-2-5-5-2 5-2z' stroke='%23e9b949' stroke-width='1.8'/%3E%3Cpath d='M30 64c-9-6-14-11-14-17 0-4 3-7 7-7 3 0 5 2 7 5 2-3 4-5 7-5 4 0 7 3 7 7 0 6-5 11-14 17z' stroke='%23e7909f' stroke-width='2'/%3E%3C/svg%3E")
+      right 26px top 38% / 54px auto no-repeat,
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 40 70' fill='none' stroke-linecap='round'%3E%3Cpath d='M22 68C18 50 18 30 26 4' stroke='%2385b065' stroke-width='2'/%3E%3Cpath d='M20 52c-8-1-13-6-13-12 7 0 12 5 13 12zM21 36c-7-2-11-8-10-14 7 1 11 7 10 14zM24 20c-2-7 1-13 7-15 2 7-1 12-7 15zM23 44c6-4 12-4 16 0-5 5-11 5-16 0zM24 28c5-5 11-6 15-3-4 6-10 7-15 3z' fill='%23a9cf88'/%3E%3C/svg%3E")
+      left 18px bottom 30% / 34px auto no-repeat;
+  opacity: 0.85;
+}
+
+/* ------------------------------------------------------------------ cards: index cards, taped down */
+:root[data-lala-look="paper"] [data-lalala-card] {
+  --tilt: -0.5deg;
+  --hl: var(--paper-pink);
+  --tape: var(--paper-tape-gingham-green);
+  --tape-at: -9px -22px auto auto;
+  --tape-turn: 38deg;
+  --tape-w: 76px;
+  --paper-tape-gingham-green:
+    linear-gradient(90deg, rgba(118, 170, 88, 0.45) 50%, transparent 0) 0 0 / 8px 8px,
+    linear-gradient(rgba(118, 170, 88, 0.45) 50%, transparent 0) 0 0 / 8px 8px,
+    rgba(214, 236, 196, 0.9);
+  --sheet: var(--paper-sheet);
+  isolation: isolate;
+  rotate: var(--tilt);
+  border-color: rgba(122, 88, 56, 0.16);
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.5), rgba(255, 255, 255, 0) 120px), var(--sheet);
+  font-family: var(--lala-font);
+}
+:root[data-lala-look="paper"] [data-lalala-card]:nth-of-type(5n + 2) {
+  --tilt: 0.45deg;
+  --hl: var(--paper-yellow);
+  --tape:
+    radial-gradient(circle, rgba(255, 255, 255, 0.95) 1.3px, transparent 1.9px) 0 0 / 7px 7px,
+    rgba(244, 164, 180, 0.88);
+  --tape-at: -10px 22px auto auto;
+  --tape-turn: 5deg;
+  --tape-w: 62px;
+}
+:root[data-lala-look="paper"] [data-lalala-card]:nth-of-type(5n + 3) {
+  --tilt: -0.3deg;
+  --hl: var(--paper-lilac);
+  --tape:
+    linear-gradient(90deg, rgba(92, 132, 206, 0.42) 50%, transparent 0) 0 0 / 8px 8px,
+    linear-gradient(rgba(92, 132, 206, 0.42) 50%, transparent 0) 0 0 / 8px 8px,
+    rgba(206, 222, 246, 0.9);
+  --tape-at: auto auto -9px -22px;
+  --tape-turn: 38deg;
+}
+:root[data-lala-look="paper"] [data-lalala-card]:nth-of-type(5n + 4) {
+  --tilt: 0.6deg;
+  --hl: var(--paper-green);
+  --sheet: #fff7dc;
+  --tape: repeating-linear-gradient(
+    -45deg,
+    rgba(246, 206, 92, 0.92) 0 5px,
+    rgba(250, 230, 160, 0.92) 5px 10px
+  );
+  --tape-at: -9px -22px auto auto;
+  --tape-turn: 38deg;
+}
+:root[data-lala-look="paper"] [data-lalala-card]:nth-of-type(5n) {
+  --tilt: -0.4deg;
+  --hl: var(--paper-blue);
+  --sheet: #fbfaee;
+  --tape:
+    radial-gradient(circle, rgba(255, 255, 255, 0.85) 1.2px, transparent 1.8px) 0 0 / 6px 6px,
+    rgba(196, 176, 236, 0.88);
+  --tape-at: -10px 30px auto auto;
+  --tape-turn: -4deg;
+  --tape-w: 60px;
+}
+/* The tape: translucent, torn at both ends, never in the way of a grab. */
+:root[data-lala-look="paper"] [data-lalala-card]::after {
+  content: "";
+  position: absolute;
+  z-index: 2;
+  inset: var(--tape-at);
+  width: var(--tape-w);
+  height: 20px;
+  background: var(--tape);
+  rotate: var(--tape-turn);
+  clip-path: polygon(
+    3% 0,
+    97% 0,
+    100% 18%,
+    97% 36%,
+    100% 54%,
+    97% 72%,
+    100% 90%,
+    97% 100%,
+    3% 100%,
+    0 84%,
+    3% 66%,
+    0 48%,
+    3% 30%,
+    0 12%
+  );
+  box-shadow: inset 0 0 0 40px rgba(255, 255, 255, 0.08);
+  mix-blend-mode: multiply;
+  pointer-events: none;
+}
+/* The title: hand-lettered over a highlighter swipe, a little flourish after it, a pink margin line under. */
+:root[data-lala-look="paper"] [data-lalala-card] > header {
+  padding: 8px 14px 5px;
+  border-bottom: 1.5px solid var(--paper-margin);
+  color: var(--paper-ink);
+  font-family: var(--paper-hand);
+  font-size: 15px;
+  font-weight: 700;
+  line-height: 1.3;
+  letter-spacing: 0.06em;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  text-decoration-line: underline;
+  text-decoration-color: color-mix(in srgb, var(--hl) 80%, transparent);
+  text-decoration-thickness: 0.72em;
+  text-underline-offset: -0.5em;
+  text-decoration-skip-ink: none;
+}
+:root[data-lala-look="paper"] [data-lalala-card] > header::after {
+  content: "";
+  display: inline-block;
+  width: 15px;
+  height: 13px;
+  margin-left: 7px;
+  vertical-align: 0.15em;
+  background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 14' fill='none' stroke='%23e9a23b' stroke-width='1.7' stroke-linecap='round'%3E%3Cpath d='M2.5 10.5 1 6.5M7.5 8.5V2.5M12 10.5l3-3.5'/%3E%3C/svg%3E")
+    center / contain no-repeat;
+}
+:root[data-lala-look="paper"] [data-lalala-card]:nth-of-type(5n + 3) > header::after {
+  width: 22px;
+  height: 15px;
+  vertical-align: -0.05em;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 16' fill='none'%3E%3Cpath d='M2 14C8 10 14 6 22 2' stroke='%237aa95c' stroke-width='1.5' stroke-linecap='round'/%3E%3Cpath d='M8 10.5C7 7.5 8.6 5.5 11 5c0 2.8-1 4.4-3 5.5zM13.5 7.5c-.2-3 1.5-5 4-5.2-.1 2.8-1.4 4.4-4 5.2zM9.5 10c2.6-1.3 5-.7 6.3 1.4-2.5 1.3-4.8.8-6.3-1.4zM15 7c2.6-1.3 5-.7 6.3 1.4-2.5 1.3-4.8.8-6.3-1.4z' fill='%239cc77a'/%3E%3C/svg%3E");
+}
+/* Faint ruled lines in the body that scroll with its text. */
+:root[data-lala-look="paper"] [data-lalala-card-body] {
+  padding: 9px 14px 16px;
+  background: repeating-linear-gradient(transparent 0 21px, var(--paper-rule) 21px 22px) local;
+}
+/* The resize corner is a dog-eared page corner. */
+:root[data-lala-look="paper"] [data-lalala-card-resize]::after {
+  right: 0;
+  bottom: 0;
+  width: 15px;
+  height: 15px;
+  border: 0;
+  border-radius: 0 0 var(--lala-radius) 0;
+  opacity: 1;
+  background: linear-gradient(
+    315deg,
+    var(--paper-desk) 0 47%,
+    rgba(122, 88, 56, 0.28) 48%,
+    #efe1c6 52%,
+    #f8eedb
+  );
+  filter: drop-shadow(-1px -1px 1px rgba(110, 76, 40, 0.12));
+}
+
+/* ------------------------------------------------------------------ the bar: a stitched leather pencil case */
+:root[data-lala-look="paper"] [data-lalala-presence] {
+  color-scheme: light;
+  --color-bg: var(--paper-desk);
+  --color-surface: var(--paper-sheet);
+  --color-raise: rgba(122, 88, 56, 0.07);
+  --color-ink: var(--paper-ink);
+  --color-ink-2: rgba(74, 52, 38, 0.74);
+  --color-ink-3: rgba(74, 52, 38, 0.6);
+  --color-hair: rgba(122, 88, 56, 0.16);
+  --color-edge: rgba(122, 88, 56, 0.3);
+  --hud: #3f7d38;
+  --hud-2: rgba(63, 125, 56, 0.8);
+  --hud-3: rgba(63, 125, 56, 0.42);
+  --hud-4: rgba(63, 125, 56, 0.14);
+  --hud-ink: #fffaf0;
+  --cyan: #3a6db0;
+  --cyan-2: rgba(58, 109, 176, 0.7);
+  --cyan-3: rgba(58, 109, 176, 0.35);
+  --font-tag: var(--paper-hand);
+  --lalala-fill: linear-gradient(#fffcf5, #fbf1df);
+}
+:root[data-lala-look="paper"] [data-lalala-presence] .fr,
+:root[data-lala-look="paper"] [data-lalala-presence] .fr[data-look] {
+  --fe: #a8805e;
+}
+:root[data-lala-look="paper"] [data-lalala-presence] :is(.fr-body, .fr-in) {
+  clip-path: none;
+  border-radius: 22px;
+}
+:root[data-lala-look="paper"] [data-lalala-presence] .fr-body {
+  padding: 0;
+  background: var(--paper-leather-dark);
+  box-shadow:
+    0 2px 2px rgba(80, 44, 18, 0.25),
+    0 10px 18px -8px rgba(80, 44, 18, 0.55);
+}
+:root[data-lala-look="paper"] [data-lalala-presence] .fr-in {
+  background:
+    radial-gradient(90% 120% at 30% 0%, rgba(255, 214, 170, 0.32), rgba(255, 214, 170, 0) 60%),
+    var(--paper-grain), linear-gradient(#ad6a3d, var(--paper-leather) 55%, #84461f);
+  background-size:
+    100% 100%,
+    120px 120px,
+    100% 100%;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 226, 190, 0.35),
+    inset 0 -2px 0 rgba(60, 28, 8, 0.25);
+  outline: 1.5px dashed var(--paper-stitch);
+  outline-offset: -5px;
+}
+:root[data-lala-look="paper"] [data-lalala-presence] .fr[data-look~="hot"] .fr-in {
+  outline-color: #ffe7a6;
+}
+:root[data-lala-look="paper"] [data-lalala-presence] .fr-in::after,
+:root[data-lala-look="paper"] [data-lalala-presence] .fr-hatch,
+:root[data-lala-look="paper"] [data-lalala-presence] .fr-bk-r {
+  display: none;
+}
+/* Connecting: the two light runs along the edges, warm instead of green. */
+:root[data-lala-look="paper"] [data-lalala-presence] .fr[data-look~="draw"] .fr-body::before,
+:root[data-lala-look="paper"] [data-lalala-presence] .fr[data-look~="draw"] .fr-body::after {
+  background: linear-gradient(90deg, transparent, #ffe7a6, transparent);
+  box-shadow: none;
+}
+/* The zipper pull, hanging off the case's left end. */
+:root[data-lala-look="paper"] [data-lalala-presence] .fr-bk-l {
+  z-index: 3;
+  top: 10px;
+  bottom: auto;
+  left: -7px;
+  width: 11px;
+  height: 24px;
+  border: 0;
+  border-radius: 4px 4px 6px 6px;
+  opacity: 1;
+  background:
+    radial-gradient(circle at 50% 70%, #6f3b1d 2px, transparent 2.6px),
+    linear-gradient(90deg, #b8893a, #f3d589 45%, #c79a45);
+  box-shadow: 0 2px 3px rgba(80, 44, 18, 0.4);
+  rotate: 18deg;
+}
+/* START CALL: a cream pill with a round red button. */
+:root[data-lala-look="paper"] [data-lalala-presence] .fr-plate {
+  gap: 8px;
+  padding: 0 16px 0 5px;
+  border-radius: 999px;
+  clip-path: none;
+  color: var(--paper-ink);
+  background: linear-gradient(#fffaf0, #f6ead3);
+  box-shadow:
+    inset 0 -1.5px 0 rgba(122, 88, 56, 0.18),
+    0 1px 0 rgba(255, 230, 200, 0.4),
+    0 2px 4px rgba(60, 28, 8, 0.35);
+  font-family: var(--paper-hand);
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-shadow: none;
+}
+:root[data-lala-look="paper"] [data-lalala-presence] .fr-plate svg,
+:root[data-lala-look="paper"] [data-lalala-presence] .fr-plate::after {
+  display: none;
+}
+:root[data-lala-look="paper"] [data-lalala-presence] .fr-plate::before {
+  position: static;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: radial-gradient(circle at 36% 30%, #ff9b8f, #e8423a 52%, #b8231f);
+  box-shadow:
+    0 0 0 2px #fff,
+    0 1px 2px 2px rgba(122, 60, 30, 0.3);
+  transform: none;
+}
+:root[data-lala-look="paper"] [data-lalala-presence] .bar-talk:focus-visible {
+  border-radius: 22px;
+  box-shadow: inset 0 0 0 2px #ffe7a6;
+}
+/* The mini-map: a little sketch on graph paper, set into the case. */
+:root[data-lala-look="paper"] [data-lalala-presence] .fr-map {
+  --hud: #4a3426;
+  --hud-3: rgba(74, 52, 38, 0.45);
+  --hud-4: rgba(63, 125, 56, 0.2);
+  top: 7px;
+  bottom: 7px;
+  right: 9px;
+  width: calc(var(--lalala-map-w) - 10px);
+  padding: 2px;
+  border-radius: 6px;
+  background:
+    linear-gradient(90deg, rgba(96, 140, 196, 0.2) 1px, transparent 0) 0 0 / 6px 6px,
+    linear-gradient(rgba(96, 140, 196, 0.2) 1px, transparent 0) 0 0 / 6px 6px,
+    #fffaf0;
+  box-shadow:
+    inset 0 1px 2px rgba(80, 44, 18, 0.35),
+    0 1px 0 rgba(255, 226, 190, 0.35);
+}
+:root[data-lala-look="paper"] [data-lalala-presence] .fr-map::before {
+  display: none;
+}
+/* The voice lines are drawn in mint; on leather they read as warm golden thread. */
+:root[data-lala-look="paper"] [data-lalala-presence] .fr-wv {
+  filter: sepia(1) saturate(1.5) brightness(1.06);
+}
+:root[data-lala-look="paper"] [data-lalala-presence] .lalala-voice {
+  background: radial-gradient(
+    farthest-side at 50% 55%,
+    rgba(255, 236, 196, 0.55),
+    rgba(255, 214, 160, 0.28) 45%,
+    rgba(255, 214, 160, 0)
+  );
+}
+:root[data-lala-look="paper"] [data-lalala-presence] .fr-rail {
+  display: none;
+}
+/* The tab rows sit on the case's straight top, clear of its rounded ends. */
+:root[data-lala-look="paper"] [data-lalala-presence] .lalala-tabs-clip {
+  right: 20px;
+}
+:root[data-lala-look="paper"] [data-lalala-presence] .lalala-lead {
+  left: 24px;
+}
+/* The tabs on the case: index tabs in pastel pencil colours, rounded on top. */
+:root[data-lala-look="paper"] [data-lalala-presence] [data-lalala-canvas-name] {
+  --lalala-fill: linear-gradient(#fde3e8, #f9cfd8);
+}
+:root[data-lala-look="paper"] [data-lalala-presence] [data-lalala-input-tab] {
+  --lalala-fill: linear-gradient(#fdf1c4, #f9e39a);
+}
+:root[data-lala-look="paper"] [data-lalala-presence] [data-lalala-mic] {
+  --lalala-fill: linear-gradient(#e6f4d8, #d1eabb);
+}
+:root[data-lala-look="paper"] [data-lalala-presence] .lalala-tabs > .fr-tab {
+  --lalala-fill: linear-gradient(#ece3fb, #dccff5);
+}
+:root[data-lala-look="paper"] [data-lalala-presence] [data-lalala-settings-tab] {
+  --lalala-fill: linear-gradient(#e2effc, #cde2f8);
+}
+:root[data-lala-look="paper"] [data-lalala-presence] [data-lalala-canvas-name]::before,
+:root[data-lala-look="paper"] [data-lalala-presence] [data-lalala-canvas-name]::after,
+:root[data-lala-look="paper"] [data-lalala-presence] [data-lalala-input-tab]::before,
+:root[data-lala-look="paper"] [data-lalala-presence] [data-lalala-input-tab]::after,
+:root[data-lala-look="paper"] [data-lalala-presence] [data-lalala-mic]::before,
+:root[data-lala-look="paper"] [data-lalala-presence] [data-lalala-mic]::after,
+:root[data-lala-look="paper"] [data-lalala-presence] [data-lalala-settings-tab]::before,
+:root[data-lala-look="paper"] [data-lalala-presence] [data-lalala-settings-tab]::after,
+:root[data-lala-look="paper"] [data-lalala-presence] .lalala-tabs > .fr-tab::before,
+:root[data-lala-look="paper"] [data-lalala-presence] .lalala-lead::before,
+:root[data-lala-look="paper"] [data-lalala-presence] .lalala-lead::after {
+  clip-path: none;
+  border-radius: 7px 7px 0 0;
+}
+:root[data-lala-look="paper"] [data-lalala-presence] .lalala-tabs > .fr-tab {
+  clip-path: none;
+  border-radius: 7px 7px 0 0;
+}
+:root[data-lala-look="paper"] [data-lalala-presence] .lalala-lead::before,
+:root[data-lala-look="paper"] [data-lalala-presence] .lalala-lead::after {
+  clip-path: none;
+  border-radius: 7px 7px 0 0;
+}
+:root[data-lala-look="paper"] [data-lalala-presence] [data-lalala-canvas-name] {
+  font-family: var(--paper-hand);
+  font-size: 10px;
+  font-weight: 700;
+}
+:root[data-lala-look="paper"] [data-lalala-presence] .lalala-tabs-clip::after {
+  box-shadow: none;
+}
+:root[data-lala-look="paper"] [data-lalala-presence] [data-lalala-mic][data-muted] {
+  color: #9a5d0c;
+}
+:root[data-lala-look="paper"] [data-lalala-presence] [data-lalala-input-tab][data-failed] {
+  color: #9a5d0c;
+}
+/* The canvas list and the typing field: paper notes with rounded corners. */
+:root[data-lala-look="paper"] [data-lalala-presence] [data-lalala-canvas-panel] {
+  clip-path: none;
+  border-radius: 10px;
+  box-shadow: 0 10px 22px -10px rgba(110, 76, 40, 0.45);
+  animation: none;
+}
+:root[data-lala-look="paper"] [data-lalala-presence] [data-lalala-canvas-panel] > ul {
+  clip-path: none;
+  border-radius: 9px 9px 0 0;
+}
+:root[data-lala-look="paper"]
+  [data-lalala-presence]
+  [data-lalala-canvas-panel]
+  li
+  > button::before {
+  border-radius: 50%;
+}
+:root[data-lala-look="paper"]
+  [data-lalala-presence]
+  [data-lalala-canvas-actions]
+  > button:last-child {
+  border-radius: 0 0 9px 0;
+}
+:root[data-lala-look="paper"]
+  [data-lalala-presence]
+  [data-lalala-canvas-actions]
+  > button:first-child {
+  border-radius: 0 0 0 9px;
+}
+:root[data-lala-look="paper"]
+  [data-lalala-presence]
+  [data-lalala-canvas-actions]
+  > [data-danger] {
+  color: var(--lala-danger);
+}
+:root[data-lala-look="paper"]
+  [data-lalala-presence]
+  :is(
+    [data-lalala-input-field],
+    [data-lalala-input-field] > div,
+    [data-lalala-input-tiles] > li,
+    [data-lalala-input-tiles] img,
+    [data-lalala-input-tiles] > li[data-file] > span
+  ) {
+  clip-path: none;
+  border-radius: 10px;
+}
+:root[data-lala-look="paper"] [data-lalala-presence] [data-lalala-input-field] > div {
+  border-radius: 9px;
+  background: var(--paper-sheet);
+}
+:root[data-lala-look="paper"] [data-lalala-presence] [data-lalala-beam] {
+  display: none;
+}
+/* Typing opens the case: a sheet of paper inside. */
+:root[data-lala-look="paper"] [data-lalala-presence] .fr[data-open] .fr-in {
+  background:
+    repeating-linear-gradient(transparent 0 21px, var(--paper-rule) 21px 22px), var(--paper-sheet);
+}
+
+/* ------------------------------------------------------------------ settings: a sheet of notepaper */
+/* Its tones already follow the ink and paper tokens; this sets the warm ones and the notebook dress. */
+:root[data-lala-look="paper"] [data-lalala-settings] {
+  /* The base 62%/42% ink is too faint on cream: 78% keeps descriptions over 4.5:1. */
+  --s-fg-2: color-mix(in srgb, var(--s-fg) 78%, transparent);
+  --s-fg-3: color-mix(in srgb, var(--s-fg) 56%, transparent);
+  --s-warn: var(--lala-warn);
+  --s-danger: var(--lala-danger);
+  --s-shadow: 0 2px 3px rgba(110, 76, 40, 0.12), 0 18px 34px -16px rgba(80, 50, 20, 0.35);
+  color-scheme: light;
+  background: rgba(96, 66, 36, 0.28);
+}
+:root[data-lala-look="paper"] [data-lalala-settings-panel] {
+  position: relative;
+  border: 1px solid rgba(122, 88, 56, 0.18);
+  border-radius: 10px;
+  background: var(--paper-sheet);
+  box-shadow:
+    0 2px 3px rgba(110, 76, 40, 0.12),
+    0 26px 50px -18px rgba(80, 50, 20, 0.5);
+}
+:root[data-lala-look="paper"] [data-lalala-settings-panel]::after {
+  content: "";
+  position: absolute;
+  top: -10px;
+  left: calc(50% - 44px);
+  width: 88px;
+  height: 22px;
+  background:
+    linear-gradient(90deg, rgba(118, 170, 88, 0.45) 50%, transparent 0) 0 0 / 8px 8px,
+    linear-gradient(rgba(118, 170, 88, 0.45) 50%, transparent 0) 0 0 / 8px 8px,
+    rgba(214, 236, 196, 0.9);
+  rotate: -2deg;
+  clip-path: polygon(
+    3% 0,
+    97% 0,
+    100% 25%,
+    97% 50%,
+    100% 75%,
+    97% 100%,
+    3% 100%,
+    0 75%,
+    3% 50%,
+    0 25%
+  );
+  mix-blend-mode: multiply;
+  opacity: 0.8;
+  pointer-events: none;
+}
+:root[data-lala-look="paper"] [data-lalala-settings-panel] > header > h1 {
+  align-items: baseline;
+  font: 700 15px / 1.3 var(--paper-hand);
+  letter-spacing: 0.08em;
+}
+/* The page's name hand-lettered over highlighter; the breadcrumb before it stays quiet. */
+:root[data-lala-look="paper"] [data-lalala-settings-panel] > header > h1 > span:last-child {
+  color: var(--paper-ink);
+  text-decoration: underline;
+  text-decoration-color: color-mix(in srgb, var(--paper-yellow) 85%, transparent);
+  text-decoration-thickness: 0.6em;
+  text-underline-offset: -0.4em;
+  text-decoration-skip-ink: none;
+}
+:root[data-lala-look="paper"] [data-lalala-settings-panel] > header > button {
+  border-radius: 50%;
+}
+:root[data-lala-look="paper"] [data-lalala-settings-body] {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(122, 88, 56, 0.3) transparent;
+}
+:root[data-lala-look="paper"] [data-lalala-settings-group] {
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.6);
+  box-shadow: 0 1px 2px rgba(110, 76, 40, 0.08);
+}
+:root[data-lala-look="paper"] [data-lalala-settings-row] h3 {
+  font-weight: 600;
+}
+:root[data-lala-look="paper"] [data-lalala-settings-button] {
+  border-radius: 999px;
+  font-family: var(--paper-hand);
+  font-weight: 700;
+  letter-spacing: 0.08em;
+}
+@media (hover: hover) {
+  :root[data-lala-look="paper"]
+    [data-lalala-settings-button]:not([data-danger]):hover:not(:disabled):not(
+      [aria-disabled="true"]
+    ),
+  :root[data-lala-look="paper"]
+    [data-lalala-settings-list]
+    [role="option"]
+    > button:hover:not(:disabled) {
+    background: color-mix(in srgb, var(--paper-green) 45%, var(--paper-sheet));
+  }
+}
+:root[data-lala-look="paper"] [data-lalala-settings-list] [role="option"][data-active] {
+  background: color-mix(in srgb, var(--paper-yellow) 30%, transparent);
+}
+:root[data-lala-look="paper"] [data-lalala-settings-segments] {
+  border-radius: 999px;
+}
+:root[data-lala-look="paper"] [data-lalala-settings-segments] > button {
+  border-radius: 999px;
+  font-family: var(--paper-hand);
+  font-weight: 700;
+  letter-spacing: 0.02em;
+}
+:root[data-lala-look="paper"] [data-lalala-settings-slider] > output {
+  background: color-mix(in srgb, var(--paper-yellow) 35%, transparent);
+}
+/* The pink margin line is the sidebar's edge; a phone, with no sidebar, has none. */
+/* The washi tape overhangs the sheet's top edge, so the sheet doesn't clip; the sidebar's tint follows its corners. */
+@media (min-width: 641px) {
+  :root[data-lala-look="paper"] [data-lalala-settings-panel] {
+    overflow: visible;
+  }
+  /* Taped down at the right, clear of the page's name and the close. */
+  :root[data-lala-look="paper"] [data-lalala-settings-panel]::after {
+    left: auto;
+    right: 120px;
+  }
+  /* The rail's current-page bar in the margin line's pink. */
+  :root[data-lala-look="paper"]
+    [data-rail]
+    [data-lalala-settings-nav]
+    button[aria-current="page"]::before {
+    background: rgb(226 120 136 / 85%);
+  }
+  /* The current page over the same highlighter as its name in the header. */
+  :root[data-lala-look="paper"] [data-lalala-settings-nav] button[aria-current="page"] {
+    background: color-mix(in srgb, var(--paper-yellow) 45%, transparent);
+  }
+  /* Inactive pages a step darker than descriptions, over the sidebar's tint. */
+  :root[data-lala-look="paper"] [data-lalala-settings-nav] button {
+    color: color-mix(in srgb, var(--s-fg) 88%, transparent);
+  }
+  :root[data-lala-look="paper"] [data-lalala-settings-nav] {
+    border-radius: 9px 0 0 9px;
+    border-right: 1.5px solid rgb(226 120 136 / 85%);
+  }
+}
+@media (max-width: 640px) {
+  :root[data-lala-look="paper"] [data-lalala-settings-panel] {
+    border: 0;
+    border-radius: 0;
+  }
+  :root[data-lala-look="paper"] [data-lalala-settings-panel]::after {
+    display: none;
+  }
+}
+
+/* ------------------------------------------------------------------ a picture full screen */
+:root[data-lala-look="paper"] [data-lalala-zoom]::backdrop {
+  background: rgba(246, 237, 220, 0.94);
+}
+:root[data-lala-look="paper"]
+  [data-lalala-zoom]
+  :is([data-lalala-zoom-close], [data-lalala-zoom-step]) {
+  color: var(--paper-ink);
+  background: rgba(255, 250, 240, 0.92);
+  box-shadow: 0 2px 6px rgba(110, 76, 40, 0.25);
+}

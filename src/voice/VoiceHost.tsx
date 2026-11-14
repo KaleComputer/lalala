@@ -20,16 +20,18 @@ import { primaryServerSettingsAtom } from "../state/server";
 import { threadEnvironment } from "../state/threads";
 import { useOrchestrationCommand } from "../state/use-orchestration-command";
 import { useVoiceBrainContext } from "../state/voiceBrainContext";
+import { uploadVoiceFile } from "../state/voiceUpload";
 import { applyCardTags, takeCards } from "./brainCards";
 import { compactEstimateMs, compactionDue, shareBrainThread } from "./brainCompaction";
 import { useCompactSim } from "./compactSim";
 import { markBriefed, needsBrief, withBrief, withCanvas } from "./brief";
 import type { ModelProgress } from "./adapters";
 import { speechEngine, useSpeechEngine } from "./engine";
-import { asksToSee, followCommand, isFollowing, setFollowing, takeFocus } from "./follow";
+import { followCommand, setFollowing, takeFocus } from "./follow";
 import { type VoicePhase, VoiceSession } from "./speech";
 import { takeSentences } from "./speechText";
 import { VoiceBar, type VoiceBarState } from "./VoiceBar";
+import type { VoiceFileRef } from "./VoiceInput";
 import { closeVoiceSettings, CONNECTED_HOLD_MS, onVoiceSettingsClosed, openVoiceSettings } from "./VoiceSettings";
 import { endVoiceLogSession, startVoiceLogSession, voiceLog } from "./voiceLog";
 import {
@@ -75,7 +77,8 @@ const QUIET_TOPIC_MARK = "\u2064";
 const ABOUT_TOPIC_TAG = /\s*\[new topic\]\s*\[about:\s*([^\]]*)\]\s*/gi;
 const ABOUT_TAG = /\s*\[about:[^\]]*\]\s*/gi;
 const opensTopic = (text: string) => /^\s*[\u2063\u2064]/.test(text);
-const TIDY_TAG = /\[tidy\]\s*/gi;
+// `[tidy]` repacks the open canvas, `[tidy: <group name>]` only that group.
+const TIDY_TAG = /\[tidy(?::\s*([^\]]*))?\]\s*/gi;
 // `[streamer: on]` / `[streamer: off]` flips streamer mode, the same switch as in settings.
 const STREAMER_TAG = /\[streamer:\s*(on|off)\s*\]\s*/gi;
 // A sent `/compact` counts as running this long at most, until its run shows on the thread.
@@ -136,14 +139,16 @@ export function VoiceHost({
   const [stoppedAt, setStoppedAt] = useState(0);
   // The user's mic is muted for this call (the bar's mic cell); the call and its replies go on.
   const [muted, setMuted] = useState(false);
-  // The platform took the mic away mid-call (iOS: another app playing sound); a tap takes it back.
-  const [micPaused, setMicPaused] = useState(false);
   const engine = useSpeechEngine();
   // Why local speech cannot be used right now (service down or loading); null when it is ready.
   const [localProblem, setLocalProblem] = useState<string | null>(null);
   // Asks the local service again now (a tap on "tap to retry"); the poll keeps going either way.
   const recheckLocalRef = useRef<() => void>(() => {});
+  // The platform took the mic away mid-call (iOS: another app playing sound); a tap takes it back.
+  const [micPaused, setMicPaused] = useState(false);
   const sessionRef = useRef<VoiceSession | null>(null);
+  // A tap while the mic opens would start a second session that nothing ever stops (13 Nov).
+  const startingRef = useRef(false);
   const sessionStartedAtRef = useRef(0);
   // When the user's last words went to the thread (performance time), for the log's reply timings.
   const sentAtRef = useRef(0);
@@ -166,7 +171,6 @@ export function VoiceHost({
   const quietTopicsRef = useRef(new Map<string, boolean>());
   // The user's latest words: a reply after them on the thread is their answer.
   const awaitedMessageRef = useRef<string | null>(null);
-  const showMeRef = useRef(false);
   // The thread this client just created, until its shell arrives.
   const pendingThreadIdRef = useRef<ThreadId | null>(null);
   // The page can't reach lalala: the user's words wait in the outbox (voiceOutbox) until it can.
@@ -240,7 +244,7 @@ export function VoiceHost({
     };
   }, []);
 
-  // oxlint-disable-next-line t3code/no-unreasoned-state-sync -- polls the local speech service while it is the chosen engine, so the bar says when it is down instead of falling back
+  // oxlint-disable-next-line t3code/no-unreasoned-state-sync -- reads the in-browser models' load state (workers outside React) while a call loads them, and stops once they are ready
   useEffect(() => {
     if (engine !== "local" || speech) return;
     let cancelled = false;
@@ -384,9 +388,13 @@ export function VoiceHost({
   }, [environmentId, brainThreadId]);
 
   /** The user's words join the outbox, which sends them in order; true once they are held. */
-  const send = (text: string, images: ReadonlyArray<File> = []) => {
-    sessionRef.current?.awaitAnswer();
-    awaitedMessageRef.current = holdWords(text, images).messageId;
+  const send = (
+    text: string,
+    images: ReadonlyArray<File> = [],
+    files: ReadonlyArray<VoiceFileRef> = [],
+  ) => {
+    const unheard = sessionRef.current?.timSpoke() ?? [];
+    awaitedMessageRef.current = holdWords(text, images, files, unheard).messageId;
     if (linkIsDown()) voiceLog("user", "held", { text, held: heldWords().length });
     setNotSent(false);
     void drain();
@@ -441,105 +449,130 @@ export function VoiceHost({
     }
   });
 
-  /** The user's words (spoken, or typed in the bar's input with its pictures) as a turn on the voice thread, made on first use. */
-  const sendNow = useEffectEvent(async ({ text, images, messageId }: HeldWords): Promise<SendOutcome> => {
-    if (environmentId === null || project === undefined) {
-      setError("No brain thread yet: pair with T3 Code in the settings.");
-      return { sent: false, retry: false, message: "no brain thread" };
-    }
-    const defaultSelection = serverSettings.defaultModelSelection;
-    const modelSelection =
-      defaultSelection !== null && config?.model
-        ? // Same instance and options (effort) as the default; only the model differs.
-          { ...defaultSelection, model: config.model }
-        : defaultSelection;
-    const createdAt = new Date().toISOString();
-    // The data-URL form startTurn persists itself (the composer's path without upload URLs).
-    const attachments = await Promise.all(
-      images.map(async (file) => ({
-        type: "image" as const,
-        id: randomUUID(),
-        name: file.name || "image",
-        mimeType: file.type,
-        sizeBytes: file.size,
-        dataUrl: await readFileAsDataUrl(file),
-      })),
-    );
-    const message = { messageId, role: "user" as const, attachments };
-    const existingThreadId = voiceThread?.id ?? pendingThreadIdRef.current;
-    if (existingThreadId === null && modelSelection === null) {
-      setError("Pick a default model in Settings first.");
-      return { sent: false, retry: false, message: "no default model" };
-    }
-    const threadId = existingThreadId ?? newThreadId();
-    if (existingThreadId === null) pendingThreadIdRef.current = threadId;
-    const follow = followCommand(text);
-    if (follow !== undefined) setFollowing(follow);
-    showMeRef.current = asksToSee(text);
-    const briefed =
-      existingThreadId === null || needsBrief(threadId, items, brainContext?.compactedAt ?? null);
-    const turnText = briefed ? withBrief(withCanvas(text)) : withCanvas(text);
-    // A send queued on a dead connection never fails on its own; it counts as failed after this.
-    let timer = 0;
-    const timedOut = new Promise<"timeout">((resolve) => {
-      timer = window.setTimeout(
-        () => resolve("timeout"),
-        images.length > 0 ? SEND_WITH_IMAGES_TIMEOUT_MS : REQUEST_TIMEOUT_MS,
-      );
-    });
-    const turn =
-      existingThreadId !== null || modelSelection === null
-        ? startTurn({
-            environmentId,
-            input: {
-              threadId,
-              message: { ...message, text: turnText },
-              runtimeMode: voiceThread?.runtimeMode ?? "full-access",
-              interactionMode: voiceThread?.interactionMode ?? "default",
-              createdAt,
-            },
-          })
-        : startTurn({
-            environmentId,
-            input: {
-              threadId,
-              message: { ...message, text: turnText },
-              modelSelection,
-              runtimeMode: "full-access",
-              interactionMode: "default",
-              bootstrap: {
-                createThread: {
-                  projectId: project.id,
-                  title: voiceThreadTitle(config),
-                  modelSelection,
-                  runtimeMode: "full-access",
-                  interactionMode: "default",
-                  branch: null,
-                  worktreePath: null,
-                  createdAt,
-                },
-              },
-              createdAt,
-            },
-          });
-    const result = await Promise.race([turn, timedOut]).finally(() => window.clearTimeout(timer));
-    if (result === "timeout" || result._tag === "Failure") {
-      if (existingThreadId === null) pendingThreadIdRef.current = null;
-      const failure = result === "timeout" ? null : squashAtomCommandFailure(result);
-      // The server path's send aborts itself after the same time (a TimeoutError).
-      if (result === "timeout" || (failure instanceof DOMException && failure.name === "TimeoutError")) {
-        return { sent: false, retry: true, message: "send timed out", timedOut: true };
+  /** The user's words (spoken, or typed in the bar's input with its pictures and uploaded files) as a turn on the voice thread, made on first use. */
+  const sendNow = useEffectEvent(
+    async ({
+      text,
+      images,
+      files,
+      messageId,
+      commandId,
+      unheard,
+    }: HeldWords): Promise<SendOutcome> => {
+      if (environmentId === null || project === undefined) {
+        setError("No brain thread yet: pair with T3 Code in the settings.");
+        return { sent: false, retry: false, message: "no brain thread" };
       }
-      return { sent: false, retry: true, message: voiceErrorText(failure) };
-    }
-    if (briefed) markBriefed(threadId);
-    voiceLog("user", "send", { text, briefed, threadId, images: images.length });
-    sentAtRef.current = performance.now();
-    sentEpochRef.current = Date.now();
-    workStartedRef.current = false;
-    firstTextLoggedRef.current = false;
-    return { sent: true };
-  });
+      const defaultSelection = serverSettings.defaultModelSelection;
+      const modelSelection =
+        defaultSelection !== null && config?.model
+          ? // Same instance and options (effort) as the default; only the model differs.
+            { ...defaultSelection, model: config.model }
+          : defaultSelection;
+      const createdAt = new Date().toISOString();
+      // The data-URL form startTurn persists itself (the composer's path without upload URLs).
+      const attachments = await Promise.all(
+        images.map(async (file) => ({
+          type: "image" as const,
+          id: randomUUID(),
+          name: file.name || "image",
+          mimeType: file.type,
+          sizeBytes: file.size,
+          dataUrl: await readFileAsDataUrl(file),
+        })),
+      );
+      const message = {
+        messageId,
+        role: "user" as const,
+        attachments: [...attachments, ...files],
+      };
+      const existingThreadId = voiceThread?.id ?? pendingThreadIdRef.current;
+      if (existingThreadId === null && modelSelection === null) {
+        setError("Pick a default model in Settings first.");
+        return { sent: false, retry: false, message: "no default model" };
+      }
+      const threadId = existingThreadId ?? newThreadId();
+      if (existingThreadId === null) pendingThreadIdRef.current = threadId;
+      const follow = followCommand(text);
+      if (follow !== undefined) setFollowing(follow);
+      const briefed =
+        existingThreadId === null || needsBrief(threadId, items, brainContext?.compactedAt ?? null);
+      const tagged = withCanvas(text, unheard);
+      const turnText = briefed ? withBrief(tagged) : tagged;
+      // A send queued on a dead connection never fails on its own; it counts as failed after this.
+      let timer = 0;
+      const timedOut = new Promise<"timeout">((resolve) => {
+        timer = window.setTimeout(
+          () => resolve("timeout"),
+          images.length > 0 ? SEND_WITH_IMAGES_TIMEOUT_MS : REQUEST_TIMEOUT_MS,
+        );
+      });
+      const turn =
+        existingThreadId !== null || modelSelection === null
+          ? startTurn({
+              environmentId,
+              input: {
+                commandId,
+                threadId,
+                message: { ...message, text: turnText },
+                runtimeMode: voiceThread?.runtimeMode ?? "full-access",
+                interactionMode: voiceThread?.interactionMode ?? "default",
+                createdAt,
+              },
+            })
+          : startTurn({
+              environmentId,
+              input: {
+                commandId,
+                threadId,
+                message: { ...message, text: turnText },
+                modelSelection,
+                runtimeMode: "full-access",
+                interactionMode: "default",
+                bootstrap: {
+                  createThread: {
+                    projectId: project.id,
+                    title: voiceThreadTitle(config),
+                    modelSelection,
+                    runtimeMode: "full-access",
+                    interactionMode: "default",
+                    branch: null,
+                    worktreePath: null,
+                    createdAt,
+                  },
+                },
+                createdAt,
+              },
+            });
+      const result = await Promise.race([turn, timedOut]).finally(() => window.clearTimeout(timer));
+      if (result === "timeout" || result._tag === "Failure") {
+        if (existingThreadId === null) pendingThreadIdRef.current = null;
+        const failure = result === "timeout" ? null : squashAtomCommandFailure(result);
+        // The standalone's send aborts itself after the same time (a TimeoutError).
+        if (
+          result === "timeout" ||
+          (failure instanceof DOMException && failure.name === "TimeoutError")
+        ) {
+          return { sent: false, retry: true, message: "send timed out", timedOut: true };
+        }
+        return { sent: false, retry: true, message: voiceErrorText(failure) };
+      }
+      if (briefed) markBriefed(threadId);
+      voiceLog("user", "send", {
+        text,
+        unheard: unheard.length,
+        briefed,
+        threadId,
+        images: images.length,
+        files: files.length,
+      });
+      sentAtRef.current = performance.now();
+      sentEpochRef.current = Date.now();
+      workStartedRef.current = false;
+      firstTextLoggedRef.current = false;
+      return { sent: true };
+    },
+  );
 
   // oxlint-disable-next-line t3code/no-unreasoned-state-sync -- sends the held words when the link (voiceLink, outside React) comes back
   useEffect(() => onLinkUp(() => void drain()), []);
@@ -552,6 +585,7 @@ export function VoiceHost({
   }, [voiceThreadKnown]);
 
   const toggle = useEffectEvent(async () => {
+    if (startingRef.current) return;
     const current = sessionRef.current;
     // A tap on the paused bar brings the mic back; it never hangs up.
     if (current?.active && current.micPausedForTap) {
@@ -608,6 +642,7 @@ export function VoiceHost({
     sessionRef.current = session;
     sessionStartedAtRef.current = Date.now();
     setStarting(true);
+    startingRef.current = true;
     void compactIfDue("call start");
     try {
       await session.start();
@@ -617,6 +652,7 @@ export function VoiceHost({
       sessionRef.current = null;
       setError(voiceErrorText(cause));
     } finally {
+      startingRef.current = false;
       setStarting(false);
     }
   });
@@ -654,39 +690,47 @@ export function VoiceHost({
       if (item.type !== "assistant_message" || visibility !== "local") continue;
       if (item.parentItemId !== null) continue;
       if (startedAt < sessionStartedAtRef.current - 1_000) continue;
-      // Focus and card tags are never spoken, nor is the brain's `[new topic]` marker.
-      const tidy = item.text.match(TIDY_TAG) !== null;
+      // Focus tags move the canvas and are never spoken, nor is the brain's `[new topic]` marker.
+      const tidies = [...item.text.matchAll(TIDY_TAG)].map((m) =>
+        (m[1] ?? "").replace(/[`"]/g, "").trim(),
+      );
       // Whether an update is about a card on screen is decided once, when its tag first arrives.
       let abouts = 0;
-      const { text, cards } = takeFocus(
-        takeCards(item.text)
-          .text.replace(ABOUT_TOPIC_TAG, (_tag, card: string) => {
-            const key = `${item.id}#${abouts++}`;
-            let quiet = quietTopicsRef.current.get(key);
-            if (quiet === undefined) {
-              quiet = globalThis.__lalalaCanvases?.inView?.(card) ?? false;
-              quietTopicsRef.current.set(key, quiet);
-              voiceLog("brain", "update.about", { card, inView: quiet });
-            }
-            return `\n\n${quiet ? QUIET_TOPIC_MARK : TOPIC_MARK}`;
-          })
-          .replace(NEW_TOPIC_TAG, `\n\n${TOPIC_MARK}`)
-          .replace(ABOUT_TAG, " ")
-          .replace(TIDY_TAG, "")
-          .replace(STREAMER_TAG, ""),
-      );
+      const marked = takeCards(item.text)
+        .text
+        .replace(ABOUT_TOPIC_TAG, (_tag, card: string) => {
+          const key = `${item.id}#${abouts++}`;
+          let quiet = quietTopicsRef.current.get(key);
+          if (quiet === undefined) {
+            quiet = globalThis.__lalalaCanvases?.inView?.(card) ?? false;
+            quietTopicsRef.current.set(key, quiet);
+            voiceLog("brain", "update.about", { card, inView: quiet });
+          }
+          return `\n\n${quiet ? QUIET_TOPIC_MARK : TOPIC_MARK}`;
+        })
+        .replace(NEW_TOPIC_TAG, `\n\n${TOPIC_MARK}`)
+        .replace(ABOUT_TAG, " ")
+        .replace(TIDY_TAG, "")
+        .replace(STREAMER_TAG, "");
       const streamer = [...item.text.matchAll(STREAMER_TAG)].at(-1)?.[1]?.toLowerCase();
       if (thisTurn && streamer) setStreamerMode(streamer === "on");
-      if (thisTurn && tidy && !tidiedRef.current.has(item.id)) {
+      const { text, cards } = takeFocus(marked);
+      if (thisTurn && tidies.length > 0 && !tidiedRef.current.has(item.id)) {
         tidiedRef.current.add(item.id);
-        voiceLog("brain", "tidy", {});
-        globalThis.__lalalaCanvases?.tidy?.();
+        const canvases = globalThis.__lalalaCanvases;
+        for (const group of tidies) {
+          if (group === "") canvases?.tidy?.();
+          else voiceLog("brain", "tidy.group", { group, found: canvases?.tidyGroup?.(group) });
+        }
+        if (tidies.includes("")) voiceLog("brain", "tidy", {});
       }
       const focused = focusedRef.current.get(item.id) ?? 0;
       if (thisTurn && cards.length > focused) {
         focusedRef.current.set(item.id, cards.length);
         const card = cards.at(-1);
-        if (card && (isFollowing() || showMeRef.current)) {
+        // The brain adds a focus tag only when follow is on or the user asked to see a card; a regex
+        // over the transcript missed "shout me" and "follow the card", so its tag is trusted.
+        if (card) {
           voiceLog("brain", "focus", { card });
           globalThis.__lalalaCanvases?.focus?.(card);
         }
@@ -843,10 +887,15 @@ export function VoiceHost({
       analysis={() => sessionRef.current?.analysis() ?? null}
       stoppedAt={stoppedAt}
       // Sending out of a call starts one (the user, 8 Nov), so the reply is spoken and the talk goes on.
-      onSubmit={async (text, images) => {
+      onSubmit={async (text, images, files) => {
         if (!sessionRef.current?.active) await toggle();
-        return send(text, images);
+        return send(text, images, files);
       }}
+      upload={
+        environmentId === null || harness
+          ? undefined
+          : (file, onProgress) => uploadVoiceFile(environmentId, file, onProgress)
+      }
       live={phase !== "off"}
       offline={
         down && !live

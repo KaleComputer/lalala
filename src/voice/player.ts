@@ -12,6 +12,7 @@ import {
   topicSoundUrl,
 } from "./settingsStore";
 import { soundGain } from "./extras/soundVolume";
+import { withPronunciations } from "./pronunciations";
 import { voiceLog } from "./voiceLog";
 import { fetchLalala, isGatewayStatus, readJson, voiceErrorText, VoiceUnreachable } from "./voiceErrors";
 
@@ -70,8 +71,10 @@ type QueuedSentence = {
   wake: (() => void) | null;
 };
 
-/** The bar's NEW TOPIC label listens for this (VoiceBar). */
+/** The bar's UPDATE label listens for this (VoiceBar); `detail` is how long it shows, in ms. */
 export const TOPIC_EVENT = "lalala:topic";
+/** The default sound's length (soft-ping, 0.63 s): UPDATE's length when no sound plays. */
+export const TOPIC_SOUND_FALLBACK_MS = 627;
 
 const rms = (analyser: AnalyserNode, frame: Float32Array<ArrayBuffer>) => {
   analyser.getFloatTimeDomainData(frame);
@@ -401,10 +404,13 @@ export class SpeechPlayer {
         }
         return;
       }
-      const response = await fetchLalala(`/__lalala/tts?engine=${this.engine()}`, {
+      const engine = this.engine();
+      // Only Kokoro (local) reads misaki's phoneme markup.
+      const text = engine === "local" ? withPronunciations(sentence.text) : sentence.text;
+      const response = await fetchLalala(`/__lalala/tts?engine=${engine}`, {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ text: sentence.text, format: "pcm" }),
+        body: JSON.stringify({ text, format: "pcm" }),
         signal,
       });
       if (isGatewayStatus(response.status)) throw new VoiceUnreachable();
@@ -480,9 +486,16 @@ export class SpeechPlayer {
               waitMs: Math.round(performance.now() - sentence.queuedAt),
             });
             if (sentence.newTopic) {
-              // The bar shows NEW TOPIC as the sentence starts playing.
+              // The bar shows UPDATE as the sound starts, for as long as the sound plays.
               const inMs = Math.max(0, this.playhead - this.context.currentTime) * 1000;
-              window.setTimeout(() => document.dispatchEvent(new Event(TOPIC_EVENT)), inMs);
+              const forMs =
+                this.topicSound === null
+                  ? TOPIC_SOUND_FALLBACK_MS
+                  : Math.round((this.topicSound.length / TTS_SAMPLE_RATE) * 1000);
+              window.setTimeout(
+                () => document.dispatchEvent(new CustomEvent(TOPIC_EVENT, { detail: forMs })),
+                inMs,
+              );
             }
             if (sentence.newTopic && this.topicSound !== null) {
               const gain = soundGain();

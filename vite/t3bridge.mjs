@@ -20,6 +20,25 @@ import {
 const PREFIX = "/__lalala/t3";
 const ACTIVE_RUN = new Set(["preparing", "queued", "starting", "running", "waiting"]);
 const MAX_ROWS = 400;
+const SEND_WAITS_FOR_T3_MS = 5_000;
+// A data event, not an SSE comment, so the page (src/t3/bridge.ts) can tell a live stream from one a
+// restart left open behind the phone's front door, which never ends it.
+const PING_EVERY_MS = 10_000;
+// T3's per-file attachment cap (PROVIDER_SEND_TURN_MAX_FILE_BYTES); the mint refuses anything larger.
+const MAX_UPLOAD_BYTES = 50 * 1024 * 1024;
+// T3's secret cards (`request_secret`): a thread's shell names its waiting card by this turn item id.
+const SECRET_ITEM = "turn-item:secret-request:";
+// T3's own texts for a card that can't be answered. Anything else gets the generic line, so nothing
+// T3 or the socket says back (which could quote the request) reaches the page or a log.
+const SECRET_FAILURES = {
+  load_failed: "Could not load the secret request.",
+  not_found: "This secret request no longer exists.",
+  already_answered: "This secret request was already answered.",
+  agent_stopped: "The agent that asked has stopped, so this secret can't be used.",
+  store_failed: "Could not store the secret.",
+  record_failed: "Saved the secret, but could not update the request.",
+};
+const SECRET_FAILED = "Could not answer the request. Try again.";
 const isCompaction = (message) =>
   message.role === "user" &&
   message.text?.trim().toLowerCase() === "/compact" &&
@@ -113,6 +132,12 @@ export function t3BridgePlugin({ threadId: configuredThreadId, workspaceRoot }) 
     connected: false,
     error: null,
     server: null,
+    // Secret cards waiting in any thread, by turn item id: what the bar's card shows. Never a value.
+    asks: new Map(),
+    // The waiting card each thread's shell names, by thread id.
+    waiting: new Map(),
+    // The brain's running delegates, each followed on its own socket, by thread id.
+    delegates: new Map(),
   };
   const listeners = new Set();
   // Pairing waits on these for the next hello, so it can answer with the outcome.
@@ -171,6 +196,7 @@ export function t3BridgePlugin({ threadId: configuredThreadId, workspaceRoot }) 
     shell: shell(),
     rows: [...state.rows.values()],
     context: context(),
+    asks: [...state.asks.values()],
   });
   const broadcastContext = () => {
     const line = JSON.stringify(context());
@@ -210,12 +236,15 @@ export function t3BridgePlugin({ threadId: configuredThreadId, workspaceRoot }) 
         if (socket !== next) return;
         socket = null;
         state.connected = false;
+        forgetAsks();
         broadcast(hello());
         schedule(2_000);
       };
       if (!state.threadId) state.threadId = readStoredBrain() ?? (await ensureBrain(next));
       if (gen !== generation) return;
-      void readServer(next);
+      void readServer(next)
+        .then((config) => followSecretAsks(next, config))
+        .catch(() => {});
       void next
         .stream(
           "orchestration.subscribeThread",
@@ -350,6 +379,150 @@ export function t3BridgePlugin({ threadId: configuredThreadId, workspaceRoot }) 
     return threadId;
   }
 
+  const broadcastAsks = () => broadcast({ type: "asks", asks: [...state.asks.values()] });
+
+  const askOf = (thread, item) => ({
+    threadId: thread.id,
+    turnItemId: item.id,
+    thread: thread.title ?? "",
+    label: item.label,
+    reason: item.reason ?? "",
+    placeholder: item.placeholder ?? null,
+    file: item.delivery === "file",
+  });
+  function forgetAsks() {
+    state.asks.clear();
+    state.waiting.clear();
+    const delegates = [...state.delegates.values()];
+    state.delegates.clear();
+    for (const child of delegates) child.close();
+  }
+
+  // One thread's shell: its waiting secret card, if any, with the card's label read from its item.
+  async function takeShell(via, thread) {
+    followDelegate(via, thread);
+    const pending = thread.pendingRuntimeRequest?.id;
+    const itemId = typeof pending === "string" && pending.startsWith(SECRET_ITEM) ? pending : null;
+    const was = state.waiting.get(thread.id) ?? null;
+    if (was === itemId) return;
+    if (itemId === null) state.waiting.delete(thread.id);
+    else state.waiting.set(thread.id, itemId);
+    if (was !== null && state.asks.delete(was)) broadcastAsks();
+    if (itemId === null) return;
+    try {
+      const { item } = await via.request("orchestration.getTurnItem", {
+        threadId: thread.id,
+        itemId,
+      });
+      if (via !== socket || state.waiting.get(thread.id) !== itemId) return;
+      if (item?.type !== "secret_request" || item.secretStatus !== "pending") return;
+      state.asks.set(itemId, askOf(thread, item));
+      broadcastAsks();
+    } catch {
+      // The next change to this thread's shell reads it again.
+      if (state.waiting.get(thread.id) === itemId) state.waiting.delete(thread.id);
+    }
+  }
+
+  // T3 leaves a subagent's turn items out of the shell stream, so a delegate's secret card never shows
+  // on its shell while it waits. Each running delegate of the brain is followed on a socket of its own
+  // (closing it ends the subscription) for as long as it runs.
+  function followDelegate(via, thread) {
+    const running =
+      via === socket &&
+      thread.lineage?.relationshipToParent === "subagent" &&
+      thread.lineage.rootThreadId === state.threadId &&
+      thread.activeRunId != null;
+    const followed = state.delegates.get(thread.id);
+    if (!running) {
+      if (followed === undefined) return;
+      state.delegates.delete(thread.id);
+      followed.close();
+      let dropped = false;
+      for (const [id, ask] of state.asks) {
+        if (ask.threadId === thread.id && state.asks.delete(id)) dropped = true;
+      }
+      if (dropped) broadcastAsks();
+      return;
+    }
+    if (followed !== undefined) return;
+    const child = new T3Socket();
+    state.delegates.set(thread.id, child);
+    const current = () => state.delegates.get(thread.id) === child;
+    const take = (item, runId) => {
+      if (item?.type !== "secret_request" || item.threadId !== thread.id) return;
+      // An old card of a run that died without closing it stays pending forever: only this run's.
+      const waits = item.secretStatus === "pending" && (runId === undefined || item.runId === runId);
+      if (waits ? state.asks.has(item.id) : !state.asks.delete(item.id)) return;
+      if (waits) state.asks.set(item.id, askOf(thread, item));
+      broadcastAsks();
+    };
+    child.onClose = () => {
+      if (current()) state.delegates.delete(thread.id);
+    };
+    child
+      .connect()
+      .then(() => {
+        if (!current()) return child.close();
+        return child.stream(
+          "orchestration.subscribeThread",
+          { threadId: thread.id, acceptBoundedSnapshot: true },
+          (chunk) => {
+            if (!current()) return;
+            if (chunk.kind === "snapshot") {
+              for (const item of chunk.projection.turnItems) take(item, thread.activeRunId);
+            } else if (chunk.kind === "event" && chunk.event.type === "turn-item.updated") {
+              take(chunk.event.payload);
+            }
+          },
+        );
+      })
+      .catch(() => child.close());
+  }
+
+  // Every thread's shell, so a secret asked in any thread (not only the brain's) shows. Later
+  // snapshots only refresh projects and carry no threads, so a thread missing from one means nothing.
+  function followSecretAsks(via, config) {
+    const families = config?.shellThreadFamilies === true;
+    return via.stream(
+      "orchestration.subscribeShell",
+      {
+        ...(families ? { omitIdleSubagents: true } : {}),
+        ...(families && config.shellOlderSettled === true ? { omitOlderSettled: true } : {}),
+      },
+      (chunk) => {
+        if (chunk.kind === "snapshot") {
+          for (const thread of chunk.snapshot.threads) void takeShell(via, thread);
+        } else if (chunk.kind === "thread.updated") {
+          void takeShell(via, chunk.location === "active" ? chunk.thread : { id: chunk.thread.id });
+        } else if (chunk.kind === "thread.removed") {
+          void takeShell(via, { id: chunk.threadId });
+        }
+      },
+    );
+  }
+
+  /** Hands the user's answer to T3's own `secrets.answerRequest`. Returns what to tell him, or null. */
+  async function answerSecret(input) {
+    const ask = state.asks.get(String(input?.turnItemId ?? ""));
+    if (ask === undefined) return SECRET_FAILURES.not_found;
+    const decline = input.answer?.type === "decline";
+    const secret = decline ? "" : String(input.answer?.secret ?? "").trim();
+    if ((!decline && secret === "") || socket === null) return SECRET_FAILED;
+    try {
+      await socket.request("secrets.answerRequest", {
+        threadId: ask.threadId,
+        turnItemId: ask.turnItemId,
+        answer: decline ? { type: "decline" } : { type: "save", secret },
+      });
+    } catch (error) {
+      const reason = /"reason":"([a-z_]+)"/.exec(String(error?.message))?.[1];
+      return SECRET_FAILURES[reason] ?? SECRET_FAILED;
+    }
+    if (state.asks.delete(ask.turnItemId)) broadcastAsks();
+    return null;
+  }
+
   async function readServer(via) {
     const config = await via.request("server.getConfig", {});
     state.server = {
@@ -366,6 +539,8 @@ export function t3BridgePlugin({ threadId: configuredThreadId, workspaceRoot }) 
     state.connected = false;
     state.server = null;
     state.thread = null;
+    forgetAsks();
+    broadcastAsks();
     old?.close();
     schedule(0);
   }
@@ -421,9 +596,18 @@ export function t3BridgePlugin({ threadId: configuredThreadId, workspaceRoot }) 
     return { ok: true, ms: Math.round(performance.now() - startedAt), server: state.server };
   }
 
-  async function send({ threadId, message, runtimeMode, interactionMode }) {
+  // A send right after a restart (this server's or T3's) waits a moment for the socket.
+  async function connectedSocket() {
+    for (let waited = 0; socket === null && waited < SEND_WAITS_FOR_T3_MS; waited += 250) {
+      await new Promise((resolve) => setTimeout(resolve, 250));
+    }
     if (!socket) throw new Error(state.error ?? "Not connected to T3 Code");
     if (!state.threadId) throw new Error("No brain thread yet: pair with T3 Code in the settings");
+    return socket;
+  }
+
+  async function send({ commandId, threadId, message, runtimeMode, interactionMode }) {
+    const via = await connectedSocket();
     if (threadId !== state.threadId) throw new Error("Not the brain thread");
     // Two devices back at once both ask; one compaction is enough.
     if (message.idleCompaction !== undefined && compacting()) return null;
@@ -432,7 +616,7 @@ export function t3BridgePlugin({ threadId: configuredThreadId, workspaceRoot }) 
       uploads.length === 0
         ? []
         : (
-            await socket.request("assets.persistChatAttachments", {
+            await via.request("assets.persistChatAttachments", {
               threadId,
               messageId: message.messageId,
               attachments: uploads,
@@ -440,9 +624,10 @@ export function t3BridgePlugin({ threadId: configuredThreadId, workspaceRoot }) 
           ).attachments;
     void runtimeMode;
     void interactionMode;
-    return socket.request("orchestration.dispatchCommand", {
+    return via.request("orchestration.dispatchCommand", {
       type: "message.dispatch",
-      commandId: uuid(),
+      // The page's outbox keeps one id per message, so T3 takes a resend after a lost answer once.
+      commandId: typeof commandId === "string" && commandId !== "" ? commandId : uuid(),
       createdBy: "user",
       creationSource: "web",
       threadId,
@@ -497,6 +682,65 @@ export function t3BridgePlugin({ threadId: configuredThreadId, workspaceRoot }) 
       req.on("end", () => resolve(Buffer.concat(chunks).toString("utf8")));
       req.on("error", reject);
     });
+  // The paperclip's file (src/state/voiceUpload.ts): held here, then T3 mints a pending upload and
+  // takes the bytes on its signed URL. The send claims it by id, like the web composer's upload.
+  const tooLarge = () =>
+    Object.assign(new Error(`file too large (${MAX_UPLOAD_BYTES / 1024 / 1024} MB max)`), {
+      status: 413,
+    });
+  const readUpload = (req) =>
+    new Promise((resolve, reject) => {
+      const chunks = [];
+      let size = 0;
+      // Past the cap the rest drains unread, so the phone still gets the 413's reason.
+      req.on("data", (chunk) => {
+        size += chunk.length;
+        if (size <= MAX_UPLOAD_BYTES) chunks.push(chunk);
+      });
+      req.on("end", () =>
+        size > MAX_UPLOAD_BYTES ? reject(tooLarge()) : resolve(Buffer.concat(chunks)),
+      );
+      req.on("error", reject);
+    });
+
+  async function upload(req) {
+    if (!socket) throw new Error(state.error ?? "Not connected to T3 Code");
+    if (Number(req.headers["content-length"]) > MAX_UPLOAD_BYTES) {
+      throw tooLarge();
+    }
+    let name = "file";
+    try {
+      const header = decodeURIComponent(String(req.headers["x-lalala-name"] ?? ""));
+      name = header.trim().slice(0, 255) || "file";
+    } catch {}
+    const mimeType =
+      String(req.headers["content-type"] ?? "").split(";")[0].trim().slice(0, 100) ||
+      "application/octet-stream";
+    const bytes = await readUpload(req);
+    if (bytes.length === 0) throw Object.assign(new Error("empty file"), { status: 400 });
+    const minted = await socket.request("attachments.createUploadUrl", {
+      type: "file",
+      name,
+      mimeType,
+      sizeBytes: bytes.length,
+    });
+    const response = await fetch(new URL(minted.relativeUrl, t3Origin()), {
+      method: "POST",
+      headers: { "content-type": mimeType, "content-length": String(bytes.length) },
+      body: bytes,
+    }).catch((cause) => {
+      throw new Error(`T3 upload unreachable (${cause.message})`);
+    });
+    if (!response.ok) {
+      const detail = (await response.text().catch(() => "")).trim().slice(0, 200);
+      const { attachmentId } = minted;
+      void socket?.request("attachments.delete", { attachmentId }).catch(() => {});
+      const reason = `T3 refused the upload (${response.status}${detail ? `: ${detail}` : ""})`;
+      throw Object.assign(new Error(reason), { status: 502 });
+    }
+    return { attachmentId: minted.attachmentId };
+  }
+
   const json = (res, status, body) => {
     res.writeHead(status, { "content-type": "application/json", "cache-control": "no-store" });
     res.end(JSON.stringify(body));
@@ -506,6 +750,15 @@ export function t3BridgePlugin({ threadId: configuredThreadId, workspaceRoot }) 
     name: "lalala:t3-bridge",
     configureServer(server) {
       void connect();
+      // Vite restarts in-process when this file changes; this instance's T3 sockets would live on.
+      server.httpServer?.once("close", () => {
+        clearTimeout(timer);
+        generation++;
+        const old = socket;
+        socket = null;
+        forgetAsks();
+        old?.close();
+      });
       server.middlewares.use((req, res, next) => {
         const path = (req.url ?? "").split("?")[0];
         if (!path.startsWith(`${PREFIX}/`)) return next();
@@ -518,7 +771,7 @@ export function t3BridgePlugin({ threadId: configuredThreadId, workspaceRoot }) 
           });
           res.write(`data: ${JSON.stringify(hello())}\n\n`);
           listeners.add(res);
-          const keepAlive = setInterval(() => res.write(": ping\n\n"), 20_000);
+          const keepAlive = setInterval(() => res.write('data: {"type":"ping"}\n\n'), PING_EVERY_MS);
           req.on("close", () => {
             clearInterval(keepAlive);
             listeners.delete(res);
@@ -530,6 +783,26 @@ export function t3BridgePlugin({ threadId: configuredThreadId, workspaceRoot }) 
             .then((raw) => send(JSON.parse(raw)))
             .then(() => json(res, 200, { ok: true }))
             .catch((error) => json(res, 502, { error: error.message }));
+          return;
+        }
+        if (path === `${PREFIX}/upload` && req.method === "POST") {
+          upload(req)
+            .then((result) => json(res, 200, result))
+            .catch((error) => {
+              if (!res.headersSent) json(res, error.status ?? 502, { error: error.message });
+            });
+          return;
+        }
+        if (path === `${PREFIX}/secret` && req.method === "POST") {
+          // The body holds a secret: it is never logged, kept or echoed, and errors are fixed texts.
+          readBody(req)
+            .then((raw) => answerSecret(JSON.parse(raw)))
+            .then((problem) =>
+              problem === null
+                ? json(res, 200, { ok: true })
+                : json(res, 409, { error: problem }),
+            )
+            .catch(() => json(res, 502, { error: SECRET_FAILED }));
           return;
         }
         if (path === `${PREFIX}/brain` && req.method === "GET") {

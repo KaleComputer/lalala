@@ -1,5 +1,7 @@
 import { useSyncExternalStore } from "react";
 
+import { REQUEST_TIMEOUT_MS } from "./voiceErrors";
+
 /**
  * The voice's own settings. `synced` is one value for every device (the storage adapter keeps it,
  * newest write wins; without a shared store it stays on this device); the mic is per device. The brain's own model lives on its T3 thread, not here.

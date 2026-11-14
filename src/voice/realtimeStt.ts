@@ -127,6 +127,22 @@ export class RealtimeStt {
   }
 
   /**
+   * The app's frame-by-frame voice detector (the fork's Silero in the page) ends turns and holds
+   * replies. Here detection runs with the transcriber instead, so these stay off.
+   */
+  readonly vadTurns = false;
+  readonly voiceMs = 0;
+  voiceWithin(_ms: number): boolean {
+    return false;
+  }
+  listen(_chunk: Int16Array): void {}
+
+  /** A transcript is being made. */
+  get busy(): boolean {
+    return this.pending.length > 0;
+  }
+
+  /**
    * Opens the socket ahead of time so the first utterance does not wait for it. Called as each
    * utterance starts: a changed engine choice switches the socket here, between utterances.
    */

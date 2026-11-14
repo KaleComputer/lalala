@@ -18,7 +18,10 @@ let failures = 0;
 
 function send(lines: string[], hidden: boolean): void {
   const body = `[${lines.join(",")}]`;
-  if (hidden && navigator.sendBeacon?.("/__lalala/log", new Blob([body], { type: "text/plain" }))) {
+  if (
+    hidden &&
+    navigator.sendBeacon?.("/__lalala/log", new Blob([body], { type: "text/plain" }))
+  ) {
     return;
   }
   void fetch("/__lalala/log", {

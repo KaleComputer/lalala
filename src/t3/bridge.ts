@@ -17,6 +17,17 @@ type Shell = {
   readonly active: boolean;
 };
 
+/** A secret card (T3's `request_secret`) waiting in some thread. Never the value. */
+export type SecretAsk = {
+  readonly threadId: string;
+  readonly turnItemId: string;
+  readonly thread: string;
+  readonly label: string;
+  readonly reason: string;
+  readonly placeholder: string | null;
+  readonly file: boolean;
+};
+
 type BridgeState = {
   readonly connected: boolean;
   readonly error: string | null;
@@ -24,6 +35,7 @@ type BridgeState = {
   readonly shell: Shell | null;
   readonly rows: ReadonlyArray<OrchestrationV2ProjectedTurnItem>;
   readonly context: VoiceBrainContext | null;
+  readonly asks: ReadonlyArray<SecretAsk>;
 };
 
 let state: BridgeState = {
@@ -33,20 +45,13 @@ let state: BridgeState = {
   shell: null,
   rows: [],
   context: null,
+  asks: [],
 };
 const listeners = new Set<() => void>();
 const set = (next: BridgeState) => {
   state = next;
   for (const listener of listeners) listener();
 };
-
-function start() {
-  // lalala.talk's tab follows T3 itself (the harness adapter); the app hears its dev server's bridge.
-  const harness = globalThis.__lalalaAdapters?.harness;
-  if (harness) return void harness.events((event) => onEvent(event as never));
-  const source = new EventSource("/__lalala/t3/events");
-  source.onmessage = (message) => onEvent(JSON.parse(message.data));
-}
 
 function onEvent(event: {
   type: string;
@@ -56,6 +61,7 @@ function onEvent(event: {
   shell: Shell | null;
   rows: ReadonlyArray<OrchestrationV2ProjectedTurnItem>;
   row: OrchestrationV2ProjectedTurnItem;
+  asks?: ReadonlyArray<SecretAsk>;
   value: boolean;
   context?: VoiceBrainContext | null;
 }) {
@@ -67,15 +73,63 @@ function onEvent(event: {
       shell: event.shell,
       rows: event.rows,
       context: event.context ?? null,
+      asks: event.asks ?? [],
     });
   } else if (event.type === "row") {
     const rows = state.rows.filter((row) => row.item.id !== event.row.item.id);
     set({ ...state, rows: [...rows, event.row] });
+  } else if (event.type === "asks") {
+    set({ ...state, asks: event.asks ?? [] });
   } else if (event.type === "context") {
     set({ ...state, context: event.context ?? null });
   } else if (event.type === "active" && state.shell !== null) {
     set({ ...state, shell: { ...state.shell, active: event.value } });
   }
+}
+
+// The bridge pings every 10 s. A restart behind the phone's front door can leave the stream open
+// and silent forever (every reply lost until a reload), so a quiet stream is reopened; so is
+// one the browser closed for good (the front door's 502 while lalala restarts).
+const STALE_AFTER_MS = 25_000;
+const CHECK_EVERY_MS = 5_000;
+const REOPEN_AFTER_MS = 2_000;
+
+let source: EventSource | null = null;
+let lastEventAt = 0;
+let reopenTimer = 0;
+
+function open() {
+  window.clearTimeout(reopenTimer);
+  source?.close();
+  lastEventAt = Date.now();
+  const next = new EventSource("/__lalala/t3/events");
+  source = next;
+  next.onerror = () => {
+    if (source !== next || next.readyState !== EventSource.CLOSED) return;
+    window.clearTimeout(reopenTimer);
+    reopenTimer = window.setTimeout(open, REOPEN_AFTER_MS);
+  };
+  next.onmessage = (message) => {
+    if (source !== next) return;
+    lastEventAt = Date.now();
+    onEvent(JSON.parse(message.data));
+  };
+}
+
+function reopenIfStale() {
+  if (Date.now() - lastEventAt > STALE_AFTER_MS) open();
+}
+
+function start() {
+  // lalala.talk's tab follows T3 itself (the harness adapter); the app hears its dev server's bridge.
+  const harness = globalThis.__lalalaAdapters?.harness;
+  if (harness) return void harness.events((event) => onEvent(event as never));
+  open();
+  window.setInterval(reopenIfStale, CHECK_EVERY_MS);
+  // A backgrounded phone runs no timers; coming back checks at once.
+  document.addEventListener("visibilitychange", () => {
+    if (document.visibilityState === "visible") reopenIfStale();
+  });
 }
 if (typeof window !== "undefined") start();
 

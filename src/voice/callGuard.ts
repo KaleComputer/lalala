@@ -1,7 +1,11 @@
 import { voiceLog } from "./voiceLog";
 
-/** The call runs unless the bar is on standby ("off") or not mounted. */
+/**
+ * The call runs unless the bar is on standby ("off") or not mounted; a speech model still
+ * downloading counts too.
+ */
 function callActive(): boolean {
+  if ((globalThis.__lalalaAdapters?.speech?.progress?.() ?? null) !== null) return true;
   const bar = document.querySelector<HTMLElement>("[data-lalala-presence]");
   return (bar?.dataset.voiceState ?? "off") !== "off";
 }

@@ -22,7 +22,7 @@ function subscribe(onChange: () => void) {
   };
 }
 
-export const useStreamer = () => useSyncExternalStore(subscribe, read, () => false);
+const useStreamer = () => useSyncExternalStore(subscribe, read, () => false);
 
 const GLYPHS = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
 const SALT = Math.floor(Math.random() * 0x7fffffff);
@@ -40,23 +40,26 @@ function scrambleWord(word: string, place: number): string {
   return out;
 }
 
-/** The text's words and the spaces between, each word with its scrambled stand-in. */
-function splitWords(text: string) {
+// the user's name inside otherwise generic labels ("Needs the user", "the user's pick").
+const NAME = /^the user\b|Pietrusky/;
+
+/** The text's words and the spaces between, each (or each name) word with its scrambled stand-in. */
+function splitWords(text: string, nameOnly: boolean) {
   const parts: { part: string; at: number; fake: string | null }[] = [];
   let at = 0;
   let place = 0;
   for (const part of text.split(/(\s+)/)) {
-    const isWord = part !== "" && !/^\s/.test(part);
+    const isWord = part !== "" && !/^\s/.test(part) && (!nameOnly || NAME.test(part));
     parts.push({ part, at, fake: isWord ? scrambleWord(part, place++) : null });
     at += part.length;
   }
   return parts;
 }
 
-/** Content text streamer mode scrambles word by word and pixelates (streamer.css). */
-export function Hidden({ text }: { readonly text: string }) {
+/** Content text streamer mode scrambles word by word and pixelates (streamer.css); `name`: only the user's name. */
+export function Hidden({ text, name = false }: { readonly text: string; readonly name?: boolean }) {
   if (!useStreamer()) return text;
-  const parts = splitWords(text);
+  const parts = splitWords(text, name);
   // Each scrambled word sits over its real word's invisible box, so lines wrap exactly as before.
   return (
     <span data-streamer-words="">

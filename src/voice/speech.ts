@@ -3,7 +3,6 @@
  * replies spoken sentence by sentence. Only the user talking close to the mic starts a turn or cuts a reply
  * (presence/closetalk.js); a reply stops only when the gate hears them and the transcript has their words.
  */
-import { type SpeechEngine, speechEngine } from "./engine";
 import { SpeechPlayer } from "./player";
 import { type CloseTalkMode, createCloseTalk } from "./presence/closetalk";
 import { RealtimeStt, STT_SAMPLE_RATE } from "./realtimeStt";
@@ -16,7 +15,8 @@ import {
   speakableText,
   stripEcho,
 } from "./speechText";
-import { heldReply, TopicHold, type TopicSentence } from "./topicHold";
+import { type SpeechEngine, speechEngine } from "./engine";
+import { heldReply, TopicHold, type TopicSentence, unheardLines } from "./topicHold";
 import { VoiceComb } from "./voiceComb";
 import { micDeviceId } from "./settingsStore";
 import { voiceErrorText } from "./voiceErrors";
@@ -61,6 +61,13 @@ const HOLD_MAX_MS = 2_000;
 // into it is not. A hold needs the mic within this many dB of what is playing, for HOLD_OVER_MS.
 const HOLD_OVER_REPLY_DB = 3;
 const HOLD_OVER_MS = 60;
+// The voice detector's way in (13 Nov: "why do I have to talk so loud"): this much unbroken speech,
+// at a normal voice's level: over the room's floor, and not so far under the reply that it is its echo.
+const VAD_HOLD_MS = 128;
+const VAD_OVER_FLOOR_DB = 10;
+const VAD_UNDER_REPLY_DB = 20;
+// Speech the voice detector heard this recently is the user's voice over a held reply.
+const VAD_VOICE_MS = 100;
 // A segment never runs longer than this, even while the gate stays open on loud echo.
 const MAX_SEGMENT_MS = 6_000;
 // Under this much speech a lone word is a noise the recogniser named ("you", "the").
@@ -75,6 +82,8 @@ const MIN_LONE_WORD_MS = 500;
 const END_AFTER_SENTENCE_MS = 1_100;
 const END_OPEN_MS = 1_600;
 const END_HESITATION_MS = 2_300;
+// With a voice detector (speechOnly), quiet is its silence: these waits keep the old tolerance.
+const VAD_END = { sentence: 1_500, open: 1_800, hesitation: 2_400 } as const;
 // Quiet means within this many dB of the room's floor: their soft trailing words are not.
 const QUIET_OVER_FLOOR_DB = 8;
 // Loud is the user only with a voice in it (Presence's harmonic comb, voiceComb.ts) this recently: steps,
@@ -103,6 +112,8 @@ const REVIVE_EVERY_MS = 1_000;
 const REVIVE_TAP_MS = 1_000;
 const HESITATION =
   /(?:,|\b(?:um+|uh+|er+|erm|and|but|so|or|because|cause|like|the|a|an|to|of|for|with|that|which|if|when|then|i|my|your|is|are|was|were|we|you|it)\s*)$/i;
+// Parakeet writes "Um." and "and." with a full stop; they are still a voice going on.
+const FILLER = /\b(?:um+|uh+|er+|erm|and|but|so|or|because)[.!?]+$/i;
 // Backchannels never cut a reply off (ElevenLabs' interruption ignore terms, which Presence uses).
 const BACKCHANNEL = new Set([
   "ok",
@@ -170,15 +181,21 @@ function asciiPunctuation(text: string): string {
 /** How long to wait after the gate closed before the user's turn ends, from their words so far. */
 const wordCount = (text: string) => text.split(/\s+/).filter(Boolean).length;
 
-function endpointWait(partial: string): { readonly ms: number; readonly rule: string } {
+function endpointWait(
+  partial: string,
+  vad: boolean,
+): { readonly ms: number; readonly rule: string } {
   const text = asciiPunctuation(partial).trim();
-  if (text === "") return { ms: END_OPEN_MS, rule: "no-words-yet" };
-  // A trailing "…" is a voice trailing off, not a finished sentence.
-  if (HESITATION.test(text) || /(?:\.\.\.|…)$/.test(text)) {
-    return { ms: END_HESITATION_MS, rule: "hesitation" };
+  const end = vad
+    ? VAD_END
+    : { sentence: END_AFTER_SENTENCE_MS, open: END_OPEN_MS, hesitation: END_HESITATION_MS };
+  if (text === "") return { ms: end.open, rule: "no-words-yet" };
+  // A trailing "…" is a voice trailing off, not a finished sentence; "Um." and "and." are not either.
+  if (HESITATION.test(text) || FILLER.test(text) || /(?:\.\.\.|…)$/.test(text)) {
+    return { ms: end.hesitation, rule: "hesitation" };
   }
-  if (/[.!?…]["')\]]*$/.test(text)) return { ms: END_AFTER_SENTENCE_MS, rule: "sentence" };
-  return { ms: END_OPEN_MS, rule: "open" };
+  if (/[.!?…]["')\]]*$/.test(text)) return { ms: end.sentence, rule: "sentence" };
+  return { ms: end.open, rule: "open" };
 }
 
 /** Words in `heard` that are neither ours coming back nor a backchannel: the user interrupting. */
@@ -286,13 +303,17 @@ export class VoiceSession {
   }> = [];
   /** `[new topic]` parts that wait for the user's turn and its answer to be over. */
   private readonly topics = new TopicHold();
-  /** `[new topic]` sentences handed to the player, so a barge-in can put the cut topic back. */
+  /** `[new topic]` sentences handed to the player, so a cut topic is reported whole. */
   private onAir: TopicSentence[] = [];
-  /** The user muted their mic: the call goes on, and nothing waits for their turn. */
+  /** What the user cut off, one entry per reply or topic, until his next words carry it to the brain. */
+  private unheard: string[][] = [];
+  /** `[new topic]` parts the user cut off: what still streams in for them stays unsaid. */
+  private cutParts = new Set<string>();
+  /** the user muted his mic: the call goes on, and nothing waits for his turn. */
   private muted = false;
-  private phase: VoicePhase = "off";
   /** Chosen as each utterance starts; its reply is spoken with the same engine. */
   private engine: SpeechEngine = speechEngine();
+  private phase: VoicePhase = "off";
 
   constructor(private readonly events: VoiceSessionEvents) {
     this.stt.onPartial = (text) => this.onPartial(text);
@@ -565,6 +586,8 @@ export class VoiceSession {
     this.waiting = [];
     this.topics.clear();
     this.onAir = [];
+    this.unheard = [];
+    this.cutParts.clear();
     this.muted = false;
     this.player?.stop("call ended");
     this.player?.dispose();
@@ -615,6 +638,7 @@ export class VoiceSession {
       : undefined;
     const now = performance.now();
     if (part !== undefined) {
+      if (this.cutParts.has(part)) return;
       const sentence = { text: spoken, topic, switching, part };
       const wasHeld = this.topics.count;
       if (this.topics.hold(sentence, this.topicBusy(now), now)) {
@@ -636,9 +660,19 @@ export class VoiceSession {
     this.player?.speak(spoken, topic, switching);
   }
 
-  /** The user's words went to the brain: `[new topic]` parts wait until its answer has been heard. */
-  awaitAnswer(): void {
-    this.topics.awaitAnswer(performance.now());
+  /**
+   * the user's words went to the brain. What it wrote and he hasn't heard (cut off, waiting for his turn
+   * to end, a held `[new topic]`) never plays by itself: it is returned for his message's tag and
+   * the brain decides. Later `[new topic]` parts wait until its answer has been heard.
+   */
+  timSpoke(): string[] {
+    const waiting = this.waiting.map(({ text }) => text);
+    this.waiting = [];
+    const held = this.topics.awaitAnswer(performance.now());
+    const lines = unheardLines([...this.unheard, waiting, ...held]);
+    this.unheard = [];
+    if (lines.length > 0) voiceLog("voice", "unheard", { lines });
+    return lines;
   }
 
   /** The brain's answer to the user's words is complete; held topics follow once it has played. */
@@ -667,18 +701,30 @@ export class VoiceSession {
     for (const sentence of topic) player.speak(sentence.text, sentence.topic, sentence.switching);
   }
 
-  /** Stops the reply for the user; a `[new topic]` they didn't hear to the end waits again, whole. */
+  /**
+   * Stops the reply for the user. What he cut off never comes back by itself (10 Nov: one cut update
+   * played five times, over "no new topic"): his next message reports it and the brain decides.
+   */
   private stopForUser(reason: string): void {
-    const unheard = new Set(this.player?.stop(`barge-in: ${reason}`) ?? []);
-    const cut = new Set(
-      this.onAir.filter((sentence) => unheard.has(sentence.text)).map(({ part }) => part),
-    );
-    const back = this.onAir.filter((sentence) => cut.has(sentence.part));
-    this.onAir = [];
+    this.noteUnheard(this.player?.stop(`barge-in: ${reason}`) ?? []);
     this.events.onStopped?.(reason);
-    if (back.length === 0) return;
-    this.topics.requeue(back);
-    voiceLog("voice", "topic.reheld", { text: back[0]?.text, held: this.topics.count });
+  }
+
+  /** Keeps what a stop left unsaid for the user's next message: the answer's rest, a cut topic whole. */
+  private noteUnheard(texts: ReadonlyArray<string>): void {
+    const left = new Set(texts);
+    const cut = new Set(this.onAir.filter(({ text }) => left.has(text)).map(({ part }) => part));
+    const topics = this.onAir.filter(({ part }) => cut.has(part));
+    this.onAir = [];
+    const answer = texts.filter((text) => !topics.some((sentence) => sentence.text === text));
+    if (answer.length > 0) this.unheard.push(answer);
+    for (const part of cut) {
+      this.cutParts.add(part);
+      this.unheard.push(
+        topics.filter((sentence) => sentence.part === part).map(({ text }) => text),
+      );
+    }
+    if (cut.size > 0) voiceLog("voice", "topic.cut", { text: topics[0]?.text });
   }
 
   /**
@@ -750,8 +796,9 @@ export class VoiceSession {
   }
 
   stopSpeaking(reason = "tap"): void {
+    const waiting = this.waiting.map(({ text }) => text);
     this.waiting = [];
-    this.player?.stop(reason);
+    this.noteUnheard([...(this.player?.stop(reason) ?? []), ...waiting]);
   }
 
   private onFrame(pcm: Int16Array, level: number): void {
@@ -768,7 +815,9 @@ export class VoiceSession {
       return;
     }
     this.micLevel = level;
-    const voiceNow = this.comb?.step(FRAME_MS) ?? false;
+    this.stt.listen(pcm);
+    const vadVoice = this.stt.vadTurns && this.stt.voiceWithin(VAD_VOICE_MS);
+    const voiceNow = (this.comb?.step(FRAME_MS) ?? false) || vadVoice;
     if (voiceNow) this.lastVoiceAt = now;
     this.voiceLike = !this.combProven || now - this.lastVoiceAt < VOICE_HOLD_MS;
     if (this.waiting.length > 0 && !this.timHasTheFloor()) {
@@ -803,7 +852,7 @@ export class VoiceSession {
     // The user's close voice over the reply: it goes quiet now; their words make it a stop, else it goes on.
     // Voiced is ~90 ms over the barge-in bar; a new hold needs a quiet moment since the last one.
     const close = this.gate.voiced || this.gate.open;
-    if (!close) this.holdArmed = true;
+    if (!close && !vadVoice) this.holdArmed = true;
     // The thinking pulse only into a quiet room: never with the user's turn, a reply or its echo. Only the user
     // holds it back afterwards: our reply's echo and plain noise also voice the gate, and counting
     // them kept the pulse off for the short thinking after a reply or "One moment.".
@@ -818,28 +867,43 @@ export class VoiceSession {
     // Against the reply's loudest moment in the last ~200 ms: its echo arrives late and rings on.
     this.replyDbs.push(20 * Math.log10(player.level() + 1e-9));
     if (this.replyDbs.length > 10) this.replyDbs.shift();
-    const overReply =
-      20 * Math.log10(level + 1e-9) >= Math.max(...this.replyDbs) - HOLD_OVER_REPLY_DB;
+    const micDb = 20 * Math.log10(level + 1e-9);
+    const replyDb = Math.max(...this.replyDbs);
+    const overReply = micDb >= replyDb - HOLD_OVER_REPLY_DB;
     this.overReplyMs = close && overReply && this.voiceLike ? this.overReplyMs + FRAME_MS : 0;
     if (decision?.opened && decision.by === "speak") this.closeVoiceAt = this.strongVoiceAt = now;
+    const vadHold =
+      this.stt.voiceMs >= VAD_HOLD_MS &&
+      micDb >= this.floorDb + VAD_OVER_FLOOR_DB &&
+      micDb >= replyDb - VAD_UNDER_REPLY_DB;
     if (
-      this.overReplyMs >= HOLD_OVER_MS &&
+      (this.overReplyMs >= HOLD_OVER_MS || vadHold) &&
       this.holdArmed &&
       replyAudible &&
       player.speaking &&
-      !player.holding
+      !player.holding &&
+      this.stt.speechOnly
     ) {
-      if (this.stt.speechOnly) {
-        this.holdArmed = false;
-        this.holdAt = now;
-        player.hold();
-      }
+      voiceLog("voice", "barge.hold", {
+        by: vadHold ? "vad" : "level",
+        voiceMs: Math.round(this.stt.voiceMs),
+        micDb: Math.round(micDb),
+        replyDb: Math.round(replyDb),
+        floorDb: Math.round(this.floorDb),
+      });
+      this.holdArmed = false;
+      this.holdAt = now;
+      player.hold();
+      // His words decide whether the held reply stops: the probe transcribes them as he talks.
+      if (!this.probing) this.beginProbe();
     }
     if (player.holding) {
-      if ((this.gate.open || this.gate.voiced) && this.voiceLike) this.heldVoiceAt = now;
+      if (vadVoice) this.heldVoiceAt = now;
       else if (this.heldVoiceAt < this.holdAt) this.heldVoiceAt = this.holdAt;
       const verdict = heldReply(now, this.holdAt, this.heldVoiceAt, HOLD_RELEASE_MS, HOLD_MAX_MS);
-      if (verdict === "release") {
+      if (verdict === "release" && this.stt.busy) {
+        // His words are still being written; they decide.
+      } else if (verdict === "release") {
         voiceLog("voice", "barge.released", { heldMs: Math.round(now - this.holdAt) });
         player.release();
       } else if (verdict === "stop") {
@@ -866,7 +930,7 @@ export class VoiceSession {
       // A segment never ends while someone talks close: the user's interruption stays in one transcript.
       if (
         !replyAudible ||
-        (this.probeMs >= PROBE_SEGMENT_MS && !this.gate.open && !this.gate.voiced) ||
+        (this.probeMs >= PROBE_SEGMENT_MS && !this.gate.open && !this.gate.voiced && !vadVoice) ||
         this.probeMs >= MAX_SEGMENT_MS
       ) {
         this.endProbe();
@@ -882,7 +946,9 @@ export class VoiceSession {
       // During a reply only a transcript that is surely speech may cut it: local speech without its
       // voice detection turns breath and noise into "I'm sorry." (2 Nov: the user's replies cut off).
       if (replyAudible) {
-        if ((this.gate.voiced || this.gate.open) && this.stt.speechOnly) this.beginProbe();
+        if ((this.gate.voiced || this.gate.open || vadVoice) && this.stt.speechOnly) {
+          this.beginProbe();
+        }
       } else if (decision?.opened || this.gate.open) {
         // Opened now, or already open from the reply's last moments: either way the user is talking.
         this.beginSpeech(false);
@@ -903,7 +969,7 @@ export class VoiceSession {
     const carried = this.turnVoiced && this.gateHasUser && now - this.timHeardAt < GATE_CARRY_MS;
     this.closedMs = heard || carried ? 0 : this.closedMs + FRAME_MS;
     if (this.turnVoiced && this.closedMs === 0) this.timVoiceAt = now;
-    const wait = endpointWait(this.partial);
+    const wait = endpointWait(this.partial, this.stt.vadTurns);
     if (this.closedMs >= wait.ms) {
       if (!this.turnVoiced) return this.dropNoiseTurn("no voice");
       voiceLog("voice", "turn.end", {
@@ -948,7 +1014,11 @@ export class VoiceSession {
   }
 
   private strongVoice(): boolean {
-    return this.gate.open || performance.now() - this.strongVoiceAt < BARGE_WINDOW_MS;
+    return (
+      this.gate.open ||
+      performance.now() - this.strongVoiceAt < BARGE_WINDOW_MS ||
+      this.userOverHold()
+    );
   }
 
   private closeVoiceRecently(): boolean {
@@ -1130,7 +1200,7 @@ export class VoiceSession {
     const words = heard.split(/\s+/).filter(Boolean);
     const drop = !hasRealWords(heard)
       ? "no real words"
-      : this.engine === "local" && isNoisePhrase(heard)
+      : isNoisePhrase(heard)
         ? "a phrase made up from noise"
         : isEchoOfSpoken(heard, spoken)
           ? "our own words coming back"

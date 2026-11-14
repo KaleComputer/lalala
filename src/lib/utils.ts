@@ -31,4 +31,5 @@ export function randomUUID(): string {
 }
 
 export const newThreadId = (): string => randomUUID();
+export const newCommandId = (): string => randomUUID();
 export const newMessageId = (): string => randomUUID();

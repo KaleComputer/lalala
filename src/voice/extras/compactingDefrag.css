@@ -1,37 +1,50 @@
-/* CompactingDefrag fills its positioned parent's middle: the bar's room (.bar-line), or a card's mock bar. */
+/* CompactingDefrag fills its positioned parent, the bar's room (.bar-line): a COMPACTING readout at the
+   room's left end, then the grid, so the two never overlap (the user, 10 Nov). */
 [data-lalala-defrag] {
   position: absolute;
-  inset: 7px 10px 7px calc(var(--fr-strip, 0px) + 10px);
+  inset: 0 0 0 var(--fr-strip, 0px);
   z-index: 2;
   display: grid;
-  place-items: center;
+  grid-template: minmax(0, 1fr) / auto minmax(0, 1fr);
   color: var(--lala-accent, #3dff8f);
   --defrag-head: var(--lalala-warn, #ffc14d);
   pointer-events: none;
 }
+/* Sized outright: a canvas's own pixel size must not feed back into the track. 4px to the readout
+   and to the room's right end, the readout's own gap. */
 [data-lalala-defrag] canvas {
-  position: absolute;
-  inset: 0;
-  width: 100%;
-  height: 100%;
+  width: calc(100% - 8px);
+  height: calc(100% - 14px);
+  margin: 7px 4px;
 }
-/* The label is the START plate's shape, type and ink on the warn yellow (Tim, 8 Nov); this is its look
-   outside the bar (the compacting card). */
+/* A status readout, not a button (the user, 10 Nov: a filled colour reads as one): the word set exactly
+   as the call timer (.fr-tmr: its mono type, size, tracking, live cyan), centred in a thin cut frame of
+   the same cyan (cutFrame.css), no fill. The frame is an element of the bar: 4px in from the room's
+   top, left and bottom and from the grid, one 8px cut at the top-left so it keeps that gap to the
+   frame's own cut; the bottom-right is square like the bar's (the user, 11 Nov). The cell is opaque, so the
+   room's tick rail ends under it. */
 [data-lalala-defrag] span {
-  position: relative;
-  display: inline-flex;
+  display: flex;
+  padding: 4px 0 4px 4px;
+  background: var(--color-surface, #121110);
+}
+[data-lalala-defrag] b {
+  --cut-tl: 8px;
+  --cut-line: var(--lalala-live, #26f3ec);
+  display: flex;
   align-items: center;
-  height: var(--plate-h, 30px);
-  padding: 1px 15px 0;
-  background: var(--lalala-warn, #ffc14d);
-  color: var(--hud-ink, #04170c);
-  font: 600 var(--plate-fs, 12px) / 1 var(--font-tag, ui-monospace, monospace);
-  letter-spacing: 0.2em;
+  padding: 0 9px 0 10px;
+  color: var(--lalala-live, #26f3ec);
+  font: 400 calc(var(--tab-fs, 10px) - 1px) / 1 var(--font-mono, ui-monospace, monospace);
+  letter-spacing: 0.08em;
   text-transform: uppercase;
   white-space: nowrap;
-  clip-path: polygon(8px 0, 100% 0, 100% calc(100% - 8px), calc(100% - 8px) 100%, 0 100%, 0 8px);
 }
-/* The defrag takes the place of the wave or START; they come back when it is done. */
-[data-lalala-presence]:has([data-lalala-defrag]) :is(.fr-wv, .fr-idle, [data-lalala-offline]) {
+/* The defrag takes the place of the wave or START; they come back when it is done. `.fr` lifts this
+   over Presence's idle rule, which loads later and otherwise keeps START CALL under the label. Loading
+   models keep the room (voiceBar.css), their bytes filling the connecting line. */
+[data-lalala-presence]:has([data-lalala-defrag]):not(:has([data-lalala-note="models"]))
+  .fr
+  :is(.fr-wv, .fr-idle, [data-lalala-offline]) {
   opacity: 0;
 }

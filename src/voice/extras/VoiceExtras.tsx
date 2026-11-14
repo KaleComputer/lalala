@@ -2,6 +2,8 @@ import type { ReactNode } from "react";
 import { BrainCards } from "./BrainCards";
 import { CanvasMap } from "./CanvasMap";
 import { CanvasSurface } from "./CanvasSurface";
+import "./look";
+import "./looks/looks";
 
 /**
  * Voice-made UI, laid over the voice page. Import only React and files in this folder.

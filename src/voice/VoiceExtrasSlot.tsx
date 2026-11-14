@@ -1,8 +1,15 @@
 import * as React from "react";
 import * as jsxRuntime from "react/jsx-runtime";
-import { Component, type ReactNode, useEffect, useState } from "react";
+import { Component, type ComponentProps, type ReactNode, useEffect, useState } from "react";
+import { createPortal } from "react-dom";
+// Type only: the standalone voice app (lalala) shims contracts with types, no ThreadId value.
+import type { ThreadId } from "@t3tools/contracts";
+import { useNavigate } from "@tanstack/react-router";
+
+import { usePrimaryEnvironmentId } from "../state/environments";
 
 import "./extrasImages";
+import { VoiceBar } from "./VoiceBar";
 import { voiceLog } from "./voiceLog";
 import "./voicePage.css";
 
@@ -17,9 +24,32 @@ const POLL_MS = 2_000;
 
 declare global {
   var __lalalaHost: Record<string, unknown> | undefined;
+  var __lalalaDeviceBar: typeof DeviceBarPreview | undefined;
+  var __lalalaLog: typeof voiceLog | undefined;
+  var __lalalaOpenThread: ((threadId: string) => void) | undefined;
 }
 // The session log for extras/, which may not import it (CanvasCard logs a card that threw).
 globalThis.__lalalaLog = voiceLog;
+
+/**
+ * The real device bar for the canvas's states card (extras/BarStates), which may not import it:
+ * rendered into `container`, the body of the card's frame, so the frame's width picks phone or desktop.
+ */
+function DeviceBarPreview({
+  container,
+  ...props
+}: Omit<ComponentProps<typeof VoiceBar>, "preview"> & {
+  readonly container: HTMLElement;
+  readonly preview: NonNullable<ComponentProps<typeof VoiceBar>["preview"]>;
+}) {
+  return createPortal(
+    <div data-lalala-dock="" data-lalala-canvas="">
+      <VoiceBar {...props} />
+    </div>,
+    container,
+  );
+}
+globalThis.__lalalaDeviceBar = DeviceBarPreview;
 
 const importExtras = (url: string) => import(/* @vite-ignore */ url) as Promise<ExtrasModule>;
 
@@ -100,6 +130,21 @@ function followPublishedExtras(onLoad: (loaded: Loaded) => void): () => void {
  */
 export function VoiceExtrasSlot() {
   const [loaded, setLoaded] = useState<Loaded | null>(null);
+  const navigate = useNavigate();
+  const environmentId = usePrimaryEnvironmentId();
+
+  // oxlint-disable-next-line t3code/no-unreasoned-state-sync -- hands extras/, which may not import the router, a way to open a card's thread
+  useEffect(() => {
+    if (environmentId === null) return;
+    globalThis.__lalalaOpenThread = (threadId) =>
+      void navigate({
+        to: "/$environmentId/$threadId",
+        params: { environmentId, threadId: threadId as ThreadId },
+      });
+    return () => {
+      globalThis.__lalalaOpenThread = undefined;
+    };
+  }, [navigate, environmentId]);
 
   // oxlint-disable-next-line t3code/no-unreasoned-state-sync -- loads the extras module, and on the phone build follows its published build id
   useEffect(() => {

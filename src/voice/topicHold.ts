@@ -24,10 +24,17 @@ export class TopicHold {
   /** The part playing now: its later sentences follow it straight away. */
   private playing: string | null = null;
 
-  /** The user's words went to the brain: topics wait for its answer. */
-  awaitAnswer(now: number): void {
+  /**
+   * The user's words went to the brain: later topics wait for its answer. The topics still held are
+   * handed back (each one's sentences), never to play by themselves.
+   */
+  awaitAnswer(now: number): string[][] {
+    const dropped = this.held.splice(0);
     this.awaitingSince = now;
     this.playing = null;
+    return [...new Set(dropped.map(({ part }) => part))].map((part) =>
+      dropped.filter((sentence) => sentence.part === part).map(({ text }) => text),
+    );
   }
 
   /** The brain's answer to their words is complete (it may still be playing). */
@@ -74,17 +81,29 @@ export class TopicHold {
     return topic;
   }
 
-  /** A topic cut off by the user goes back to the front, whole, to play after their answer. */
-  requeue(sentences: ReadonlyArray<TopicSentence>): void {
-    this.held.unshift(...sentences);
-    this.playing = null;
-  }
-
   clear(): void {
     this.held = [];
     this.awaitingSince = null;
     this.playing = null;
   }
+}
+
+const UNHEARD_MAX = 4;
+const UNHEARD_CHARS = 140;
+
+/**
+ * What the brain wrote and the user didn't hear (cut off, or he spoke before it played), one shortened
+ * line per reply or topic, newest last, for his next message's tag (brief.ts): the brain has the
+ * full text and decides what still matters.
+ */
+export function unheardLines(replies: ReadonlyArray<ReadonlyArray<string>>): string[] {
+  const lines = replies
+    .map((sentences) => sentences.join(" ").replace(/\s+/g, " ").trim())
+    .filter((line) => line !== "")
+    .map((line) =>
+      line.length > UNHEARD_CHARS ? `${line.slice(0, UNHEARD_CHARS).trimEnd()}…` : line,
+    );
+  return [...new Set(lines)].slice(-UNHEARD_MAX);
 }
 
 /**
