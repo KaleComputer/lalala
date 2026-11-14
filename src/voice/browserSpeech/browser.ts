@@ -3,7 +3,7 @@
 // They start loading when the page opens and stay loaded for the page's life, across calls and tab
 // hides: setting a model up takes seconds on a phone (Tim, 14 Nov: "always a cold start").
 import type { VoiceBarModel } from "../VoiceBar";
-import { autoRetrySeconds, isPhoneDevice, replyVoice, sttModel } from "../settingsStore";
+import { autoRetrySeconds, replyVoice, sttModel } from "../settingsStore";
 import { voiceLog } from "../voiceLog";
 import type { LoadMessage } from "./readout";
 
@@ -96,7 +96,7 @@ function modelWorker(
   let markReady: () => void = () => {};
   let markFailed: (error: Error) => void = () => {};
   let ready = Promise.resolve();
-  const waiting = new Map<
+  let waiting = new Map<
     number,
     { resolve: (reply: Reply) => void; reject: (error: Error) => void }
   >();
@@ -127,30 +127,32 @@ function modelWorker(
     retryTimer = 0;
     retryAt = 0;
   };
+  /** (Re)schedules a failed model's next try at the interval Settings set now; none when it's off. */
+  const scheduleRetry = () => {
+    cancelRetry();
+    const every = autoRetrySeconds();
+    if (!failed || every === null || failure?.startsWith(NEEDS_WEBGPU)) return;
+    retryAt = Date.now() + every * 1000;
+    retryTimer = window.setTimeout(() => {
+      retryTimer = 0;
+      retryAt = 0;
+      if (failed) start();
+    }, every * 1000);
+  };
   const fail = (cause: string) => {
     console.warn("lalala: a speech model didn't load", cause);
     voiceLog("system", "speech.failed", { model: key, message: cause, retries, ...memory() });
     settle();
     failed = true;
+    retries += 1;
     // A browser without what the model needs says so; anything else is the general line.
     failure = cause.includes(NEEDS_WEBGPU) ? cause.slice(cause.indexOf(NEEDS_WEBGPU)) : MODEL_FAILED;
     markFailed(new Error(failure));
-    const every = autoRetrySeconds();
-    if (every !== null && !cause.includes(NEEDS_WEBGPU)) {
-      retries += 1;
-      retryAt = Date.now() + every * 1000;
-      retryTimer = window.setTimeout(() => {
-        retryTimer = 0;
-        retryAt = 0;
-        if (failed && autoRetrySeconds() !== null) start();
-      }, every * 1000);
-    }
+    scheduleRetry();
     notify();
   };
-  let releasing = false;
   const release = () => {
     cancelRetry();
-    releasing = false;
     failure = null;
     queued = false;
     loadingNow.delete(key);
@@ -165,10 +167,29 @@ function modelWorker(
     markFailed(new Error("closed"));
     notify();
   };
-  /** Frees the model once the utterance or sentence it is working on is done. */
+  /**
+   * Frees the model once the utterance or sentence it is working on is done: the old worker finishes
+   * its replies on its own while the next ask already starts the new one.
+   */
   const releaseWhenIdle = () => {
-    if (waiting.size === 0) release();
-    else releasing = true;
+    const old = worker;
+    const pending = waiting;
+    if (old === null || pending.size === 0) return release();
+    worker = null;
+    waiting = new Map();
+    old.onmessage = ({ data }: MessageEvent<LoadMessage | Reply>) => {
+      if (data.type !== "text" && data.type !== "audio" && data.type !== "error") return;
+      const reply = pending.get(data.id);
+      pending.delete(data.id);
+      if (data.type === "error") reply?.reject(new Error(data.message));
+      else reply?.resolve(data);
+      if (pending.size === 0) old.terminate();
+    };
+    old.onerror = () => {
+      for (const reply of pending.values()) reply.reject(new Error("closed"));
+      old.terminate();
+    };
+    release();
   };
   let queued = false;
   // A failed model loads again on the next ask (the bar says "tap to retry").
@@ -248,7 +269,6 @@ function modelWorker(
         waiting.delete(data.id);
         if (data.type === "error") pending?.reject(new Error(data.message));
         else pending?.resolve(data);
-        if (releasing && waiting.size === 0) release();
       }
     };
     // A worker that cannot even load (its script, its runtime) fails the model, not the page.
@@ -260,7 +280,7 @@ function modelWorker(
     start,
     release,
     releaseWhenIdle,
-    cancelRetry,
+    scheduleRetry,
     status(): ModelStatus {
       const phase =
         failed ? "failed"
@@ -293,7 +313,12 @@ function modelWorker(
     },
     async ask(message: Record<string, unknown>, transfer: Transferable[] = []): Promise<Reply> {
       start();
-      await ready;
+      // A model swapped out while this waited for it to load: wait for its replacement instead.
+      await ready.catch((error: unknown) => {
+        if (!(error instanceof Error) || error.message !== "closed") throw error;
+        start();
+        return ready;
+      });
       const target = worker;
       if (target === null) throw new Error("closed");
       const id = nextId++;
@@ -309,8 +334,8 @@ function modelWorker(
 const ears = modelWorker(
   "parakeet",
   () => new Worker(new URL("./parakeet.worker.ts", import.meta.url), { type: "module" }),
-  // With the computer picked, the browser only hears while the computer doesn't answer: automatic.
-  () => ({ model: sttModel() === "computer" ? "auto" : sttModel() }),
+  // With the computer picked, the browser only hears while the computer isn't ready: the lightest.
+  () => ({ model: sttModel() === "computer" ? "110m" : sttModel() }),
 );
 const kokoroBuild = () => {
   const picked = replyVoice();
@@ -330,8 +355,13 @@ const matcha = modelWorker(
 let earsModel = sttModel();
 let voiceBuild = kokoroBuild();
 let voicePick = replyVoice();
+let retryEvery = autoRetrySeconds();
 document.addEventListener("lalala:settings", () => {
-  if (autoRetrySeconds() === null) for (const model of [ears, voice, matcha]) model.cancelRetry();
+  if (autoRetrySeconds() !== retryEvery) {
+    retryEvery = autoRetrySeconds();
+    for (const model of [ears, voice, matcha]) model.scheduleRetry();
+    notify();
+  }
   if (sttModel() !== earsModel) {
     earsModel = sttModel();
     ears.releaseWhenIdle();
@@ -339,6 +369,7 @@ document.addEventListener("lalala:settings", () => {
     else if (speechPrewarmed) startEars();
   }
   if (kokoroBuild() !== voiceBuild || replyVoice() !== voicePick) {
+    if (kokoroBuild() !== voiceBuild) voice.releaseWhenIdle();
     voiceBuild = kokoroBuild();
     voicePick = replyVoice();
     if (voicePick === "computer") void refreshComputerSpeech();
@@ -365,9 +396,9 @@ const voiceOff = only === "stt";
 if (only) voiceLog("system", "speech.only", { only });
 
 // The computer running T3 (its speech service, through this app's server): picked per task in Settings.
-// While it isn't ready, this browser stands in with its automatic model, kept loaded; the computer is
-// asked again a minute later (never from a page with no route to it, like lalala.talk).
-const COMPUTER_PAUSE_MS = 60_000;
+// While it isn't ready, this browser stands in with its lightest models (Parakeet 110M, Matcha), kept
+// loaded; the computer is asked again (never from a page with no route to it, like lalala.talk).
+const COMPUTER_LOADING_MS = 3_000;
 let computerState: ComputerSpeech | "checking" = "checking";
 let computerTimer = 0;
 const standingIn = () => computerState !== "ready";
@@ -378,19 +409,16 @@ const onComputer = {
 /** The computer's state, as this page last saw it; Settings show it. */
 export const computerSpeechState = () => computerState;
 
-const phone = isPhoneDevice();
-/** Loads (or frees) this browser's models for the tasks the computer does or doesn't do now. */
+/** Loads (or frees) this browser's stand-ins for the tasks the computer does or doesn't do now. */
 function fitModels() {
   if (sttModel() === "computer") {
     if (standingIn()) startEars();
     else ears.releaseWhenIdle();
   }
   if (replyVoice() === "computer") {
-    if (standingIn()) prewarmVoice();
-    else {
-      voice.releaseWhenIdle();
-      matcha.releaseWhenIdle();
-    }
+    voice.releaseWhenIdle();
+    if (standingIn()) startMatcha();
+    else matcha.releaseWhenIdle();
   }
 }
 function setComputer(state: ComputerSpeech) {
@@ -398,8 +426,13 @@ function setComputer(state: ComputerSpeech) {
   computerTimer = 0;
   const changed = state !== computerState;
   computerState = state;
-  if (state !== "ready" && state !== "absent") {
-    computerTimer = window.setTimeout(() => void refreshComputerSpeech(), COMPUTER_PAUSE_MS);
+  // Still loading: asked again shortly. Not answering: at the retry interval, if retrying is on.
+  const every = state === "loading" ? COMPUTER_LOADING_MS : state === "down" ? autoRetrySeconds() : null;
+  if (every !== null) {
+    computerTimer = window.setTimeout(
+      () => void refreshComputerSpeech(),
+      state === "loading" ? every : every * 1000,
+    );
   }
   if (changed) {
     voiceLog("system", "speech.computer", { state });
@@ -456,23 +489,24 @@ function wavOf(pcm: Float32Array): Blob {
 
 /** Parakeet loads (once per call) so the first utterance does not wait for it. */
 export const startEars = () => {
-  if (earsOff || onComputer.stt() || (sttModel() === "computer" && computerState === "checking")) return;
+  if (earsOff || onComputer.stt() || (sttModel() === "computer" && computerState === "checking"))
+    return;
   persistDownloads();
   ears.start();
 };
-export const releaseEars = () => ears.release();
+export const releaseEars = () => ears.releaseWhenIdle();
 /** Kokoro loads with the call while it is the reply voice; another reply voice frees it. */
 export const startKokoro = () => {
-  if (!voiceOff && !onComputer.voice() && !(replyVoice() === "computer" && phone)) voice.start();
+  if (!voiceOff && replyVoice().startsWith("kokoro")) voice.start();
 };
-export const releaseKokoro = () => voice.release();
+export const releaseKokoro = () => voice.releaseWhenIdle();
 /** The same for Kale's Matcha voice. */
 export const startMatcha = () => {
   if (!voiceOff) matcha.start();
 };
 export const releaseMatcha = () => {
-  // A phone standing in for the computer speaks with Matcha: the call's player can't free it then.
-  if (!(replyVoice() === "computer" && phone && standingIn())) matcha.release();
+  // Standing in for the computer, Matcha speaks: the call's player can't free it then.
+  if (!(replyVoice() === "computer" && standingIn())) matcha.releaseWhenIdle();
 };
 
 /** 16 kHz PCM, transcribed by Parakeet. The buffer moves to its worker. */
@@ -521,7 +555,7 @@ export function openVad(onProbability: (probability: number) => void) {
 /** One sentence as 24 kHz PCM from Kokoro; it reads misaki's `[word](/phonemes/)` markup. */
 export async function kokoroSpeak(text: string): Promise<Float32Array<ArrayBuffer>> {
   if (voiceOff) return new Float32Array(0);
-  // The computer's Kokoro, and a phone's stand-in Matcha, read plain text: the markup keeps the word.
+  // The computer's Kokoro, and Matcha standing in for it, read plain text: the markup keeps the word.
   const plain = () => text.replace(/\[([^\]]+)\]\(\/[^)]*\/\)/g, "$1");
   if (onComputer.voice()) {
     try {
@@ -540,8 +574,8 @@ export async function kokoroSpeak(text: string): Promise<Float32Array<ArrayBuffe
       setComputer("down");
     }
   }
-  // Standing in for the computer, a phone speaks with its automatic voice, Matcha.
-  if (replyVoice() === "computer" && phone) return (await matchaSpeak(plain())).samples;
+  // Standing in for the computer, the lightest voice speaks: Matcha.
+  if (replyVoice() === "computer") return (await matchaSpeak(plain())).samples;
   const reply = await voice.ask({ type: "speak", text });
   if (reply.type !== "audio") throw new Error("Kokoro returned no audio");
   return reply.samples;
@@ -567,12 +601,11 @@ export function prewarm() {
   prewarmVoice();
   if (sttModel() === "computer" || replyVoice() === "computer") void refreshComputerSpeech();
 }
-/** The reply voice's browser model; standing in for the computer, the device's automatic one. */
+/** The reply voice's browser model; with the computer picked, fitModels decides once it has answered. */
 function prewarmVoice() {
   const picked = replyVoice();
-  const voiceNow = picked === "computer" ? (standingIn() ? (phone ? "matcha" : "kokoro") : null) : picked;
-  if (voiceNow === "matcha") startMatcha();
-  else if (voiceNow?.startsWith("kokoro")) startKokoro();
+  if (picked === "matcha") startMatcha();
+  else if (picked.startsWith("kokoro")) startKokoro();
 }
 
 /** What a task's browser model is doing, for Settings; null while the computer or a card voice has it. */
@@ -580,8 +613,8 @@ export function speechStatus(task: "stt" | "voice"): ModelStatus | null {
   if (task === "stt") return onComputer.stt() ? null : ears.status();
   const picked = replyVoice();
   if (onComputer.voice()) return null;
-  if (picked === "matcha" || (picked === "computer" && phone)) return matcha.status();
-  if (picked.startsWith("kokoro") || picked === "computer") return voice.status();
+  if (picked === "matcha" || picked === "computer") return matcha.status();
+  if (picked.startsWith("kokoro")) return voice.status();
   return null;
 }
 
@@ -612,7 +645,8 @@ export async function checkComputerSpeech(): Promise<ComputerSpeech> {
     const body = (await response.json()) as { ready?: unknown; down?: unknown };
     return body.ready === true ? "ready" : body.down === true ? "down" : "loading";
   } catch {
-    return "absent";
+    // A dropped or slow request (a phone between networks) is no proof the route is missing.
+    return "down";
   }
 }
 

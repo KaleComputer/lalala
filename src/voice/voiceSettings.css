@@ -340,6 +340,9 @@
 :is([data-lalala-settings-error], [data-lalala-settings-status]) {
   color: var(--s-warn);
 }
+[data-lalala-settings-state="problem"] {
+  color: var(--s-warn);
+}
 [data-lalala-settings-row] > div > [data-lalala-settings-error] {
   padding: 0;
 }
@@ -891,6 +894,11 @@
 }
 /* A phone: the whole screen, square, T3's narrow page padding. */
 @media (max-width: 640px) {
+  /* The open list stays above the phone's bottom edge, so its last group shows it scrolls. */
+  [data-lalala-settings-list] {
+    max-height: 60dvh;
+    scroll-margin-bottom: calc(8px + env(safe-area-inset-bottom));
+  }
   [data-lalala-settings] {
     padding: 0;
     place-items: stretch;

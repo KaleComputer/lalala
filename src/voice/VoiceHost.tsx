@@ -43,7 +43,7 @@ import {
   voiceErrorText,
 } from "./voiceErrors";
 import { checkLink, linkIsDown, markLinkDown, onLinkUp, useLinkDown } from "./voiceLink";
-import { replyVoice } from "./settingsStore";
+import { autoStartCall, replyVoice } from "./settingsStore";
 import { type HeldWords, heldWords, holdWords, releaseWords, useHeldCount } from "./voiceOutbox";
 import { syncVoiceTheme } from "./voiceThemeSync";
 import { setStreamerMode } from "./streamerMode";
@@ -747,12 +747,40 @@ export function VoiceHost({
   }, [items]);
 
   const autoStartedRef = useRef(false);
-  // oxlint-disable-next-line t3code/no-unreasoned-state-sync -- starts the call once its config (read from the harness) is in
+  // Read as the page opens: turning it on in Settings applies from the next time lalala opens.
+  const [autoStartPicked] = useState(autoStartCall);
+  const [tapToStart, setTapToStart] = useState(false);
+  // oxlint-disable-next-line t3code/no-unreasoned-state-sync -- starts the call once its config (read from the harness) is in; where the browser holds sound back until a gesture, the first tap anywhere does
   useEffect(() => {
-    if (!autoStart || config === null || autoStartedRef.current) return;
+    if ((!autoStart && !autoStartPicked) || config === null || autoStartedRef.current) return;
+    if (sessionRef.current?.active) return;
     autoStartedRef.current = true;
-    void toggle();
-  }, [autoStart, config]);
+    // Safari, phones and a Chrome tab that hasn't played sound here start audio only inside a tap.
+    const probe = new AudioContext();
+    const allowed =
+      probe.state === "running" ||
+      (navigator as { userActivation?: { hasBeenActive: boolean } }).userActivation?.hasBeenActive === true;
+    void probe.close();
+    voiceLog("system", "auto-start", { allowed });
+    if (allowed) {
+      void toggle();
+      return;
+    }
+    setTapToStart(true);
+    const events = ["pointerup", "touchend", "keydown"] as const;
+    const onTap = () => {
+      for (const type of events) document.removeEventListener(type, onTap, true);
+      setTapToStart(false);
+      if (!sessionRef.current?.active) void toggle();
+    };
+    for (const type of events) document.addEventListener(type, onTap, true);
+    return () => {
+      // Still waiting (auto start turned off, or the host re-rendered): the next run arms it again.
+      for (const type of events) document.removeEventListener(type, onTap, true);
+      autoStartedRef.current = false;
+      setTapToStart(false);
+    };
+  }, [autoStart, autoStartPicked, config]);
 
   // The amber CONNECT TO T3 CODE button was tapped: once the pairing links T3, Connected shows for a
   // moment and the settings close onto the normal START CALL. Closing them first drops that intent.
@@ -825,6 +853,7 @@ export function VoiceHost({
       {...bar}
       models={downloads}
       paused={paused}
+      tapToStart={tapToStart && phase === "off" && !starting}
       reconnecting={linkProblem !== null}
       disabled={false}
       state={state}

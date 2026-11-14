@@ -33,6 +33,7 @@ import {
   defaultReplyVoice,
   isPhoneDevice,
   setAutoRetrySeconds,
+  setAutoStartCall,
   setSttModel,
   DEFAULT_AUTO_RETRY_SECONDS,
   topicSoundNames,
@@ -40,6 +41,7 @@ import {
   updateSynced,
   useMicDeviceId,
   useAutoRetrySeconds,
+  useAutoStartCall,
   useReplyVoicePick,
   useSttModel,
   type SttModel,
@@ -49,6 +51,7 @@ import { replyVoicePlugins, subscribeReplyVoices } from "./replyVoices";
 import {
   checkGpu,
   computerSpeechState,
+  NEEDS_WEBGPU,
   type ModelStatus,
   refreshComputerSpeech,
   speechStateVersion,
@@ -726,7 +729,7 @@ function AppSettings(props: { readonly section: string; readonly onClose: () => 
         <>
           <SoundSection />
           <SpeechSection />
-          <RetrySection />
+          <OpeningSection />
           <CreditsSection />
         </>
       ),
@@ -962,8 +965,6 @@ export function PickRow(props: {
   /** Plays a playable option: from its button, and as the keyboard moves onto it. */
   readonly onPlay?: (value: string) => void;
   readonly busy?: boolean | undefined;
-  /** The description is a problem (Row's error look and alert). */
-  readonly error?: boolean | undefined;
   readonly onChange: (value: string) => void;
 }) {
   const id = useId();
@@ -1045,12 +1046,7 @@ export function PickRow(props: {
   };
 
   return (
-    <Row
-      title={props.title}
-      description={props.description}
-      onReset={props.onReset}
-      error={props.error}
-    >
+    <Row title={props.title} description={props.description} onReset={props.onReset}>
       {(describedBy) => (
         <>
           <button
@@ -1061,7 +1057,7 @@ export function PickRow(props: {
             aria-controls={open ? `${id}l` : undefined}
             aria-label={`${props.label}: ${options[selected]?.label ?? "none"}${
               options[selected]?.detail ? `, ${options[selected].detail}` : ""
-            }`}
+            }${options[selected]?.disabled ? `, ${options[selected].meta ?? "unavailable"}` : ""}`}
             aria-describedby={describedBy}
             disabled={props.disabled}
             aria-disabled={props.busy || undefined}
@@ -1709,41 +1705,75 @@ function useGpu() {
   return gpu;
 }
 
-/** The second sentence of a task's description: what runs it now, and that model's own state. */
-function taskState(props: {
+/** What the computer option says in the list, and how a task picked onto it reads, per state. */
+const COMPUTER_COPY = {
+  checking: { meta: "Checking…", state: () => "Checking the computer running T3…" },
+  ready: {
+    meta: "Nothing downloads here",
+    state: () => "Runs on the computer running T3; nothing loads on this device.",
+  },
+  loading: {
+    meta: "Still loading its models",
+    state: (verb: string, standIn: string) =>
+      `The computer running T3 is still loading its models, so this browser ${verb} with ${standIn} meanwhile.`,
+  },
+  down: {
+    meta: "Not answering",
+    state: (verb: string, standIn: string) =>
+      `The computer's speech service isn't answering, so this browser ${verb} with ${standIn} until it does.`,
+  },
+  absent: {
+    meta: "Only in lalala opened from that computer",
+    state: (verb: string, standIn: string) =>
+      `This page can't reach the computer running T3 (open lalala from it), so this browser ${verb} with ${standIn}.`,
+  },
+} as const;
+
+/**
+ * A task's state after its description: where it runs now and its browser model's own state. The
+ * sentence is announced politely when it changes and turns amber only for a problem; download steps
+ * sit beside it, outside the announcement.
+ */
+function TaskState(props: {
   readonly picked: string;
   readonly auto: string;
+  readonly standIn: string;
   readonly verb: "hears you" | "speaks";
   readonly computer: ReturnType<typeof computerSpeechState>;
   readonly status: ModelStatus | null;
-}): { readonly text: string; readonly error: boolean } {
-  const { picked, auto, verb, computer, status } = props;
-  const model = picked === "auto" || picked === "computer" ? auto : null;
-  let text =
-    picked === "auto" ? `Automatic: ${auto}, in this browser.` : "Runs in this browser.";
-  let error = false;
-  if (picked === "computer") {
-    if (computer === "checking") return { text: "Checking the computer running T3…", error: false };
-    if (computer === "ready")
-      return { text: "Runs on the computer running T3; nothing loads on this device.", error: false };
-    text =
-      computer === "loading"
-        ? `The computer running T3 is still loading its models, so this browser ${verb} with ${auto} meanwhile.`
-        : computer === "absent"
-          ? `This page can't reach the computer running T3 (open lalala from it), so this browser ${verb} with ${auto}.`
-          : `The computer's speech service isn't answering, so this browser ${verb} with ${auto} until it does.`;
-    error = computer === "down";
+}) {
+  const { picked, auto, standIn, verb, computer, status } = props;
+  const failed = status?.phase === "failed";
+  let state =
+    picked === "computer"
+      ? COMPUTER_COPY[computer].state(verb, standIn)
+      : picked === "auto"
+        ? `Automatic: ${auto}, in this browser.`
+        : "Runs in this browser.";
+  if (status?.phase === "ready" && picked !== "computer") state = state.replace(/\.$/, "; ready.");
+  if (failed) {
+    state += status.error?.startsWith(NEEDS_WEBGPU)
+      ? " This browser has no WebGPU for it: pick Automatic or a CPU model."
+      : ` ${status.error ?? "It didn't load."}${
+          status.retryAt > 0 ? " Trying again shortly." : " It tries again from the next call."
+        }`;
   }
-  if (status?.phase === "downloading" && status.total > 0)
-    text += ` Downloading ${MB(status.loaded)} of ${MB(status.total)}.`;
-  else if (status?.phase === "loading") text += model ? ` Loading ${model}…` : " Loading…";
-  else if (status?.phase === "failed") {
-    error = true;
-    text += ` ${status.error ?? "It didn't load."}${
-      status.retryAt > 0 ? " Trying again shortly." : " It tries again from the next call."
-    }`;
-  }
-  return { text, error };
+  const problem = failed || (picked === "computer" && (computer === "down" || computer === "absent"));
+  const progress =
+    status?.phase === "downloading" && status.total > 0
+      ? ` Downloading ${MB(status.loaded)} of ${MB(status.total)}.`
+      : status?.phase === "loading"
+        ? " Loading…"
+        : "";
+  return (
+    <>
+      {" "}
+      <span role="status" data-lalala-settings-state={problem ? "problem" : ""}>
+        {state}
+      </span>
+      {progress}
+    </>
+  );
 }
 
 /**
@@ -1779,41 +1809,29 @@ function SpeechSection() {
   const voiceAuto = autoVoice === null ? "checking this browser" : VOICE_LABELS[autoVoice];
   const computerOption =
     computer === "absent"
-      ? { meta: "Only in lalala opened from that computer", disabled: true }
-      : {
-          meta:
-            computer === "checking"
-              ? "Checking…"
-              : computer === "down"
-                ? "Not answering"
-                : computer === "loading"
-                  ? "Still loading its models"
-                  : "Nothing downloads here",
-        };
+      ? { meta: COMPUTER_COPY.absent.meta, disabled: true }
+      : { meta: COMPUTER_COPY[computer].meta };
   // On a phone the big builds have ended the tab (Tim's iPhone, 14 Nov): picking them stays allowed.
   const heavy = (detail: string) => (phone ? `${detail}, may close a phone tab` : detail);
 
-  const earsState = taskState({
-    picked: ears,
-    auto: earsAuto,
-    verb: "hears you",
-    computer,
-    status: speechStatus("stt"),
-  });
-  const voiceState = taskState({
-    picked: voice,
-    auto: voiceAuto,
-    verb: "speaks",
-    computer,
-    status: speechStatus("voice"),
-  });
 
   return (
     <Section title="Speech">
       <PickRow
         title="Speech-to-text"
-        description={`Hears you, from the next thing you say. ${earsState.text}`}
-        error={earsState.error}
+        description={
+          <>
+            Hears you, from the next thing you say.
+            <TaskState
+              picked={ears}
+              auto={earsAuto}
+              standIn={STT_LABELS["110m"]}
+              verb="hears you"
+              computer={computer}
+              status={speechStatus("stt")}
+            />
+          </>
+        }
         label="Speech-to-text"
         value={ears}
         onReset={ears === "auto" ? undefined : () => setSttModel("auto")}
@@ -1849,7 +1867,7 @@ function SpeechSection() {
               {
                 value: "computer",
                 label: STT_LABELS.computer,
-                detail: "best accuracy, 0.07 s for 3.4 s of speech",
+                detail: "best accuracy, 0.07 s per 3.4 s",
                 ...computerOption,
               },
             ],
@@ -1859,8 +1877,19 @@ function SpeechSection() {
       />
       <PickRow
         title="Reply voice"
-        description={`Speaks the answers, from the next sentence. ${voiceState.text}`}
-        error={voiceState.error}
+        description={
+          <>
+            Speaks the answers, from the next sentence.
+            <TaskState
+              picked={voice}
+              auto={voiceAuto}
+              standIn={VOICE_LABELS.matcha}
+              verb="speaks"
+              computer={computer}
+              status={speechStatus("voice")}
+            />
+          </>
+        }
         label="Reply voice"
         value={voice}
         onReset={voice === "auto" ? undefined : () => setReplyVoice("auto")}
@@ -1894,7 +1923,11 @@ function SpeechSection() {
             ? [
                 {
                   label: "From your cards",
-                  options: plugins.map((plugin) => ({ value: plugin.id, label: plugin.label })),
+                  options: plugins.map((plugin) => ({
+                    value: plugin.id,
+                    label: plugin.label,
+                    meta: "In this browser · size set by its card",
+                  })),
                 },
               ]
             : []),
@@ -1904,7 +1937,7 @@ function SpeechSection() {
               {
                 value: "computer",
                 label: VOICE_LABELS.computer,
-                detail: "most natural, 0.15 s for a 3.8 s sentence",
+                detail: "most natural, 0.15 s per 3.8 s",
                 ...computerOption,
               },
             ],
@@ -1918,11 +1951,33 @@ function SpeechSection() {
 
 const RETRY_CHOICES = [5, 15, 60] as const;
 
-/** Whether lalala tries again on its own when the page or a speech model fails to load. */
-function RetrySection() {
+/**
+ * What happens as lalala opens on this device: whether the call starts by itself, and whether a page
+ * or speech model that fails to load tries again on its own.
+ */
+function OpeningSection() {
   const seconds = useAutoRetrySeconds();
+  const autoStart = useAutoStartCall();
+  const phone = isPhoneDevice();
   return (
-    <Section title="Loading">
+    <Section title="Opening lalala">
+      <Row
+        title="Start the call when lalala opens"
+        description={
+          phone
+            ? "From the next time it opens. A phone browser starts sound and the mic only on a tap, so the first tap anywhere starts the call."
+            : "From the next time it opens. Where this browser holds sound back until a tap, the first tap anywhere starts the call."
+        }
+      >
+        {(describedBy) => (
+          <Toggle
+            on={autoStart}
+            label="Start the call when lalala opens"
+            describedBy={describedBy}
+            onChange={setAutoStartCall}
+          />
+        )}
+      </Row>
       <PickRow
         title="Retry when loading fails"
         description={
@@ -1931,7 +1986,15 @@ function RetrySection() {
             : "When the page or a speech model doesn't load, lalala tries again on its own until it does."
         }
         label="Retry when loading fails"
-        value={seconds === null ? "off" : String(seconds)}
+        value={
+          seconds === null
+            ? "off"
+            : String(
+                RETRY_CHOICES.reduce((best, every) =>
+                  Math.abs(every - seconds) < Math.abs(best - seconds) ? every : best,
+                ),
+              )
+        }
         onReset={
           seconds === DEFAULT_AUTO_RETRY_SECONDS
             ? undefined

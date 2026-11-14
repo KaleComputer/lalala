@@ -166,6 +166,8 @@ export function VoiceBar(props: {
   readonly offline?: (() => void) | null;
   /** The platform took the mic away mid-call; a tap on the room takes it back. */
   readonly paused?: boolean;
+  /** Auto start waits for a tap: this browser holds sound and the mic back until one (Safari, phones). */
+  readonly tapToStart?: boolean;
   /** A copy on the canvas's states card (extras/BarStates): its T3 link and UPDATE come from
       here, and it leaves the call's shared thinking sweep alone. */
   readonly preview?: { readonly link: T3Link; readonly topicAt: number };
@@ -211,6 +213,8 @@ export function VoiceBar(props: {
           : { kind: "loading" }
         : props.paused
           ? { kind: "paused" }
+          : props.tapToStart
+            ? { kind: "tap" }
           : topicMs > 0
             ? { kind: "topic", ms: topicMs }
             : props.state === "connecting"
@@ -530,6 +534,7 @@ type Note =
   | { readonly kind: "holding" }
   | { readonly kind: "models"; readonly models: ReadonlyArray<VoiceBarModel> }
   | { readonly kind: "paused" }
+  | { readonly kind: "tap" }
   | { readonly kind: "topic"; readonly ms: number }
   | { readonly kind: "connecting"; readonly text: string }
   | { readonly kind: "loading" };
@@ -575,6 +580,10 @@ function RoomNote({ note, compacting }: { readonly note: Note; readonly compacti
           aria-label="Mic paused: another app took the audio. Tap to resume."
         >
           Tap to resume mic
+        </b>
+      ) : note.kind === "tap" ? (
+        <b data-lalala-plate="" aria-label="Auto start is on: tap anywhere to start the call.">
+          Tap anywhere to start
         </b>
       ) : note.kind === "loading" ? (
         // The models set up from this device (a download shows its bytes instead): one white plate.

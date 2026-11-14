@@ -196,6 +196,11 @@ export function sttModel(): SttModel {
 }
 export const setSttModel = (model: SttModel) => write(STT_MODEL_KEY, model === "auto" ? null : model);
 
+/** Whether opening lalala starts the call on this device ("lalala:auto-start" is "on"); off by default. */
+const AUTO_START_KEY = "lalala:auto-start";
+export const autoStartCall = () => read(AUTO_START_KEY) === "on";
+export const setAutoStartCall = (on: boolean) => write(AUTO_START_KEY, on ? "on" : null);
+
 /**
  * Whether lalala retries on its own when loading fails (the page's boot loader, a speech model):
  * "lalala:auto-retry" is "off" or a number of seconds; nothing stored is on, every 5 s.
@@ -221,7 +226,8 @@ export const subscribeSettings = (listener: () => void) => {
       event.key !== MIC_KEY &&
       event.key !== REPLY_VOICE_KEY &&
       event.key !== STT_MODEL_KEY &&
-      event.key !== AUTO_RETRY_KEY
+      event.key !== AUTO_RETRY_KEY &&
+      event.key !== AUTO_START_KEY
     )
       return;
     synced = null;
@@ -243,6 +249,8 @@ export const useReplyVoicePick = () =>
   useSyncExternalStore(subscribeSettings, replyVoicePick, () => "auto");
 export const useSttModel = () =>
   useSyncExternalStore(subscribeSettings, sttModel, () => "auto" as SttModel);
+export const useAutoStartCall = () =>
+  useSyncExternalStore(subscribeSettings, autoStartCall, () => false);
 export const useAutoRetrySeconds = () =>
   useSyncExternalStore(subscribeSettings, autoRetrySeconds, () => DEFAULT_AUTO_RETRY_SECONDS);
 
