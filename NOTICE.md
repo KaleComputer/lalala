@@ -49,6 +49,20 @@ Python packages installed into the speech service's own environment: `mlx-audio`
 Uvicorn (BSD-3-Clause), websockets (BSD-3-Clause). `misaki` can fall back to espeak-ng (GPL-3.0)
 for unknown words if it is installed on the system; lalala does not bundle or install it.
 
+## Kale's voice (included: `src/voice/browserSpeech/matcha`)
+
+The phones' reply voice ships with this repository and runs in the browser:
+
+| Part | What it is | License |
+| --- | --- | --- |
+| `model.onnx` | A [Matcha-TTS](https://github.com/shivammehta25/Matcha-TTS) model (18M parameters) trained by Kale from random initialisation on [LJSpeech 1.1](https://keithito.com/LJ-Speech-Dataset/) only, weights stored in 8 bits. No other model's weights or outputs went into it. | MIT, as this repository. LJSpeech is in the public domain ("There are no restrictions on its use"); Matcha-TTS code: MIT, Copyright (c) 2023 Shivam Mehta |
+| `vocoder.onnx` | [BSC-LT/vocos-mel-22khz](https://huggingface.co/BSC-LT/vocos-mel-22khz) (`mel_spec_22khz_univ`, via [sherpa-onnx](https://github.com/k2-fsa/sherpa-onnx)'s ONNX export), weights stored in 8 bits. Trained by BSC-LT on LibriTTS-R (CC BY 4.0), LJSpeech (public domain), Festcat (CC BY-SA 3.0) and OpenSLR69 (CC BY-SA 4.0) | [Apache-2.0](https://www.apache.org/licenses/LICENSE-2.0); [Vocos](https://github.com/gemelo-ai/vocos) code: MIT |
+| `lexicon.tsv` | English word list made from [CMUdict](https://github.com/cmusphinx/cmudict) | BSD-2-Clause, Copyright (C) 1993-2015 Carnegie Mellon University (the notice is at the top of the file) |
+| `override.tsv`, `g2p.bin`, `kaleTts.js` | Kale's hand-checked words, a small model for unknown words (trained on the word list) and the code that turns text into speech | MIT, as this repository |
+
+No espeak-ng (or other GPL code or data) is used at runtime. The runtime is
+[onnxruntime-web](https://github.com/microsoft/onnxruntime) (MIT), loaded from jsDelivr.
+
 ## Sounds
 
 The topic sounds in `src/voice/extras/topicSounds-*.mp3` were generated with ElevenLabs (sound

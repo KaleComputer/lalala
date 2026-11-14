@@ -9,7 +9,8 @@ background. When something is worth looking at, the brain builds it as a card on
 canvas next to you: a list, a comparison, a diagram, a small tool, even a game.
 
 Speech runs in your browser, on every device: speech-to-text is NVIDIA Parakeet 0.6B (fp16 on
-WebGPU), text-to-speech is Kokoro, and Silero VAD hears when you stop, all on ONNX. No audio leaves
+WebGPU), text-to-speech is Kokoro (on phones, Kale's own small Matcha-TTS voice, trained on the
+public-domain LJSpeech), and Silero VAD hears when you stop, all on ONNX. No audio leaves
 the device you talk on.
 
 ## How it works

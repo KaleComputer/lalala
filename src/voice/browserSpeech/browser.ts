@@ -1,5 +1,5 @@
 // Speech in this browser, on both hosts: Parakeet
-// listens, Kokoro speaks, each on ONNX in its own worker. Both load with the call and are terminated
+// listens, Kokoro (desktops) or Kale's own Matcha voice (phones) speaks, each on ONNX in its own worker. Both load with the call and are terminated
 // when it ends, so the page holds none of their memory between calls.
 import type { VoiceBarModel } from "../VoiceBar";
 import { sttModel } from "../settingsStore";
@@ -8,7 +8,13 @@ import type { LoadMessage } from "./readout";
 
 type Reply =
   | { type: "text"; id: number; text: string }
-  | { type: "audio"; id: number; samples: Float32Array<ArrayBuffer>; rate: number }
+  | {
+      type: "audio";
+      id: number;
+      samples: Float32Array<ArrayBuffer>;
+      rate: number;
+      timing?: Record<string, number>;
+    }
   | { type: "error"; id: number; message: string };
 
 const MODEL_FAILED = "The voice models didn't load.";
@@ -29,7 +35,7 @@ const markLoading = (name: string, on: boolean) =>
   storage((store) =>
     on ? store.setItem(LOADING(name), String(Date.now())) : store.removeItem(LOADING(name)),
   );
-for (const name of ["parakeet", "kokoro"]) {
+for (const name of ["parakeet", "kokoro", "matcha"]) {
   storage((store) => {
     if (store.getItem(LOADING(name)) === null) return;
     store.removeItem(LOADING(name));
@@ -236,6 +242,10 @@ const voice = modelWorker(
   "kokoro",
   () => new Worker(new URL("./kokoro.worker.ts", import.meta.url), { type: "module" }),
 );
+const matcha = modelWorker(
+  "matcha",
+  () => new Worker(new URL("./matcha.worker.ts", import.meta.url), { type: "module" }),
+);
 
 let persisted = false;
 const persistDownloads = () => {
@@ -248,7 +258,7 @@ const persistDownloads = () => {
 };
 
 // Debugging which model a device can't hold: `?speech=stt` loads only Parakeet (replies stay
-// silent), `?speech=voice` only Kokoro (type in the bar to hear replies).
+// silent), `?speech=voice` only the reply voice (type in the bar to hear replies).
 const only =
   typeof location === "undefined" ? null : new URLSearchParams(location.search).get("speech");
 const earsOff = only === "voice";
@@ -267,6 +277,11 @@ export const startKokoro = () => {
   if (!voiceOff) voice.start();
 };
 export const releaseKokoro = () => voice.release();
+/** The same for Kale's Matcha voice. */
+export const startMatcha = () => {
+  if (!voiceOff) matcha.start();
+};
+export const releaseMatcha = () => matcha.release();
 
 /** 16 kHz PCM, transcribed by Parakeet. The buffer moves to its worker. */
 export async function transcribe(pcm: Float32Array<ArrayBuffer>): Promise<string> {
@@ -306,15 +321,26 @@ export async function kokoroSpeak(text: string): Promise<Float32Array<ArrayBuffe
   return reply.samples;
 }
 
+/** One sentence as 24 kHz PCM from Kale's Matcha voice, and how long its two models took. */
+export async function matchaSpeak(
+  text: string,
+): Promise<{ samples: Float32Array<ArrayBuffer>; timing: Record<string, number> }> {
+  if (voiceOff) return { samples: new Float32Array(0), timing: {} };
+  const reply = await matcha.ask({ type: "speak", text });
+  if (reply.type !== "audio") throw new Error("The voice returned no audio");
+  return { samples: reply.samples, timing: reply.timing ?? {} };
+}
+
 /** A model is still downloading or loading; a reload now would throw that away (callGuard). */
-export const speechLoading = (): boolean => ears.loading() || voice.loading();
+export const speechLoading = (): boolean =>
+  ears.loading() || voice.loading() || matcha.loading();
 
 /**
  * The models this call is downloading, for the bar's readout; empty while they only load from disk (or
  * before a worker has said which), null once all are ready.
  */
 export function speechProgress(): ReadonlyArray<VoiceBarModel> | null {
-  const loading = [ears, voice].filter((model) => model.started());
+  const loading = [ears, voice, matcha].filter((model) => model.started());
   if (loading.every((model) => model.ready())) return null;
   return loading.map((model) => model.model()).filter((model) => model !== null);
 }

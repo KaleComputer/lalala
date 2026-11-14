@@ -4,7 +4,14 @@
  * iOS can interrupt the context mid-reply, so it is resumed, cut pieces replay, and every end is
  * logged with its cause.
  */
-import { kokoroSpeak, releaseKokoro, startKokoro } from "./browserSpeech/browser";
+import {
+  kokoroSpeak,
+  matchaSpeak,
+  releaseKokoro,
+  releaseMatcha,
+  startKokoro,
+  startMatcha,
+} from "./browserSpeech/browser";
 import { replyVoicePlugin } from "./replyVoices";
 import { soundGain } from "./extras/soundVolume";
 import { withPronunciations } from "./pronunciations";
@@ -162,6 +169,12 @@ export class SpeechPlayer {
     const previous = this.preparedVoice === null ? null : replyVoicePlugin(this.preparedVoice);
     this.preparedVoice = voice;
     previous?.unload();
+    if (voice === "matcha") {
+      releaseKokoro();
+      startMatcha();
+      return;
+    }
+    releaseMatcha();
     const plugin = replyVoicePlugin(voice);
     if (plugin === null) {
       startKokoro();
@@ -206,6 +219,7 @@ export class SpeechPlayer {
     // The voices' models hold a few hundred MB; the page keeps none of it between calls.
     if (this.preparedVoice !== null) replyVoicePlugin(this.preparedVoice)?.unload();
     releaseKokoro();
+    releaseMatcha();
     this.context.removeEventListener("statechange", this.onContextState);
     if (this.resumeTimer !== null) window.clearTimeout(this.resumeTimer);
     this.resumeTimer = null;
@@ -431,10 +445,22 @@ export class SpeechPlayer {
     };
     try {
       const voice = replyVoice();
-      const plugin = replyVoicePlugin(voice);
-      if (plugin !== null) {
-        // A plugin voice renders in this tab, a whole sentence at a time; it plays in Kokoro's chunks.
-        const { samples, timing } = await plugin.speak(sentence.text, signal);
+      const plugin = voice === "matcha" ? null : replyVoicePlugin(voice);
+      if (voice === "matcha" || plugin !== null) {
+        // Kale's voice renders in its worker, a plugin voice in this tab, a whole sentence at a time;
+        // both play in Kokoro's chunks.
+        const renderStart = performance.now();
+        const rendered =
+          plugin === null
+            ? await matchaSpeak(sentence.text)
+            : await plugin.speak(sentence.text, signal);
+        if (signal.aborted) return;
+        const { samples } = rendered;
+        const timing = {
+          renderMs: performance.now() - renderStart,
+          audioMs: (samples.length / TTS_SAMPLE_RATE) * 1000,
+          ...rendered.timing,
+        };
         voiceLog("voice", "reply-voice.sentence", {
           voice,
           ...Object.fromEntries(

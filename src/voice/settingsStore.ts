@@ -135,24 +135,33 @@ export function setMicDeviceId(id: string | null) {
   document.dispatchEvent(new Event(EVENT));
 }
 
+const phone = () =>
+  typeof navigator !== "undefined" && /iPhone|iPad|iPod|Android/.test(navigator.userAgent);
+
 /**
- * Who speaks the replies on this device, in this browser: Kokoro (browserSpeech/, the default), or a
- * voice the user's cards registered (replyVoices.ts) by its id.
+ * The reply voice a device starts on: Kale's own Matcha voice on phones, where Kokoro on the CPU
+ * took about twice a sentence's length to render it (Tim's iPhone, 14 Nov); Kokoro elsewhere.
+ */
+export const defaultReplyVoice = (): string => (phone() ? "matcha" : "kokoro");
+
+/**
+ * Who speaks the replies on this device, in this browser: Kokoro or Kale's Matcha voice
+ * (browserSpeech/), or a voice the user's cards registered (replyVoices.ts) by its id.
  */
 export function replyVoice(): string {
   try {
-    return localStorage.getItem(REPLY_VOICE_KEY) ?? "kokoro";
+    return localStorage.getItem(REPLY_VOICE_KEY) ?? defaultReplyVoice();
   } catch {
-    return "kokoro";
+    return defaultReplyVoice();
   }
 }
 
 export function setReplyVoice(voice: string) {
   try {
-    if (voice === "kokoro") localStorage.removeItem(REPLY_VOICE_KEY);
+    if (voice === defaultReplyVoice()) localStorage.removeItem(REPLY_VOICE_KEY);
     else localStorage.setItem(REPLY_VOICE_KEY, voice);
   } catch {
-    // No storage: Kokoro.
+    // No storage: the default.
   }
   document.dispatchEvent(new Event(EVENT));
 }
@@ -181,7 +190,8 @@ export const useSyncedSettings = () =>
   useSyncExternalStore(subscribeSettings, syncedSettings, () => DEFAULTS);
 export const useMicDeviceId = () =>
   useSyncExternalStore(subscribeSettings, micDeviceId, () => null);
-export const useReplyVoice = () => useSyncExternalStore(subscribeSettings, replyVoice, () => "kokoro");
+export const useReplyVoice = () =>
+  useSyncExternalStore(subscribeSettings, replyVoice, defaultReplyVoice);
 
 /**
  * Which Parakeet hears on this device, in this browser: the 0.6B or NVIDIA's stock 110M, a fifth of
@@ -189,10 +199,7 @@ export const useReplyVoice = () => useSyncExternalStore(subscribeSettings, reply
  * ended Tim's iPhone tab (14 Nov, 20:20 and 20:21).
  */
 export type SttModel = "0.6b" | "110m";
-export const defaultSttModel = (): SttModel =>
-  typeof navigator !== "undefined" && /iPhone|iPad|iPod|Android/.test(navigator.userAgent)
-    ? "110m"
-    : "0.6b";
+export const defaultSttModel = (): SttModel => (phone() ? "110m" : "0.6b");
 export function sttModel(): SttModel {
   try {
     const stored = localStorage.getItem(STT_MODEL_KEY);

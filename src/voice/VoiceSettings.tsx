@@ -30,6 +30,7 @@ import {
   pullSynced,
   setMicDeviceId,
   setReplyVoice,
+  defaultReplyVoice,
   defaultSttModel,
   setSttModel,
   topicSoundNames,
@@ -1672,24 +1673,23 @@ function ExperimentsSection() {
         ]}
         onChange={(value) => setSttModel(value === "110m" ? "110m" : "0.6b")}
       />
-      {plugins.length === 0 ? null : (
       <PickRow
         title="Reply voice"
-        description="On this device, from the next sentence, to compare how fast each answers. Both run in this browser; the call's log has each sentence's render time."
+        description="On this device, from the next sentence. All run in this browser; Kale's voice is the lighter and faster one, Kokoro the more natural. The call's log has each sentence's render time."
         label="Reply voice"
         value={voice}
-        onReset={voice === "kokoro" ? undefined : () => setReplyVoice("kokoro")}
+        onReset={voice === defaultReplyVoice() ? undefined : () => setReplyVoice(defaultReplyVoice())}
         groups={[
           {
             options: [
-              { value: "kokoro", label: "Kokoro (default)" },
+              { value: "kokoro", label: "Kokoro" },
+              { value: "matcha", label: "Kale's voice (lighter, faster)" },
               ...plugins.map((plugin) => ({ value: plugin.id, label: plugin.label })),
             ],
           },
         ]}
         onChange={(value) => setReplyVoice(value)}
       />
-      )}
     </Section>
   );
 }
