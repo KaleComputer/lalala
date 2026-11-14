@@ -63,6 +63,15 @@
 [data-lalala-card-off] > [data-lalala-card-body] {
   content-visibility: hidden;
 }
+/* Cards stepping aside for a swap (cardSwap.ts): only while they move, never while idle. */
+[data-lalala-card][data-lalala-card-glide] {
+  transition: translate 200ms cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+@media (prefers-reduced-motion: reduce) {
+  [data-lalala-card][data-lalala-card-glide] {
+    transition: none;
+  }
+}
 [data-lalala-card] > header {
   flex: none;
   display: flex;

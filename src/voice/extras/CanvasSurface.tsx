@@ -22,6 +22,7 @@ import {
   type GroupGrab,
 } from "./canvasStore";
 import { followBootScreen } from "./bootScreen";
+import { endSwap, hoverSwap, startSwap, stopGlides } from "./cardSwap";
 import { GroupAreas } from "./GroupAreas";
 import "./canvasSurface.css";
 
@@ -112,10 +113,13 @@ export function CanvasSurface({ children }: { readonly children: ReactNode }) {
       };
     };
     const startPinch = () => {
+      endSwap(false);
+      stopGlides();
       const both = pair();
       if (both !== null) gesture = { kind: "pinch", ...both, camera: getCamera() };
     };
     const startPan = (from: Point) => {
+      stopGlides();
       const { x, y } = getCamera();
       gesture = { kind: "pan", from, camera: { x, y } };
     };
@@ -230,6 +234,7 @@ export function CanvasSurface({ children }: { readonly children: ReactNode }) {
         if (!(grip || corner) || !rect) return false;
         capture(pointerId);
         gesture = { kind: corner ? "resize" : "move", id, from: at, rect };
+        if (!corner) startSwap(id);
         holdCard(id);
         return true;
       }
@@ -251,6 +256,7 @@ export function CanvasSurface({ children }: { readonly children: ReactNode }) {
     };
 
     const clear = () => {
+      endSwap(false);
       pointers.clear();
       starts.clear();
       gesture = null;
@@ -272,6 +278,7 @@ export function CanvasSurface({ children }: { readonly children: ReactNode }) {
         pruned = true;
       }
       if (!pruned) return;
+      endSwap(false);
       gesture = null;
       holdCard(null);
       if (pointers.size >= 2) return startPinch();
@@ -352,12 +359,14 @@ export function CanvasSurface({ children }: { readonly children: ReactNode }) {
         const dx = (at.x - gesture.from.x) / z;
         const dy = (at.y - gesture.from.y) / z;
         const { rect } = gesture;
-        setCard(
-          gesture.id,
-          gesture.kind === "move"
-            ? { ...rect, x: rect.x + dx, y: rect.y + dy }
-            : { ...rect, w: rect.w + dx, h: rect.h + dy },
-        );
+        if (gesture.kind === "move") {
+          const moved = { ...rect, x: rect.x + dx, y: rect.y + dy };
+          setCard(gesture.id, moved);
+          const camera = getCamera();
+          hoverSwap(moved, { x: (at.x - camera.x) / z, y: (at.y - camera.y) / z });
+        } else {
+          setCard(gesture.id, { ...rect, w: rect.w + dx, h: rect.h + dy });
+        }
       }
     };
 
@@ -365,6 +374,8 @@ export function CanvasSurface({ children }: { readonly children: ReactNode }) {
       // Only the surface's own capture ending: a card's button hands its capture to the surface.
       if (event.type === "lostpointercapture" && event.target !== surface) return;
       if (!forget(event.pointerId)) return;
+      // Dropped on a card it was held over: it takes that card's slot (before the release sends it).
+      if (gesture?.kind === "move" && pointers.size === 0) endSwap(event.type === "pointerup");
       if (gesture?.kind === "pinch") {
         // One finger left on the glass carries on panning.
         const rest = [...pointers.values()][0];

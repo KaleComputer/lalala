@@ -917,6 +917,8 @@ const surfaceCards = () =>
       : [],
   );
 
+export { surfaceCards as cardsHere };
+
 /** Where a group's own box is kept: the size the user gave it, beside the cards' boxes. */
 export const groupKey = (label: string) => boxKey(live.canvas, `group:${label}`);
 const union = (a: Rect, b: Rect): Rect => {
