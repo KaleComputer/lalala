@@ -11,7 +11,7 @@ let loading: Promise<void> | null = null;
 function loadEnvironmentId(): void {
   loading ??= (async () => {
     try {
-      const connection = (await (await fetch("/__t3voice/t3/connection")).json()) as {
+      const connection = (await (await fetch("/__lalala/t3/connection")).json()) as {
         origin?: string | null;
       };
       if (!connection.origin) return;
