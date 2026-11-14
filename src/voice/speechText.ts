@@ -6,6 +6,8 @@ export function speakableText(text: string): string {
     .replace(/!?\[([^\]]*)\]\([^)]*\)/g, "$1")
     .replace(/^\s{0,3}(#{1,6}|[-*+]|\d+\.)\s+/gm, "")
     .replace(/[*_~>|]/g, "")
+    // A dot inside a name (lalala.talk, app.t3.codes) is said, not paused on; "e.g." and "3.5" stay.
+    .replace(/(?<=[\p{L}\d]{2})\.(?=\p{L}[\p{L}\d])/gu, " dot ")
     .replace(/\s+/g, " ")
     .trim();
   return /\p{L}/u.test(spoken) ? spoken.slice(0, 700) : "";
