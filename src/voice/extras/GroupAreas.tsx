@@ -1,5 +1,6 @@
 import { useLayoutEffect, useRef } from "react";
 import { getCamera, getSelected, getView, groupAreas, groupKey, subscribe } from "./canvasStore";
+import { hiddenName, isStreamer, subscribeStreamer } from "./streamer";
 import { AREA } from "./tidyPack";
 
 /**
@@ -25,7 +26,7 @@ export function GroupAreas() {
       const selected = getSelected();
       // The areas, not the card boxes: cards mounting on a fresh load change them, not the boxes.
       const areas = groupAreas();
-      const signature = JSON.stringify(areas);
+      const signature = `${isStreamer()}${JSON.stringify(areas)}`;
       if (
         camera === lastCamera &&
         view === lastView &&
@@ -76,7 +77,7 @@ export function GroupAreas() {
         context.font = `700 ${AREA.head * 0.5}px ${font}`;
         context.textBaseline = "alphabetic";
         const at = { x: rect.x + AREA.pad, y: rect.y + AREA.head * 0.68 };
-        context.fillText(label.toUpperCase(), at.x, at.y, rect.w - AREA.pad * 2);
+        context.fillText(hiddenName(label).toUpperCase(), at.x, at.y, rect.w - AREA.pad * 2);
         // The resize corner, only on the selected group, the same size on screen at any zoom.
         if (groupKey(label) !== selected) {
           context.restore();
@@ -98,7 +99,12 @@ export function GroupAreas() {
       }
     };
     draw();
-    return subscribe(draw);
+    const unsubscribe = subscribe(draw);
+    const unsubscribeStreamer = subscribeStreamer(draw);
+    return () => {
+      unsubscribe();
+      unsubscribeStreamer();
+    };
   }, []);
 
   return <canvas ref={ref} data-lalala-group-areas="" aria-hidden="true" />;

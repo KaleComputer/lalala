@@ -22,7 +22,15 @@ function subscribe(onChange: () => void) {
   };
 }
 
-const useStreamer = () => useSyncExternalStore(subscribe, read, () => false);
+/** On: the canvas redacts every card's body (streamer.css) and the brain's HTML cards (BrainCards). */
+export const useStreamer = () => useSyncExternalStore(subscribe, read, () => false);
+
+// One root attribute drives the redaction CSS on both hosts, whichever React tree is mounted.
+const mark = () => document.documentElement.toggleAttribute("data-lalala-streamer", read());
+if (typeof document !== "undefined") {
+  mark();
+  subscribe(mark);
+}
 
 const GLYPHS = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
 const SALT = Math.floor(Math.random() * 0x7fffffff);
@@ -40,8 +48,8 @@ function scrambleWord(word: string, place: number): string {
   return out;
 }
 
-// the user's name inside otherwise generic labels ("Needs the user", "the user's pick").
-const NAME = /^the user\b|Pietrusky/;
+// Names inside otherwise generic labels ("Needs the user", "the user's pick", "Cleo’s test").
+const NAME = /^the user\b|Pietrusky|^Cleo/;
 
 /** The text's words and the spaces between, each (or each name) word with its scrambled stand-in. */
 function splitWords(text: string, nameOnly: boolean) {
@@ -55,6 +63,16 @@ function splitWords(text: string, nameOnly: boolean) {
   }
   return parts;
 }
+
+/** A label drawn outside React (a group's headline on its canvas): only its names scrambled. */
+export const hiddenName = (text: string) =>
+  read()
+    ? splitWords(text, true)
+        .map(({ part, fake }) => fake ?? part)
+        .join("")
+    : text;
+
+export { read as isStreamer, subscribe as subscribeStreamer };
 
 /** Content text streamer mode scrambles word by word and pixelates (streamer.css); `name`: only the user's name. */
 export function Hidden({ text, name = false }: { readonly text: string; readonly name?: boolean }) {

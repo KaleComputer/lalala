@@ -21,3 +21,48 @@
     filter: blur(2.5px);
   }
 }
+
+/* Streamer mode on the canvas: every card body's text is a static smudge (each glyph a square,
+   drawn only as a blurred shadow, painted once into the card's layer: no filter while it moves),
+   and every image, video, camera frame and canvas is blanked. Card titles and group headlines stay; media a card marks
+   `data-streamer-safe` (a diagram, a mockup, a logo) stays. HTML cards get the same in BrainCards. */
+:root[data-lalala-streamer] [data-lalala-card-body],
+:root[data-lalala-streamer] [data-lalala-card-body] *,
+:root[data-lalala-streamer] [data-lalala-card-body] *::before,
+:root[data-lalala-streamer] [data-lalala-card-body] *::after {
+  color: transparent !important;
+  -webkit-text-fill-color: transparent !important;
+  text-shadow: 0 0 0.4em var(--lala-ink, #888) !important;
+  -webkit-text-security: square !important;
+  caret-color: transparent !important;
+}
+:root[data-lalala-streamer] [data-lalala-card-body] ::placeholder {
+  color: transparent !important;
+}
+:root[data-lalala-streamer] [data-lalala-card-body] [data-streamer-mask] {
+  filter: none;
+}
+:root[data-lalala-streamer] [data-lalala-card-body] svg text,
+:root[data-lalala-streamer] [data-lalala-card-body] svg tspan {
+  fill: transparent !important;
+  stroke: transparent !important;
+}
+:root[data-lalala-streamer]
+  [data-lalala-card-body]
+  :is(img, video):not([data-streamer-safe], [data-streamer-safe] *) {
+  object-position: -100000px 0 !important;
+  background: color-mix(in srgb, var(--lala-ink, #888) 14%, transparent) !important;
+}
+:root[data-lalala-streamer]
+  [data-lalala-card-body]
+  :is(canvas, svg image, object, embed, iframe:not([data-lalala-brain-card])):not(
+    [data-streamer-safe],
+    [data-streamer-safe] *
+  ) {
+  visibility: hidden !important;
+}
+:root[data-lalala-streamer]
+  [data-lalala-card-body]
+  *:not([data-streamer-safe], [data-streamer-safe] *) {
+  background-image: none !important;
+}
