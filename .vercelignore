@@ -1,6 +1,14 @@
+# lalala.talk builds the one app (index.html, src/, vite.config.mjs) in its site mode; site/ holds
+# Vercel's part (vercel.json, the /x/ proxy in api/, the build script). Nothing else ships.
 /*
 !/site
 !/src
+!/vite
+!/public
+!/index.html
+!/vite.config.mjs
+!/package.json
+!/package-lock.json
 /site/node_modules
 /site/.next
 /site/out

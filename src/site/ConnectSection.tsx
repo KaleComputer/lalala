@@ -17,9 +17,9 @@ import {
   readWorkspace,
   saveAddress,
   Unreachable,
-} from "../../../src/voice/adapters/harness/t3";
-import { ConnectedRows, isPhone, PairSteps } from "../../../src/voice/ConnectFlow";
-import { isLocalOrigin, readAddress, readPairing } from "../../../src/voice/pairing";
+} from "../voice/adapters/harness/t3";
+import { ConnectedRows, isPhone, PairSteps } from "../voice/ConnectFlow";
+import { isLocalOrigin, readAddress, readPairing } from "../voice/pairing";
 import {
   closeVoiceSettings,
   CONNECTED_HOLD_MS,
@@ -27,7 +27,7 @@ import {
   type PickGroup,
   Row,
   Section,
-} from "../../../src/voice/VoiceSettings";
+} from "../voice/VoiceSettings";
 import { disconnectBrain, followBrainThread } from "./adapters";
 
 type Workspace = Awaited<ReturnType<typeof readWorkspace>>;

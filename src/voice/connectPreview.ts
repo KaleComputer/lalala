@@ -6,7 +6,7 @@
 export const connectPreview =
   typeof location !== "undefined" && new URLSearchParams(location.search).get("connect") === "fresh";
 
-/** The commands lalala.talk shows (site/app/canvas/ConnectSection.tsx), for the preview. */
+/** The commands lalala.talk shows (src/site/ConnectSection.tsx), for the preview. */
 export const TALK_PAIR_COMMAND = "npx t3 pair --label lalala.talk";
 export const TALK_CONNECT_COMMAND =
   "npx t3 auth pairing create --base-url https://<your T3 Connect address> --label lalala.talk";

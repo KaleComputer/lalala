@@ -1,15 +1,13 @@
-"use client";
-
 // First: the adapters must be in place before the canvas store loads.
 import "./adapters";
 
 import { useState } from "react";
 
-import { CanvasCard } from "../../../src/voice/extras/CanvasCard";
-import { PageLoader } from "../../../src/voice/extras/PageLoader";
-import { VoiceExtras } from "../../../src/voice/extras/VoiceExtras";
-import { StreamerFilter } from "../../../src/voice/streamerMode";
-import { VersionLabel } from "../../../src/voice/VersionLabel";
+import { CanvasCard } from "../voice/extras/CanvasCard";
+import { PageLoader } from "../voice/extras/PageLoader";
+import { VoiceExtras } from "../voice/extras/VoiceExtras";
+import { StreamerFilter } from "../voice/streamerMode";
+import { VersionLabel } from "../voice/VersionLabel";
 import {
   CanvasRows,
   LOOK_NAMES,
@@ -25,15 +23,15 @@ import {
   SpeechSection,
   OpeningSection,
   CreditsSection,
-} from "../../../src/voice/VoiceSettings";
-import "../../../src/voice/voicePage.css";
+} from "../voice/VoiceSettings";
+import "../voice/voicePage.css";
 import "./landing.css";
 import { useBrainVersion } from "./adapters";
 import { Call } from "./Call";
 import { ConnectSection } from "./ConnectSection";
 import { NewThreadsSection } from "./SiteSections";
-import { useLook } from "../../../src/voice/extras/look";
-import { useAutoStartCall, useSyncedSettings } from "../../../src/voice/settingsStore";
+import { useLook } from "../voice/extras/look";
+import { useAutoStartCall, useSyncedSettings } from "../voice/settingsStore";
 
 const HIDDEN = "lalala:landing-hidden";
 /** The device bar and its rail take this much of the first view's bottom (CanvasCard's BAR_ROOM). */

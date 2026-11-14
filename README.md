@@ -34,18 +34,20 @@ browser (mic, canvas) ──▶ lalala server :5780 ──▶ T3 Code server   (
   from the corner. It starts empty; the brain adds cards when you ask for them. The layout is
   saved in `.lalala/canvas.json`, so it survives restarts and is the same on every device.
 
-### One codebase, two hosts
+### One app, two hosts
 
-The app and [lalala.talk](https://lalala.talk) (`site/`, Next.js) run the same canvas, cards, bar,
-settings and call code from `src/voice`. Only the adapters in `src/voice/adapters` differ, picked
-once at startup (`src/main.tsx` for the app, `site/app/canvas/adapters.ts` for the site):
+The app and [lalala.talk](https://lalala.talk) are one build: the same `index.html` (with the boot
+screen), `src/main.tsx`, canvas, cards, bar, settings and call code from `src/voice`. `vite` serves
+the app with its server; `vite build --mode site` makes lalala.talk, a static build Vercel serves
+from `site/out` (`site/` holds only Vercel's part: `vercel.json`, the `/x/` proxy in `api/`, the
+build script). The mode picks the host's entry (`src/app/main.tsx` or `src/site/main.tsx`) and
+with it the adapters in `src/voice/adapters`:
 
 - **storage**: layout and settings on the lalala server (`server.ts`), or in this browser only (`browser.ts`).
 - **harness**: T3 Code through the lalala server, or straight from the browser to T3 Code.
   The site's harness also reads files from the brain's project, which is how its cards arrive.
 
-Speech is the same on both (`src/voice/browserSpeech`). The site imports `src/voice` with the app's own aliases (`site/next.config.mjs` mirrors
-`vite.config.mjs`).
+Speech is the same on both (`src/voice/browserSpeech`).
 
 ## Requirements
 

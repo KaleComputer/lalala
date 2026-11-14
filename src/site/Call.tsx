@@ -1,8 +1,8 @@
 import { type ComponentProps } from "react";
 
-import { VoiceBar } from "../../../src/voice/VoiceBar";
-import { VoiceHost } from "../../../src/voice/VoiceHost";
-import { onVoiceSettingsClosed, openVoiceSettings } from "../../../src/voice/VoiceSettings";
+import { VoiceBar } from "../voice/VoiceBar";
+import { VoiceHost } from "../voice/VoiceHost";
+import { onVoiceSettingsClosed, openVoiceSettings } from "../voice/VoiceSettings";
 import { callStartsWith, useBrainVersion, wantCallOnConnect } from "./adapters";
 
 type BarProps = Partial<ComponentProps<typeof VoiceBar>>;

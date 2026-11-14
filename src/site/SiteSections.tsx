@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 
-import { readBrainThread, readSession, readWorkspace, T3Socket } from "../../../src/voice/adapters/harness/t3";
-import { type Brain, Section, ThreadsSection } from "../../../src/voice/VoiceSettings";
+import { readBrainThread, readSession, readWorkspace, T3Socket } from "../voice/adapters/harness/t3";
+import { type Brain, Section, ThreadsSection } from "../voice/VoiceSettings";
 
 /** The models the visitor's T3 offers, read once per open page, for the new threads' picker. */
 function useSiteBrain(): { readonly brain: Brain | null; readonly loading: boolean } {

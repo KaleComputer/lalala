@@ -14,13 +14,7 @@
     "isolatedModules": true,
     "jsx": "react-jsx",
     "skipLibCheck": true,
-    "plugins": [
-      {
-        "name": "next"
-      }
-    ],
     "allowJs": true,
-    "incremental": true,
     "esModuleInterop": true,
     "paths": {
       "react": [
@@ -83,11 +77,9 @@
     }
   },
   "include": [
-    "next-env.d.ts",
-    "**/*.ts",
-    "**/*.tsx",
-    ".next/types/**/*.ts",
-    ".next/dev/types/**/*.ts"
+    "*.d.ts",
+    "../src/site/**/*.ts",
+    "../src/site/**/*.tsx"
   ],
   "exclude": [
     "node_modules",

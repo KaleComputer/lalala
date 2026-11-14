@@ -3,10 +3,10 @@
 // Imported before the canvas, whose store and bridge read the adapters when they load.
 import { useSyncExternalStore } from "react";
 
-import { type HarnessAdapter, installAdapters } from "../../../src/voice/adapters";
-import { browserBrain, browserHarness } from "../../../src/voice/adapters/harness/browser";
-import { type Session, forgetSession, saveBrainThread } from "../../../src/voice/adapters/harness/t3";
-import { browserStorage } from "../../../src/voice/adapters/storage/browser";
+import { type HarnessAdapter, installAdapters } from "../voice/adapters";
+import { browserBrain, browserHarness } from "../voice/adapters/harness/browser";
+import { type Session, forgetSession, saveBrainThread } from "../voice/adapters/harness/t3";
+import { browserStorage } from "../voice/adapters/storage/browser";
 
 type Listener = (event: unknown) => void;
 
@@ -95,11 +95,3 @@ export function useBrainVersion() {
     () => 0,
   );
 }
-
-// The settings' topic sounds, where the app's build lists them (src/voice/extrasImages.ts).
-globalThis.__lalalaImages = Object.fromEntries(
-  (process.env.LALALA_TOPIC_SOUNDS ?? "")
-    .split(",")
-    .filter(Boolean)
-    .map((name) => [`./extras/topicSounds-${name}.mp3`, `/sounds/${name}.mp3`]),
-);

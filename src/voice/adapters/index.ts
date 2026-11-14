@@ -1,7 +1,7 @@
 /**
  * What differs between the lalala app and lalala.talk, picked once at startup: everything else
  * (canvas, cards, bar, settings, the call and its in-browser speech) is the same code. The app installs the server adapters
- * (main.tsx), the site the browser ones (site/app/canvas/adapters.ts), before the canvas loads.
+ * (main.tsx), the site the browser ones (src/site/adapters.ts), before the canvas loads.
  * On a global, because the canvas's extras bundle may import only React and its own folder.
  */
 

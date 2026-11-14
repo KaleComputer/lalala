@@ -1,6 +1,15 @@
-// The app's Vite `?raw` imports, which the site's build gives the same meaning (next.config.mjs).
+// Vite's `?raw` imports, for the site's type check (site/tsconfig.json).
 declare module "*?raw" {
   const text: string;
   export default text;
 }
 
+
+// Which host this build is (vite.config.mjs, from the mode): the app or lalala.talk.
+interface ImportMetaEnv {
+  readonly LALALA_HOST: "app" | "site";
+}
+interface ImportMeta {
+  readonly env: ImportMetaEnv;
+  glob<T>(pattern: string | string[], options?: Record<string, unknown>): Record<string, T>;
+}

@@ -62,7 +62,7 @@ export function syncVoiceTheme(): void {
 }
 
 // The brain edits voiceTheme.ts while the page is open; apply it in place instead of reloading.
-// Typed by hand: Next's types (lalala.talk builds this file too) know only webpack's `accept()`.
+// Typed by hand: the site's type check (site/tsconfig.json) has no Vite client types.
 const hot = import.meta.hot as
   | { accept(path: string, callback: (next: unknown) => void): void }
   | undefined;
