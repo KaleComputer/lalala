@@ -3,7 +3,7 @@
 // They start loading when the page opens and stay loaded for the page's life, across calls and tab
 // hides: setting a model up takes seconds on a phone (Tim, 14 Nov: "always a cold start").
 import type { VoiceBarModel } from "../VoiceBar";
-import { autoRetrySeconds, replyVoice, sttModel } from "../settingsStore";
+import { autoRetrySeconds, replyVoice, replyVoicePick, sttModel } from "../settingsStore";
 import { voiceLog } from "../voiceLog";
 import type { LoadMessage } from "./readout";
 
@@ -403,41 +403,100 @@ if (only) voiceLog("system", "speech.only", { only });
 // The computer running T3 (its speech service, through this app's server): picked per task in Settings.
 // While it isn't ready, this browser stands in with its lightest models (Parakeet 110M, Matcha), kept
 // loaded; the computer is asked again (never from a page with no route to it, like lalala.talk).
+// Automatic tries the computer too, never gives up on it (backing off up to 5 min, again on every page
+// open), uses this browser meanwhile, and keeps whichever path its own timings say is faster here.
 const COMPUTER_LOADING_MS = 3_000;
+const COMPUTER_BACKOFF_MAX_S = 300;
 let computerState: ComputerSpeech | "checking" = "checking";
 let computerTimer = 0;
+let computerTries = 0;
 const standingIn = () => computerState !== "ready";
-const onComputer = {
-  stt: () => sttModel() === "computer" && !standingIn(),
-  voice: () => replyVoice() === "computer" && !standingIn(),
+
+type Task = "stt" | "voice";
+type Where = "browser" | "computer";
+const TIMINGS_KEY = "lalala:speech-timings";
+/** Milliseconds of work per second of audio, per task and path, averaged over recent turns. */
+let timings: Record<Task, Partial<Record<Where, number>>> = (() => {
+  try {
+    const stored = JSON.parse(localStorage.getItem(TIMINGS_KEY) ?? "{}") as Partial<typeof timings>;
+    return { stt: stored.stt ?? {}, voice: stored.voice ?? {} };
+  } catch {
+    return { stt: {}, voice: {} };
+  }
+})();
+export const speechTimings = () => timings;
+function record(task: Task, where: Where, ms: number, audioMs: number) {
+  if (audioMs < 300) return;
+  const perSecond = ms / (audioMs / 1000);
+  const before = timings[task][where];
+  timings = {
+    ...timings,
+    [task]: { ...timings[task], [where]: before === undefined ? perSecond : before * 0.7 + perSecond * 0.3 },
+  };
+  try {
+    localStorage.setItem(TIMINGS_KEY, JSON.stringify(timings));
+  } catch {
+    // No storage: measured again next time.
+  }
+  notify();
+}
+/** This browser measured clearly faster than the computer for a task: Automatic stays here. */
+const browserFaster = (task: Task) => {
+  const { browser, computer } = timings[task];
+  return browser !== undefined && computer !== undefined && browser < computer * 0.8;
 };
+const automatic = { stt: () => sttModel() === "auto", voice: () => replyVoicePick() === "auto" };
+/** A task the computer should do, picked by hand or by Automatic. */
+const wantsComputer = {
+  stt: () =>
+    sttModel() === "computer" || (automatic.stt() && computerState !== "absent" && !browserFaster("stt")),
+  voice: () =>
+    replyVoice() === "computer" ||
+    (automatic.voice() && computerState !== "absent" && !browserFaster("voice")),
+};
+const onComputer = {
+  stt: () => wantsComputer.stt() && !standingIn(),
+  voice: () => wantsComputer.voice() && !standingIn(),
+};
+/** Automatic or the computer is still getting the computer ready; this browser does the task meanwhile. */
+export const tryingComputer = (task: Task) =>
+  (task === "stt" ? wantsComputer.stt() : wantsComputer.voice()) &&
+  computerState !== "ready" &&
+  computerState !== "absent";
 /** The computer's state, as this page last saw it; Settings show it. */
 export const computerSpeechState = () => computerState;
 
 /** Loads (or frees) this browser's stand-ins for the tasks the computer does or doesn't do now. */
 function fitModels() {
-  if (sttModel() === "computer") {
+  if (wantsComputer.stt()) {
     if (standingIn()) startEars();
     else ears.releaseWhenIdle();
   }
-  if (replyVoice() === "computer") {
-    voice.releaseWhenIdle();
-    if (standingIn()) startMatcha();
-    else matcha.releaseWhenIdle();
+  if (wantsComputer.voice()) {
+    if (standingIn()) {
+      if (replyVoice() === "computer") startMatcha();
+      else prewarmVoice();
+    } else {
+      voice.releaseWhenIdle();
+      matcha.releaseWhenIdle();
+    }
   }
 }
 /** Still loading: asked again shortly. Not answering: at the retry interval, if retrying is on. */
 function scheduleComputer() {
   window.clearTimeout(computerTimer);
   computerTimer = 0;
+  const retry = autoRetrySeconds();
   const every =
     computerState === "loading" || computerState === "starting" ? COMPUTER_LOADING_MS / 1000
-    : computerState === "down" ? autoRetrySeconds()
-    : null;
+    : computerState === "down" && retry !== null
+      ? Math.min(retry * 2 ** Math.min(computerTries, 8), COMPUTER_BACKOFF_MAX_S)
+      : null;
   if (every !== null) computerTimer = window.setTimeout(() => void refreshComputerSpeech(), every * 1000);
 }
 function setComputer(state: ComputerSpeech) {
   const changed = state !== computerState;
+  computerTries = state === "down" ? computerTries + 1 : state === "ready" ? 0 : computerTries;
   computerState = state;
   scheduleComputer();
   if (changed) {
@@ -451,7 +510,8 @@ function setComputer(state: ComputerSpeech) {
  * starts the service if it isn't running (`force`: Try again, even right after a failed start).
  */
 export async function refreshComputerSpeech(force = false) {
-  const wanted = sttModel() === "computer" || replyVoice() === "computer";
+  const wanted =
+    sttModel() === "computer" || replyVoice() === "computer" || automatic.stt() || automatic.voice();
   setComputer(await checkComputerSpeech(force ? "force" : wanted ? "auto" : undefined));
 }
 let speechPrewarmed = false;
@@ -507,12 +567,12 @@ export const startEars = () => {
 export const releaseEars = () => ears.releaseWhenIdle();
 /** Kokoro loads with the call while it is the reply voice; another reply voice frees it. */
 export const startKokoro = () => {
-  if (!voiceOff && replyVoice().startsWith("kokoro")) voice.start();
+  if (!voiceOff && replyVoice().startsWith("kokoro") && !onComputer.voice()) voice.start();
 };
 export const releaseKokoro = () => voice.releaseWhenIdle();
 /** The same for Kale's Matcha voice. */
 export const startMatcha = () => {
-  if (!voiceOff) matcha.start();
+  if (!voiceOff && !onComputer.voice()) matcha.start();
 };
 export const releaseMatcha = () => {
   // Standing in for the computer, Matcha speaks: the call's player can't free it then.
@@ -522,6 +582,8 @@ export const releaseMatcha = () => {
 /** 16 kHz PCM, transcribed by Parakeet. The buffer moves to its worker. */
 export async function transcribe(pcm: Float32Array<ArrayBuffer>): Promise<string> {
   if (earsOff) return "";
+  const audioMs = (pcm.length / 16_000) * 1000;
+  const startedAt = performance.now();
   if (onComputer.stt()) {
     try {
       const response = await computer("/stt", {
@@ -529,13 +591,16 @@ export async function transcribe(pcm: Float32Array<ArrayBuffer>): Promise<string
         body: wavOf(pcm),
       });
       const body = (await response.json()) as { text?: unknown };
+      record("stt", "computer", performance.now() - startedAt, audioMs);
       return typeof body.text === "string" ? body.text : "";
     } catch (error) {
       voiceLog("system", "speech.computer-down", { task: "stt", message: String(error) });
       setComputer("down");
     }
   }
+  const browserAt = performance.now();
   const reply = await ears.ask({ type: "transcribe", pcm }, [pcm.buffer]);
+  if (ears.ready()) record("stt", "browser", performance.now() - browserAt, audioMs);
   return reply.type === "text" ? reply.text : "";
 }
 
@@ -562,32 +627,43 @@ export function openVad(onProbability: (probability: number) => void) {
   };
 }
 
+/** One sentence from the computer's Kokoro, as 24 kHz PCM; null when the computer didn't answer. */
+async function computerSpeak(text: string): Promise<Float32Array<ArrayBuffer> | null> {
+  const startedAt = performance.now();
+  try {
+    const response = await computer("/tts", {
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ text }),
+    });
+    // 16-bit little-endian 24 kHz PCM.
+    const bytes = await response.arrayBuffer();
+    const view = new DataView(bytes, 0, bytes.byteLength - (bytes.byteLength % 2));
+    const samples = new Float32Array(view.byteLength / 2);
+    for (let i = 0; i < samples.length; i += 1) samples[i] = view.getInt16(i * 2, true) / 0x8000;
+    record("voice", "computer", performance.now() - startedAt, (samples.length / 24_000) * 1000);
+    return samples;
+  } catch (error) {
+    voiceLog("system", "speech.computer-down", { task: "voice", message: String(error) });
+    setComputer("down");
+    return null;
+  }
+}
+
 /** One sentence as 24 kHz PCM from Kokoro; it reads misaki's `[word](/phonemes/)` markup. */
 export async function kokoroSpeak(text: string): Promise<Float32Array<ArrayBuffer>> {
   if (voiceOff) return new Float32Array(0);
   // The computer's Kokoro, and Matcha standing in for it, read plain text: the markup keeps the word.
   const plain = () => text.replace(/\[([^\]]+)\]\(\/[^)]*\/\)/g, "$1");
   if (onComputer.voice()) {
-    try {
-      const response = await computer("/tts", {
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({ text: plain() }),
-      });
-      // 16-bit little-endian 24 kHz PCM.
-      const bytes = await response.arrayBuffer();
-      const view = new DataView(bytes, 0, bytes.byteLength - (bytes.byteLength % 2));
-      const samples = new Float32Array(view.byteLength / 2);
-      for (let i = 0; i < samples.length; i += 1) samples[i] = view.getInt16(i * 2, true) / 0x8000;
-      return samples;
-    } catch (error) {
-      voiceLog("system", "speech.computer-down", { task: "voice", message: String(error) });
-      setComputer("down");
-    }
+    const samples = await computerSpeak(plain());
+    if (samples !== null) return samples;
   }
   // Standing in for the computer, the lightest voice speaks: Matcha.
   if (replyVoice() === "computer") return (await matchaSpeak(plain())).samples;
+  const browserAt = performance.now();
   const reply = await voice.ask({ type: "speak", text });
   if (reply.type !== "audio") throw new Error("Kokoro returned no audio");
+  record("voice", "browser", performance.now() - browserAt, (reply.samples.length / 24_000) * 1000);
   return reply.samples;
 }
 
@@ -596,7 +672,15 @@ export async function matchaSpeak(
   text: string,
 ): Promise<{ samples: Float32Array<ArrayBuffer>; timing: Record<string, number> }> {
   if (voiceOff) return { samples: new Float32Array(0), timing: {} };
+  // Automatic on a phone: the computer's Kokoro speaks when it is the faster path here.
+  if (onComputer.voice() && replyVoice() !== "computer") {
+    const samples = await computerSpeak(text.replace(/\[([^\]]+)\]\(\/[^)]*\/\)/g, "$1"));
+    if (samples !== null) return { samples, timing: {} };
+  }
+  const browserAt = performance.now();
   const reply = await matcha.ask({ type: "speak", text });
+  if (reply.type === "audio")
+    record("voice", "browser", performance.now() - browserAt, (reply.samples.length / 24_000) * 1000);
   if (reply.type !== "audio") throw new Error("The voice returned no audio");
   return { samples: reply.samples, timing: reply.timing ?? {} };
 }
@@ -609,7 +693,8 @@ export function prewarm() {
   speechPrewarmed = true;
   startEars();
   prewarmVoice();
-  if (sttModel() === "computer" || replyVoice() === "computer") void refreshComputerSpeech();
+  if (sttModel() === "computer" || replyVoice() === "computer" || automatic.stt() || automatic.voice())
+    void refreshComputerSpeech();
 }
 /** The reply voice's browser model; with the computer picked, fitModels decides once it has answered. */
 function prewarmVoice() {

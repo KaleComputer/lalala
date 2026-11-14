@@ -394,6 +394,40 @@
   display: block;
   margin-top: 2px;
 }
+/* Something is being tried right now (Automatic getting the computer ready): a thin scan that moves by
+   transform only (no repaint), only while it tries, still when motion is reduced. */
+[data-lalala-settings-trying] {
+  position: relative;
+  display: block;
+  width: min(12rem, 100%);
+  height: 2px;
+  margin-top: 6px;
+  overflow: hidden;
+  border-radius: 1px;
+  background: var(--s-divider);
+}
+[data-lalala-settings-trying]::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  width: 40%;
+  background: linear-gradient(90deg, transparent, var(--s-primary), transparent);
+  animation: lalala-settings-trying 1.6s linear infinite;
+}
+@keyframes lalala-settings-trying {
+  from {
+    transform: translateX(-100%);
+  }
+  to {
+    transform: translateX(250%);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  [data-lalala-settings-trying]::after {
+    animation: none;
+    transform: translateX(75%);
+  }
+}
 [data-lalala-settings-progress] {
   display: block;
   font-variant-numeric: tabular-nums;

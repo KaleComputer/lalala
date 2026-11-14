@@ -57,6 +57,8 @@ import {
   activeSpeech,
   type ActiveSpeech,
   computerSpeechReason,
+  speechTimings,
+  tryingComputer,
   refreshComputerSpeech,
   speechStateVersion,
   speechStatus,
@@ -313,10 +315,7 @@ export const PAGE_ICONS = {
   ],
   canvas: ["M3 3h7v7H3z", "M14 3h7v7h-7z", "M14 14h7v7h-7z", "M3 14h7v7H3z"],
   cards: ["M12 2 2 7l10 5 10-5-10-5z", "m2 17 10 5 10-5", "m2 12 10 5 10-5"],
-  general: [
-    "M12.2 2h-.4a2 2 0 0 0-2 2v.2a2 2 0 0 1-1 1.7l-.4.3a2 2 0 0 1-2 0l-.2-.1a2 2 0 0 0-2.7.7l-.2.4a2 2 0 0 0 .7 2.7l.2.1a2 2 0 0 1 1 1.7v.5a2 2 0 0 1-1 1.7l-.2.1a2 2 0 0 0-.7 2.7l.2.4a2 2 0 0 0 2.7.7l.2-.1a2 2 0 0 1 2 0l.4.3a2 2 0 0 1 1 1.7v.2a2 2 0 0 0 2 2h.4a2 2 0 0 0 2-2v-.2a2 2 0 0 1 1-1.7l.4-.3a2 2 0 0 1 2 0l.2.1a2 2 0 0 0 2.7-.7l.2-.4a2 2 0 0 0-.7-2.7l-.2-.1a2 2 0 0 1-1-1.7v-.5a2 2 0 0 1 1-1.7l.2-.1a2 2 0 0 0 .7-2.7l-.2-.4a2 2 0 0 0-2.7-.7l-.2.1a2 2 0 0 1-2 0l-.4-.3a2 2 0 0 1-1-1.7V4a2 2 0 0 0-2-2z",
-    "M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6z",
-  ],
+  startup: ["M12 2v10", "M18.4 6.6a9 9 0 1 1-12.77.04"],
 } as const;
 
 const PAGE_KEY = "lalala:settings-page";
@@ -713,9 +712,9 @@ function AppSettings(props: { readonly section: string; readonly onClose: () => 
       ),
     },
     {
-      id: "general",
-      title: "General",
-      icon: PAGE_ICONS.general,
+      id: "startup",
+      title: "Startup",
+      icon: PAGE_ICONS.startup,
       value: autoStart ? "Starts by itself" : "Starts when you press Start",
       content: <OpeningSection />,
     },
@@ -1826,6 +1825,7 @@ const LOADED_NAMES: Record<string, string> = {
   "kokoro 82m mlx": "Kokoro 82M",
 };
 const loadedName = (name: string) => LOADED_NAMES[name] ?? name;
+const seconds = (ms: number) => `${(ms / 1000).toFixed(ms < 100 ? 2 : 1)} s`;
 
 /** What runs a task right now, in a few words: "Llama Matcha (Kale's voice), in this browser · ready". */
 export function nowText(active: ActiveSpeech, waiting: string): string {
@@ -1857,6 +1857,7 @@ function TaskState(props: {
   readonly verb: "hears you" | "speaks";
   readonly computer: ReturnType<typeof computerSpeechState>;
   readonly active: ActiveSpeech;
+  readonly task: "stt" | "voice";
   /** The picked (or automatic) browser model's cost, while nothing is loaded yet. */
   readonly cost?: string | undefined;
 }) {
@@ -1866,18 +1867,34 @@ function TaskState(props: {
   // The computer, when it was picked and can't take the task now.
   const away =
     picked === "computer" && computer !== "ready" ? COMPUTER_COPY[computer].state(verb, standIn) : null;
+  // Automatic (or the computer by hand) still getting the computer ready: it keeps trying, never gives up.
+  const trying = tryingComputer(props.task);
+  const measured = speechTimings()[props.task];
   const reason = computer === "down" ? computerSpeechReason() : null;
   const awayProblem = picked === "computer" && (computer === "down" || computer === "absent");
   const waiting = picked === "computer" ? standIn : picked === "auto" ? auto : (STT_LABELS[picked as Exclude<SttModel, "auto">] ?? VOICE_LABELS[picked as VoiceBuild] ?? auto);
   let now = `Now: ${nowText(active, waiting)}`;
   if (status?.phase === "idle" && props.cost) now += ` (${props.cost.split(" download")[0]})`;
-  if (picked === "auto" && auto !== CHECKING) now += " · automatic";
+  if (picked === "auto" && auto !== CHECKING) {
+    now +=
+      measured.browser !== undefined && measured.computer !== undefined
+        ? ` · automatic, measured here: computer ${seconds(measured.computer)}, browser ${seconds(measured.browser)} per second of speech`
+        : active.where === "computer"
+          ? " · automatic, faster here"
+          : " · automatic";
+  }
   if (failed)
     now += status.error?.includes(NEEDS_WEBGPU)
       ? `. ${status.error} Pick Automatic or a CPU model.`
       : `. ${status.error ?? ""}${status.retryAt > 0 ? " Trying again shortly." : " It tries again from the next call."}`;
   return (
     <>
+      {trying && picked === "auto" ? (
+        <span data-lalala-settings-state="">
+          Trying your computer… using this browser meanwhile.
+          <span data-lalala-settings-trying="" aria-hidden="true" />
+        </span>
+      ) : null}
       {away ? (
         <span data-lalala-settings-state="">
           {awayProblem && away.includes(";") ? (
@@ -1889,6 +1906,7 @@ function TaskState(props: {
             away
           )}
           {reason ? <span data-lalala-settings-reason=""> {reason}</span> : null}
+          {trying ? <span data-lalala-settings-trying="" aria-hidden="true" /> : null}
           {picked === "computer" && computer === "down" ? (
             <>
               {" "}
@@ -1967,6 +1985,7 @@ export function SpeechSection() {
               standIn={STT_LABELS["110m"]}
               verb="hears you"
               computer={computer}
+              task="stt"
               active={activeSpeech("stt")}
             />
           </>
@@ -2035,6 +2054,7 @@ export function SpeechSection() {
               standIn={VOICE_LABELS.matcha}
               verb="speaks"
               computer={computer}
+              task="voice"
               active={activeSpeech("voice")}
             />
           </>
@@ -2115,7 +2135,7 @@ export function OpeningSection() {
   const seconds = useAutoRetrySeconds();
   const autoStart = useAutoStartCall();
   return (
-    <Section title="General">
+    <Section title="Startup">
       <Row
         title="Start the call when lalala opens"
         description="Safari and phones wait for a first tap."

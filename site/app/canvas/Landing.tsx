@@ -102,9 +102,9 @@ export default function Landing() {
       content: <ConnectSection part="connection" />,
     },
     {
-      id: "general",
-      title: "General",
-      icon: PAGE_ICONS.general,
+      id: "startup",
+      title: "Startup",
+      icon: PAGE_ICONS.startup,
       value: autoStart ? "Starts by itself" : "Starts when you press Start",
       content: <OpeningSection />,
     },
