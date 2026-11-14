@@ -216,10 +216,8 @@ export class SpeechPlayer {
   /** Stops watching the context (the call ended). */
   dispose(): void {
     this.stopFollowingSettings();
-    // The voices' models hold a few hundred MB; the page keeps none of it between calls.
+    // A card's voice frees its memory; the built-in voices stay loaded for the next call.
     if (this.preparedVoice !== null) replyVoicePlugin(this.preparedVoice)?.unload();
-    releaseKokoro();
-    releaseMatcha();
     this.context.removeEventListener("statechange", this.onContextState);
     if (this.resumeTimer !== null) window.clearTimeout(this.resumeTimer);
     this.resumeTimer = null;

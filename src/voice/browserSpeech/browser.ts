@@ -1,8 +1,9 @@
 // Speech in this browser, on both hosts: Parakeet
-// listens, Kokoro (desktops) or Kale's own Matcha voice (phones) speaks, each on ONNX in its own worker. Both load with the call and are terminated
-// when it ends, so the page holds none of their memory between calls.
+// listens, Kokoro (desktops) or Kale's own Matcha voice (phones) speaks, each on ONNX in its own worker.
+// They start loading when the page opens and stay loaded for the page's life, across calls and tab
+// hides: setting a model up takes seconds on a phone (Tim, 14 Nov: "always a cold start").
 import type { VoiceBarModel } from "../VoiceBar";
-import { sttModel } from "../settingsStore";
+import { replyVoice, sttModel } from "../settingsStore";
 import { voiceLog } from "../voiceLog";
 import type { LoadMessage } from "./readout";
 
@@ -345,6 +346,17 @@ export async function matchaSpeak(
   const reply = await matcha.ask({ type: "speak", text });
   if (reply.type !== "audio") throw new Error("The voice returned no audio");
   return { samples: reply.samples, timing: reply.timing ?? {} };
+}
+
+/**
+ * Starts the speech models as the page opens, one after the other (Parakeet, then the reply voice),
+ * so a call finds them ready. A voice the user's cards registered loads with the call instead.
+ */
+export function prewarm() {
+  startEars();
+  const voice = replyVoice();
+  if (voice === "matcha") startMatcha();
+  else if (voice === "kokoro") startKokoro();
 }
 
 /** A model is still downloading or loading; a reload now would throw that away (callGuard). */

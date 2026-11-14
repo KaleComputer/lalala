@@ -3,7 +3,7 @@
  * grows, for partials, and whole when it is committed. Silero VAD hears every mic frame: an utterance
  * it heard no speech in is never transcribed, and its run of speech tells Tim from noise and breath.
  */
-import { openVad, releaseEars, startEars, transcribe } from "./browserSpeech/browser";
+import { openVad, startEars, transcribe } from "./browserSpeech/browser";
 
 export const STT_SAMPLE_RATE = 16_000;
 const VAD_WINDOW = 512;
@@ -75,13 +75,12 @@ export class RealtimeStt {
     this.vad ??= openVad((probability) => this.onProbability(probability));
   }
 
-  /** The call ended: the models and their memory go. */
+  /** The call ended: Parakeet stays loaded for the next call (browserSpeech/browser.ts). */
   close(): void {
     this.discard();
     this.vad?.close();
     this.vad = null;
     this.inSpeech = false;
-    releaseEars();
   }
 
   /** Every mic frame, in a turn or not: the voice detector keeps its state across them. */
