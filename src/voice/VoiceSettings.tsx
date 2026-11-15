@@ -1121,7 +1121,8 @@ export function PickRow(props: {
             }}
           >
             <span>
-              <PickLabel option={options[selected]} />
+              {/* Automatic shows what it runs and where: "Auto · Kokoro 82M · computer". */}
+              {props.shows ? "Auto" : <PickLabel option={options[selected]} />}
               {props.shows ? <small data-lalala-settings-shows="">{` · ${props.shows}`}</small> : null}
             </span>
             {!props.disabled ? (
@@ -1964,7 +1965,7 @@ function automaticWhy(task: "stt" | "voice", computer: ReturnType<typeof compute
   if (computer === "absent") return "this browser; your computer once T3 Code is connected";
   if (browserFaster(task)) return `this browser, faster here\u00a0· ${measured}${since}`;
   if (runs.where === "computer")
-    return `picked your computer, nothing to download here\u00a0· ${measured}${since}`;
+    return `your computer, no download\u00a0· ${measured}${since}`;
   // While your computer is tried, the group's line says why: here only what was measured and when it moved.
   const facts = [there === undefined && browser === undefined ? "" : measured, since.replace(/^\u00a0· /, "")];
   return facts.filter(Boolean).join("\u00a0· ");
@@ -2172,7 +2173,7 @@ export function SpeechSection() {
         value={ears}
         shows={
           ears === "auto"
-            ? modelOnly(runningName("stt", tryingComputer("stt") ? STT_LABELS["110m"] : earsAuto))
+            ? `${modelOnly(runningName("stt", tryingComputer("stt") ? STT_LABELS["110m"] : earsAuto))} · ${activeSpeech("stt").where === "computer" ? "computer" : "here"}`
             : undefined
         }
         onReset={ears === "auto" ? undefined : () => setSttModel("auto")}
@@ -2253,7 +2254,7 @@ export function SpeechSection() {
         value={voice}
         shows={
           voice === "auto"
-            ? modelOnly(runningName("voice", voiceStandIn === null ? voiceAuto : VOICE_LABELS[voiceStandIn]))
+            ? `${modelOnly(runningName("voice", voiceStandIn === null ? voiceAuto : VOICE_LABELS[voiceStandIn]))} · ${activeSpeech("voice").where === "computer" ? "computer" : "here"}`
             : undefined
         }
         onReset={voice === "auto" ? undefined : () => setReplyVoice("auto")}

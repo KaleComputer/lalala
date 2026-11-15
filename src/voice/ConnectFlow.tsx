@@ -288,7 +288,7 @@ export function PairSteps(props: {
             <Step
               n={2}
               title={
-                "Paste your T3 Connect address (the MCP URL)"
+                "Paste your T3 Connect address"
               }
             >
               <T3Path steps={["Settings", "Environments", "⋯", "Copy MCP URL"]} />
