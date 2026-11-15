@@ -51,11 +51,8 @@ import {
 } from "./settingsStore";
 import { replyVoicePlugins, subscribeReplyVoices } from "./replyVoices";
 import {
-  browserFaster,
   checkGpu,
-  automaticTriesComputer,
   computerSpeechSince,
-  speechRunsAt,
   computerSpeechState,
   NEEDS_WEBGPU,
   activeSpeech,
@@ -1844,15 +1841,6 @@ const LOADED_NAMES: Record<string, string> = {
   "kokoro 82m mlx": "Kokoro 82M",
 };
 const loadedName = (name: string) => LOADED_NAMES[name] ?? name;
-/** The workers' names for the browser builds, as the cost tables key them. */
-const LOADED_KEYS: Record<string, string> = {
-  "parakeet 0.6b gpu": "0.6b-gpu",
-  "parakeet 0.6b": "0.6b-cpu",
-  "parakeet 110m": "110m",
-  "kokoro 82m gpu": "kokoro-gpu",
-  "kokoro 82m cpu": "kokoro-cpu",
-  "llama matcha": "matcha",
-};
 const seconds = (ms: number) => `${(ms / 1000).toFixed(ms < 100 ? 2 : 1)} s`;
 /** How fast your computer did a task, as measured from this device, once it has. */
 function measuredComputer(task: "stt" | "voice"): string | undefined {
@@ -1860,44 +1848,11 @@ function measuredComputer(task: "stt" | "voice"): string | undefined {
   return computer === undefined ? undefined : `measured ${seconds(computer)} per second of audio`;
 }
 
-/** What Automatic measured here, per second of audio, once both paths have run on this device. */
-function measuredMeta(task: "stt" | "voice"): string | undefined {
-  const { browser, computer } = speechTimings()[task];
-  return browser !== undefined && computer !== undefined
-    ? `Measured per second: computer ${seconds(computer)} · here ${seconds(browser)}`
-    : undefined;
-}
 
 /** Automatic's line in the list, from the same decision the runtime makes. */
-function automaticOption(
-  task: "stt" | "voice",
-  computer: ReturnType<typeof computerSpeechState>,
-  browser: { readonly label: string; readonly cost: string | undefined },
-  standIn: { readonly label: string; readonly cost: string | undefined },
-) {
-  const measured = measuredMeta(task);
-  if (computer === "absent") return { detail: browser.label, meta: browser.cost };
-  if (browserFaster(task)) {
-    // Named from what this browser actually loaded (a stand-in or a storage step-down), as "Now:" says.
-    const active = activeSpeech(task);
-    const loaded = active.where === "browser" ? active.status.name : null;
-    const key = loaded === null ? undefined : LOADED_KEYS[loaded];
-    return {
-      detail: `${loaded === null ? browser.label : loadedName(loaded)}, faster here than your computer`,
-      meta: [measured, key === undefined ? browser.cost : (STT_COSTS[key] ?? VOICE_COSTS[key])]
-        .filter(Boolean)
-        .join(" · "),
-    };
-  }
-  return {
-    detail: `your computer, else ${modelOnly(standIn.label)}`,
-    meta:
-      computer === "ready"
-        ? measured === undefined
-          ? "Nothing downloads while your computer answers"
-          : `${measured} · nothing downloads`
-        : `Only while your computer is out: ${standIn.cost ?? standIn.label}`,
-  };
+function automaticOption(browser: { readonly label: string; readonly cost: string | undefined }) {
+  // Automatic stays in this browser on every device (Tim, 14 Nov): your computer is only ever picked by hand.
+  return { detail: browser.label, meta: browser.cost };
 }
 
 /** What hears and what speaks right now, and where: the settings tab's tooltip and Sound & mic's line. */
@@ -1947,8 +1902,6 @@ export function nowText(active: ActiveSpeech, waiting: string, meanwhile = ""): 
   return `${name}, in this browser${meanwhile} · ${phase}`;
 }
 
-const clock = (at: number) =>
-  new Date(at).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", hourCycle: "h23" });
 /** How long something has been going, as m:ss. */
 const elapsed = (since: number) => {
   const s = Math.max(0, Math.round((Date.now() - since) / 1000));
@@ -1971,39 +1924,9 @@ function Elapsed(props: { readonly since: number }) {
 }
 
 /** What Automatic picked for a task and why, from the runtime's own decision and timings. */
-function automaticWhy(task: "stt" | "voice", computer: ReturnType<typeof computerSpeechState>): string {
-  const { browser, computer: there } = speechTimings()[task];
-  const runs = speechRunsAt(task);
-  const since =
-    runs.since === null
-      ? ""
-      : `\u00a0· moved from ${runs.where === "computer" ? "this browser" : "your computer"} at ${clock(runs.since)}`;
-  // Each timing on its own, so a missing one says so instead of hiding the other.
-  const measured =
-    there === undefined && browser === undefined
-      ? "speed not measured yet"
-      : `per second of audio: computer ${there === undefined ? "not measured" : seconds(there)}, here ${
-          browser === undefined ? "measured only when it stands in" : seconds(browser)
-        }`;
-  if (!automaticTriesComputer(task)) return "phones always use Kale's voice";
-  if (computer === "absent") return "this browser; your computer once T3 Code is connected";
-  // A missing measurement isn't a reason: the speeds show once there is a number.
-  const speeds = there === undefined && browser === undefined ? "" : `\u00a0· ${measured}`;
-  if (browserFaster(task)) return `this browser, faster here${speeds}${since}`;
-  // On your computer with nothing measured, Now: and the select already say it all: no line.
-  if (runs.where === "computer") return speeds === "" && since === "" ? "" : `your computer${speeds}${since}`;
-  // While your computer is tried, the group's line says why: here what Automatic picked meanwhile, what was
-  // measured and when it moved.
-  const facts = [
-    computer === "down"
-      ? "this browser for now"
-      : computer === "starting" || computer === "loading"
-        ? "this browser while your computer starts"
-        : "",
-    there === undefined && browser === undefined ? "" : measured,
-    since.replace(/^\u00a0· /, ""),
-  ];
-  return facts.filter(Boolean).join("\u00a0· ");
+function automaticWhy(task: "stt" | "voice"): string {
+  if (task === "voice" && isPhoneDevice()) return "phones use Kale's voice; your computer only when you pick it";
+  return "this browser, picked for this device; your computer only when you pick it";
 }
 
 /**
@@ -2077,9 +2000,9 @@ function TaskState(props: {
           </>
         ) : null}
       </span>
-      {picked === "auto" && automaticWhy(props.task, computer) !== "" ? (
+      {picked === "auto" ? (
         <span data-lalala-settings-why="">
-          <b data-lalala-settings-now="">Automatic:</b> {automaticWhy(props.task, computer)}
+          <b data-lalala-settings-now="">Automatic:</b> {automaticWhy(props.task)}
         </span>
       ) : null}
     </>
@@ -2233,12 +2156,7 @@ export function SpeechSection() {
               {
                 value: "auto",
                 label: "Automatic",
-                ...automaticOption(
-                  "stt",
-                  computer,
-                  { label: earsAuto, cost: autoEars === null ? undefined : STT_COSTS[autoEars] },
-                  { label: STT_LABELS["110m"], cost: STT_COSTS["110m"] },
-                ),
+                ...automaticOption({ label: earsAuto, cost: autoEars === null ? undefined : STT_COSTS[autoEars] }),
               },
             ],
           },
@@ -2314,15 +2232,7 @@ export function SpeechSection() {
               {
                 value: "auto",
                 label: "Automatic",
-                ...automaticOption(
-                  "voice",
-                  automaticTriesComputer("voice") ? computer : "absent",
-                  { label: voiceAuto, cost: autoVoice === null ? undefined : VOICE_COSTS[autoVoice] },
-                  {
-                    label: voiceAuto,
-                    cost: autoVoice === null ? "" : (VOICE_COSTS[autoVoice] ?? ""),
-                  },
-                ),
+                ...automaticOption({ label: voiceAuto, cost: autoVoice === null ? undefined : VOICE_COSTS[autoVoice] }),
               },
             ],
           },
