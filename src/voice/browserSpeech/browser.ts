@@ -1,5 +1,5 @@
 // Speech in this browser, on both hosts: Parakeet
-// listens, Kale's warm voice Llama Kokoro (Automatic, every device) or Kokoro 82M speaks, each on ONNX
+// listens, Kale's warm voice Kale's Kokoro (Automatic, every device) or Kokoro 82M speaks, each on ONNX
 // in its own worker.
 // They start loading when the page opens and stay loaded for the page's life, across calls and tab
 // hides: setting a model up takes seconds on a phone (Tim, 14 Nov: "always a cold start").
@@ -48,7 +48,7 @@ const markLoading = (name: string, on: boolean) =>
   storage((store) =>
     on ? store.setItem(LOADING(name), String(Date.now())) : store.removeItem(LOADING(name)),
   );
-for (const name of ["parakeet", "kokoro", "llama-kokoro"]) {
+for (const name of ["parakeet", "kokoro", "kale-kokoro", "llama-kokoro"]) {
   storage((store) => {
     if (store.getItem(LOADING(name)) === null) return;
     store.removeItem(LOADING(name));
@@ -386,9 +386,9 @@ const voice = modelWorker(
   () => new Worker(new URL("./kokoro.worker.ts", import.meta.url), { type: "module" }),
   () => ({ build: kokoroBuild() }),
 );
-// Kale's warm voice. Llama Matcha, which spoke on phones before it, is gone (Tim, 15 Nov).
+// Kale's warm voice. Matcha, which spoke on phones before it, is gone (Tim, 15 Nov).
 const warm = modelWorker(
-  "llama-kokoro",
+  "kale-kokoro",
   () => new Worker(new URL("./llamaKokoro.worker.ts", import.meta.url), { type: "module" }),
 );
 // A device that switches a model, or sends a task to the computer, frees the old one once its
@@ -440,11 +440,11 @@ const voiceOff = only === "stt";
 if (only) voiceLog("system", "speech.only", { only });
 
 // The computer running T3 (its speech service, through this app's server): picked per task in Settings.
-// While it isn't ready, this browser stands in with its lightest models (Parakeet 110M, Llama Kokoro on
+// While it isn't ready, this browser stands in with its lightest models (Parakeet 110M, Kale's Kokoro on
 // a phone), kept loaded; the computer is asked again (never from a page with no route to it, like
 // lalala.talk). Automatic tries the computer for hearing too, never gives up on it (backing off up to
 // 5 min, again on every page open), uses this browser meanwhile, and keeps whichever path its own
-// timings say is faster here. Automatic's voice is Llama Kokoro, which only runs here.
+// timings say is faster here. Automatic's voice is Kale's Kokoro, which only runs here.
 const COMPUTER_LOADING_MS = 3_000;
 const COMPUTER_BACKOFF_MAX_S = 300;
 let computerState: ComputerSpeech | "checking" = "checking";
@@ -495,7 +495,7 @@ export const browserFaster = (task: Task) => {
 const automatic = { stt: () => sttModel() === "auto", voice: () => replyVoicePick() === "auto" };
 /**
  * Who stands in for your computer's voice (picked by hand): the same Kokoro voice in this browser on a
- * desktop, so a reply never changes voice with where it runs; Llama Kokoro on a phone (Kokoro 82M there
+ * desktop, so a reply never changes voice with where it runs; Kale's Kokoro on a phone (Kokoro 82M there
  * ended tabs).
  */
 const voiceStandIn = (): "kokoro" | "warm" => (isPhoneDevice() ? "warm" : "kokoro");
@@ -503,7 +503,7 @@ const voiceStandIn = (): "kokoro" | "warm" => (isPhoneDevice() ? "warm" : "kokor
 const wantsComputer = {
   stt: () =>
     sttModel() === "computer" || (automatic.stt() && computerState !== "absent" && !browserFaster("stt")),
-  // Automatic's voice is Llama Kokoro, which only runs here: it never moves to your computer's Kokoro.
+  // Automatic's voice is Kale's Kokoro, which only runs here: it never moves to your computer's Kokoro.
   voice: () => replyVoice() === "computer",
 };
 const onComputer = {
@@ -647,14 +647,14 @@ export const startKokoro = () => {
   if (replyVoice().startsWith("kokoro")) voice.start();
 };
 export const releaseKokoro = () => voice.releaseWhenIdle();
-/** The same for Kale's warm voice, Llama Kokoro. */
+/** The same for Kale's warm voice, Kale's Kokoro. */
 export const startWarmVoice = () => {
   if (voiceOff || onComputer.voice()) return;
   if (wantsComputer.voice() && voiceStandIn() === "kokoro") return;
   warm.start();
 };
 export const releaseWarmVoice = () => {
-  // Standing in for the computer, Llama Kokoro speaks: the call's player can't free it then.
+  // Standing in for the computer, Kale's Kokoro speaks: the call's player can't free it then.
   if (!(wantsComputer.voice() && standingIn() && voiceStandIn() === "warm")) warm.releaseWhenIdle();
 };
 
@@ -725,13 +725,13 @@ async function computerSpeak(text: string): Promise<Float32Array<ArrayBuffer> | 
 /** One sentence as 24 kHz PCM from Kokoro; it reads misaki's `[word](/phonemes/)` markup. */
 export async function kokoroSpeak(text: string): Promise<Float32Array<ArrayBuffer>> {
   if (voiceOff) return new Float32Array(0);
-  // The computer's Kokoro, and Llama Kokoro standing in for it, read plain text: the markup keeps the word.
+  // The computer's Kokoro, and Kale's Kokoro standing in for it, read plain text: the markup keeps the word.
   const plain = () => text.replace(/\[([^\]]+)\]\(\/[^)]*\/\)/g, "$1");
   if (onComputer.voice()) {
     const samples = await computerSpeak(plain());
     if (samples !== null) return samples;
   }
-  // Standing in for the computer on a phone, Llama Kokoro speaks; on a desktop the same Kokoro, here.
+  // Standing in for the computer on a phone, Kale's Kokoro speaks; on a desktop the same Kokoro, here.
   if (wantsComputer.voice() && voiceStandIn() === "warm") return (await warmSpeak(plain())).samples;
   const browserAt = performance.now();
   const reply = await voice.ask({ type: "speak", text });
@@ -740,12 +740,12 @@ export async function kokoroSpeak(text: string): Promise<Float32Array<ArrayBuffe
   return reply.samples;
 }
 
-/** One sentence as 24 kHz PCM from Kale's warm voice, Llama Kokoro, and how long it took. */
+/** One sentence as 24 kHz PCM from Kale's warm voice, Kale's Kokoro, and how long it took. */
 export async function warmSpeak(
   text: string,
 ): Promise<{ samples: Float32Array<ArrayBuffer>; timing: Record<string, number> }> {
   if (voiceOff) return { samples: new Float32Array(0), timing: {} };
-  // Llama Kokoro reads plain text: misaki's markup keeps the word.
+  // Kale's Kokoro reads plain text: misaki's markup keeps the word.
   const plain = text.replace(/\[([^\]]+)\]\(\/[^)]*\/\)/g, "$1");
   const browserAt = performance.now();
   const reply = await warm.ask({ type: "speak", text: plain });
@@ -759,7 +759,7 @@ export async function warmSpeak(
  * Starts the speech models as the page opens, one after the other (Parakeet, then the reply voice),
  * so a call finds them ready. A voice the user's cards registered loads with the call instead.
  */
-/** Automatic sends this task to your computer when it can (its voice is Llama Kokoro, here). */
+/** Automatic sends this task to your computer when it can (its voice is Kale's Kokoro, here). */
 export const automaticTriesComputer = (task: Task) => task === "stt";
 export function prewarm() {
   speechPrewarmed = true;
@@ -787,7 +787,7 @@ export function activeSpeech(task: "stt" | "voice"): ActiveSpeech {
       : { where: "browser", status: ears.status() };
   const picked = replyVoice();
   if (onComputer.voice()) return { where: "computer", name: "kokoro 82m mlx" };
-  // Standing in for your computer: Llama Kokoro on a phone, the same Kokoro here on a desktop.
+  // Standing in for your computer: Kale's Kokoro on a phone, the same Kokoro here on a desktop.
   if (wantsComputer.voice())
     return { where: "browser", status: (voiceStandIn() === "warm" ? warm : voice).status() };
   if (picked === WARM_VOICE) return { where: "browser", status: warm.status() };

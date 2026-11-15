@@ -9,8 +9,8 @@ background. When something is worth looking at, the brain builds it as a card on
 canvas next to you: a list, a comparison, a diagram, a small tool, even a game.
 
 Speech runs in your browser, on every device: speech-to-text is NVIDIA Parakeet 0.6B (fp16 on
-WebGPU), text-to-speech is Kale's own warm voice, Llama Kokoro (a small Kokoro; built with Llama, see
-NOTICE.md; Kokoro 82M in Settings), and Silero VAD hears when you stop, all on ONNX. No audio leaves
+WebGPU), text-to-speech is Kale's own warm voice, a small Kokoro based on Maya (see NOTICE.md;
+Kokoro 82M in Settings), and Silero VAD hears when you stop, all on ONNX. No audio leaves
 the device you talk on. Settings → Sound & mic picks the model for each, with its download and memory,
 and in the app can send either one to a speech service on the computer running T3 instead (Parakeet and
 Kokoro on MLX at `127.0.0.1:5797`, `LALALA_LOCAL_PORT`; much faster, nothing loads on the phone). The app

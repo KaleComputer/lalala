@@ -26,7 +26,7 @@ export class Voice {
 }
 
 
-/** The front end alone (Llama Kokoro speaks from its IPA): words -> IPA, as Voice does. */
+/** The front end alone (Kale's Kokoro speaks from its IPA): words -> IPA, as Voice does. */
 export class G2pModel {
   constructor(buffer: ArrayBuffer);
 }

@@ -1,14 +1,14 @@
-// Llama Kokoro, Kale's warm voice (f40warm) and the Automatic reply voice on every device: Kokoro's text
+// Kokoro, Kale's warm voice (f40warm) and the Automatic reply voice on every device: Kokoro's text
 // side, tuned on Maya1 audio of that voice, with Kale's own 8.4M decoder writing 24 kHz audio directly
 // (no vocoder, no iSTFT). One ONNX graph (fp16 text side, 8-bit decoder), 67.6 MB. Its words come from
 // Kale's front end (matcha/kaleTts.js: dizione's text rules, the word list, the G2p), the same as
-// Hazel's. Tim picked it by ear on 15 Nov over Llama Matcha. Files ship with lalala (llamaKokoro/),
-// the runtime comes from the CDN. "Built with Llama": NOTICE.md and the settings' credits.
+// Hazel's. Tim picked it by ear on 15 Nov over Matcha. Files ship with lalala (llamaKokoro/; the
+// names stay, so no device downloads it again), the runtime comes from the CDN. Credits: NOTICE.md.
 import { G2p, G2pModel, normalizer, readTable } from "./matcha/kaleTts.js";
 
 const ORT = "https://cdn.jsdelivr.net/npm/onnxruntime-web@1.24.1/dist/ort.wasm.min.mjs";
 const CACHE = "lalala-llama-kokoro";
-// Llama Matcha's files, cached on devices before 15 Nov: nothing loads them any more.
+// Matcha's files, cached on devices before 15 Nov: nothing loads them any more.
 const OLD_CACHES = ["lalala-matcha"];
 const RATE = 24_000;
 
@@ -64,7 +64,7 @@ async function fetchAll(onBytes: (loaded: number, total: number) => void) {
   }
   const hits = await Promise.all(urls.map((url) => cache?.match(url) ?? undefined));
   const cached = hits.every((hit) => hit !== undefined);
-  postMessage({ type: "load", name: "llama kokoro", expected: EXPECTED, cached });
+  postMessage({ type: "load", name: "kale kokoro", expected: EXPECTED, cached });
   const loaded = new Map<string, number>();
   const report = () => {
     let sum = 0;
@@ -107,7 +107,7 @@ async function load(): Promise<Voice> {
   const text = (at: number) => new TextDecoder().decode(bodies[at]);
   postMessage({ type: "stage", stage: "session", threads: ort.env.wasm.numThreads });
   // Unoptimized: the optimizer's 32-bit copies of the 16-bit text side left the page ~150 MB bigger
-  // (WebKit, 15 Nov: ~0.95 GB with it as with Llama Matcha, ~1.1 GB without) for ~5 % speed.
+  // (WebKit, 15 Nov: ~0.95 GB with it as with Matcha, ~1.1 GB without) for ~5 % speed.
   const session = await ort.InferenceSession.create(new Uint8Array(bodies[0]!), {
     executionProviders: ["wasm"],
     graphOptimizationLevel: "disabled",

@@ -49,9 +49,9 @@ Python packages installed into the speech service's own environment: `mlx-audio`
 Uvicorn (BSD-3-Clause), websockets (BSD-3-Clause). `misaki` can fall back to espeak-ng (GPL-3.0)
 for unknown words if it is installed on the system; lalala does not bundle or install it.
 
-## Kale's voice, Llama Kokoro (included: `src/voice/browserSpeech/llamaKokoro`, front end in `src/voice/browserSpeech/matcha`)
+## Kale's voice, Kokoro (included: `src/voice/browserSpeech/llamaKokoro`, front end in `src/voice/browserSpeech/matcha`)
 
-**Built with Llama.** The reply voice (Automatic, every device) ships with this repository and runs in the browser:
+The reply voice (Automatic, every device) ships with this repository and runs in the browser:
 
 | Part | What it is | License |
 | --- | --- | --- |
@@ -60,15 +60,14 @@ for unknown words if it is installed on the system; lalala does not bundle or in
 | `matcha/lexicon.tsv` | English word list made from [CMUdict](https://github.com/cmusphinx/cmudict) | BSD-2-Clause, Copyright (C) 1993-2015 Carnegie Mellon University (the notice is at the top of the file) |
 | `matcha/override.tsv`, `matcha/g2p.bin`, `matcha/kaleTts.js` | Kale's hand-checked words, a small model for unknown words (trained on the word list) and the code that turns text into sounds | MIT, as this repository |
 
-Maya1 is built on Llama 3.2, so this voice is "Built with Llama" and its name starts with "Llama".
-Llama 3.2 is licensed under the Llama 3.2 Community License, Copyright © Meta Platforms, Inc. All
-Rights Reserved. The license and Meta's Acceptable Use Policy are in
-`src/voice/browserSpeech/matcha/LLAMA-3.2-LICENSE.txt` and `LLAMA-3.2-USE-POLICY.md`; use of this
-voice must follow them.
+Based on Maya: the voice learned from audio made with Maya1 (Apache-2.0), which is built on Llama 3.2
+(Llama 3.2 Community License, Copyright © Meta Platforms, Inc. All Rights Reserved; the license and
+Meta's Acceptable Use Policy are in `src/voice/browserSpeech/matcha/LLAMA-3.2-LICENSE.txt` and
+`LLAMA-3.2-USE-POLICY.md`).
 
-Kale's earlier voice, Llama Matcha (`matcha/llama-matcha-f40warm.onnx`, a Matcha-TTS model, MIT, and
+Kale's earlier voice, Matcha (`matcha/llama-matcha-f40warm.onnx`, a Matcha-TTS model, MIT, and
 `matcha/vocos-maya-noclip-g0485.onnx`, BSC-LT's vocos-mel-22khz fine-tuned on Maya1 audio, Apache-2.0;
-both Built with Llama under the same terms) stays in the repository but is no longer used by the app
+based on Maya under the same terms) stays in the repository but is no longer used by the app
 (15 Nov).
 
 No espeak-ng (or other GPL code or data) is used at runtime. The runtime is
@@ -78,7 +77,7 @@ No espeak-ng (or other GPL code or data) is used at runtime. The runtime is
 
 Both browser voices read numbers, money, dates, times, units, codes and abbreviations with a
 JavaScript port of the text rules of [dizione](https://github.com/n4ze3m/dizione) by Muhammed
-Nazeem (`spoken.js`, `tables.js` from its `normalize.py` and `data/`), and Llama Kokoro picks the
+Nazeem (`spoken.js`, `tables.js` from its `normalize.py` and `data/`), and Kale's Kokoro picks the
 reading of words like "read" and "live" with a port of its homograph picker (`homographs.js`;
 `homographs.data.js` is its built `homographs.json`, weights trained on the Wikipedia Homograph
 Data). Apache-2.0; the license is in `src/voice/browserSpeech/dizione/LICENSE`.

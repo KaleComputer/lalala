@@ -157,26 +157,28 @@ const write = (key: string, value: string | null) => {
   document.dispatchEvent(new Event(EVENT));
 };
 
-/** Kale's warm voice, Llama Kokoro (llamaKokoro.worker), by its id in the settings. */
-export const WARM_VOICE = "llama-kokoro";
+/** Kale's warm voice, Kokoro (llamaKokoro.worker), by its id in the settings. */
+export const WARM_VOICE = "kale-kokoro";
 
 /**
- * The reply voice every device starts on: Kale's warm voice, Llama Kokoro, which Tim picked by ear
+ * The reply voice every device starts on: Kale's warm voice, Kokoro, which Tim picked by ear
  * (15 Nov) and which renders a sentence fast on a phone's CPU.
  */
 export const defaultReplyVoice = (): string => WARM_VOICE;
 
 /**
  * Who speaks the replies on this device: "auto" (nothing stored: defaultReplyVoice), Kale's
- * "llama-kokoro", "kokoro-gpu", "kokoro-cpu" (Kokoro 82M), "computer" (Kokoro on the computer running
+ * "kale-kokoro", "kokoro-gpu", "kokoro-cpu" (Kokoro 82M), "computer" (Kokoro on the computer running
  * T3, opt-in), or a voice the user's cards registered (replyVoices.ts) by its id.
  */
 export const replyVoicePick = (): string => {
   const stored = read(REPLY_VOICE_KEY) ?? "auto";
   // Before 15 Nov "kokoro" let the device pick Kokoro's build, as Automatic did on a desktop then;
-  // "matcha" was Llama Matcha, now gone (Tim, 15 Nov): both are Automatic's voice now.
+  // "matcha" was Matcha, now gone (Tim, 15 Nov): both are Automatic's voice now. "llama-kokoro" was
+  // this voice's id on 15 Nov.
   if (stored === "kokoro") return phone() ? "kokoro-cpu" : "auto";
   if (stored === "matcha") return "auto";
+  if (stored === "llama-kokoro") return WARM_VOICE;
   return stored;
 };
 export const setReplyVoice = (voice: string) => write(REPLY_VOICE_KEY, voice === "auto" ? null : voice);
