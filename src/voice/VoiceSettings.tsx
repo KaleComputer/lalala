@@ -1836,7 +1836,7 @@ function automaticOption(
   task: "stt" | "voice",
   computer: ReturnType<typeof computerSpeechState>,
   browser: { readonly label: string; readonly cost: string | undefined },
-  standIn: { readonly label: string; readonly cost: string },
+  standIn: { readonly label: string; readonly cost: string | undefined },
 ) {
   const measured = measuredMeta(task);
   if (computer === "absent") return { detail: browser.label, meta: browser.cost };
@@ -1859,7 +1859,7 @@ function automaticOption(
         ? measured === undefined
           ? "Nothing downloads while your computer answers"
           : `${measured} · nothing downloads`
-        : `Only while your computer is out: ${standIn.cost}`,
+        : `Only while your computer is out: ${standIn.cost ?? standIn.label}`,
   };
 }
 
