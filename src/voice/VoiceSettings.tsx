@@ -1865,7 +1865,7 @@ function automaticOption(
     };
   }
   return {
-    detail: `your computer, else ${standIn.label}`,
+    detail: `your computer, else ${modelOnly(standIn.label)}`,
     meta:
       computer === "ready"
         ? measured === undefined
@@ -1929,6 +1929,21 @@ const elapsed = (since: number) => {
   const s = Math.max(0, Math.round((Date.now() - since) / 1000));
   return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}`;
 };
+
+/** A count up from `since`, once a second; only this text repaints. */
+function Elapsed(props: { readonly since: number }) {
+  const [, tick] = useState(0);
+  // oxlint-disable-next-line t3code/no-unreasoned-state-sync -- a clock for the live "trying" line, only while it shows
+  useEffect(() => {
+    const timer = window.setInterval(() => tick((n) => n + 1), 1000);
+    return () => window.clearInterval(timer);
+  }, []);
+  return (
+    <span aria-hidden="true" data-lalala-settings-elapsed="">
+      {elapsed(props.since)}
+    </span>
+  );
+}
 
 /** What Automatic picked for a task and why, from the runtime's own decision and timings. */
 function automaticWhy(task: "stt" | "voice", computer: ReturnType<typeof computerSpeechState>): string {
@@ -2071,13 +2086,6 @@ export function SpeechSection() {
   const down = wanted && computer === "down";
   const trying = wanted && !down;
   // The elapsed time counts while your computer is being tried: text only, once a second.
-  const [, tick] = useState(0);
-  // oxlint-disable-next-line t3code/no-unreasoned-state-sync -- a clock for the live "trying" line, only while it shows
-  useEffect(() => {
-    if (!trying) return;
-    const timer = window.setInterval(() => tick((n) => n + 1), 1000);
-    return () => window.clearInterval(timer);
-  }, [trying]);
   const heavy = (detail: string) => (phone ? `${detail}, may close a phone tab` : detail);
 
   return (
@@ -2104,9 +2112,7 @@ export function SpeechSection() {
           </span>
           {trying ? (
             <>
-              <span aria-hidden="true" data-lalala-settings-elapsed="">
-                {elapsed(computerSpeechSince())}
-              </span>
+              <Elapsed since={computerSpeechSince()} />
               <span data-lalala-settings-trying="" aria-hidden="true" />
             </>
           ) : null}

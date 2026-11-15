@@ -85,6 +85,8 @@ let startedAt = 0;
 // (no python3, the terminal busy) is a failure to report, not "starting" forever.
 let firstRunAt = 0;
 const BRIDGE_SILENT_MS = 30_000;
+// Detached, so the terminal's prompt is free for the next start; bridge.py lets only one run.
+const BRIDGE_COMMAND = `nohup python3 ${DIR}/bridge.py >> ${DIR}/bridge.log 2>&1 &`;
 
 const harness = () => globalThis.__lalalaAdapters?.harness;
 
@@ -161,7 +163,7 @@ const t3Route: ComputerRoute = {
       if (Date.now() - startedAt > RESTART_MS) {
         startedAt = Date.now();
         void install(files)
-          .then(() => files.run!(`python3 ${DIR}/bridge.py`))
+          .then(() => files.run!(BRIDGE_COMMAND))
           .catch(() => {});
       }
       return {
@@ -174,7 +176,7 @@ const t3Route: ComputerRoute = {
       if (firstRunAt === 0 || start === "force") firstRunAt = Date.now();
       try {
         await install(files);
-        await files.run(`python3 ${DIR}/bridge.py`);
+        await files.run(BRIDGE_COMMAND);
       } catch (error) {
         return { state: "down", reason: error instanceof Error ? error.message : String(error) };
       }
