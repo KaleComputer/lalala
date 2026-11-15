@@ -1964,11 +1964,10 @@ function automaticWhy(task: "stt" | "voice", computer: ReturnType<typeof compute
   if (computer === "absent") return "this browser; your computer once T3 Code is connected";
   if (browserFaster(task)) return `this browser, faster here · ${measured}${since}`;
   if (runs.where === "computer")
-    return `picked your computer${browser === undefined ? ", nothing to download" : ""} · ${measured}${since}`;
-  // The group's line already says your computer is being tried: no measurements to repeat yet.
-  return `this browser until your computer answers${
-    there === undefined && browser === undefined ? "" : ` · ${measured}`
-  }${since}`;
+    return `picked your computer, nothing to download here · ${measured}${since}`;
+  // While your computer is tried, the group's line says why: here only what was measured and when it moved.
+  const facts = [there === undefined && browser === undefined ? "" : measured, since.replace(/^ · /, "")];
+  return facts.filter(Boolean).join(" · ");
 }
 
 /**
@@ -2003,7 +2002,7 @@ function TaskState(props: {
     !trying || picked === "auto"
       ? ""
       : couldNotStart
-        ? " while your computer's speech service is down"
+        ? " while your computer is down"
         : " while your computer starts";
   let now = `Now: ${nowText(active, waiting, meanwhile)}`;
   if (picked === "computer" && computer === "absent") now += " (connect T3 Code first)";
@@ -2039,7 +2038,7 @@ function TaskState(props: {
           </>
         ) : null}
       </span>
-      {picked === "auto" ? (
+      {picked === "auto" && automaticWhy(props.task, computer) !== "" ? (
         <span data-lalala-settings-why="">
           <b data-lalala-settings-now="">Automatic:</b> {automaticWhy(props.task, computer)}
         </span>

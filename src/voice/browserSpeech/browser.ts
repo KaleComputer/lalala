@@ -456,6 +456,7 @@ let timings: Record<Task, Partial<Record<Where, number>>> = (() => {
 })();
 export const speechTimings = () => timings;
 function record(task: Task, where: Where, ms: number, audioMs: number) {
+  ran[task] = true;
   if (audioMs < 300) return;
   const perSecond = ms / (audioMs / 1000);
   const before = timings[task][where];
@@ -531,11 +532,13 @@ const runsAt: Record<Task, { where: Where; since: number | null }> = {
   stt: { where: "browser", since: null },
   voice: { where: "browser", since: null },
 };
+// A move counts as a switch only once the task has run somewhere; before that it is the first pick.
+const ran: Record<Task, boolean> = { stt: false, voice: false };
 function trackWhere() {
   for (const task of ["stt", "voice"] as const) {
     const where = whereNow(task);
     if (where === runsAt[task].where) continue;
-    runsAt[task] = { where, since: Date.now() };
+    runsAt[task] = { where, since: ran[task] ? Date.now() : null };
     voiceLog("system", "speech.switched", { task, where, automatic: automatic[task]() });
   }
 }

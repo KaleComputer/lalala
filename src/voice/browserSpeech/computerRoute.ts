@@ -80,6 +80,7 @@ const FRESH_S = 6;
 const RESTART_MS = 20_000;
 const ANSWER_MS = 20_000;
 let installed = false;
+let retriedAt = 0;
 let startedAt = 0;
 // When this page first started the bridge and nothing has answered since: a start that never shows up
 // (no python3, the terminal busy) is a failure to report, not "starting" forever.
@@ -119,8 +120,9 @@ async function ask(request: Record<string, unknown>): Promise<Record<string, unk
     files.readFile(`${DIR}/status.json`).catch(() => null),
     files.writeFile(`${DIR}/in/${id}.json`, JSON.stringify(request)),
   ]);
-  const at = status === null ? 0 : Number((JSON.parse(status) as { at?: unknown }).at) || 0;
-  if (Date.now() / 1000 - at > FRESH_S || status?.includes('"off"')) {
+  const parsed = status === null ? null : (JSON.parse(status) as { at?: unknown; state?: unknown });
+  const at = Number(parsed?.at) || 0;
+  if (Date.now() / 1000 - at > FRESH_S || parsed?.state === "off") {
     throw new Error(DIDNT_ANSWER);
   }
   const until = Date.now() + ANSWER_MS;
@@ -164,9 +166,12 @@ const t3Route: ComputerRoute = {
       const state = status!.state;
       // Retry now: the running bridge starts the service again at once.
       if (start === "force" && state === "down") {
-        await files.writeFile(`${DIR}/retry`, String(Date.now())).catch(() => {});
+        retriedAt = Date.now();
+        await files.writeFile(`${DIR}/retry`, String(retriedAt)).catch(() => {});
         return { state: "starting", reason: null };
       }
+      // Until the bridge has written a status after that retry, its old "down" is not the answer.
+      if (state === "down" && at * 1000 < retriedAt) return { state: "starting", reason: null };
       return {
         state: state === "ready" || state === "loading" || state === "down" ? state : "starting",
         reason: typeof status!.reason === "string" ? status!.reason : null,
