@@ -275,7 +275,7 @@ export function PairSteps(props: {
                   type="url"
                   inputMode="url"
                   aria-label="Your T3 Connect address"
-                  placeholder="https://your-name.t3coderelay.com/mcp"
+                  placeholder="https://name.t3coderelay.com/mcp"
                   autoComplete="off"
                   autoCapitalize="off"
                   spellCheck={false}
