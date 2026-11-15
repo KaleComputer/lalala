@@ -1864,7 +1864,7 @@ function automaticOption(
 }
 
 /** What runs a task right now, in a few words: "Llama Matcha (Kale's voice), in this browser · ready". */
-export function nowText(active: ActiveSpeech, waiting: string, meanwhile = false): string {
+export function nowText(active: ActiveSpeech, waiting: string, meanwhile = ""): string {
   if (active.where === "computer") return `${loadedName(active.name)}, on your computer · ready`;
   if (active.where === "card") return "a voice from your cards";
   const { status } = active;
@@ -1879,7 +1879,7 @@ export function nowText(active: ActiveSpeech, waiting: string, meanwhile = false
           : status.phase === "failed"
             ? "didn't load"
             : "loads with the\u00a0call";
-  return `${name}, in this browser${meanwhile ? " while your computer starts" : ""} · ${phase}`;
+  return `${name}, in this browser${meanwhile} · ${phase}`;
 }
 
 /**
@@ -1908,7 +1908,9 @@ function TaskState(props: {
       : picked === "auto"
         ? auto
         : (STT_LABELS[picked as Exclude<SttModel, "auto">] ?? VOICE_LABELS[picked as VoiceBuild] ?? auto);
-  let now = `Now: ${nowText(active, waiting, trying && !couldNotStart)}`;
+  // A stand-in says why it is here, on its own row too.
+  const meanwhile = !trying ? "" : couldNotStart ? " while your computer is out" : " while your computer starts";
+  let now = `Now: ${nowText(active, waiting, meanwhile)}`;
   if (picked === "computer" && computer === "absent") now += " (lalala.talk can't reach your computer)";
   if (status?.phase === "idle" && props.cost)
     now = now.replace(" · loads with the\u00a0call", ` · ${props.cost.split(" download")[0]}, loads with the\u00a0call`);
@@ -2003,7 +2005,7 @@ export function SpeechSection() {
             {down ? (
               <>
                 <span data-lalala-settings-problem="">Your computer's speech service couldn't start.</span>
-                {computerSpeechReason() ? ` ${computerSpeechReason()}` : ""} It keeps trying.
+                {computerSpeechReason() ? ` ${computerSpeechReason()}` : ""} Trying again on its own.
               </>
             ) : null}
           </span>
@@ -2014,7 +2016,7 @@ export function SpeechSection() {
               data-quiet=""
               onClick={() => void refreshComputerSpeech(true)}
             >
-              Try your computer again
+              Retry now
             </button>
           ) : null}
         </>
@@ -2222,7 +2224,7 @@ export function OpeningSection() {
         title="Retry when loading fails"
         description={
           seconds === null
-            ? "Off: when the page or a speech model doesn't load, reload or start a call to try again. Waiting for your computer's speech service or for free storage keeps going either way."
+            ? "Off: when the page or a speech model doesn't load, reload or start a call to try again. lalala still waits for your computer's speech service and for free storage."
             : "When the page or a speech model doesn't load, lalala tries again on its own until it does."
         }
         label="Retry when loading fails"

@@ -115,7 +115,7 @@ export function PairSteps(props: {
         aria-label={ask ? "Your T3 Connect address" : label}
         aria-invalid={props.problem ? true : undefined}
         aria-describedby={props.problem ? `${choiceId}e` : undefined}
-        placeholder={ask ? "https://….t3coderelay.com/mcp" : placeholder}
+        placeholder={ask ? "https://name.t3coderelay.com/mcp" : placeholder}
         autoComplete="off"
         autoCapitalize="off"
         spellCheck={false}
@@ -274,9 +274,7 @@ export function PairSteps(props: {
             <Step
               n={2}
               title={
-                phone
-                  ? "Send the MCP URL to this phone, paste it here"
-                  : "Paste your T3 Connect address (the MCP URL)"
+                phone ? "Paste the MCP URL" : "Paste your T3 Connect address (the MCP URL)"
               }
             >
               <T3Path steps={["Settings", "Environments", "⋯", "Copy MCP URL"]} />
@@ -321,9 +319,7 @@ export function PairSteps(props: {
                 data-lalala-pair-or=""
                 data-wrong={addressWrong ? "" : undefined}
               >
-                {addressWrong
-                  ? "That isn't a T3 Connect address; copy the MCP URL again."
-                  : "lalala pairs through this address."}
+                {addressWrong ? "That isn't a T3 Connect address; copy the MCP URL again." : null}
               </p>
             </Step>
             <Step n={3} title="Create a pairing link in T3 Code">
@@ -336,7 +332,7 @@ export function PairSteps(props: {
                 )}
               </details>
             </Step>
-            <Step n={4} title={phone ? "Send the link to this phone, paste it here" : "Paste the link or code"}>
+            <Step n={4} title="Paste the link or code">
               {field("https://…/pair#token=… or the code", "Pairing link or code")}
             </Step>
           </>

@@ -912,7 +912,11 @@
 }
 [data-lalala-pair-field] > button {
   align-self: center;
-  margin: 0 5px;
+  margin: 0 8px;
+}
+/* Step 2's hint only speaks up when the address is wrong. */
+[data-lalala-pair-or]:empty {
+  display: none;
 }
 [data-lalala-pair-field] > input::placeholder {
   color: var(--s-fg-2);
