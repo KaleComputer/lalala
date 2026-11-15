@@ -1807,6 +1807,15 @@ const LOADED_NAMES: Record<string, string> = {
   "kokoro 82m mlx": "Kokoro 82M",
 };
 const loadedName = (name: string) => LOADED_NAMES[name] ?? name;
+/** The workers' names for the browser builds, as the cost tables key them. */
+const LOADED_KEYS: Record<string, string> = {
+  "parakeet 0.6b gpu": "0.6b-gpu",
+  "parakeet 0.6b": "0.6b-cpu",
+  "parakeet 110m": "110m",
+  "kokoro 82m gpu": "kokoro-gpu",
+  "kokoro 82m cpu": "kokoro-cpu",
+  "llama matcha": "matcha",
+};
 const seconds = (ms: number) => `${(ms / 1000).toFixed(ms < 100 ? 2 : 1)} s`;
 /** How fast your computer did a task, as measured from this device, once it has. */
 function measuredComputer(task: "stt" | "voice"): string | undefined {
@@ -1831,11 +1840,18 @@ function automaticOption(
 ) {
   const measured = measuredMeta(task);
   if (computer === "absent") return { detail: browser.label, meta: browser.cost };
-  if (browserFaster(task))
+  if (browserFaster(task)) {
+    // Named from what this browser actually loaded (a stand-in or a storage step-down), as "Now:" says.
+    const active = activeSpeech(task);
+    const loaded = active.where === "browser" ? active.status.name : null;
+    const key = loaded === null ? undefined : LOADED_KEYS[loaded];
     return {
-      detail: `${browser.label}, faster here than your computer`,
-      meta: [measured, browser.cost].filter(Boolean).join(" · "),
+      detail: `${loaded === null ? browser.label : loadedName(loaded)}, faster here than your computer`,
+      meta: [measured, key === undefined ? browser.cost : (STT_COSTS[key] ?? VOICE_COSTS[key])]
+        .filter(Boolean)
+        .join(" · "),
     };
+  }
   return {
     detail: `your computer, else ${standIn.label}`,
     meta:
