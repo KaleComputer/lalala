@@ -298,7 +298,7 @@ export function PairSteps(props: {
         )}
       </ol>
       {remote ? (
-        <p data-lalala-pair-privacy="">Speech stays in this browser; only your words, as text, reach T3 Code.</p>
+        <p data-lalala-pair-privacy="">Your voice stays on your own devices; only your words, as text, reach T3 Code.</p>
       ) : null}
       {props.working ? (
         <p data-lalala-settings-info="" role="status">

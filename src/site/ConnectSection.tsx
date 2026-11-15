@@ -228,7 +228,7 @@ export function ConnectSection(props: { readonly part: "connection" | "brain" })
 
   const title = "Connection";
   const note =
-    "Speech stays in this browser; only your words, as text, reach T3 Code.";
+    "Your voice stays on your own devices; only your words, as text, reach T3 Code.";
 
   if (props.part === "brain") {
     if (connected === null) {
