@@ -2046,7 +2046,7 @@ function TaskState(props: {
   if (status?.phase === "loading" && props.cost)
     now = now.replace(" · loading", ` · loading, ${props.cost.split(" download")[0]!.replace(" ", "\u00a0")}`);
   if (status?.phase === "idle" && props.cost)
-    now = now.replace(" · loads with the\u00a0call", ` · ${props.cost.split(" download")[0]}, loads with the\u00a0call`);
+    now = now.replace(" · loads with the\u00a0call", ` · ${props.cost.split(" download")[0]!.replace(" ", "\u00a0")}, loads with the\u00a0call`);
   if (failed)
     now += status.error?.includes(NEEDS_WEBGPU)
       ? `. ${status.error} Pick Automatic or a CPU model.`
