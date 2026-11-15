@@ -388,12 +388,12 @@ const voice = modelWorker(
   () => new Worker(new URL("./kokoro.worker.ts", import.meta.url), { type: "module" }),
   () => ({ build: kokoroBuild() }),
 );
-// Kale's own voices, one at a time in one worker: the warm Kokoro, or kale-tts-1-tiny (a phone's
-// Automatic voice, and the one standing in for your computer there). Matcha is gone (Tim, 15 Nov).
+// Kale's own voices, one at a time in one worker: the warm Kokoro (Automatic, and the phone's
+// stand-in for your computer), or kale-tts-1-tiny when picked. Matcha is gone (Tim, 15 Nov).
 const kaleBuild = (): "warm" | "tiny" => {
   const picked = replyVoice();
   if (picked === WARM_VOICE) return "warm";
-  return picked === TINY_VOICE || isPhoneDevice() ? "tiny" : "warm";
+  return picked === TINY_VOICE ? "tiny" : "warm";
 };
 const warm = modelWorker(
   "kale-kokoro",

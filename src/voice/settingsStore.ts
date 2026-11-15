@@ -165,10 +165,10 @@ export const TINY_VOICE = "kale-tts-1-tiny";
 export const isKaleVoice = (voice: string) => voice === WARM_VOICE || voice === TINY_VOICE;
 
 /**
- * The reply voice every device starts on: kale-tts-1-tiny on a phone (Tim, 15 Nov: "use it also
- * here on this device, on the phone"), Kale's warm Kokoro elsewhere (his pick by ear, 15 Nov).
+ * The reply voice every device starts on: Kale's warm Kokoro (Tim's pick by ear, 15 Nov).
+ * kale-tts-1-tiny is a manual pick: as the iPhone's Automatic voice it ended the tab (15 Nov).
  */
-export const defaultReplyVoice = (): string => (phone() ? TINY_VOICE : WARM_VOICE);
+export const defaultReplyVoice = (): string => WARM_VOICE;
 
 /**
  * Who speaks the replies on this device: "auto" (nothing stored: defaultReplyVoice), Kale's

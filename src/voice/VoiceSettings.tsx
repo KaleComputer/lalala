@@ -2113,11 +2113,11 @@ export function SpeechSection() {
       : gpu.f16
         ? "0.6b-gpu"
         : "0.6b-cpu";
-  // Automatic's voice: kale-tts-1-tiny on a phone, Kale's warm voice elsewhere (Tim, 15 Nov).
-  const autoVoice: VoiceBuild = phone ? "kale-tts-1-tiny" : "kale-kokoro";
-  // Who stands in for your computer's voice: the same Kokoro 82M here on a desktop, kale-tts-1-tiny on a phone.
+  // Automatic's voice on every device: Kale's warm voice (Tim's pick, 15 Nov).
+  const autoVoice: VoiceBuild = "kale-kokoro";
+  // Who stands in for your computer's voice: the same Kokoro 82M here on a desktop, Kale's Kokoro on a phone.
   const voiceStandIn: VoiceBuild | null = phone
-    ? "kale-tts-1-tiny"
+    ? "kale-kokoro"
     : gpu === null
       ? null
       : gpu.any
