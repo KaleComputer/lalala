@@ -430,10 +430,11 @@ const earsOff = only === "voice";
 const voiceOff = only === "stt";
 if (only) voiceLog("system", "speech.only", { only });
 
-// The computer running T3 (its speech service, through this app's server or, on lalala.talk, through the
-// paired T3 Code): opt-in, picked per task in Settings; Automatic always stays in this browser (Tim, 14 Nov).
-// While a picked computer isn't ready, this browser stands in (Parakeet 110M; the same Kokoro on a desktop,
-// Matcha on a phone) and the computer is asked again, backing off up to 5 min, never giving up.
+// The computer running T3 (its speech service, through this app's server): picked per task in Settings.
+// While it isn't ready, this browser stands in with its lightest models (Parakeet 110M, Matcha), kept
+// loaded; the computer is asked again (never from a page with no route to it, like lalala.talk).
+// Automatic tries the computer too, never gives up on it (backing off up to 5 min, again on every page
+// open), uses this browser meanwhile, and keeps whichever path its own timings say is faster here.
 const COMPUTER_LOADING_MS = 3_000;
 const COMPUTER_BACKOFF_MAX_S = 300;
 let computerState: ComputerSpeech | "checking" = "checking";
@@ -471,16 +472,29 @@ function record(task: Task, where: Where, ms: number, audioMs: number) {
   trackWhere();
   notify();
 }
+/** This browser measured clearly faster than the computer for a task: Automatic stays here. */
+/** Automatic keeps a task in this browser once it measured clearly faster here than your computer. */
+export const browserFaster = (task: Task) => {
+  const { browser, computer } = timings[task];
+  return browser !== undefined && computer !== undefined && browser < computer * 0.8;
+};
 const automatic = { stt: () => sttModel() === "auto", voice: () => replyVoicePick() === "auto" };
 /**
  * Who stands in for your computer's voice: the same Kokoro voice in this browser on a desktop, so a
  * reply never changes voice with where it runs; Kale's Matcha on a phone (Kokoro there ended tabs).
  */
 const voiceStandIn = (): "kokoro" | "matcha" => (defaultReplyVoice() === "matcha" ? "matcha" : "kokoro");
-/** A task the computer should do: only ever picked by hand. */
+/** A task the computer should do, picked by hand or by Automatic. */
 const wantsComputer = {
-  stt: () => sttModel() === "computer",
-  voice: () => replyVoice() === "computer",
+  stt: () =>
+    sttModel() === "computer" || (automatic.stt() && computerState !== "absent" && !browserFaster("stt")),
+  // A phone's Automatic voice is Matcha, which only runs here: it never moves to your computer's Kokoro.
+  voice: () =>
+    replyVoice() === "computer" ||
+    (automatic.voice() &&
+      voiceStandIn() === "kokoro" &&
+      computerState !== "absent" &&
+      !browserFaster("voice")),
 };
 const onComputer = {
   stt: () => wantsComputer.stt() && !standingIn(),
@@ -528,6 +542,8 @@ function trackWhere() {
     voiceLog("system", "speech.switched", { task, where, automatic: automatic[task]() });
   }
 }
+/** Where a task runs now and when it last moved there (null: it has run there since the page opened). */
+export const speechRunsAt = (task: Task) => runsAt[task];
 
 /** Still loading: asked again shortly. Not answering: at the retry interval, if retrying is on. */
 function scheduleComputer() {
@@ -552,8 +568,10 @@ function setComputer(state: ComputerSpeech) {
     voiceLog("system", "speech.computer", { state });
     notify();
   }
-  // Out of reach for good (lalala.talk before pairing): this browser keeps standing in.
+  // Out of reach for good (lalala.talk): Automatic's browser models replace the light stand-ins.
   if (changed && state === "absent" && speechPrewarmed) {
+    if (automatic.stt()) ears.releaseWhenIdle();
+    if (automatic.voice()) matcha.releaseWhenIdle();
     startEars();
     prewarmVoice();
   }
@@ -564,7 +582,8 @@ function setComputer(state: ComputerSpeech) {
  * starts the service if it isn't running (`force`: Try again, even right after a failed start).
  */
 export async function refreshComputerSpeech(force = false) {
-  const wanted = sttModel() === "computer" || replyVoice() === "computer";
+  const wanted =
+    sttModel() === "computer" || replyVoice() === "computer" || automatic.stt() || automatic.voice();
   setComputer(await checkComputerSpeech(force ? "force" : wanted ? "auto" : undefined));
 }
 let speechPrewarmed = false;
@@ -725,11 +744,14 @@ export async function matchaSpeak(
  * Starts the speech models as the page opens, one after the other (Parakeet, then the reply voice),
  * so a call finds them ready. A voice the user's cards registered loads with the call instead.
  */
+/** Automatic sends this task to your computer when it can (a phone's voice stays Matcha, here). */
+export const automaticTriesComputer = (task: Task) => task === "stt" || voiceStandIn() === "kokoro";
 export function prewarm() {
   speechPrewarmed = true;
   startEars();
   prewarmVoice();
-  if (sttModel() === "computer" || replyVoice() === "computer") void refreshComputerSpeech();
+  if (sttModel() === "computer" || replyVoice() === "computer" || automatic.stt() || automatic.voice())
+    void refreshComputerSpeech();
 }
 /** The reply voice's browser model; with the computer picked, fitModels decides once it has answered. */
 function prewarmVoice() {
