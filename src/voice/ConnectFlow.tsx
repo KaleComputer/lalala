@@ -118,7 +118,7 @@ export function PairSteps(props: {
         aria-describedby={
           props.problem ? `${choiceId}e` : value.trim() === "" && !busy ? `${choiceId}n` : undefined
         }
-        placeholder={ask ? "https://name.t3coderelay.com/mcp" : placeholder}
+        placeholder={ask ? "e.g. https://name.t3coderelay.com/mcp" : placeholder}
         autoComplete="off"
         autoCapitalize="off"
         spellCheck={false}
@@ -301,7 +301,7 @@ export function PairSteps(props: {
                   type="url"
                   inputMode="url"
                   aria-label="Your T3 Connect address"
-                  placeholder="https://name.t3coderelay.com/mcp"
+                  placeholder="e.g. https://name.t3coderelay.com/mcp"
                   autoComplete="off"
                   autoCapitalize="off"
                   spellCheck={false}
