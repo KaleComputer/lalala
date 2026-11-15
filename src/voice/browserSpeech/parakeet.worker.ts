@@ -214,13 +214,17 @@ async function load(choice: unknown, ceiling: unknown) {
     : (await hasWebGpu()) ? WEBGPU
     : WASM;
   // A build that ran out of storage on this page isn't tried again (`ceiling`), and one that can't
-  // fit the room left (a private window) steps down before downloading anything.
+  // fit the room left (a private window) steps down before downloading anything: only for Automatic,
+  // a model picked in Settings is never swapped for another.
+  const picked = choice === "110m" || choice === "0.6b-cpu" || choice === "0.6b-gpu";
+  const noRoom = picked && choice !== "110m" ? `${NO_ROOM} Or pick Parakeet 110M in Settings.` : NO_ROOM;
+  const step = (from: Build) => (picked ? null : smaller(from));
   const cap = byName(ceiling)?.expected ?? Infinity;
   const room = await storageRoom();
   let fits: Build | null = build;
   while (fits !== null && (fits.expected > cap || (room !== null && room < fits.expected * 1.1)))
-    fits = smaller(fits);
-  if (fits === null) throw new Error(NO_ROOM);
+    fits = step(fits);
+  if (fits === null) throw new Error(noRoom);
   if (fits !== build) stage("storage-fallback", { from: build.name, to: fits.name, room });
   let pick = fits;
   for (;;) {
@@ -238,8 +242,8 @@ async function load(choice: unknown, ceiling: unknown) {
       if (!isQuota(error)) throw error;
       // Storage ran out mid-download: free everything saved and try the next smaller build.
       await dropAllDownloads().catch(() => {});
-      const next = smaller(pick);
-      if (next === null) throw new Error(NO_ROOM);
+      const next = step(pick);
+      if (next === null) throw new Error(noRoom);
       stage("storage-fallback", { from: pick.name, to: next.name, quota: true });
       pick = next;
     }

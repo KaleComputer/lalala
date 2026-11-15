@@ -51,6 +51,7 @@ import {
 } from "./settingsStore";
 import { replyVoicePlugins, subscribeReplyVoices } from "./replyVoices";
 import {
+  browserFaster,
   checkGpu,
   computerSpeechState,
   NEEDS_WEBGPU,
@@ -1821,6 +1822,31 @@ function measuredMeta(task: "stt" | "voice"): string | undefined {
     : undefined;
 }
 
+/** Automatic's line in the list, from the same decision the runtime makes. */
+function automaticOption(
+  task: "stt" | "voice",
+  computer: ReturnType<typeof computerSpeechState>,
+  browser: { readonly label: string; readonly cost: string | undefined },
+  standIn: { readonly label: string; readonly cost: string },
+) {
+  const measured = measuredMeta(task);
+  if (computer === "absent") return { detail: browser.label, meta: browser.cost };
+  if (browserFaster(task))
+    return {
+      detail: `${browser.label}, faster here than your computer`,
+      meta: [measured, browser.cost].filter(Boolean).join(" · "),
+    };
+  return {
+    detail: `your computer, else ${standIn.label}`,
+    meta:
+      computer === "ready"
+        ? measured === undefined
+          ? "Nothing downloads while your computer answers"
+          : `${measured} · nothing downloads`
+        : `Only while your computer is out: ${standIn.cost}`,
+  };
+}
+
 /** What runs a task right now, in a few words: "Llama Matcha (Kale's voice), in this browser · ready". */
 export function nowText(active: ActiveSpeech, waiting: string, meanwhile = false): string {
   if (active.where === "computer") return `${loadedName(active.name)}, on your computer · ready`;
@@ -1889,7 +1915,7 @@ function TaskState(props: {
             <span aria-hidden="true">{` ${MB(status.loaded)} of ${MB(status.total)}`}</span>
             <span
               role="progressbar"
-              aria-label="Download"
+              aria-label={props.task === "stt" ? "Speech-to-text model download" : "Reply voice model download"}
               aria-valuemin={0}
               aria-valuemax={100}
               aria-valuenow={Math.round((100 * status.loaded) / status.total)}
@@ -2003,16 +2029,12 @@ export function SpeechSection() {
               {
                 value: "auto",
                 label: "Automatic",
-                detail: computer === "absent" ? earsAuto : `your computer, else ${STT_LABELS["110m"]}`,
-                meta:
-                  measuredMeta("stt") ??
-                  (computer === "ready"
-                    ? "Nothing downloads while your computer answers"
-                    : computer !== "absent"
-                      ? `Only while your computer is out: ${STT_COSTS["110m"]}`
-                      : autoEars === null
-                        ? undefined
-                        : STT_COSTS[autoEars]),
+                ...automaticOption(
+                  "stt",
+                  computer,
+                  { label: earsAuto, cost: autoEars === null ? undefined : STT_COSTS[autoEars] },
+                  { label: STT_LABELS["110m"], cost: STT_COSTS["110m"] },
+                ),
               },
             ],
           },
@@ -2087,16 +2109,12 @@ export function SpeechSection() {
               {
                 value: "auto",
                 label: "Automatic",
-                detail: computer === "absent" ? voiceAuto : `your computer, else ${VOICE_LABELS.matcha}`,
-                meta:
-                  measuredMeta("voice") ??
-                  (computer === "ready"
-                    ? "Nothing downloads while your computer answers"
-                    : computer !== "absent"
-                      ? `Only while your computer is out: ${VOICE_COSTS.matcha}`
-                      : autoVoice === null
-                        ? undefined
-                        : VOICE_COSTS[autoVoice]),
+                ...automaticOption(
+                  "voice",
+                  computer,
+                  { label: voiceAuto, cost: autoVoice === null ? undefined : VOICE_COSTS[autoVoice] },
+                  { label: VOICE_LABELS.matcha, cost: VOICE_COSTS.matcha },
+                ),
               },
             ],
           },
@@ -2180,7 +2198,7 @@ export function OpeningSection() {
         title="Retry when loading fails"
         description={
           seconds === null
-            ? "Off: when the page or a speech model doesn't load, reload or start a call to try again."
+            ? "Off: when the page or a speech model doesn't load, reload or start a call to try again. Waiting for your computer's speech service or for free storage keeps going either way."
             : "When the page or a speech model doesn't load, lalala tries again on its own until it does."
         }
         label="Retry when loading fails"

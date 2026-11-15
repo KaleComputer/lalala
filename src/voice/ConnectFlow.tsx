@@ -131,6 +131,11 @@ export function PairSteps(props: {
           }
         }}
       />
+      {value.trim() !== "" && !busy ? (
+        <button type="button" data-lalala-settings-button="" onClick={() => submit(value)}>
+          {ask ? "Next" : "Connect"}
+        </button>
+      ) : null}
     </div>
   );
   const command = (text: string | null, missing?: string) => (
@@ -368,9 +373,10 @@ function T3Path(props: { readonly steps: ReadonlyArray<string> }) {
   return (
     <p data-lalala-t3-path="">
       <span data-lalala-settings-sr="">In T3 Code: </span>
-      {/* A chip keeps the › after it, so a wrapped line never starts with one. */}
+      {/* A chip keeps the › before it, so a wrapped line never ends on one. */}
       {props.steps.map((step, index) => (
         <span key={step}>
+          {index > 0 ? <i aria-hidden="true">›</i> : null}
           {step === "⋯" ? (
             <b>
               <span aria-hidden="true">⋯</span>
@@ -380,7 +386,6 @@ function T3Path(props: { readonly steps: ReadonlyArray<string> }) {
             // The last chip of a path is the button to press there: drawn as one.
             <b data-press={index === props.steps.length - 1 && PRESS.has(step) ? "" : undefined}>{step}</b>
           )}
-          {index < props.steps.length - 1 ? <i aria-hidden="true">›</i> : null}
         </span>
       ))}
     </p>

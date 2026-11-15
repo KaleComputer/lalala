@@ -593,6 +593,12 @@
   font-weight: 700;
   letter-spacing: 0.08em;
 }
+/* A small button inside a sentence (Try your computer again, Copy) reads in the sentence's own type. */
+:root[data-lala-look="paper"] [data-lalala-settings-button][data-quiet] {
+  font-family: inherit;
+  font-weight: 600;
+  letter-spacing: 0;
+}
 @media (hover: hover) {
   :root[data-lala-look="paper"]
     [data-lalala-settings-button]:not([data-danger]):hover:not(:disabled):not(

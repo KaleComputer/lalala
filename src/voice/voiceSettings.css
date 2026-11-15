@@ -399,7 +399,7 @@
 [data-lalala-settings-trying] {
   position: relative;
   display: block;
-  width: min(12rem, 100%);
+  width: 100%;
   height: 2px;
   margin-top: 6px;
   overflow: hidden;
@@ -433,7 +433,7 @@
 [data-lalala-settings-meter] {
   position: relative;
   display: block;
-  width: min(12rem, 100%);
+  width: 100%;
   height: 2px;
   margin-top: 6px;
   overflow: hidden;
@@ -677,8 +677,8 @@
   border-radius: 4px;
   background: var(--s-input-bg);
   color: var(--s-fg-2);
-  font: 600 11px / 16px var(--lala-font, var(--s-mono));
-  letter-spacing: 0.04em;
+  font: 600 12px / 17px var(--lala-font, var(--s-mono));
+  letter-spacing: 0.02em;
   font-variant-numeric: tabular-nums;
   text-align: center;
 }
@@ -881,24 +881,28 @@
 [data-lalala-pair-field] {
   --cut: 9px;
   display: flex;
-  padding: 1px;
   border-radius: 9px;
-  background: var(--s-input);
+  background: color-mix(in srgb, var(--s-fg) 3.5%, var(--s-bg));
+  box-shadow: inset 0 0 0 1px var(--s-input);
 }
 [data-lalala-pair-field]:focus-within {
-  background: var(--s-ring);
+  box-shadow: inset 0 0 0 1px var(--s-ring);
 }
 [data-lalala-pair-field] > input {
   flex: 1;
   min-width: 0;
-  height: 40px;
+  height: 42px;
   border: 0;
-  border-radius: 8px;
-  padding: 0 12px;
+  border-radius: 9px;
+  padding: 0 13px;
   color: var(--s-fg);
-  background: color-mix(in srgb, var(--s-fg) 3.5%, var(--s-bg));
+  background: transparent;
   font: 400 var(--s-text) / 1 var(--s-sans);
   outline: 0;
+}
+[data-lalala-pair-field] > button {
+  align-self: center;
+  margin: 0 5px;
 }
 [data-lalala-pair-field] > input::placeholder {
   color: var(--s-fg-2);
@@ -1159,10 +1163,10 @@
 }
 /* A paste that failed: the field takes the warning colour until the next try. Never red before that. */
 [data-lalala-pair-field][data-failed] {
-  background: var(--s-warn);
+  box-shadow: inset 0 0 0 1px var(--s-warn);
 }
 [data-lalala-pair-field][data-failed]:focus-within {
-  background: var(--s-ring);
+  box-shadow: inset 0 0 0 1px var(--s-ring);
 }
 /* Fingers: every small control gets T3's 44px hit area. */
 @media (pointer: coarse) {

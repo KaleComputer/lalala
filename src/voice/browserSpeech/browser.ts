@@ -466,7 +466,8 @@ function record(task: Task, where: Where, ms: number, audioMs: number) {
   notify();
 }
 /** This browser measured clearly faster than the computer for a task: Automatic stays here. */
-const browserFaster = (task: Task) => {
+/** Automatic keeps a task in this browser once it measured clearly faster here than your computer. */
+export const browserFaster = (task: Task) => {
   const { browser, computer } = timings[task];
   return browser !== undefined && computer !== undefined && browser < computer * 0.8;
 };
