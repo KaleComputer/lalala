@@ -2096,8 +2096,18 @@ export function SpeechSection() {
   const down = wanted && computer === "down";
   const trying = wanted && !down;
   // The elapsed time counts while your computer is being tried: text only, once a second.
-  // Your computer answering again (or for the first time this visit) is said once, out loud only.
-  const recovered = computer === "ready" && Date.now() - computerSpeechSince() < 10_000;
+  // Your computer answering after it was tried is said once, out loud only, then cleared.
+  const [recovered, setRecovered] = useState(false);
+  const before = useRef(computer);
+  // oxlint-disable-next-line t3code/no-unreasoned-state-sync -- announces the computer's return once, then clears the announcement
+  useEffect(() => {
+    const was = before.current;
+    before.current = computer;
+    if (computer !== "ready" || was === "ready" || was === "checking") return;
+    setRecovered(true);
+    const timer = window.setTimeout(() => setRecovered(false), 8_000);
+    return () => window.clearTimeout(timer);
+  }, [computer]);
   const heavy = (detail: string) => (phone ? `${detail}, may close a phone tab` : detail);
 
   return (

@@ -441,7 +441,8 @@
   inset: 0;
   width: 40%;
   background: linear-gradient(90deg, transparent, var(--s-primary), transparent);
-  animation: lalala-settings-trying 1.6s linear infinite;
+  /* A few passes, then it rests (no endless repaint); the m:ss beside it keeps showing it's alive. */
+  animation: lalala-settings-trying 1.6s linear 5 both;
 }
 @keyframes lalala-settings-trying {
   from {

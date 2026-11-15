@@ -114,7 +114,10 @@ export function PairSteps(props: {
         inputMode={ask ? "url" : undefined}
         aria-label={ask ? "Your T3 Connect address" : label}
         aria-invalid={props.problem ? true : undefined}
-        aria-describedby={props.problem ? `${choiceId}e` : undefined}
+        // The error when there is one; while empty, why Connect sent you here.
+        aria-describedby={
+          props.problem ? `${choiceId}e` : value.trim() === "" && !busy ? `${choiceId}n` : undefined
+        }
         placeholder={ask ? "https://name.t3coderelay.com/mcp" : placeholder}
         autoComplete="off"
         autoCapitalize="off"
