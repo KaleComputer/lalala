@@ -159,17 +159,27 @@
             return 0;
           }
         })();
+        // Dev re-bundles its dependencies under the same ?v=, which the browser keeps as immutable:
+        // stale copies mix two Reacts and every boot fails (15 Nov). Fetch them past the cache first.
+        const reload = () =>
+          Promise.all(
+            performance
+              .getEntriesByType("resource")
+              .map((entry) => entry.name)
+              .filter((url) => url.includes("/node_modules/.vite/deps/"))
+              .map((url) => fetch(url, { cache: "reload" }).catch(() => {})),
+          ).finally(() => location.reload());
         const retry = () => {
           try {
             sessionStorage.setItem(TRIES, String(tries + 1));
           } catch {}
-          location.reload();
+          void reload();
         };
         window.__lalalaBootRetry = () => {
           try {
             sessionStorage.removeItem(TRIES);
           } catch {}
-          location.reload();
+          void reload();
         };
         let failed = false;
         const fail = (event) => {
@@ -178,7 +188,16 @@
           const fromScript = event.target instanceof HTMLScriptElement;
           if (!fromScript && !(event instanceof ErrorEvent)) return;
           failed = true;
-          console.warn("lalala: the page didn't load", fromScript ? event.target.src : event.message);
+          const why = fromScript ? event.target.src : event.message;
+          console.warn("lalala: the page didn't load", why);
+          // To the session log, which only the app's own server keeps (not lalala.talk).
+          if ("%MODE%" !== "site") {
+            try {
+              const stack = event.error?.stack?.slice(0, 1500);
+              const line = { t: new Date().toISOString(), who: "system", type: "boot.failed", why, stack, tries };
+              navigator.sendBeacon?.("/__lalala/log", new Blob([JSON.stringify([line])], { type: "text/plain" }));
+            } catch {}
+          }
           if (every > 0 && tries < 2) {
             setTimeout(retry, 1000 * 2 ** tries);
             return;
