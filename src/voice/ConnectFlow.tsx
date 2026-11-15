@@ -423,7 +423,7 @@ function Step(props: { readonly n: number; readonly title: string; readonly chil
   );
 }
 
-const PRESS = new Set(["Create link", "Copy MCP URL"]);
+const PRESS = new Set(["Create link"]);
 
 /** Where a setting lives in T3 Code, as the chips it shows, not a sentence. */
 function T3Path(props: { readonly steps: ReadonlyArray<string> }) {
@@ -444,7 +444,7 @@ function T3Path(props: { readonly steps: ReadonlyArray<string> }) {
             // The menu and the item in it are one click path: one chip, so a phone's line never breaks between.
             <b data-press="">
               <span aria-hidden="true">⋯ </span>
-              <span data-lalala-settings-sr="">the menu next to your computer's name, then </span>
+              <span data-lalala-settings-sr="">the menu next to your computer's name, then press </span>
               {step.slice(2)}
             </b>
           ) : (

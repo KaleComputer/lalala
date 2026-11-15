@@ -998,8 +998,8 @@ export function PickRow(props: {
   /** Plays a playable option: from its button, and as the keyboard moves onto it. */
   readonly onPlay?: (value: string) => void;
   readonly busy?: boolean | undefined;
-  /** What the picked option runs right now, after its name in the closed select (Automatic's pick). */
-  readonly shows?: string | undefined;
+  /** What the picked option runs right now and where, after its name in the closed select (Automatic's pick). */
+  readonly shows?: { readonly model: string; readonly where: "computer" | "here" } | undefined;
   readonly onChange: (value: string) => void;
 }) {
   const id = useId();
@@ -1116,7 +1116,7 @@ export function PickRow(props: {
               options[selected]?.detail ? `, ${options[selected].detail}` : ""
             }${options[selected]?.disabled ? `, ${options[selected].meta ?? "unavailable"}` : ""}${
               props.shows
-                ? `, now ${props.shows.replace(" · Computer", ", on your computer").replace(" · here", ", in this browser")}`
+                ? `, now ${props.shows.model}, ${props.shows.where === "computer" ? "on your computer" : "in this browser"}`
                 : ""
             }`}
             aria-describedby={describedBy}
@@ -1135,7 +1135,11 @@ export function PickRow(props: {
             <span>
               {/* Automatic shows what it runs and where: "Auto · Kokoro 82M · computer". */}
               {props.shows ? "Auto" : <PickLabel option={options[selected]} />}
-              {props.shows ? <small data-lalala-settings-shows="">{` · ${props.shows}`}</small> : null}
+              {props.shows ? (
+                <small data-lalala-settings-shows="">
+                  {` · ${props.shows.model} · ${props.shows.where === "computer" ? "Computer" : "here"}`}
+                </small>
+              ) : null}
             </span>
             {!props.disabled ? (
               <svg viewBox="0 0 24 24" aria-hidden="true">
@@ -1984,7 +1988,7 @@ function automaticWhy(task: "stt" | "voice", computer: ReturnType<typeof compute
   // measured and when it moved.
   const facts = [
     computer === "down"
-      ? "this browser while your computer is down"
+      ? "this browser until your computer's speech service starts"
       : computer === "starting" || computer === "loading"
         ? "this browser while your computer starts"
         : "",
@@ -2211,7 +2215,7 @@ export function SpeechSection() {
         value={ears}
         shows={
           ears === "auto"
-            ? `${modelOnly(runningName("stt", tryingComputer("stt") ? STT_LABELS["110m"] : earsAuto))} · ${activeSpeech("stt").where === "computer" ? "Computer" : "here"}`
+            ? { model: modelOnly(runningName("stt", tryingComputer("stt") ? STT_LABELS["110m"] : earsAuto)), where: activeSpeech("stt").where === "computer" ? "computer" : "here" }
             : undefined
         }
         onReset={ears === "auto" ? undefined : () => setSttModel("auto")}
@@ -2292,7 +2296,7 @@ export function SpeechSection() {
         value={voice}
         shows={
           voice === "auto"
-            ? `${modelOnly(runningName("voice", voiceStandIn === null ? voiceAuto : VOICE_LABELS[voiceStandIn]))} · ${activeSpeech("voice").where === "computer" ? "Computer" : "here"}`
+            ? { model: modelOnly(runningName("voice", voiceStandIn === null ? voiceAuto : VOICE_LABELS[voiceStandIn])), where: activeSpeech("voice").where === "computer" ? "computer" : "here" }
             : undefined
         }
         onReset={voice === "auto" ? undefined : () => setReplyVoice("auto")}
