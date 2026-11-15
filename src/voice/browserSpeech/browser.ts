@@ -3,7 +3,7 @@
 // They start loading when the page opens and stay loaded for the page's life, across calls and tab
 // hides: setting a model up takes seconds on a phone (Tim, 14 Nov: "always a cold start").
 import type { VoiceBarModel } from "../VoiceBar";
-import { autoRetrySeconds, replyVoice, replyVoicePick, sttModel } from "../settingsStore";
+import { autoRetrySeconds, defaultReplyVoice, replyVoice, replyVoicePick, sttModel } from "../settingsStore";
 import { voiceLog } from "../voiceLog";
 import type { LoadMessage } from "./readout";
 import { type ComputerSpeech, computerRoute } from "./computerRoute";
@@ -65,8 +65,10 @@ const memory = () => {
 
 // Settings show each task's model state live: every change below bumps this and tells them.
 let stateVersion = 0;
+let loggedActive = "";
 const notify = () => {
   stateVersion += 1;
+  logActive();
   document.dispatchEvent(new Event("lalala:speech-state"));
 };
 export const speechStateVersion = () => stateVersion;
@@ -476,13 +478,22 @@ export const browserFaster = (task: Task) => {
   return browser !== undefined && computer !== undefined && browser < computer * 0.8;
 };
 const automatic = { stt: () => sttModel() === "auto", voice: () => replyVoicePick() === "auto" };
+/**
+ * Who stands in for your computer's voice: the same Kokoro voice in this browser on a desktop, so a
+ * reply never changes voice with where it runs; Kale's Matcha on a phone (Kokoro there ended tabs).
+ */
+const voiceStandIn = (): "kokoro" | "matcha" => (defaultReplyVoice() === "matcha" ? "matcha" : "kokoro");
 /** A task the computer should do, picked by hand or by Automatic. */
 const wantsComputer = {
   stt: () =>
     sttModel() === "computer" || (automatic.stt() && computerState !== "absent" && !browserFaster("stt")),
+  // A phone's Automatic voice is Matcha, which only runs here: it never moves to your computer's Kokoro.
   voice: () =>
     replyVoice() === "computer" ||
-    (automatic.voice() && computerState !== "absent" && !browserFaster("voice")),
+    (automatic.voice() &&
+      voiceStandIn() === "kokoro" &&
+      computerState !== "absent" &&
+      !browserFaster("voice")),
 };
 const onComputer = {
   stt: () => wantsComputer.stt() && !standingIn(),
@@ -503,7 +514,7 @@ function fitModels() {
     else ears.releaseWhenIdle();
   }
   if (wantsComputer.voice()) {
-    if (standingIn()) startMatcha();
+    if (standingIn()) voiceStandIn() === "kokoro" ? voice.start() : startMatcha();
     else {
       voice.releaseWhenIdle();
       matcha.releaseWhenIdle();
@@ -608,16 +619,24 @@ export const startEars = () => {
 export const releaseEars = () => ears.releaseWhenIdle();
 /** Kokoro loads with the call while it is the reply voice; another reply voice frees it. */
 export const startKokoro = () => {
-  if (!voiceOff && replyVoice().startsWith("kokoro") && !wantsComputer.voice()) voice.start();
+  if (voiceOff) return;
+  // Wanted on your computer: wait for its first answer, then fitModels loads the stand-in if needed.
+  if (wantsComputer.voice()) {
+    if (standingIn() && computerState !== "checking" && voiceStandIn() === "kokoro") voice.start();
+    return;
+  }
+  if (replyVoice().startsWith("kokoro")) voice.start();
 };
 export const releaseKokoro = () => voice.releaseWhenIdle();
 /** The same for Kale's Matcha voice. */
 export const startMatcha = () => {
-  if (!voiceOff && !onComputer.voice()) matcha.start();
+  if (voiceOff || onComputer.voice()) return;
+  if (wantsComputer.voice() && voiceStandIn() === "kokoro") return;
+  matcha.start();
 };
 export const releaseMatcha = () => {
   // Standing in for the computer, Matcha speaks: the call's player can't free it then.
-  if (!(wantsComputer.voice() && standingIn())) matcha.releaseWhenIdle();
+  if (!(wantsComputer.voice() && standingIn() && voiceStandIn() === "matcha")) matcha.releaseWhenIdle();
 };
 
 /** 16 kHz PCM, transcribed by Parakeet. The buffer moves to its worker. */
@@ -691,8 +710,8 @@ export async function kokoroSpeak(text: string): Promise<Float32Array<ArrayBuffe
     const samples = await computerSpeak(plain());
     if (samples !== null) return samples;
   }
-  // Standing in for the computer (picked or Automatic's aim), the lightest voice speaks: Matcha.
-  if (wantsComputer.voice()) return (await matchaSpeak(plain())).samples;
+  // Standing in for the computer on a phone, Matcha speaks; on a desktop the same Kokoro, here.
+  if (wantsComputer.voice() && voiceStandIn() === "matcha") return (await matchaSpeak(plain())).samples;
   const browserAt = performance.now();
   const reply = await voice.ask({ type: "speak", text });
   if (reply.type !== "audio") throw new Error("Kokoro returned no audio");
@@ -722,6 +741,8 @@ export async function matchaSpeak(
  * Starts the speech models as the page opens, one after the other (Parakeet, then the reply voice),
  * so a call finds them ready. A voice the user's cards registered loads with the call instead.
  */
+/** Automatic sends this task to your computer when it can (a phone's voice stays Matcha, here). */
+export const automaticTriesComputer = (task: Task) => task === "stt" || voiceStandIn() === "kokoro";
 export function prewarm() {
   speechPrewarmed = true;
   startEars();
@@ -748,10 +769,27 @@ export function activeSpeech(task: "stt" | "voice"): ActiveSpeech {
       : { where: "browser", status: ears.status() };
   const picked = replyVoice();
   if (onComputer.voice()) return { where: "computer", name: "kokoro 82m mlx" };
-  // Standing in for your computer (picked, or Automatic's aim): Matcha speaks.
-  if (picked === "matcha" || wantsComputer.voice()) return { where: "browser", status: matcha.status() };
+  // Standing in for your computer: Matcha on a phone, the same Kokoro here on a desktop.
+  if (wantsComputer.voice())
+    return { where: "browser", status: (voiceStandIn() === "matcha" ? matcha : voice).status() };
+  if (picked === "matcha") return { where: "browser", status: matcha.status() };
   if (picked.startsWith("kokoro")) return { where: "browser", status: voice.status() };
   return { where: "card", name: picked };
+}
+
+/** The models that hear and speak right now, in the session log whenever they change (the brain reads it). */
+function logActive() {
+  const describe = (task: Task) => {
+    const active = activeSpeech(task);
+    return active.where === "browser"
+      ? { where: "browser", model: active.status.name, phase: active.status.phase }
+      : { where: active.where, model: active.name };
+  };
+  const now = { stt: describe("stt"), voice: describe("voice"), automatic: { stt: automatic.stt(), voice: automatic.voice() } };
+  const key = JSON.stringify(now);
+  if (key === loggedActive) return;
+  loggedActive = key;
+  voiceLog("system", "speech.active", now);
 }
 
 /** What a task's browser model is doing, for Settings; null while the computer or a card voice has it. */
@@ -759,7 +797,8 @@ export function speechStatus(task: "stt" | "voice"): ModelStatus | null {
   if (task === "stt") return onComputer.stt() ? null : ears.status();
   const picked = replyVoice();
   if (onComputer.voice()) return null;
-  if (picked === "matcha" || wantsComputer.voice()) return matcha.status();
+  if (wantsComputer.voice()) return (voiceStandIn() === "matcha" ? matcha : voice).status();
+  if (picked === "matcha") return matcha.status();
   if (picked.startsWith("kokoro")) return voice.status();
   return null;
 }

@@ -19,7 +19,7 @@ import {
   SoundSection,
   ThemeSection,
   useCanvasValue,
-  useSoundValue,
+  useSpeechSummary,
   SpeechSection,
   OpeningSection,
   CreditsSection,
@@ -86,7 +86,7 @@ export default function Landing() {
   };
   const remove = (id: string) => () => keepHidden([...hidden, id]);
   const linked = useBrainVersion() !== 0;
-  const sound = useSoundValue();
+  const speechLine = useSpeechSummary().line;
   const canvas = useCanvasValue();
   const look = useLook();
   const { delegates } = useSyncedSettings();
@@ -123,7 +123,7 @@ export default function Landing() {
       id: "sound",
       title: "Sound & mic",
       icon: PAGE_ICONS.sound,
-      value: sound,
+      value: speechLine,
       content: (
         <>
           <SoundSection />

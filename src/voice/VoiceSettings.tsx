@@ -53,6 +53,7 @@ import { replyVoicePlugins, subscribeReplyVoices } from "./replyVoices";
 import {
   browserFaster,
   checkGpu,
+  automaticTriesComputer,
   computerSpeechSince,
   speechRunsAt,
   computerSpeechState,
@@ -200,6 +201,7 @@ export function VoiceSettings(props: {
 }) {
   const at = useSyncExternalStore(subscribeOpen, readOpen, readOpen);
   const open = at !== null;
+  const speech = useSpeechSummary();
   const tabRef = useRef<HTMLButtonElement>(null);
   const close = useCallback(() => {
     closeVoiceSettings();
@@ -227,6 +229,7 @@ export function VoiceSettings(props: {
           data-open={open ? "" : undefined}
           aria-expanded={open}
           aria-label="Voice settings"
+          title={`Voice settings · hears: ${speech.hears} · speaks: ${speech.speaks}`}
           onClick={() => (open ? closeVoiceSettings() : openVoiceSettings())}
         >
           <svg viewBox="0 0 24 24" aria-hidden="true">
@@ -365,16 +368,6 @@ const Glyph = (props: { readonly d: ReadonlyArray<string> }) => (
     ))}
   </svg>
 );
-
-/** The update sound, beside Sound & mic in the phone's list. */
-export function useSoundValue(): string {
-  const { topicSound } = useSyncedSettings();
-  return topicSound === "none"
-    ? "No sound"
-    : topicSound === BUILT_IN_TOPIC_SOUND
-      ? "Chime"
-      : soundTitle(topicSound);
-}
 
 /** Whether the canvas follows the voice, beside Canvas in the phone's list. */
 export function useCanvasValue(): string {
@@ -697,7 +690,7 @@ function AppSettings(props: { readonly section: string; readonly onClose: () => 
   const brainModel =
     known && selection ? findModel(known, selection.instanceId, selection.model) : undefined;
   const { delegates } = useSyncedSettings();
-  const sound = useSoundValue();
+  const speechLine = useSpeechSummary().line;
   const canvas = useCanvasValue();
   const autoStart = useAutoStartCall();
   const look = useLook();
@@ -750,7 +743,7 @@ function AppSettings(props: { readonly section: string; readonly onClose: () => 
       id: "sound",
       title: "Sound & mic",
       icon: PAGE_ICONS.sound,
-      value: sound,
+      value: speechLine,
       content: (
         <>
           <SoundSection />
@@ -1005,6 +998,8 @@ export function PickRow(props: {
   /** Plays a playable option: from its button, and as the keyboard moves onto it. */
   readonly onPlay?: (value: string) => void;
   readonly busy?: boolean | undefined;
+  /** What the picked option runs right now, after its name in the closed select (Automatic's pick). */
+  readonly shows?: string | undefined;
   readonly onChange: (value: string) => void;
 }) {
   const id = useId();
@@ -1109,7 +1104,9 @@ export function PickRow(props: {
             aria-controls={open ? `${id}l` : undefined}
             aria-label={`${props.label}: ${options[selected]?.label ?? "none"}${
               options[selected]?.detail ? `, ${options[selected].detail}` : ""
-            }${options[selected]?.disabled ? `, ${options[selected].meta ?? "unavailable"}` : ""}`}
+            }${options[selected]?.disabled ? `, ${options[selected].meta ?? "unavailable"}` : ""}${
+              props.shows ? `, now ${props.shows}` : ""
+            }`}
             aria-describedby={describedBy}
             disabled={props.disabled}
             aria-disabled={props.busy || undefined}
@@ -1125,6 +1122,7 @@ export function PickRow(props: {
           >
             <span>
               <PickLabel option={options[selected]} />
+              {props.shows ? <small data-lalala-settings-shows="">{` · ${props.shows}`}</small> : null}
             </span>
             {!props.disabled ? (
               <svg viewBox="0 0 24 24" aria-hidden="true">
@@ -1877,6 +1875,32 @@ function automaticOption(
   };
 }
 
+/** What hears and what speaks right now, and where: the settings tab's tooltip and Sound & mic's line. */
+export function useSpeechSummary() {
+  useSyncExternalStore(subscribeSpeechState, speechStateVersion, speechStateVersion);
+  useSttModel();
+  useReplyVoicePick();
+  const where = (task: "stt" | "voice") => {
+    const active = activeSpeech(task);
+    return active.where === "computer" ? "on your computer" : active.where === "card" ? "from a card" : "here";
+  };
+  const hears = `${runningName("stt", "Parakeet")} ${where("stt")}`;
+  const speaks = `${runningName("voice", "Kokoro")} ${where("voice")}`;
+  return { hears, speaks, line: `${runningName("voice", "Kokoro")} · ${runningName("stt", "Parakeet")}` };
+}
+
+/** The model a task runs on now, short, for Automatic's closed select: "Kokoro 82M · GPU". */
+function runningName(task: "stt" | "voice", planned: string): string {
+  const active = activeSpeech(task);
+  const name =
+    active.where === "computer"
+      ? active.name
+      : active.where === "browser" && active.status.name !== null
+        ? active.status.name
+        : null;
+  return (name === null ? planned : loadedName(name)).replace(" (Kale's voice)", "");
+}
+
 /** What runs a task right now, in a few words: "Llama Matcha (Kale's voice), in this browser · ready". */
 export function nowText(active: ActiveSpeech, waiting: string, meanwhile = ""): string {
   if (active.where === "computer") return `${loadedName(active.name)}, on your computer · ready`;
@@ -1913,6 +1937,7 @@ function automaticWhy(task: "stt" | "voice", computer: ReturnType<typeof compute
     browser !== undefined && there !== undefined
       ? `measured ${seconds(there)} there vs ${seconds(browser)} here per second of audio`
       : null;
+  if (!automaticTriesComputer(task)) return "Kale's voice, in this browser: a phone keeps it";
   if (computer === "absent") return "this browser; your computer once T3 Code is connected";
   if (browserFaster(task)) return `this browser, faster here: ${both}${since}`;
   if (runs.where === "computer")
@@ -2020,6 +2045,8 @@ export function SpeechSection() {
       : gpu.any
         ? "kokoro-gpu"
         : "kokoro-cpu";
+  // Who stands in for your computer's voice: the same Kokoro here on a desktop, Matcha on a phone.
+  const voiceStandIn: VoiceBuild | null = phone ? "matcha" : autoVoice;
   const earsAuto = autoEars === null ? CHECKING : STT_LABELS[autoEars];
   const voiceAuto = autoVoice === null ? CHECKING : VOICE_LABELS[autoVoice];
   // The computer's line in the list: its state, and how fast it is once it answers.
@@ -2115,6 +2142,11 @@ export function SpeechSection() {
         }
         label="Speech-to-text"
         value={ears}
+        shows={
+          ears === "auto"
+            ? runningName("stt", tryingComputer("stt") ? STT_LABELS["110m"] : earsAuto)
+            : undefined
+        }
         onReset={ears === "auto" ? undefined : () => setSttModel("auto")}
         groups={[
           {
@@ -2177,16 +2209,12 @@ export function SpeechSection() {
             <TaskState
               cost={
                 VOICE_COSTS[
-                  voice === "computer" || (voice === "auto" && tryingComputer("voice"))
-                    ? "matcha"
-                    : voice === "auto"
-                      ? (autoVoice ?? "")
-                      : voice
+                  voice === "computer" || voice === "auto" ? (voiceStandIn ?? "") : voice
                 ]
               }
               picked={voice}
               auto={voiceAuto}
-              standIn={VOICE_LABELS.matcha}
+              standIn={voiceStandIn === null ? CHECKING : VOICE_LABELS[voiceStandIn]}
               computer={computer}
               task="voice"
               active={activeSpeech("voice")}
@@ -2195,6 +2223,11 @@ export function SpeechSection() {
         }
         label="Reply voice"
         value={voice}
+        shows={
+          voice === "auto"
+            ? runningName("voice", voiceStandIn === null ? voiceAuto : VOICE_LABELS[voiceStandIn])
+            : undefined
+        }
         onReset={voice === "auto" ? undefined : () => setReplyVoice("auto")}
         groups={[
           {
@@ -2204,9 +2237,12 @@ export function SpeechSection() {
                 label: "Automatic",
                 ...automaticOption(
                   "voice",
-                  computer,
+                  automaticTriesComputer("voice") ? computer : "absent",
                   { label: voiceAuto, cost: autoVoice === null ? undefined : VOICE_COSTS[autoVoice] },
-                  { label: VOICE_LABELS.matcha, cost: VOICE_COSTS.matcha },
+                  {
+                    label: voiceAuto,
+                    cost: autoVoice === null ? "" : (VOICE_COSTS[autoVoice] ?? ""),
+                  },
                 ),
               },
             ],

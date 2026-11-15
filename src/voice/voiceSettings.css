@@ -393,6 +393,11 @@
 [data-lalala-settings-info] > [data-lalala-settings-trying] {
   margin-top: 8px;
 }
+/* Automatic's pick in its closed select, quieter than the name. */
+[data-lalala-settings-shows] {
+  color: var(--s-fg-2);
+  font-size: inherit;
+}
 /* Automatic's reason, on its own quiet line under "Now:". */
 [data-lalala-settings-why] {
   display: block;
