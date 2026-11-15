@@ -651,6 +651,17 @@
   box-shadow: var(--s-shadow);
   outline: 0;
 }
+/* More options below: a static fade at the bottom edge says so (the whole-option cut keeps the edge clean). */
+[data-lalala-settings-list][data-more]::after {
+  content: "";
+  display: block;
+  position: sticky;
+  bottom: -4px;
+  height: 18px;
+  margin-top: -18px;
+  background: linear-gradient(transparent, var(--s-popover));
+  pointer-events: none;
+}
 [data-lalala-settings-list][data-above] {
   top: auto;
   bottom: calc(100% + 6px);

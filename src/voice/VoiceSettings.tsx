@@ -987,6 +987,12 @@ function playTopicSound(name: string): void {
 }
 
 /** A picker anchored under its trigger, with listbox keyboard navigation. */
+/** Marks a list that has options below its visible end, for its bottom fade. */
+function markMore(node: HTMLElement) {
+  if (node.scrollTop + node.clientHeight < node.scrollHeight - 1) node.dataset.more = "";
+  else delete node.dataset.more;
+}
+
 export function PickRow(props: {
   readonly title: string;
   readonly description?: ReactNode;
@@ -999,7 +1005,7 @@ export function PickRow(props: {
   readonly onPlay?: (value: string) => void;
   readonly busy?: boolean | undefined;
   /** What the picked option runs right now and where, after its name in the closed select (Automatic's pick). */
-  readonly shows?: { readonly model: string; readonly where: "computer" | "here" } | undefined;
+  readonly shows?: { readonly model: string; readonly where: "computer" | "browser" } | undefined;
   readonly onChange: (value: string) => void;
 }) {
   const id = useId();
@@ -1034,7 +1040,7 @@ export function PickRow(props: {
       const room = Math.max(above, below);
       if (node.offsetHeight > room) node.style.maxHeight = `${room}px`;
     }
-    // A list that scrolls ends on a whole option, never through one, so the cut reads as "more below".
+    // A list that scrolls ends on a whole option, never through one; the fade (data-more) says "more below".
     if (node.scrollHeight > node.clientHeight) {
       const top = node.getBoundingClientRect().top;
       const ends = [...node.querySelectorAll('[role="option"]')]
@@ -1045,6 +1051,7 @@ export function PickRow(props: {
       if (last !== undefined) node.style.maxHeight = `${Math.floor(last) + node.offsetHeight - node.clientHeight}px`;
     }
     node.querySelector('[aria-selected="true"]')?.scrollIntoView({ block: "nearest" });
+    markMore(node);
     const outside = (event: Event) => {
       if (event.target instanceof Node && !node.parentElement?.contains(event.target)) {
         event.preventDefault();
@@ -1137,7 +1144,7 @@ export function PickRow(props: {
               {props.shows ? "Auto" : <PickLabel option={options[selected]} />}
               {props.shows ? (
                 <small data-lalala-settings-shows="">
-                  {` · ${props.shows.model} · ${props.shows.where === "computer" ? "Computer" : "here"}`}
+                  {` · ${props.shows.model} · ${props.shows.where === "computer" ? "Computer" : "Browser"}`}
                 </small>
               ) : null}
             </span>
@@ -1157,6 +1164,7 @@ export function PickRow(props: {
               tabIndex={-1}
               data-lalala-settings-list=""
               onKeyDown={onListKey}
+              onScroll={(event) => markMore(event.currentTarget)}
             >
               {props.groups.map((group, groupIndex) => (
                 <div key={group.label ?? groupIndex} role="group" aria-label={group.label}>
@@ -2215,7 +2223,7 @@ export function SpeechSection() {
         value={ears}
         shows={
           ears === "auto"
-            ? { model: modelOnly(runningName("stt", tryingComputer("stt") ? STT_LABELS["110m"] : earsAuto)), where: activeSpeech("stt").where === "computer" ? "computer" : "here" }
+            ? { model: modelOnly(runningName("stt", tryingComputer("stt") ? STT_LABELS["110m"] : earsAuto)), where: activeSpeech("stt").where === "computer" ? "computer" : "browser" }
             : undefined
         }
         onReset={ears === "auto" ? undefined : () => setSttModel("auto")}
@@ -2296,7 +2304,7 @@ export function SpeechSection() {
         value={voice}
         shows={
           voice === "auto"
-            ? { model: modelOnly(runningName("voice", voiceStandIn === null ? voiceAuto : VOICE_LABELS[voiceStandIn])), where: activeSpeech("voice").where === "computer" ? "computer" : "here" }
+            ? { model: modelOnly(runningName("voice", voiceStandIn === null ? voiceAuto : VOICE_LABELS[voiceStandIn])), where: activeSpeech("voice").where === "computer" ? "computer" : "browser" }
             : undefined
         }
         onReset={voice === "auto" ? undefined : () => setReplyVoice("auto")}
