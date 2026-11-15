@@ -22,7 +22,12 @@ const FRONT_END = {
 
 type Tensor = { readonly data: Float32Array; readonly dims: ReadonlyArray<number> };
 type Transformers = {
-  env: { allowLocalModels: boolean; allowRemoteModels: boolean; localModelPath: string };
+  env: {
+    allowLocalModels: boolean;
+    allowRemoteModels: boolean;
+    localModelPath: string;
+    backends: { onnx: { wasm: { numThreads: number } } };
+  };
   StyleTextToSpeech2Model: {
     from_pretrained(id: string, options: object): Promise<(inputs: object) => Promise<{ waveform: Tensor }>>;
   };
@@ -39,13 +44,25 @@ type Voice = {
   readonly g2p: G2p;
   readonly normalize: (text: string) => string;
 };
-type Message = { type: string; id?: number; text?: string; device?: string; model?: string; voice?: string };
+type Message = {
+  type: string;
+  id?: number;
+  text?: string;
+  device?: string;
+  model?: string;
+  voice?: string;
+  threads?: number;
+};
 
 let voice: Promise<Voice> | null = null;
 let queue: Promise<unknown> = Promise.resolve();
 
-async function load(device: string, name: string, voiceFile: string): Promise<Voice> {
+async function load(device: string, name: string, voiceFile: string, threads?: number): Promise<Voice> {
   const hf = (await import(/* @vite-ignore */ TRANSFORMERS)) as Transformers;
+  // Its runtime takes half the cores by default: 2 on Tim's iPhone, 4.8x real time against 7.3x
+  // with all 4 (15 Nov). Every core, up to 4, as the direct runtime had.
+  hf.env.backends.onnx.wasm.numThreads =
+    threads ?? (self.crossOriginIsolated ? Math.min(4, navigator.hardwareConcurrency || 4) : 1);
   // Only lalala's own copy of the model, never a download from the Hub.
   hf.env.allowLocalModels = true;
   hf.env.allowRemoteModels = false;
@@ -80,7 +97,7 @@ async function load(device: string, name: string, voiceFile: string): Promise<Vo
     fetch(FRONT_END.lexicon).then((response) => response.text()),
     fetch(FRONT_END.override).then((response) => response.text()),
   ]);
-  postMessage({ type: "stage", stage: "backend", device });
+  postMessage({ type: "stage", stage: "backend", device, threads: hf.env.backends.onnx.wasm.numThreads });
   const lex = readTable(lexicon);
   readTable(override, lex);
   const ready: Voice = {
@@ -150,7 +167,12 @@ async function speak(ready: Voice, raw: string) {
 self.onmessage = (event: MessageEvent<Message>) => {
   const message = event.data;
   if (voice === null) {
-    voice = load(message.device ?? "wasm", message.model ?? "kale-tts-1-tiny", message.voice ?? "hazel");
+    voice = load(
+      message.device ?? "wasm",
+      message.model ?? "kale-tts-1-tiny",
+      message.voice ?? "hazel",
+      message.threads,
+    );
     voice.catch((error: unknown) => postMessage({ type: "failed", message: String(error) }));
   }
   if (message.type !== "speak") return;

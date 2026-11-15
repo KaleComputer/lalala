@@ -21,10 +21,14 @@ const models = {
 // WebGPU ended Tim's iPhone tab (15 Nov): a phone runs the CPU only unless ?gpu asks.
 const PHONE = /iPhone|iPad|iPod|Android/.test(navigator.userAgent);
 const WITH_GPU = !PHONE || new URLSearchParams(location.search).has("gpu");
-const PLAN = [
-  { model: "k10c", backend: "wasm" },
-  ...(WITH_GPU ? [{ model: "k10c", backend: "webgpu" }] : []),
-] as const;
+// The CPU on every core (up to 4, as lalala runs it) and on Transformers.js's default half of them:
+// the default made Tim's iPhone 35 % slower (15 Nov).
+const ALL_CORES = Math.min(4, navigator.hardwareConcurrency || 4);
+const PLAN: ReadonlyArray<{ model: "k10c"; backend: "wasm" | "webgpu"; threads?: number }> = [
+  { model: "k10c", backend: "wasm", threads: ALL_CORES },
+  { model: "k10c", backend: "wasm", threads: Math.ceil(ALL_CORES / 2) },
+  ...(WITH_GPU ? [{ model: "k10c", backend: "webgpu" } as const] : []),
+];
 
 const median = (values: number[]) => {
   const sorted = [...values].sort((a, b) => a - b);
@@ -99,7 +103,7 @@ function play(samples: Float32Array<ArrayBuffer>) {
 }
 
 async function runOne(step: (typeof PLAN)[number], onStage: (stage: string) => void) {
-  const base = { model: models[step.model].model, backend: step.backend };
+  const base = { model: models[step.model].model, backend: step.backend, threads: step.threads };
   const worker = new Worker(new URL("../voice/browserSpeech/kaleVoice.worker.ts", import.meta.url), {
     type: "module",
   });
@@ -124,7 +128,7 @@ async function runOne(step: (typeof PLAN)[number], onStage: (stage: string) => v
   try {
     const started = performance.now();
     const { model, voice } = models[step.model];
-    worker.postMessage({ type: "load", device: step.backend, model, voice });
+    worker.postMessage({ type: "load", device: step.backend, model, voice, threads: step.threads });
     const error = await ready;
     if (error !== null) return { result: { ...base, error }, audio: null };
     const loadMs = performance.now() - started;
@@ -195,7 +199,7 @@ async function start() {
   log?.("bench.start", device);
   const results: RunResult[] = [];
   for (const step of PLAN) {
-    const label = `${models[step.model].label} on ${step.backend === "webgpu" ? "WebGPU" : "CPU"}`;
+    const label = `${models[step.model].label} on ${step.backend === "webgpu" ? "WebGPU" : `CPU, ${step.threads} threads`}`;
     log?.("bench.step", step);
     $("status").textContent = `${label}: loading…`;
     const { result, audio } =
@@ -221,7 +225,7 @@ async function start() {
 
 function addRow(step: (typeof PLAN)[number], result: RunResult, audio: Float32Array<ArrayBuffer> | null) {
   const row = document.createElement("tr");
-  const backend = step.backend === "webgpu" ? "WebGPU" : "CPU";
+  const backend = step.backend === "webgpu" ? "WebGPU" : `CPU · ${step.threads} threads`;
   const cell = (text: string) => {
     const td = document.createElement("td");
     td.textContent = text;
