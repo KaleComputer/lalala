@@ -262,7 +262,7 @@ export function PairSteps(props: {
           </Step>
         ) : path === "here" ? (
           <>
-            <Step n={1} title="Create a pairing link in T3 Code">
+            <Step n={1} title="Create a pairing link">
               <T3Path steps={["Settings", "Sharing & access", "Create link"]} />
               <details data-lalala-pair-terminal="">
                 <summary>Use a terminal instead</summary>
@@ -270,12 +270,12 @@ export function PairSteps(props: {
               </details>
             </Step>
             <Step n={2} title="Paste the link or code">
-              {field("https://…/pair#token=… or the code", "Pairing link or code")}
+              {field(phone ? "The link or code" : "https://…/pair#token=… or the code", "Pairing link or code")}
             </Step>
           </>
         ) : (
           <>
-            <Step n={1} title={phone ? "Turn these on in T3 Code" : "Turn these on in T3 Code, on that computer"}>
+            <Step n={1} title={phone ? "Turn these on" : "On that computer, turn these on"}>
               <T3Path steps={["Settings", "Sharing & access"]} />
               <p data-lalala-pair-or="">Both on, like this. T3 Connect asks you to sign in first.</p>
               <T3Switches names={["T3 Connect", "Network access"]} />
@@ -335,7 +335,7 @@ export function PairSteps(props: {
                 {addressWrong ? "That isn't a T3 Connect address; copy the MCP URL again." : null}
               </p>
             </Step>
-            <Step n={3} title="Create a pairing link in T3 Code">
+            <Step n={3} title="Create a pairing link">
               <T3Path steps={["Settings", "Sharing & access", "Create link"]} />
               <details data-lalala-pair-terminal="">
                 <summary>Use a terminal on that computer instead</summary>
@@ -346,7 +346,7 @@ export function PairSteps(props: {
               </details>
             </Step>
             <Step n={4} title="Paste the link or code">
-              {field("https://…/pair#token=… or the code", "Pairing link or code")}
+              {field(phone ? "The link or code" : "https://…/pair#token=… or the code", "Pairing link or code")}
             </Step>
           </>
         )}

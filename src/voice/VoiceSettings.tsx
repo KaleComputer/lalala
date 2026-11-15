@@ -1952,7 +1952,7 @@ function automaticWhy(task: "stt" | "voice", computer: ReturnType<typeof compute
   const since =
     runs.since === null
       ? ""
-      : ` · moved from ${runs.where === "computer" ? "this browser" : "your computer"} at ${clock(runs.since)}`;
+      : `\u00a0· moved from ${runs.where === "computer" ? "this browser" : "your computer"} at ${clock(runs.since)}`;
   // Each timing on its own, so a missing one says so instead of hiding the other.
   const measured =
     there === undefined && browser === undefined
@@ -1960,14 +1960,14 @@ function automaticWhy(task: "stt" | "voice", computer: ReturnType<typeof compute
       : `per second of audio: computer ${there === undefined ? "not measured" : seconds(there)}, here ${
           browser === undefined ? "measured only when it stands in" : seconds(browser)
         }`;
-  if (!automaticTriesComputer(task)) return "Llama Matcha · phones always use it";
+  if (!automaticTriesComputer(task)) return "Llama Matcha\u00a0· phones always use it";
   if (computer === "absent") return "this browser; your computer once T3 Code is connected";
-  if (browserFaster(task)) return `this browser, faster here · ${measured}${since}`;
+  if (browserFaster(task)) return `this browser, faster here\u00a0· ${measured}${since}`;
   if (runs.where === "computer")
-    return `picked your computer, nothing to download here · ${measured}${since}`;
+    return `picked your computer, nothing to download here\u00a0· ${measured}${since}`;
   // While your computer is tried, the group's line says why: here only what was measured and when it moved.
-  const facts = [there === undefined && browser === undefined ? "" : measured, since.replace(/^ · /, "")];
-  return facts.filter(Boolean).join(" · ");
+  const facts = [there === undefined && browser === undefined ? "" : measured, since.replace(/^\u00a0· /, "")];
+  return facts.filter(Boolean).join("\u00a0· ");
 }
 
 /**
