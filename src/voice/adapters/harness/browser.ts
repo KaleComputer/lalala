@@ -344,6 +344,17 @@ export function browserHarness(): HarnessAdapter {
       );
       return file.exists === false || file.truncated ? null : file.contents;
     },
+    async writeFile(relativePath, contents) {
+      const link = await linked();
+      await link.request("projects.writeFile", { cwd: await rootOf(link), relativePath, contents });
+    },
+    async run(command) {
+      if (brain === null) throw new Error("Not paired with T3 Code yet");
+      const link = await linked();
+      const target = { threadId: brain.threadId, terminalId: "lalala-speech" };
+      await link.request("terminal.open", { ...target, cwd: await rootOf(link) });
+      await link.request("terminal.write", { ...target, data: `${command}\r` });
+    },
     events(listener) {
       listeners.add(listener);
       if (!started) {

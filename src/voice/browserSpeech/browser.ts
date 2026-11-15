@@ -6,6 +6,7 @@ import type { VoiceBarModel } from "../VoiceBar";
 import { autoRetrySeconds, replyVoice, replyVoicePick, sttModel } from "../settingsStore";
 import { voiceLog } from "../voiceLog";
 import type { LoadMessage } from "./readout";
+import { type ComputerSpeech, computerRoute } from "./computerRoute";
 
 type Reply =
   | { type: "text"; id: number; text: string }
@@ -386,6 +387,7 @@ let voiceBuild = kokoroBuild();
 let voicePick = replyVoice();
 let retryEvery = autoRetrySeconds();
 document.addEventListener("lalala:settings", () => {
+  trackWhere();
   if (autoRetrySeconds() !== retryEvery) {
     retryEvery = autoRetrySeconds();
     for (const model of [ears, voice, matcha]) model.scheduleRetry();
@@ -464,6 +466,7 @@ function record(task: Task, where: Where, ms: number, audioMs: number) {
   } catch {
     // No storage: measured again next time.
   }
+  trackWhere();
   notify();
 }
 /** This browser measured clearly faster than the computer for a task: Automatic stays here. */
@@ -507,6 +510,27 @@ function fitModels() {
     }
   }
 }
+let computerSince = Date.now();
+/** When the computer's speech service went into its current state (Settings count up from it). */
+export const computerSpeechSince = () => computerSince;
+
+// Where each task runs now, and since when: Automatic's switches show in Settings, not only in logs.
+const whereNow = (task: Task): Where => ((task === "stt" ? onComputer.stt() : onComputer.voice()) ? "computer" : "browser");
+const runsAt: Record<Task, { where: Where; since: number | null }> = {
+  stt: { where: "browser", since: null },
+  voice: { where: "browser", since: null },
+};
+function trackWhere() {
+  for (const task of ["stt", "voice"] as const) {
+    const where = whereNow(task);
+    if (where === runsAt[task].where) continue;
+    runsAt[task] = { where, since: Date.now() };
+    voiceLog("system", "speech.switched", { task, where, automatic: automatic[task]() });
+  }
+}
+/** Where a task runs now and when it last moved there (null: it has run there since the page opened). */
+export const speechRunsAt = (task: Task) => runsAt[task];
+
 /** Still loading: asked again shortly. Not answering: at the retry interval, if retrying is on. */
 function scheduleComputer() {
   window.clearTimeout(computerTimer);
@@ -522,7 +546,9 @@ function scheduleComputer() {
 function setComputer(state: ComputerSpeech) {
   const changed = state !== computerState;
   computerTries = state === "down" ? computerTries + 1 : state === "ready" ? 0 : computerTries;
+  if (changed) computerSince = Date.now();
   computerState = state;
+  trackWhere();
   scheduleComputer();
   if (changed) {
     voiceLog("system", "speech.computer", { state });
@@ -547,23 +573,6 @@ export async function refreshComputerSpeech(force = false) {
   setComputer(await checkComputerSpeech(force ? "force" : wanted ? "auto" : undefined));
 }
 let speechPrewarmed = false;
-
-async function computer(path: string, init: RequestInit): Promise<Response> {
-  // A phone between networks drops the odd request ("Load failed"): one retry keeps the words.
-  const send = () =>
-    fetch(`/__lalala${path}`, { method: "POST", signal: AbortSignal.timeout(15_000), ...init });
-  const response = await send().catch((cause: unknown) => {
-    voiceLog("system", "speech.retry", { path, message: String(cause) });
-    return new Promise<void>((resolve) => setTimeout(resolve, 800)).then(send);
-  });
-  if (!response.ok) {
-    const body = (await response.json().catch(() => ({}))) as { error?: unknown };
-    throw new Error(
-      typeof body.error === "string" ? body.error : "Your computer's speech service didn't answer",
-    );
-  }
-  return response;
-}
 
 function wavOf(pcm: Float32Array): Blob {
   const data = new DataView(new ArrayBuffer(44 + pcm.length * 2));
@@ -618,13 +627,9 @@ export async function transcribe(pcm: Float32Array<ArrayBuffer>): Promise<string
   const startedAt = performance.now();
   if (onComputer.stt()) {
     try {
-      const response = await computer("/stt", {
-        headers: { "content-type": "audio/wav" },
-        body: wavOf(pcm),
-      });
-      const body = (await response.json()) as { text?: unknown };
+      const text = await computerRoute().stt(wavOf(pcm));
       record("stt", "computer", performance.now() - startedAt, audioMs);
-      return typeof body.text === "string" ? body.text : "";
+      return text;
     } catch (error) {
       voiceLog("system", "speech.computer-down", { task: "stt", message: String(error) });
       setComputer("down");
@@ -663,12 +668,8 @@ export function openVad(onProbability: (probability: number) => void) {
 async function computerSpeak(text: string): Promise<Float32Array<ArrayBuffer> | null> {
   const startedAt = performance.now();
   try {
-    const response = await computer("/tts", {
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({ text }),
-    });
     // 16-bit little-endian 24 kHz PCM.
-    const bytes = await response.arrayBuffer();
+    const bytes = await computerRoute().tts(text);
     const view = new DataView(bytes, 0, bytes.byteLength - (bytes.byteLength % 2));
     const samples = new Float32Array(view.byteLength / 2);
     for (let i = 0; i < samples.length; i += 1) samples[i] = view.getInt16(i * 2, true) / 0x8000;
@@ -777,43 +778,18 @@ export function speechProgress(): ReadonlyArray<VoiceBarModel> | null {
   return loading.map((model) => model.model()).filter((model) => model !== null);
 }
 
-/**
- * Whether the computer running T3 can take a speech task: "ready", "loading" (its models are still
- * loading), "down" (this app's server can't reach it) or "absent" (this page has no route to it, as on
- * lalala.talk). Settings ask when they open; nothing here starts the service.
- */
-export type ComputerSpeech = "ready" | "loading" | "starting" | "off" | "down" | "absent";
+export type { ComputerSpeech } from "./computerRoute";
 let computerReason: string | null = null;
-/** Why the computer's speech service couldn't start, as its server read it from the log. */
+/** Why the computer's speech service isn't answering (from its log, or how this page reaches it). */
 export const computerSpeechReason = () => computerReason;
+/**
+ * Whether the computer running T3 can take a speech task, through this app's server or (lalala.talk)
+ * through the paired T3 Code; `start` starts its speech service when it isn't running.
+ */
 export async function checkComputerSpeech(start?: "auto" | "force"): Promise<ComputerSpeech> {
-  try {
-    const query = start === "force" ? "?start=1" : start === "auto" ? "?start=auto" : "";
-    const response = await fetch(`/__lalala/local/health${query}`, { signal: AbortSignal.timeout(4_000) });
-    // No route here (lalala.talk answers with its own page or a 404): out of reach for good.
-    if (!response.headers.get("content-type")?.includes("json")) return "absent";
-    if (!response.ok) return "down";
-    const body = (await response.json()) as {
-      ready?: unknown;
-      down?: unknown;
-      starting?: unknown;
-      off?: unknown;
-      reason?: unknown;
-    };
-    computerReason = typeof body.reason === "string" ? body.reason : null;
-    return body.ready === true
-      ? "ready"
-      : body.starting === true
-        ? "starting"
-        : body.off === true
-          ? "off"
-          : body.down === true
-            ? "down"
-            : "loading";
-  } catch {
-    // A dropped or slow request (a phone between networks) is no proof the route is missing.
-    return "down";
-  }
+  const { state, reason } = await computerRoute().health(start);
+  computerReason = reason;
+  return state;
 }
 
 /** This browser has WebGPU with 16-bit floats (the 0.6B on the GPU) / any WebGPU (Kokoro on the GPU). */

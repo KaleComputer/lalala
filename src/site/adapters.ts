@@ -32,6 +32,8 @@ function follow(next: HarnessAdapter | null, startCall = false) {
     if (!next) listener(UNPAIRED);
   }
   for (const listener of brainListeners) listener();
+  // Paired (or unpaired) now: whether your computer can do the speech is asked again.
+  void import("../voice/browserSpeech/browser").then(({ refreshComputerSpeech }) => refreshComputerSpeech());
 }
 
 const harness: HarnessAdapter = {
@@ -50,6 +52,14 @@ const harness: HarnessAdapter = {
   readFile(relativePath) {
     if (!current?.readFile) return Promise.reject(new Error("Not paired with T3 Code yet"));
     return current.readFile(relativePath);
+  },
+  writeFile(relativePath, contents) {
+    if (!current?.writeFile) return Promise.reject(new Error("Not paired with T3 Code yet"));
+    return current.writeFile(relativePath, contents);
+  },
+  run(command) {
+    if (!current?.run) return Promise.reject(new Error("Not paired with T3 Code yet"));
+    return current.run(command);
   },
 };
 

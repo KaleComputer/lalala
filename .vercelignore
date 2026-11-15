@@ -7,6 +7,8 @@
 !/public
 !/index.html
 !/vite.config.mjs
+# The speech service lalala.talk writes onto the user's computer through T3 Code.
+!/scripts
 !/package.json
 !/package-lock.json
 /site/node_modules

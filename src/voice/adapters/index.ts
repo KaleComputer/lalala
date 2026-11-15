@@ -33,6 +33,10 @@ export type HarnessAdapter = {
    * (`[card …]` in its replies, src/voice/brainCards.ts) instead of under src/voice/extras/.
    */
   readFile?(relativePath: string): Promise<string | null>;
+  /** Writes a text file there (lalala.talk: the speech bridge's files). */
+  writeFile?(relativePath: string, contents: string): Promise<void>;
+  /** Runs a command in the brain thread's terminal on that computer, in the project folder. */
+  run?(command: string): Promise<void>;
 };
 
 export type Adapters = {

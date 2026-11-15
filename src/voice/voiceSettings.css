@@ -384,6 +384,20 @@
 :is([data-lalala-settings-info], [data-lalala-settings-error]) {
   padding: 10px var(--s-inset);
 }
+/* The live line while your computer is tried: how long so far, then the scan under it. */
+[data-lalala-settings-elapsed] {
+  margin-left: 6px;
+  color: var(--s-fg-3, var(--s-fg-2));
+  font-variant-numeric: tabular-nums;
+}
+[data-lalala-settings-info] > [data-lalala-settings-trying] {
+  margin-top: 8px;
+}
+/* Automatic's reason, on its own quiet line under "Now:". */
+[data-lalala-settings-why] {
+  display: block;
+  margin-top: 2px;
+}
 /* A group's status line with nothing to say takes no room yet stays in the accessibility tree, so
    what it says later is announced. */
 [data-lalala-settings-info]:has(> [data-lalala-settings-announce]:empty) {

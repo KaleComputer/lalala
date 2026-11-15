@@ -53,6 +53,8 @@ import { replyVoicePlugins, subscribeReplyVoices } from "./replyVoices";
 import {
   browserFaster,
   checkGpu,
+  computerSpeechSince,
+  speechRunsAt,
   computerSpeechState,
   NEEDS_WEBGPU,
   activeSpeech,
@@ -65,6 +67,7 @@ import {
   speechStatus,
   subscribeSpeechState,
 } from "./browserSpeech/browser";
+import { viaT3 } from "./browserSpeech/computerRoute";
 import { useLook } from "./extras/look";
 import { VersionLabel } from "./VersionLabel";
 import { ThemeGallery } from "./extras/ThemeGallery";
@@ -1792,7 +1795,18 @@ const COMPUTER_COPY = {
   starting: { meta: "Starting…" },
   loading: { meta: "Loading its models…" },
   down: { meta: "Couldn't start yet, still trying" },
-  absent: { meta: "Only in the lalala app, not on lalala.talk" },
+  absent: { meta: "Connect T3 Code first (Connection)" },
+} as const;
+
+/** The live line while your computer is being tried, per state. */
+const COMPUTER_LIVE = {
+  checking: "Checking your computer…",
+  off: "Asking your computer…",
+  starting: "Starting the speech service on your computer…",
+  loading: "Your computer is loading its speech models…",
+  ready: "",
+  down: "",
+  absent: "",
 } as const;
 
 /** The workers' own names for what they load, as Settings call them. */
@@ -1882,6 +1896,30 @@ export function nowText(active: ActiveSpeech, waiting: string, meanwhile = ""): 
   return `${name}, in this browser${meanwhile} · ${phase}`;
 }
 
+const clock = (at: number) =>
+  new Date(at).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", hourCycle: "h23" });
+/** How long something has been going, as m:ss. */
+const elapsed = (since: number) => {
+  const s = Math.max(0, Math.round((Date.now() - since) / 1000));
+  return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}`;
+};
+
+/** What Automatic picked for a task and why, from the runtime's own decision and timings. */
+function automaticWhy(task: "stt" | "voice", computer: ReturnType<typeof computerSpeechState>): string {
+  const { browser, computer: there } = speechTimings()[task];
+  const runs = speechRunsAt(task);
+  const since = runs.since === null ? "" : ` · since ${clock(runs.since)}`;
+  const both =
+    browser !== undefined && there !== undefined
+      ? `measured ${seconds(there)} there vs ${seconds(browser)} here per second of audio`
+      : null;
+  if (computer === "absent") return "this browser; your computer once T3 Code is connected";
+  if (browserFaster(task)) return `this browser, faster here: ${both}${since}`;
+  if (runs.where === "computer")
+    return `your computer, ${both ?? "this browser not measured yet"}${since}`;
+  return `this browser${since}`;
+}
+
 /**
  * Under a task's description, at most two short lines: what went wrong with your computer (only when
  * it couldn't start: its reason and Try again), then "Now:" what actually runs the task here and its
@@ -1911,7 +1949,7 @@ function TaskState(props: {
   // A stand-in says why it is here, on its own row too.
   const meanwhile = !trying ? "" : couldNotStart ? " while your computer is out" : " while your computer starts";
   let now = `Now: ${nowText(active, waiting, meanwhile)}`;
-  if (picked === "computer" && computer === "absent") now += " (lalala.talk can't reach your computer)";
+  if (picked === "computer" && computer === "absent") now += " (connect T3 Code first)";
   if (status?.phase === "idle" && props.cost)
     now = now.replace(" · loads with the\u00a0call", ` · ${props.cost.split(" download")[0]}, loads with the\u00a0call`);
   if (failed)
@@ -1941,10 +1979,14 @@ function TaskState(props: {
               style={{ "--done": Math.min(1, status.loaded / status.total) } as CSSProperties}
             />
           </>
-        ) : trying && !couldNotStart ? (
-          <span data-lalala-settings-trying="" aria-hidden="true" />
         ) : null}
       </span>
+      {/* While your computer is tried, "Now:" and the group's live line already say why. */}
+      {picked === "auto" && !trying ? (
+        <span data-lalala-settings-why="">
+          <b data-lalala-settings-now="">Automatic:</b> {automaticWhy(props.task, computer)}
+        </span>
+      ) : null}
     </>
   );
 }
@@ -1991,7 +2033,17 @@ export function SpeechSection() {
               : COMPUTER_COPY[computer].meta,
         };
   // On a phone the big builds have ended the tab (Tim's iPhone, 14 Nov): picking them stays allowed.
-  const down = (tryingComputer("stt") || tryingComputer("voice")) && computer === "down";
+  const wanted = tryingComputer("stt") || tryingComputer("voice");
+  const down = wanted && computer === "down";
+  const trying = wanted && !down;
+  // The elapsed time counts while your computer is being tried: text only, once a second.
+  const [, tick] = useState(0);
+  // oxlint-disable-next-line t3code/no-unreasoned-state-sync -- a clock for the live "trying" line, only while it shows
+  useEffect(() => {
+    if (!trying) return;
+    const timer = window.setInterval(() => tick((n) => n + 1), 1000);
+    return () => window.clearInterval(timer);
+  }, [trying]);
   const heavy = (detail: string) => (phone ? `${detail}, may close a phone tab` : detail);
 
   return (
@@ -2007,8 +2059,23 @@ export function SpeechSection() {
                 <span data-lalala-settings-problem="">Your computer's speech service couldn't start.</span>
                 {computerSpeechReason() ? ` ${computerSpeechReason()}` : ""} Trying again on its own.
               </>
+            ) : trying ? (
+              <>
+                {computer === "starting" && viaT3()
+                  ? "Starting the speech service on your computer, through T3 Code…"
+                  : COMPUTER_LIVE[computer]}
+                {computerSpeechReason() ? ` ${computerSpeechReason()}.` : ""}
+              </>
             ) : null}
           </span>
+          {trying ? (
+            <>
+              <span aria-hidden="true" data-lalala-settings-elapsed="">
+                {elapsed(computerSpeechSince())}
+              </span>
+              <span data-lalala-settings-trying="" aria-hidden="true" />
+            </>
+          ) : null}
           {down ? (
             <button
               type="button"
