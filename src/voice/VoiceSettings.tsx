@@ -1906,7 +1906,7 @@ const modelOnly = (name: string) => name.replace(/\u00a0·\u00a0(GPU|CPU|Compute
 
 /** What runs a task right now, in a few words: "Llama Matcha (Kale's voice), in this browser · ready". */
 export function nowText(active: ActiveSpeech, waiting: string, meanwhile = ""): string {
-  if (active.where === "computer") return `${loadedName(active.name)}, on your computer · ready`;
+  if (active.where === "computer") return `${loadedName(active.name)}, on your computer · ready, nothing downloads here`;
   if (active.where === "card") return "a voice from your cards";
   const { status } = active;
   const name = status.name === null ? waiting : loadedName(status.name);
@@ -1966,8 +1966,8 @@ function automaticWhy(task: "stt" | "voice", computer: ReturnType<typeof compute
   // A missing measurement isn't a reason: the speeds show once there is a number.
   const speeds = there === undefined && browser === undefined ? "" : `\u00a0· ${measured}`;
   if (browserFaster(task)) return `this browser, faster here${speeds}${since}`;
-  if (runs.where === "computer")
-    return `your computer, no download${speeds}${since}`;
+  // On your computer with nothing measured, Now: and the select already say it all: no line.
+  if (runs.where === "computer") return speeds === "" && since === "" ? "" : `your computer${speeds}${since}`;
   // While your computer is tried, the group's line says why: here only what was measured and when it moved.
   const facts = [there === undefined && browser === undefined ? "" : measured, since.replace(/^\u00a0· /, "")];
   return facts.filter(Boolean).join("\u00a0· ");
@@ -2187,7 +2187,7 @@ export function SpeechSection() {
         value={ears}
         shows={
           ears === "auto"
-            ? `${modelOnly(runningName("stt", tryingComputer("stt") ? STT_LABELS["110m"] : earsAuto))} · ${activeSpeech("stt").where === "computer" ? "computer" : "here"}`
+            ? `${modelOnly(runningName("stt", tryingComputer("stt") ? STT_LABELS["110m"] : earsAuto))} · ${activeSpeech("stt").where === "computer" ? "Computer" : "here"}`
             : undefined
         }
         onReset={ears === "auto" ? undefined : () => setSttModel("auto")}
@@ -2268,7 +2268,7 @@ export function SpeechSection() {
         value={voice}
         shows={
           voice === "auto"
-            ? `${modelOnly(runningName("voice", voiceStandIn === null ? voiceAuto : VOICE_LABELS[voiceStandIn]))} · ${activeSpeech("voice").where === "computer" ? "computer" : "here"}`
+            ? `${modelOnly(runningName("voice", voiceStandIn === null ? voiceAuto : VOICE_LABELS[voiceStandIn]))} · ${activeSpeech("voice").where === "computer" ? "Computer" : "here"}`
             : undefined
         }
         onReset={voice === "auto" ? undefined : () => setReplyVoice("auto")}

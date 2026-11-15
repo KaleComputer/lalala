@@ -260,7 +260,7 @@ export function PairSteps(props: {
       <ol role="list" data-lalala-pair="" data-lalala-pair-steps="" aria-label="Steps to pair">
         {ask ? (
           <Step n={1} title="Paste your T3 Connect address">
-            <T3Path steps={["Settings", "Environments", "⋯", "Copy MCP URL"]} />
+            <T3Path steps={["Settings", "Environments", "⋯ Copy MCP URL"]} />
             {field("", "Your T3 Connect address")}
             <p data-lalala-pair-alt="">
               <button type="button" data-lalala-settings-button="" data-quiet="" disabled={busy} onClick={ask.onBack}>
@@ -294,7 +294,7 @@ export function PairSteps(props: {
                 "Paste your T3 Connect address"
               }
             >
-              <T3Path steps={["Settings", "Environments", "⋯", "Copy MCP URL"]} />
+              <T3Path steps={["Settings", "Environments", "⋯ Copy MCP URL"]} />
               <div data-lalala-pair-field="" data-plain="">
                 <input
                   ref={addressRef}
@@ -440,10 +440,12 @@ function T3Path(props: { readonly steps: ReadonlyArray<string> }) {
             </>
           ) : null}
           {index === props.steps.length - 1 && PRESS.has(step) ? <span data-lalala-settings-sr="">press </span> : null}
-          {step === "⋯" ? (
-            <b>
-              <span aria-hidden="true">⋯</span>
-              <span data-lalala-settings-sr="">the menu next to your computer's name</span>
+          {step.startsWith("⋯ ") ? (
+            // The menu and the item in it are one click path: one chip, so a phone's line never breaks between.
+            <b data-press="">
+              <span aria-hidden="true">⋯ </span>
+              <span data-lalala-settings-sr="">the menu next to your computer's name, then </span>
+              {step.slice(2)}
             </b>
           ) : (
             // The last chip of a path is the button to press there: drawn as one.

@@ -780,7 +780,7 @@
   }
   [data-lalala-settings-group]:has([data-lalala-settings-pick]) {
     display: grid;
-    /* One width for every group on a page, wide enough for "Auto · Parakeet 0.6B · computer". */
+    /* One width for every group on a page, wide enough for "Auto · Parakeet 0.6B · Computer". */
     grid-template-columns: minmax(0, 1fr) 18rem;
   }
   [data-lalala-settings-group]:has([data-lalala-settings-pick]) > * {
@@ -1152,6 +1152,10 @@
 @media (max-width: 32rem) {
   [data-lalala-t3-lead] {
     flex-basis: 100%;
+  }
+  /* A pixel less each side: T3's longest path (Settings › Environments › ⋯ Copy MCP URL) fits one line. */
+  [data-lalala-t3-path] > span > b {
+    padding-inline: 7px;
   }
 }
 /* Retry now gets its own line under the failure, at every width. */
