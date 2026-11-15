@@ -132,6 +132,7 @@ function modelWorker(
   let retryAt = 0;
   let failure: string | null = null;
   const cancelRetry = () => {
+    window.removeEventListener("focus", retryOnFocus);
     window.clearTimeout(retryTimer);
     retryTimer = 0;
     retryAt = 0;

@@ -65,16 +65,21 @@ export function PairSteps(props: {
     );
   const streamer = useStreamerMode();
   const busy = props.working !== null;
-  const submit = (input: string) => {
+  const addressRef = useRef<HTMLInputElement>(null);
+  const linkRef = useRef<HTMLInputElement>(null);
+  // The address only says it's wrong once it was left, pasted or blocked a pairing, not per keystroke.
+  const [addressChecked, setAddressChecked] = useState(false);
+  const submit = (input: string, address = connectAddress) => {
     const value = input.trim();
     if (value === "" || busy) return;
-    if (ask) ask.onAddress(value);
+    if (ask) return ask.onAddress(value);
     // A wrong address in step 2 is fixed first; it is never skipped for another route.
-    else if (path === "other" && addressWrong) {
-      document.querySelector<HTMLInputElement>(`[aria-describedby="${choiceId}a"]`)?.focus();
+    if (path === "other" && wrongAddress(address)) {
+      setAddressChecked(true);
+      addressRef.current?.focus();
       return;
     }
-    else props.onPair(value, path === "other" && connectCommand !== null ? connectAddress.trim() : undefined);
+    props.onPair(value, path === "other" && commandFor(address) !== null ? address.trim() : undefined);
   };
   const value = ask ? (address ?? ask.address) : link;
   const setValue = ask ? setAddress : setLink;
@@ -83,21 +88,27 @@ export function PairSteps(props: {
   const [where, setWhere] = useState<Where>(() => (isPhone() ? "other" : readWhere()));
   const path: Where = remote && !isPhone() ? where : remote ? "other" : "here";
   const [connectAddress, setConnectAddress] = useState("");
-  const host = connectAddress
-    .trim()
-    .replace(/^https?:\/\//i, "")
-    .replace(/\/(mcp)?\/?$/i, "");
+  const hostOfAddress = (address: string) =>
+    address
+      .trim()
+      .replace(/^https?:\/\//i, "")
+      .replace(/\/(mcp)?\/?$/i, "");
   // Only a real host fills the command: the placeholder would be a shell redirect.
-  const connectCommand =
-    props.connectCommand && /^(localhost|[a-z0-9-]+(\.[a-z0-9-]+)+)(:\d+)?$/i.test(host)
+  const commandFor = (address: string) => {
+    const host = hostOfAddress(address);
+    return props.connectCommand && /^(localhost|[a-z0-9-]+(\.[a-z0-9-]+)+)(:\d+)?$/i.test(host)
       ? props.connectCommand.replace("<your T3 Connect address>", host)
       : null;
+  };
+  const wrongAddress = (address: string) => hostOfAddress(address) !== "" && commandFor(address) === null;
+  const connectCommand = commandFor(connectAddress);
   const phone = isPhone();
-  const addressWrong = host !== "" && connectCommand === null;
+  const addressWrong = addressChecked && wrongAddress(connectAddress);
 
   const field = (placeholder: string, label: string) => (
     <div data-lalala-pair-field="" data-failed={props.problem ? "" : undefined}>
       <input
+        ref={linkRef}
         key={ask ? "address" : "link"}
         type={ask ? "url" : "text"}
         inputMode={ask ? "url" : undefined}
@@ -211,7 +222,7 @@ export function PairSteps(props: {
               {ask
                 ? `${phone ? "Your phone" : "This browser"} can't reach T3 Code's local address. Paste your T3 Connect address instead.`
                 : remote
-                  ? "On your computer, turn on the switches, copy the MCP URL and create a pairing link. Send both to this phone and paste them below."
+                  ? "Do these on your computer, then paste here."
                   : "Pair once; lalala remembers it on this device."}
             </p>
           </div>
@@ -244,7 +255,7 @@ export function PairSteps(props: {
           </>
         ) : (
           <>
-            <Step n={1} title="Turn these on in T3 Code">
+            <Step n={1} title={phone ? "Turn these on in T3 Code" : "Turn these on in T3 Code, on that computer"}>
               <T3Path steps={["Settings", "Sharing & access"]} />
               <p data-lalala-pair-or="">Both on, like this. T3 Connect asks you to sign in first.</p>
               <T3Switches names={["T3 Connect", "Network access"]} />
@@ -260,24 +271,42 @@ export function PairSteps(props: {
               <T3Path steps={["Settings", "Environments", "⋯", "Copy MCP URL"]} />
               <div data-lalala-pair-field="" data-plain="">
                 <input
+                  ref={addressRef}
                   type="url"
                   inputMode="url"
                   aria-label="Your T3 Connect address"
-                  placeholder="https://….t3coderelay.com/mcp"
+                  placeholder="https://your-name.t3coderelay.com/mcp"
                   autoComplete="off"
                   autoCapitalize="off"
                   spellCheck={false}
+                  enterKeyHint="next"
                   data-streamer-input={streamer ? "" : undefined}
                   value={connectAddress}
                   disabled={busy}
                   onChange={(event) => setConnectAddress(event.currentTarget.value)}
+                  onBlur={() => setAddressChecked(connectAddress.trim() !== "")}
+                  onPaste={(event) => {
+                    const pasted = event.clipboardData.getData("text").trim();
+                    if (pasted === "") return;
+                    event.preventDefault();
+                    setConnectAddress(pasted);
+                    setAddressChecked(true);
+                    // A link held back by a wrong address goes as soon as the address is right.
+                    if (!wrongAddress(pasted) && link.trim() !== "") submit(link, pasted);
+                  }}
+                  onKeyDown={(event) => {
+                    if (event.key !== "Enter") return;
+                    setAddressChecked(true);
+                    if (wrongAddress(connectAddress)) return;
+                    if (link.trim() !== "") submit(link);
+                    else linkRef.current?.focus();
+                  }}
                   aria-invalid={addressWrong || undefined}
                   aria-describedby={`${choiceId}a`}
                 />
               </div>
               <p
                 id={`${choiceId}a`}
-                aria-live="polite"
                 data-lalala-pair-or=""
                 data-wrong={addressWrong ? "" : undefined}
               >
@@ -376,7 +405,13 @@ function T3Path(props: { readonly steps: ReadonlyArray<string> }) {
       {/* A chip keeps the › before it, so a wrapped line never ends on one. */}
       {props.steps.map((step, index) => (
         <span key={step}>
-          {index > 0 ? <i aria-hidden="true">›</i> : null}
+          {index > 0 ? (
+            <>
+              <i aria-hidden="true">›</i>
+              <span data-lalala-settings-sr="">, then </span>
+            </>
+          ) : null}
+          {index === props.steps.length - 1 && PRESS.has(step) ? <span data-lalala-settings-sr="">press </span> : null}
           {step === "⋯" ? (
             <b>
               <span aria-hidden="true">⋯</span>

@@ -1862,7 +1862,7 @@ export function nowText(active: ActiveSpeech, waiting: string, meanwhile = false
           ? "loading"
           : status.phase === "failed"
             ? "didn't load"
-            : "loads with the call";
+            : "loads with the\u00a0call";
   return `${name}, in this browser${meanwhile ? " while your computer starts" : ""} · ${phase}`;
 }
 
@@ -1895,7 +1895,7 @@ function TaskState(props: {
   let now = `Now: ${nowText(active, waiting, trying && !couldNotStart)}`;
   if (picked === "computer" && computer === "absent") now += " (lalala.talk can't reach your computer)";
   if (status?.phase === "idle" && props.cost)
-    now = now.replace(" · loads with the call", ` · ${props.cost.split(" download")[0]}, loads with the call`);
+    now = now.replace(" · loads with the\u00a0call", ` · ${props.cost.split(" download")[0]}, loads with the\u00a0call`);
   if (failed)
     now += status.error?.includes(NEEDS_WEBGPU)
       ? `. ${status.error} Pick Automatic or a CPU model.`
@@ -1973,17 +1973,25 @@ export function SpeechSection() {
               : COMPUTER_COPY[computer].meta,
         };
   // On a phone the big builds have ended the tab (Tim's iPhone, 14 Nov): picking them stays allowed.
+  const down = (tryingComputer("stt") || tryingComputer("voice")) && computer === "down";
   const heavy = (detail: string) => (phone ? `${detail}, may close a phone tab` : detail);
 
   return (
     <Section
       title="Speech models"
       named
+      // The live region stays mounted, so the failure is announced when it appears; the button sits outside it.
       note={
-        (tryingComputer("stt") || tryingComputer("voice")) && computer === "down" ? (
-          <span role="status">
-            <span data-lalala-settings-problem="">Your computer's speech service couldn't start.</span>
-            {computerSpeechReason() ? ` ${computerSpeechReason()}` : ""} It keeps trying.
+        <>
+          <span role="status" data-lalala-settings-announce="">
+            {down ? (
+              <>
+                <span data-lalala-settings-problem="">Your computer's speech service couldn't start.</span>
+                {computerSpeechReason() ? ` ${computerSpeechReason()}` : ""} It keeps trying.
+              </>
+            ) : null}
+          </span>
+          {down ? (
             <button
               type="button"
               data-lalala-settings-button=""
@@ -1992,8 +2000,8 @@ export function SpeechSection() {
             >
               Try your computer again
             </button>
-          </span>
-        ) : undefined
+          ) : null}
+        </>
       }
     >
       <PickRow

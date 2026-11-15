@@ -384,6 +384,16 @@
 :is([data-lalala-settings-info], [data-lalala-settings-error]) {
   padding: 10px var(--s-inset);
 }
+/* A group's status line with nothing to say takes no room yet stays in the accessibility tree, so
+   what it says later is announced. */
+[data-lalala-settings-info]:has(> [data-lalala-settings-announce]:empty) {
+  height: 0;
+  padding: 0;
+  overflow: hidden;
+}
+[data-lalala-settings-info]:has(> [data-lalala-settings-announce]:empty) + * {
+  box-shadow: none;
+}
 /* A note before a page's content (Themes): on the content's own edge, a little apart from it. */
 [data-lalala-settings-section] > [data-lalala-settings-info] {
   margin-bottom: 4px;
@@ -750,8 +760,8 @@
   }
   [data-lalala-settings-group]:has([data-lalala-settings-pick]) {
     display: grid;
-    /* Wide enough for "Llama Matcha (Kale's voice)" and "Parakeet 0.6B · Computer" on one line. */
-    grid-template-columns: minmax(0, 1fr) fit-content(16rem);
+    /* One width for every group on a page, wide enough for "Llama Matcha (Kale's voice)". */
+    grid-template-columns: minmax(0, 1fr) 14rem;
   }
   [data-lalala-settings-group]:has([data-lalala-settings-pick]) > * {
     grid-column: 1 / -1;
