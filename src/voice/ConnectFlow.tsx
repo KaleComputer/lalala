@@ -152,10 +152,15 @@ export function PairSteps(props: {
         type="button"
         data-lalala-settings-button=""
         aria-disabled={busy || value.trim() === "" || undefined}
-        onClick={() => busy || value.trim() === "" || submit(value)}
+        aria-describedby={value.trim() === "" && !busy ? `${choiceId}n` : undefined}
+        // Nothing to send yet: the tap lands in the field instead.
+        onClick={() => (busy ? undefined : value.trim() === "" ? linkRef.current?.focus() : submit(value))}
       >
         {busy ? "Connecting…" : ask ? "Next" : "Connect"}
       </button>
+      <span id={`${choiceId}n`} data-lalala-settings-sr="">
+        {ask ? "Paste your T3 Connect address first" : "Paste the link or code first"}
+      </span>
     </div>
   );
   const command = (text: string | null, missing?: string) => (
@@ -338,7 +343,7 @@ export function PairSteps(props: {
             <Step n={3} title="Create a pairing link">
               <T3Path steps={["Settings", "Sharing & access", "Create link"]} />
               <details data-lalala-pair-terminal="">
-                <summary>Use a terminal on that computer instead</summary>
+                <summary>{phone ? "Use a terminal on your computer instead" : "Use a terminal on that computer instead"}</summary>
                 {command(
                   connectCommand,
                   "Paste your address in step 2 first.",

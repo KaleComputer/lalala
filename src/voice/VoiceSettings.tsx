@@ -1956,11 +1956,11 @@ function automaticWhy(task: "stt" | "voice", computer: ReturnType<typeof compute
   // Each timing on its own, so a missing one says so instead of hiding the other.
   const measured =
     there === undefined && browser === undefined
-      ? "not measured yet"
+      ? "speed not measured yet"
       : `per second of audio: computer ${there === undefined ? "not measured" : seconds(there)}, here ${
           browser === undefined ? "measured only when it stands in" : seconds(browser)
         }`;
-  if (!automaticTriesComputer(task)) return "Llama Matcha\u00a0· phones always use it";
+  if (!automaticTriesComputer(task)) return "phones always use Kale's voice";
   if (computer === "absent") return "this browser; your computer once T3 Code is connected";
   if (browserFaster(task)) return `this browser, faster here\u00a0· ${measured}${since}`;
   if (runs.where === "computer")
@@ -2015,8 +2015,8 @@ function TaskState(props: {
   return (
     <>
       {/* The live region says the phase; the changing megabytes stay out of it. */}
-      {/* While your computer is tried, the group's line alone speaks: one outage, announced once. */}
-      <span role={trying ? undefined : "status"} data-lalala-settings-state="">
+      {/* While your computer is tried, the group's line alone speaks; a stand-in's own failure still does. */}
+      <span role="status" aria-live={trying && !failed ? "off" : "polite"} data-lalala-settings-state="">
         <b data-lalala-settings-now="">Now:</b>{" "}
         {failed ? (
           <span data-lalala-settings-problem="">{now.slice(5)}</span>
@@ -2095,6 +2095,8 @@ export function SpeechSection() {
   const down = wanted && computer === "down";
   const trying = wanted && !down;
   // The elapsed time counts while your computer is being tried: text only, once a second.
+  // Your computer answering again (or for the first time this visit) is said once, out loud only.
+  const recovered = computer === "ready" && Date.now() - computerSpeechSince() < 10_000;
   const heavy = (detail: string) => (phone ? `${detail}, may close a phone tab` : detail);
 
   return (
@@ -2104,11 +2106,15 @@ export function SpeechSection() {
       // The live region stays mounted, so the failure is announced when it appears; the button sits outside it.
       note={
         <>
+          <span role="status" data-lalala-settings-sr="">
+            {recovered ? "Your computer's speech service is ready." : ""}
+          </span>
           <span role="status" data-lalala-settings-announce="">
             {down ? (
               <>
                 <span data-lalala-settings-problem="">Your computer's speech service couldn't start.</span>
-                {computerSpeechReason() ? ` ${computerSpeechReason()}` : ""} Trying again on its own.
+                {computerSpeechReason() ? ` ${computerSpeechReason()}` : ""} Trying again on its own; speech
+                moves back once it answers.
               </>
             ) : trying ? (
               <>

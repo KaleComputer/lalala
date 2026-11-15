@@ -921,6 +921,8 @@
 }
 [data-lalala-pair-field] > input {
   flex: 1;
+  /* An input's built-in width (about 20 characters) must not push the field past a phone's card. */
+  width: 0;
   min-width: 0;
   height: 42px;
   border: 0;
@@ -932,6 +934,7 @@
   outline: 0;
 }
 [data-lalala-pair-field] > button {
+  flex: none;
   align-self: center;
   margin: 0 8px;
 }
