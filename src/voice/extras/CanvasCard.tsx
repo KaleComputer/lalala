@@ -2,6 +2,7 @@ import {
   Component,
   type ReactNode,
   Suspense,
+  useEffect,
   useLayoutEffect,
   useRef,
   useState,
@@ -13,6 +14,7 @@ import {
   type Rect,
   boxKey,
   declareCard,
+  fitCard,
   getCamera,
   getCanvases,
   getCards,
@@ -212,6 +214,48 @@ export function CanvasCard(props: {
       unmount();
     };
   }, [key, shown, at]);
+
+  // oxlint-disable-next-line t3code/no-unreasoned-state-sync -- grows the card's box in canvasStore (outside React) when what it shows outgrows it
+  useEffect(() => {
+    const card = ref.current;
+    const body = card?.querySelector<HTMLElement>("[data-lalala-card-body]");
+    if (!shown || !near || !card || !body) return;
+    let frame = 0;
+    const measure = () => {
+      frame = 0;
+      if (card.hasAttribute("data-lalala-card-off")) return;
+      fitCard(key, {
+        w: body.scrollWidth - body.clientWidth,
+        h: body.scrollHeight - body.clientHeight,
+      });
+    };
+    const soon = () => {
+      if (frame === 0) frame = window.requestAnimationFrame(measure);
+    };
+    // The content's own box changes when it loads data, opens a section or reflows; observers stay idle otherwise.
+    const sizes = new ResizeObserver(soon);
+    const watch = () => {
+      sizes.disconnect();
+      sizes.observe(body);
+      for (const child of body.children) sizes.observe(child);
+    };
+    const children = new MutationObserver(watch);
+    children.observe(body, { childList: true });
+    watch();
+    // Switched back to growing with its content (the card's menu): fit now.
+    let sized = getCards()[key]?.sized === true;
+    const unsubscribe = subscribe(() => {
+      const now = getCards()[key]?.sized === true;
+      if (sized && !now) soon();
+      sized = now;
+    });
+    return () => {
+      window.cancelAnimationFrame(frame);
+      sizes.disconnect();
+      children.disconnect();
+      unsubscribe();
+    };
+  }, [key, shown, near]);
 
   if (!shown) return null;
   return (
