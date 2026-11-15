@@ -1,4 +1,4 @@
-import { type ReactNode, useEffect, useId, useLayoutEffect, useRef, useState } from "react";
+import { Fragment, type ReactNode, useEffect, useId, useLayoutEffect, useRef, useState } from "react";
 
 import { StreamerText, useStreamerMode } from "./streamerMode";
 
@@ -151,10 +151,21 @@ export function PairSteps(props: {
   );
   const command = (text: string | null, missing?: string) => (
     <p data-lalala-pair-command="" data-missing={text === null ? "" : undefined}>
-      <code aria-live="polite">
-        {text ?? missing}
-        {copyFailed && text !== null ? " (Couldn't copy: select it and copy.)" : ""}
+      <code>
+        {/* Each word moves to the next line whole, so an address never breaks at its hyphen. */}
+        {text === null
+          ? missing
+          : text.split(" ").map((word, index) => (
+              <Fragment key={index}>
+                {index > 0 ? " " : null}
+                <span>{word}</span>
+              </Fragment>
+            ))}
+        {copyFailed && text !== null ? <span aria-hidden="true"> (Couldn't copy: select it and copy.)</span> : null}
       </code>
+      <span role="status" data-lalala-settings-sr="">
+        {text !== null && copied === text ? "Copied" : copyFailed ? "Couldn't copy: select the command and copy it." : ""}
+      </span>
       <button
         type="button"
         data-lalala-settings-button=""
@@ -264,7 +275,7 @@ export function PairSteps(props: {
               n={2}
               title={
                 phone
-                  ? "Copy the MCP URL, send it to this phone, paste it here"
+                  ? "Send the MCP URL to this phone, paste it here"
                   : "Paste your T3 Connect address (the MCP URL)"
               }
             >

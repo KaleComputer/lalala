@@ -1068,6 +1068,10 @@
   overflow-wrap: anywhere;
   user-select: all;
 }
+[data-lalala-pair-command] > code > span {
+  display: inline-block;
+  max-width: 100%;
+}
 [data-lalala-pair-command][data-missing] > code {
   color: var(--s-fg-2);
   font-family: var(--s-sans);
