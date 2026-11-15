@@ -662,6 +662,10 @@
   background: linear-gradient(transparent, var(--s-popover));
   pointer-events: none;
 }
+/* Arrow keys land an option above the fade, not under it. */
+[data-lalala-settings-list][data-more] {
+  scroll-padding-bottom: 18px;
+}
 [data-lalala-settings-list][data-above] {
   top: auto;
   bottom: calc(100% + 6px);

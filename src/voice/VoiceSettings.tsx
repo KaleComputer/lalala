@@ -986,13 +986,13 @@ function playTopicSound(name: string): void {
   source.start();
 }
 
-/** A picker anchored under its trigger, with listbox keyboard navigation. */
 /** Marks a list that has options below its visible end, for its bottom fade. */
 function markMore(node: HTMLElement) {
   if (node.scrollTop + node.clientHeight < node.scrollHeight - 1) node.dataset.more = "";
   else delete node.dataset.more;
 }
 
+/** A picker anchored under its trigger, with listbox keyboard navigation. */
 export function PickRow(props: {
   readonly title: string;
   readonly description?: ReactNode;
@@ -2163,7 +2163,7 @@ export function SpeechSection() {
           <span role="status" data-lalala-settings-announce="">
             {down ? (
               <>
-                <span data-lalala-settings-problem="">Your computer's speech service couldn't start.</span>
+                <span data-lalala-settings-problem="">Your computer’s speech service couldn’t start.</span>
                 {computerSpeechReason() ? ` ${computerSpeechReason()}` : ""} Trying again on its own; speech
                 moves back once it answers.
               </>
