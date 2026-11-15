@@ -32,6 +32,8 @@ import {
   setMicDeviceId,
   setReplyVoice,
   defaultReplyVoice,
+  replyVoice,
+  WARM_VOICE,
   isPhoneDevice,
   setAutoRetrySeconds,
   setAutoStartCall,
@@ -1768,7 +1770,7 @@ export function SoundSection() {
 }
 
 type BrowserEars = Exclude<SttModel, "auto" | "computer">;
-type VoiceBuild = "kokoro-gpu" | "kokoro-cpu" | "matcha" | "computer";
+type VoiceBuild = "kokoro-gpu" | "kokoro-cpu" | "llama-kokoro" | "computer";
 const STT_LABELS: Record<Exclude<SttModel, "auto">, string> = {
   "0.6b-gpu": "Parakeet 0.6B\u00a0·\u00a0GPU",
   "0.6b-cpu": "Parakeet 0.6B\u00a0·\u00a0CPU",
@@ -1778,7 +1780,7 @@ const STT_LABELS: Record<Exclude<SttModel, "auto">, string> = {
 const VOICE_LABELS: Record<VoiceBuild, string> = {
   "kokoro-gpu": "Kokoro\u00a082M\u00a0·\u00a0GPU",
   "kokoro-cpu": "Kokoro\u00a082M\u00a0·\u00a0CPU",
-  matcha: "Llama Matcha (Kale's voice)",
+  "llama-kokoro": "Llama Kokoro (Kale's voice)",
   computer: "Kokoro 82M\u00a0·\u00a0Computer",
 };
 const STT_COSTS: Partial<Record<string, string>> = {
@@ -1789,7 +1791,7 @@ const STT_COSTS: Partial<Record<string, string>> = {
 const VOICE_COSTS: Partial<Record<string, string>> = {
   "kokoro-gpu": "327 MB download · ~0.4 GB memory",
   "kokoro-cpu": "93 MB download · ~0.2 GB memory",
-  matcha: "45 MB download · ~0.1 GB memory",
+  "llama-kokoro": "68 MB download · ~0.2 GB memory",
 };
 const MB = (bytes: number) =>
   bytes >= 1e9 ? `${(bytes / 1e9).toFixed(2)}\u00a0GB` : `${Math.round(bytes / 1e6)}\u00a0MB`;
@@ -1839,7 +1841,7 @@ const LOADED_NAMES: Record<string, string> = {
   "parakeet 110m": "Parakeet 110M",
   "kokoro 82m gpu": "Kokoro 82M\u00a0·\u00a0GPU",
   "kokoro 82m cpu": "Kokoro 82M\u00a0·\u00a0CPU",
-  "llama matcha": "Llama Matcha (Kale's voice)",
+  "llama kokoro": "Llama Kokoro (Kale's voice)",
   "parakeet 0.6b mlx": "Parakeet 0.6B",
   "kokoro 82m mlx": "Kokoro 82M",
 };
@@ -1851,7 +1853,7 @@ const LOADED_KEYS: Record<string, string> = {
   "parakeet 110m": "110m",
   "kokoro 82m gpu": "kokoro-gpu",
   "kokoro 82m cpu": "kokoro-cpu",
-  "llama matcha": "matcha",
+  "llama kokoro": "llama-kokoro",
 };
 const seconds = (ms: number) => `${(ms / 1000).toFixed(ms < 100 ? 2 : 1)} s`;
 /** How fast your computer did a task, as measured from this device, once it has. */
@@ -1910,8 +1912,9 @@ export function useSpeechSummary() {
     return active.where === "computer" ? "on your computer" : active.where === "card" ? "from a card" : "here";
   };
   const hears = `${runningName("stt", "Parakeet")} ${where("stt")}`;
-  const speaks = `${runningName("voice", "Kokoro")} ${where("voice")}`;
-  return { hears, speaks, line: `${runningName("voice", "Kokoro")} · ${runningName("stt", "Parakeet")}` };
+  const planned = replyVoice() === WARM_VOICE ? "Llama Kokoro" : "Kokoro";
+  const speaks = `${runningName("voice", planned)} ${where("voice")}`;
+  return { hears, speaks, line: `${runningName("voice", planned)} · ${runningName("stt", "Parakeet")}` };
 }
 
 /** The model a task runs on now, short, for Automatic's closed select: "Kokoro 82M · GPU". */
@@ -1928,7 +1931,7 @@ function runningName(task: "stt" | "voice", planned: string): string {
 /** The same without its build: the closed select has room for the model, "Now:" says GPU or CPU. */
 const modelOnly = (name: string) => name.replace(/\u00a0·\u00a0(GPU|CPU|Computer)$/, "").replace(/ · (GPU|CPU|Computer)$/, "");
 
-/** What runs a task right now, in a few words: "Llama Matcha (Kale's voice), in this browser · ready". */
+/** What runs a task right now, in a few words: "Llama Kokoro (Kale's voice), in this browser · ready". */
 export function nowText(active: ActiveSpeech, waiting: string, meanwhile = ""): string {
   if (active.where === "computer") return `${loadedName(active.name)}, on your computer · ready, nothing downloads here`;
   if (active.where === "card") return "a voice from your cards";
@@ -1985,7 +1988,7 @@ function automaticWhy(task: "stt" | "voice", computer: ReturnType<typeof compute
       : `per second of audio: computer ${there === undefined ? "not measured" : seconds(there)}, here ${
           browser === undefined ? "measured only when it stands in" : seconds(browser)
         }`;
-  if (!automaticTriesComputer(task)) return "phones always use Kale's voice";
+  if (!automaticTriesComputer(task)) return "Kale's voice, always in this browser";
   if (computer === "absent") return "this browser; your computer once T3 Code is connected";
   // A missing measurement isn't a reason: the speeds show once there is a number.
   const speeds = there === undefined && browser === undefined ? "" : `\u00a0· ${measured}`;
@@ -2108,17 +2111,18 @@ export function SpeechSection() {
       : gpu.f16
         ? "0.6b-gpu"
         : "0.6b-cpu";
-  const autoVoice: VoiceBuild | null = phone
-    ? "matcha"
+  // Automatic's voice on every device: Kale's warm voice (Tim's pick, 15 Nov).
+  const autoVoice: VoiceBuild = "llama-kokoro";
+  // Who stands in for your computer's voice: the same Kokoro here on a desktop, Llama Kokoro on a phone.
+  const voiceStandIn: VoiceBuild | null = phone
+    ? "llama-kokoro"
     : gpu === null
       ? null
       : gpu.any
         ? "kokoro-gpu"
         : "kokoro-cpu";
-  // Who stands in for your computer's voice: the same Kokoro here on a desktop, Matcha on a phone.
-  const voiceStandIn: VoiceBuild | null = phone ? "matcha" : autoVoice;
   const earsAuto = autoEars === null ? CHECKING : STT_LABELS[autoEars];
-  const voiceAuto = autoVoice === null ? CHECKING : VOICE_LABELS[autoVoice];
+  const voiceAuto = VOICE_LABELS[autoVoice];
   // The computer's line in the list: its state, and how fast it is once it answers.
   const computerOption = (speed: string | undefined) =>
     computer === "absent"
@@ -2317,11 +2321,8 @@ export function SpeechSection() {
                 ...automaticOption(
                   "voice",
                   automaticTriesComputer("voice") ? computer : "absent",
-                  { label: voiceAuto, cost: autoVoice === null ? undefined : VOICE_COSTS[autoVoice] },
-                  {
-                    label: voiceAuto,
-                    cost: autoVoice === null ? "" : (VOICE_COSTS[autoVoice] ?? ""),
-                  },
+                  { label: voiceAuto, cost: VOICE_COSTS[autoVoice] },
+                  { label: voiceAuto, cost: VOICE_COSTS[autoVoice] ?? "" },
                 ),
               },
             ],
@@ -2343,10 +2344,10 @@ export function SpeechSection() {
                 meta: VOICE_COSTS["kokoro-cpu"],
               },
               {
-                value: "matcha",
-                label: VOICE_LABELS.matcha,
-                detail: "fastest",
-                meta: VOICE_COSTS.matcha,
+                value: "llama-kokoro",
+                label: VOICE_LABELS["llama-kokoro"],
+                detail: "warm, fast",
+                meta: VOICE_COSTS["llama-kokoro"],
               },
             ],
           },
@@ -2445,7 +2446,7 @@ export function CreditsSection() {
       note={
         <>
           Speech runs on NVIDIA Parakeet (CC-BY-4.0), Kokoro (Apache-2.0), Silero VAD (MIT) and Kale's
-          voice, Llama Matcha. <strong>Built with Llama</strong>: Llama Matcha learned to speak from
+          voice, Llama Kokoro. <strong>Built with Llama</strong>: Llama Kokoro learned to speak from
           audio made with Maya1, which is built on Llama 3.2. Llama 3.2 is licensed under the{" "}
           <a href={LLAMA_LICENSE} target="_blank" rel="noreferrer">
             Llama 3.2 Community License

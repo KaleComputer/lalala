@@ -25,3 +25,15 @@ export class Voice {
   ): Promise<Sentence>;
 }
 
+
+/** The front end alone (Llama Kokoro speaks from its IPA): words -> IPA, as Voice does. */
+export class G2pModel {
+  constructor(buffer: ArrayBuffer);
+}
+export class G2p {
+  constructor(lex: Map<string, string>, model?: G2pModel | null);
+  phonemes(sentence: string): string;
+}
+export function readTable(text: string, into?: Map<string, string>): Map<string, string>;
+/** Numbers, money, dates and the like as words (dizione's rules), letter runs decided by the word list. */
+export function normalizer(lex: Map<string, string>): (text: string) => string;

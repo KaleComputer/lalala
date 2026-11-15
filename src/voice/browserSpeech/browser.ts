@@ -1,9 +1,17 @@
 // Speech in this browser, on both hosts: Parakeet
-// listens, Kokoro (desktops) or Kale's own Matcha voice (phones) speaks, each on ONNX in its own worker.
+// listens, Kale's warm voice Llama Kokoro (Automatic, every device) or Kokoro 82M speaks, each on ONNX
+// in its own worker.
 // They start loading when the page opens and stay loaded for the page's life, across calls and tab
 // hides: setting a model up takes seconds on a phone (Tim, 14 Nov: "always a cold start").
 import type { VoiceBarModel } from "../VoiceBar";
-import { autoRetrySeconds, defaultReplyVoice, replyVoice, replyVoicePick, sttModel } from "../settingsStore";
+import {
+  WARM_VOICE,
+  autoRetrySeconds,
+  isPhoneDevice,
+  replyVoice,
+  replyVoicePick,
+  sttModel,
+} from "../settingsStore";
 import { voiceLog } from "../voiceLog";
 import type { LoadMessage } from "./readout";
 import { type ComputerSpeech, computerRoute } from "./computerRoute";
@@ -40,7 +48,7 @@ const markLoading = (name: string, on: boolean) =>
   storage((store) =>
     on ? store.setItem(LOADING(name), String(Date.now())) : store.removeItem(LOADING(name)),
   );
-for (const name of ["parakeet", "kokoro", "matcha"]) {
+for (const name of ["parakeet", "kokoro", "llama-kokoro"]) {
   storage((store) => {
     if (store.getItem(LOADING(name)) === null) return;
     store.removeItem(LOADING(name));
@@ -378,9 +386,10 @@ const voice = modelWorker(
   () => new Worker(new URL("./kokoro.worker.ts", import.meta.url), { type: "module" }),
   () => ({ build: kokoroBuild() }),
 );
-const matcha = modelWorker(
-  "matcha",
-  () => new Worker(new URL("./matcha.worker.ts", import.meta.url), { type: "module" }),
+// Kale's warm voice. Llama Matcha, which spoke on phones before it, is gone (Tim, 15 Nov).
+const warm = modelWorker(
+  "llama-kokoro",
+  () => new Worker(new URL("./llamaKokoro.worker.ts", import.meta.url), { type: "module" }),
 );
 // A device that switches a model, or sends a task to the computer, frees the old one once its
 // current utterance or sentence is done; the new one loads right away when the page has.
@@ -392,7 +401,7 @@ document.addEventListener("lalala:settings", () => {
   trackWhere();
   if (autoRetrySeconds() !== retryEvery) {
     retryEvery = autoRetrySeconds();
-    for (const model of [ears, voice, matcha]) model.scheduleRetry();
+    for (const model of [ears, voice, warm]) model.scheduleRetry();
     // A computer that isn't answering is asked again at the new interval (or not at all when off).
     scheduleComputer();
     notify();
@@ -431,10 +440,11 @@ const voiceOff = only === "stt";
 if (only) voiceLog("system", "speech.only", { only });
 
 // The computer running T3 (its speech service, through this app's server): picked per task in Settings.
-// While it isn't ready, this browser stands in with its lightest models (Parakeet 110M, Matcha), kept
-// loaded; the computer is asked again (never from a page with no route to it, like lalala.talk).
-// Automatic tries the computer too, never gives up on it (backing off up to 5 min, again on every page
-// open), uses this browser meanwhile, and keeps whichever path its own timings say is faster here.
+// While it isn't ready, this browser stands in with its lightest models (Parakeet 110M, Llama Kokoro on
+// a phone), kept loaded; the computer is asked again (never from a page with no route to it, like
+// lalala.talk). Automatic tries the computer for hearing too, never gives up on it (backing off up to
+// 5 min, again on every page open), uses this browser meanwhile, and keeps whichever path its own
+// timings say is faster here. Automatic's voice is Llama Kokoro, which only runs here.
 const COMPUTER_LOADING_MS = 3_000;
 const COMPUTER_BACKOFF_MAX_S = 300;
 let computerState: ComputerSpeech | "checking" = "checking";
@@ -484,21 +494,17 @@ export const browserFaster = (task: Task) => {
 };
 const automatic = { stt: () => sttModel() === "auto", voice: () => replyVoicePick() === "auto" };
 /**
- * Who stands in for your computer's voice: the same Kokoro voice in this browser on a desktop, so a
- * reply never changes voice with where it runs; Kale's Matcha on a phone (Kokoro there ended tabs).
+ * Who stands in for your computer's voice (picked by hand): the same Kokoro voice in this browser on a
+ * desktop, so a reply never changes voice with where it runs; Llama Kokoro on a phone (Kokoro 82M there
+ * ended tabs).
  */
-const voiceStandIn = (): "kokoro" | "matcha" => (defaultReplyVoice() === "matcha" ? "matcha" : "kokoro");
+const voiceStandIn = (): "kokoro" | "warm" => (isPhoneDevice() ? "warm" : "kokoro");
 /** A task the computer should do, picked by hand or by Automatic. */
 const wantsComputer = {
   stt: () =>
     sttModel() === "computer" || (automatic.stt() && computerState !== "absent" && !browserFaster("stt")),
-  // A phone's Automatic voice is Matcha, which only runs here: it never moves to your computer's Kokoro.
-  voice: () =>
-    replyVoice() === "computer" ||
-    (automatic.voice() &&
-      voiceStandIn() === "kokoro" &&
-      computerState !== "absent" &&
-      !browserFaster("voice")),
+  // Automatic's voice is Llama Kokoro, which only runs here: it never moves to your computer's Kokoro.
+  voice: () => replyVoice() === "computer",
 };
 const onComputer = {
   stt: () => wantsComputer.stt() && !standingIn(),
@@ -519,10 +525,10 @@ function fitModels() {
     else if (computerAnswered.stt) ears.releaseWhenIdle();
   }
   if (wantsComputer.voice()) {
-    if (standingIn()) voiceStandIn() === "kokoro" ? voice.start() : startMatcha();
+    if (standingIn()) voiceStandIn() === "kokoro" ? voice.start() : startWarmVoice();
     else if (computerAnswered.voice) {
       voice.releaseWhenIdle();
-      matcha.releaseWhenIdle();
+      warm.releaseWhenIdle();
     }
   }
 }
@@ -576,7 +582,6 @@ function setComputer(state: ComputerSpeech) {
   // Out of reach for good (lalala.talk): Automatic's browser models replace the light stand-ins.
   if (changed && state === "absent" && speechPrewarmed) {
     if (automatic.stt()) ears.releaseWhenIdle();
-    if (automatic.voice()) matcha.releaseWhenIdle();
     startEars();
     prewarmVoice();
   }
@@ -587,8 +592,7 @@ function setComputer(state: ComputerSpeech) {
  * starts the service if it isn't running (`force`: Try again, even right after a failed start).
  */
 export async function refreshComputerSpeech(force = false) {
-  const wanted =
-    sttModel() === "computer" || replyVoice() === "computer" || automatic.stt() || automatic.voice();
+  const wanted = sttModel() === "computer" || replyVoice() === "computer" || automatic.stt();
   setComputer(await checkComputerSpeech(force ? "force" : wanted ? "auto" : undefined));
 }
 let speechPrewarmed = false;
@@ -643,15 +647,15 @@ export const startKokoro = () => {
   if (replyVoice().startsWith("kokoro")) voice.start();
 };
 export const releaseKokoro = () => voice.releaseWhenIdle();
-/** The same for Kale's Matcha voice. */
-export const startMatcha = () => {
+/** The same for Kale's warm voice, Llama Kokoro. */
+export const startWarmVoice = () => {
   if (voiceOff || onComputer.voice()) return;
   if (wantsComputer.voice() && voiceStandIn() === "kokoro") return;
-  matcha.start();
+  warm.start();
 };
-export const releaseMatcha = () => {
-  // Standing in for the computer, Matcha speaks: the call's player can't free it then.
-  if (!(wantsComputer.voice() && standingIn() && voiceStandIn() === "matcha")) matcha.releaseWhenIdle();
+export const releaseWarmVoice = () => {
+  // Standing in for the computer, Llama Kokoro speaks: the call's player can't free it then.
+  if (!(wantsComputer.voice() && standingIn() && voiceStandIn() === "warm")) warm.releaseWhenIdle();
 };
 
 /** 16 kHz PCM, transcribed by Parakeet. The buffer moves to its worker. */
@@ -721,14 +725,14 @@ async function computerSpeak(text: string): Promise<Float32Array<ArrayBuffer> | 
 /** One sentence as 24 kHz PCM from Kokoro; it reads misaki's `[word](/phonemes/)` markup. */
 export async function kokoroSpeak(text: string): Promise<Float32Array<ArrayBuffer>> {
   if (voiceOff) return new Float32Array(0);
-  // The computer's Kokoro, and Matcha standing in for it, read plain text: the markup keeps the word.
+  // The computer's Kokoro, and Llama Kokoro standing in for it, read plain text: the markup keeps the word.
   const plain = () => text.replace(/\[([^\]]+)\]\(\/[^)]*\/\)/g, "$1");
   if (onComputer.voice()) {
     const samples = await computerSpeak(plain());
     if (samples !== null) return samples;
   }
-  // Standing in for the computer on a phone, Matcha speaks; on a desktop the same Kokoro, here.
-  if (wantsComputer.voice() && voiceStandIn() === "matcha") return (await matchaSpeak(plain())).samples;
+  // Standing in for the computer on a phone, Llama Kokoro speaks; on a desktop the same Kokoro, here.
+  if (wantsComputer.voice() && voiceStandIn() === "warm") return (await warmSpeak(plain())).samples;
   const browserAt = performance.now();
   const reply = await voice.ask({ type: "speak", text });
   if (reply.type !== "audio") throw new Error("Kokoro returned no audio");
@@ -736,18 +740,15 @@ export async function kokoroSpeak(text: string): Promise<Float32Array<ArrayBuffe
   return reply.samples;
 }
 
-/** One sentence as 24 kHz PCM from Kale's Matcha voice, and how long its two models took. */
-export async function matchaSpeak(
+/** One sentence as 24 kHz PCM from Kale's warm voice, Llama Kokoro, and how long it took. */
+export async function warmSpeak(
   text: string,
 ): Promise<{ samples: Float32Array<ArrayBuffer>; timing: Record<string, number> }> {
   if (voiceOff) return { samples: new Float32Array(0), timing: {} };
-  // Automatic choosing the computer: its Kokoro speaks (a phone's automatic voice is Matcha).
-  if (onComputer.voice()) {
-    const samples = await computerSpeak(text.replace(/\[([^\]]+)\]\(\/[^)]*\/\)/g, "$1"));
-    if (samples !== null) return { samples, timing: {} };
-  }
+  // Llama Kokoro reads plain text: misaki's markup keeps the word.
+  const plain = text.replace(/\[([^\]]+)\]\(\/[^)]*\/\)/g, "$1");
   const browserAt = performance.now();
-  const reply = await matcha.ask({ type: "speak", text });
+  const reply = await warm.ask({ type: "speak", text: plain });
   if (reply.type === "audio")
     record("voice", "browser", performance.now() - browserAt, (reply.samples.length / 24_000) * 1000);
   if (reply.type !== "audio") throw new Error("The voice returned no audio");
@@ -758,19 +759,19 @@ export async function matchaSpeak(
  * Starts the speech models as the page opens, one after the other (Parakeet, then the reply voice),
  * so a call finds them ready. A voice the user's cards registered loads with the call instead.
  */
-/** Automatic sends this task to your computer when it can (a phone's voice stays Matcha, here). */
-export const automaticTriesComputer = (task: Task) => task === "stt" || voiceStandIn() === "kokoro";
+/** Automatic sends this task to your computer when it can (its voice is Llama Kokoro, here). */
+export const automaticTriesComputer = (task: Task) => task === "stt";
 export function prewarm() {
   speechPrewarmed = true;
   startEars();
   prewarmVoice();
-  if (sttModel() === "computer" || replyVoice() === "computer" || automatic.stt() || automatic.voice())
+  if (sttModel() === "computer" || replyVoice() === "computer" || automatic.stt())
     void refreshComputerSpeech();
 }
 /** The reply voice's browser model; with the computer picked, fitModels decides once it has answered. */
 function prewarmVoice() {
   const picked = replyVoice();
-  if (picked === "matcha") startMatcha();
+  if (picked === WARM_VOICE) startWarmVoice();
   else if (picked.startsWith("kokoro")) startKokoro();
 }
 
@@ -786,10 +787,10 @@ export function activeSpeech(task: "stt" | "voice"): ActiveSpeech {
       : { where: "browser", status: ears.status() };
   const picked = replyVoice();
   if (onComputer.voice()) return { where: "computer", name: "kokoro 82m mlx" };
-  // Standing in for your computer: Matcha on a phone, the same Kokoro here on a desktop.
+  // Standing in for your computer: Llama Kokoro on a phone, the same Kokoro here on a desktop.
   if (wantsComputer.voice())
-    return { where: "browser", status: (voiceStandIn() === "matcha" ? matcha : voice).status() };
-  if (picked === "matcha") return { where: "browser", status: matcha.status() };
+    return { where: "browser", status: (voiceStandIn() === "warm" ? warm : voice).status() };
+  if (picked === WARM_VOICE) return { where: "browser", status: warm.status() };
   if (picked.startsWith("kokoro")) return { where: "browser", status: voice.status() };
   return { where: "card", name: picked };
 }
@@ -814,22 +815,22 @@ export function speechStatus(task: "stt" | "voice"): ModelStatus | null {
   if (task === "stt") return onComputer.stt() ? null : ears.status();
   const picked = replyVoice();
   if (onComputer.voice()) return null;
-  if (wantsComputer.voice()) return (voiceStandIn() === "matcha" ? matcha : voice).status();
-  if (picked === "matcha") return matcha.status();
+  if (wantsComputer.voice()) return (voiceStandIn() === "warm" ? warm : voice).status();
+  if (picked === WARM_VOICE) return warm.status();
   if (picked.startsWith("kokoro")) return voice.status();
   return null;
 }
 
 /** A model is still downloading or loading; a reload now would throw that away (callGuard). */
 export const speechLoading = (): boolean =>
-  ears.loading() || voice.loading() || matcha.loading();
+  ears.loading() || voice.loading() || warm.loading();
 
 /**
  * The models this call is downloading, for the bar's readout; empty while they only load from disk (or
  * before a worker has said which), null once all are ready.
  */
 export function speechProgress(): ReadonlyArray<VoiceBarModel> | null {
-  const loading = [ears, voice, matcha].filter((model) => model.started() && !model.gaveUp());
+  const loading = [ears, voice, warm].filter((model) => model.started() && !model.gaveUp());
   if (loading.every((model) => model.ready())) return null;
   return loading.map((model) => model.model()).filter((model) => model !== null);
 }

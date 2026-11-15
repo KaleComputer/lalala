@@ -2,7 +2,8 @@
 // CMUdict-derived word list, hand-checked overrides, dizione's homograph picker and a 0.9M-weight GRU
 // for unknown words) -> token ids -> Matcha-TTS (ONNX, mel) -> Vocos (ONNX, magnitude and phase) ->
 // inverse STFT -> 22,050 Hz PCM. Copied from Kale's browser demo (kale-tts.js) as an ES module; `ort`
-// is onnxruntime-web, passed in.
+// is onnxruntime-web, passed in. Llama Kokoro (../llamaKokoro.worker.ts) uses its front end alone
+// (normalizer, G2p): text -> IPA, the same as Hazel's.
 /* eslint-disable */
 import { Normalizer, spokenText } from "../dizione/spoken.js";
 import { covers, pronounce } from "../dizione/homographs.js";
@@ -452,4 +453,4 @@ function wav(pcm, sampleRate = 22050) {
   return new Uint8Array(buf);
 }
 
-export { Voice, G2p, G2pModel, readTable, readTokens, toIds, istft, sentences, fold, wav };
+export { Voice, G2p, G2pModel, normalizer, readTable, readTokens, toIds, istft, sentences, fold, wav };

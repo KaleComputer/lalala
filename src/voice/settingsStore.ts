@@ -157,21 +157,26 @@ const write = (key: string, value: string | null) => {
   document.dispatchEvent(new Event(EVENT));
 };
 
-/**
- * The reply voice a device starts on: Kale's own Matcha voice on phones, where Kokoro on the CPU
- * took about twice a sentence's length to render it (Tim's iPhone, 14 Nov); Kokoro elsewhere.
- */
-export const defaultReplyVoice = (): string => (phone() ? "matcha" : "kokoro");
+/** Kale's warm voice, Llama Kokoro (llamaKokoro.worker), by its id in the settings. */
+export const WARM_VOICE = "llama-kokoro";
 
 /**
- * Who speaks the replies on this device: "auto" (nothing stored: defaultReplyVoice), "kokoro" (its
- * build picked by the device), "kokoro-gpu", "kokoro-cpu", Kale's "matcha", "computer" (Kokoro on
- * the computer running T3, opt-in), or a voice the user's cards registered (replyVoices.ts) by its id.
+ * The reply voice every device starts on: Kale's warm voice, Llama Kokoro, which Tim picked by ear
+ * (15 Nov) and which renders a sentence fast on a phone's CPU.
+ */
+export const defaultReplyVoice = (): string => WARM_VOICE;
+
+/**
+ * Who speaks the replies on this device: "auto" (nothing stored: defaultReplyVoice), Kale's
+ * "llama-kokoro", "kokoro-gpu", "kokoro-cpu" (Kokoro 82M), "computer" (Kokoro on the computer running
+ * T3, opt-in), or a voice the user's cards registered (replyVoices.ts) by its id.
  */
 export const replyVoicePick = (): string => {
   const stored = read(REPLY_VOICE_KEY) ?? "auto";
-  // Before 15 Nov "kokoro" let the device pick Kokoro's build, as automatic does on a desktop.
+  // Before 15 Nov "kokoro" let the device pick Kokoro's build, as Automatic did on a desktop then;
+  // "matcha" was Llama Matcha, now gone (Tim, 15 Nov): both are Automatic's voice now.
   if (stored === "kokoro") return phone() ? "kokoro-cpu" : "auto";
+  if (stored === "matcha") return "auto";
   return stored;
 };
 export const setReplyVoice = (voice: string) => write(REPLY_VOICE_KEY, voice === "auto" ? null : voice);
