@@ -114,7 +114,15 @@ async function ask(request: Record<string, unknown>): Promise<Record<string, unk
   const files = harness();
   if (!files?.writeFile || !files.readFile) throw new Error("Not paired with T3 Code yet");
   const id = `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
-  await files.writeFile(`${DIR}/in/${id}.json`, JSON.stringify(request));
+  // The bridge's own status alongside: one that stopped (idle for 30 min) fails at once, not in 20 s.
+  const [status] = await Promise.all([
+    files.readFile(`${DIR}/status.json`).catch(() => null),
+    files.writeFile(`${DIR}/in/${id}.json`, JSON.stringify(request)),
+  ]);
+  const at = status === null ? 0 : Number((JSON.parse(status) as { at?: unknown }).at) || 0;
+  if (Date.now() / 1000 - at > FRESH_S || status?.includes('"off"')) {
+    throw new Error(DIDNT_ANSWER);
+  }
   const until = Date.now() + ANSWER_MS;
   // Each look is a round trip through T3: the first one when an answer is likely there, then sparser.
   for (let wait = 100; Date.now() < until; wait = Math.min(wait * 1.3, 300)) {
@@ -123,6 +131,13 @@ async function ask(request: Record<string, unknown>): Promise<Record<string, unk
     if (raw === null) continue;
     const answer = JSON.parse(raw) as Record<string, unknown>;
     if (typeof answer.error === "string") throw new Error(answer.error);
+    // A long sentence's audio comes in parts (T3 reads at most 1 MiB of a file).
+    const parts = typeof answer.parts === "number" ? answer.parts : 1;
+    for (let index = 1; index < parts; index += 1) {
+      const part = await files.readFile(`${DIR}/out/${id}.${index}.json`);
+      if (part === null) throw new Error("A part of the reply's audio went missing");
+      answer.pcm = `${String(answer.pcm)}${String((JSON.parse(part) as { pcm?: unknown }).pcm ?? "")}`;
+    }
     return answer;
   }
   throw new Error(DIDNT_ANSWER);

@@ -1751,8 +1751,8 @@ const STT_LABELS: Record<Exclude<SttModel, "auto">, string> = {
   computer: "Parakeet 0.6B\u00a0·\u00a0Computer",
 };
 const VOICE_LABELS: Record<VoiceBuild, string> = {
-  "kokoro-gpu": "Kokoro 82M\u00a0·\u00a0GPU",
-  "kokoro-cpu": "Kokoro 82M\u00a0·\u00a0CPU",
+  "kokoro-gpu": "Kokoro\u00a082M\u00a0·\u00a0GPU",
+  "kokoro-cpu": "Kokoro\u00a082M\u00a0·\u00a0CPU",
   matcha: "Llama Matcha (Kale's voice)",
   computer: "Kokoro 82M\u00a0·\u00a0Computer",
 };
@@ -1790,7 +1790,7 @@ const COMPUTER_COPY = {
   checking: { meta: "Checking…" },
   ready: { meta: "Nothing downloads here" },
   off: { meta: "Your computer downloads ~2.6 GB once" },
-  starting: { meta: "Starting…" },
+  starting: { meta: "Starting… (the first time it sets up ~2.6 GB there)" },
   loading: { meta: "Loading its models…" },
   down: { meta: "Couldn't start yet, still trying" },
   absent: { meta: "Connect T3 Code first (Connection)" },
@@ -1958,7 +1958,7 @@ function automaticWhy(task: "stt" | "voice", computer: ReturnType<typeof compute
     there === undefined && browser === undefined
       ? "not measured yet"
       : `per second of audio: computer ${there === undefined ? "not measured" : seconds(there)}, here ${
-          browser === undefined ? "not measured" : seconds(browser)
+          browser === undefined ? "measured only when it stands in" : seconds(browser)
         }`;
   if (!automaticTriesComputer(task)) return "Kale's voice (a phone always uses it here)";
   if (computer === "absent") return "this browser; your computer once T3 Code is connected";

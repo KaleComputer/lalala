@@ -422,7 +422,7 @@ const PRESS = new Set(["Create link", "Copy MCP URL"]);
 function T3Path(props: { readonly steps: ReadonlyArray<string> }) {
   return (
     <p data-lalala-t3-path="">
-      <span data-lalala-settings-sr="">In T3 Code: </span>
+      <span data-lalala-t3-lead="">In T3 Code</span>
       {/* A chip keeps the › before it, so a wrapped line never ends on one. */}
       {props.steps.map((step, index) => (
         <span key={step}>

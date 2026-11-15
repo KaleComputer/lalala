@@ -37,6 +37,8 @@ LOG = os.path.join(
 )
 START_WINDOW_S = 600  # the first start installs a venv and downloads ~2.6 GB of models
 IDLE_EXIT_S = 30 * 60
+# T3 Code reads at most 1 MiB of a file: a long sentence's audio goes back in parts under that.
+PART_CHARS = 700_000
 
 
 def write_json(path, value):
@@ -88,6 +90,11 @@ def why_down(since):
 
 def answer(name):
     path = os.path.join(IN, name)
+    # A request is a sign of life: the idle clock starts again.
+    try:
+        os.utime(WANTED)
+    except OSError:
+        open(WANTED, "w").close()
     try:
         with open(path) as file:
             ask = json.load(file)
@@ -110,7 +117,12 @@ def answer(name):
             reply = {"text": text.get("text", "")}
         elif ask.get("task") == "tts":
             pcm = service("/tts", json.dumps({"text": ask.get("text", "")}).encode(), "application/json")
-            reply = {"pcm": base64.b64encode(pcm).decode()}
+            encoded = base64.b64encode(pcm).decode()
+            parts = [encoded[i : i + PART_CHARS] for i in range(0, len(encoded), PART_CHARS)] or [""]
+            stem = name[: -len(".json")]
+            for index, part in enumerate(parts[1:], start=1):
+                write_json(os.path.join(OUT, f"{stem}.{index}.json"), {"pcm": part})
+            reply = {"pcm": parts[0], "parts": len(parts)}
         else:
             reply = {"error": "unknown task"}
     except urllib.error.HTTPError as error:

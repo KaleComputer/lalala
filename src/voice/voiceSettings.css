@@ -1132,6 +1132,11 @@
   margin: 0;
   font-size: 12px;
 }
+/* Says the chips are T3 Code's, not buttons here. */
+[data-lalala-t3-lead] {
+  margin-right: 2px;
+  color: var(--s-fg-2);
+}
 [data-lalala-t3-path] > span {
   display: inline-flex;
   align-items: center;
