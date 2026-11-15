@@ -3,6 +3,7 @@
  * replies spoken sentence by sentence. Only Tim talking close to the mic starts a turn or cuts a reply
  * (presence/closetalk.js); a reply stops only when the gate hears him and the transcript has his words.
  */
+import { createBargeHold, voiceOverHold } from "./bargeIn";
 import { SpeechPlayer } from "./player";
 import { type CloseTalkMode, createCloseTalk } from "./presence/closetalk";
 import { RealtimeStt, STT_SAMPLE_RATE } from "./realtimeStt";
@@ -56,15 +57,6 @@ const MAX_SHORT_INTERRUPTION = 6;
 // talking after HOLD_MAX_MS, it is his turn and the reply stops (9 Nov: it came back over him at 5 s).
 const HOLD_RELEASE_MS = 700;
 const HOLD_MAX_MS = 2_000;
-// Our reply coming back through a speaker is quieter at the mic than the reply itself; Tim talking
-// into it is not. A hold needs the mic within this many dB of what is playing, for HOLD_OVER_MS.
-const HOLD_OVER_REPLY_DB = 3;
-const HOLD_OVER_MS = 60;
-// The voice detector's way in (13 Nov: "why do I have to talk so loud"): this much unbroken speech,
-// at a normal voice's level: over the room's floor, and not so far under the reply that it is its echo.
-const VAD_HOLD_MS = 128;
-const VAD_OVER_FLOOR_DB = 10;
-const VAD_UNDER_REPLY_DB = 20;
 // Words that replace a reply still waiting for Tim's turn to end, instead of letting it play after.
 const REPLACES_WAITING =
   /^(?:(?:no|okay|ok|wait)[,.!]?\s+)?(?:stop|never ?mind|forget (?:it|that|about it)|cancel(?: that)?|skip(?: it| that)?|be quiet|quiet|shut up|enough|not now|later|hold on)\b/i;
@@ -225,6 +217,9 @@ function isInterruption(heard: string, spoken: ReadonlyArray<string>): boolean {
   const all = heard.toLowerCase().match(/\p{L}[\p{L}'’]*|\d+/gu) ?? [];
   if (isNoisePhrase(heard)) return false;
   const theirs = interruptingWords(heard, spoken);
+  // "Stop" alone is enough (Tim, 15 Nov: "or I say stop, then you stop"), unless we said it.
+  const command = heard.trim().match(REPLACES_WAITING)?.[0].toLowerCase();
+  if (command !== undefined && theirs.some((word) => command.includes(word))) return true;
   if (theirs.length < 2 || !hasForeignRun(heard, spoken)) return false;
   return all.length <= MAX_SHORT_INTERRUPTION || theirs.length / all.length >= MIN_THEIR_SHARE;
 }
@@ -307,9 +302,7 @@ export class VoiceSession {
   /** When the reply went on hold for Tim, and when the gate last heard him close since. */
   private holdAt = 0;
   private heldVoiceAt = 0;
-  private holdArmed = true;
-  private overReplyMs = 0;
-  private replyDbs: number[] = [];
+  private readonly bargeHold = createBargeHold();
   /** When the gate last opened on Tim over a reply (not just voiced). */
   private strongVoiceAt = 0;
   private rejectedInSegment = false;
@@ -871,9 +864,7 @@ export class VoiceSession {
     }
 
     // Tim's close voice over the reply: it goes quiet now; his words make it a stop, else it goes on.
-    // Voiced is ~90 ms over the barge-in bar; a new hold needs a quiet moment since the last one.
     const close = this.gate.voiced || this.gate.open;
-    if (!close && !vadVoice) this.holdArmed = true;
     // The thinking pulse only into a quiet room: never with Tim's turn, a reply or its echo. Only Tim
     // holds it back afterwards: our reply's echo and plain noise also voice the gate, and counting
     // them kept the pulse off for the short thinking after a reply or "One moment.".
@@ -885,41 +876,40 @@ export class VoiceSession {
         this.waiting.length === 0,
       close && this.voiceLike && !replyAudible,
     );
-    // Against the reply's loudest moment in the last ~200 ms: its echo arrives late and rings on.
-    this.replyDbs.push(20 * Math.log10(player.level() + 1e-9));
-    if (this.replyDbs.length > 10) this.replyDbs.shift();
     const micDb = 20 * Math.log10(level + 1e-9);
-    const replyDb = Math.max(...this.replyDbs);
-    const overReply = micDb >= replyDb - HOLD_OVER_REPLY_DB;
-    this.overReplyMs = close && overReply && this.voiceLike ? this.overReplyMs + FRAME_MS : 0;
     if (decision?.opened && decision.by === "speak") this.closeVoiceAt = this.strongVoiceAt = now;
-    const vadHold =
-      this.stt.voiceMs >= VAD_HOLD_MS &&
-      micDb >= this.floorDb + VAD_OVER_FLOOR_DB &&
-      micDb >= replyDb - VAD_UNDER_REPLY_DB;
-    if (
-      (this.overReplyMs >= HOLD_OVER_MS || vadHold) &&
-      this.holdArmed &&
-      replyAudible &&
-      player.speaking &&
-      !player.holding &&
-      this.stt.speechOnly
-    ) {
+    const vad = {
+      ready: this.stt.speechOnly,
+      voiceMs: this.stt.voiceMs,
+      voiceNow: vadVoice,
+    };
+    const hold = this.bargeHold.step({
+      frameMs: FRAME_MS,
+      micDb,
+      replyDb: 20 * Math.log10(player.level() + 1e-9),
+      close,
+      openedOverReply: decision?.opened === true && decision.by === "speak",
+      voiceLike: this.voiceLike,
+      floorDb: this.floorDb,
+      vad,
+      canHold: replyAudible && player.speaking && !player.holding,
+    });
+    if (hold !== null) {
       voiceLog("voice", "barge.hold", {
-        by: vadHold ? "vad" : "level",
+        by: hold,
         voiceMs: Math.round(this.stt.voiceMs),
         micDb: Math.round(micDb),
-        replyDb: Math.round(replyDb),
+        replyDb: Math.round(this.bargeHold.replyDb),
         floorDb: Math.round(this.floorDb),
+        vad: vad.ready,
       });
-      this.holdArmed = false;
       this.holdAt = now;
       player.hold();
       // His words decide whether the held reply stops: the probe transcribes them as he talks.
       if (!this.probing) this.beginProbe();
     }
     if (player.holding) {
-      if (vadVoice) this.heldVoiceAt = now;
+      if (voiceOverHold({ close, voiceLike: this.voiceLike, vad })) this.heldVoiceAt = now;
       else if (this.heldVoiceAt < this.holdAt) this.heldVoiceAt = this.holdAt;
       const verdict = heldReply(now, this.holdAt, this.heldVoiceAt, HOLD_RELEASE_MS, HOLD_MAX_MS);
       if (verdict === "release" && this.stt.busy) {
@@ -933,11 +923,6 @@ export class VoiceSession {
       }
     }
 
-    if (this.probing && !this.stt.speechOnly) {
-      // Switched to a local service without voice detection mid-segment: nothing here counts.
-      this.probing = false;
-      this.stt.discard();
-    }
     if (this.probing) {
       this.stt.push(pcm);
       this.probeMs += FRAME_MS;
@@ -964,12 +949,10 @@ export class VoiceSession {
       if (this.preRoll.length > PRE_ROLL_FRAMES) this.preRoll.shift();
       // During a reply the mic goes to speech-to-text only once the gate hears someone close (its
       // pre-roll keeps the onset): a quiet room sends nothing (the eval: 182 empty transcripts in 6 min).
-      // During a reply only a transcript that is surely speech may cut it: local speech without its
-      // voice detection turns breath and noise into "I'm sorry." (2 Nov: Tim's replies cut off).
+      // Its words cut the reply only with the gate's barge-in bar or a hold behind them (closeVoice),
+      // with or without the voice detector: without it, nothing Tim said stopped a reply (15 Nov).
       if (replyAudible) {
-        if ((this.gate.voiced || this.gate.open || vadVoice) && this.stt.speechOnly) {
-          this.beginProbe();
-        }
+        if (this.gate.voiced || this.gate.open || vadVoice) this.beginProbe();
       } else if (decision?.opened || this.gate.open) {
         // Opened now, or already open from the reply's last moments: either way Tim is talking.
         this.beginSpeech(false);

@@ -681,25 +681,55 @@ export async function transcribe(pcm: Float32Array<ArrayBuffer>): Promise<string
 }
 
 /**
- * Silero VAD on the mic, in its own worker: `listen` takes 512-sample windows of 16 kHz PCM and
+ * Silero VAD on the mic, in its own worker, loaded once for the page's life and before the other
+ * models: on a phone a voice detector loaded after Kale's Kokoro got no WebAssembly memory and never
+ * said ready (15 Nov), and a call without it heard no barge-in. A failed load is logged and retried.
+ */
+let vadWorker: Worker | null = null;
+let vadReady = false;
+let vadFailures = 0;
+let vadListener: ((probability: number) => void) | null = null;
+const VAD_RETRIES = 3;
+function startVad() {
+  if (vadWorker !== null) return;
+  const startedAt = performance.now();
+  const worker = new Worker(new URL("./vad.worker.ts", import.meta.url), { type: "module" });
+  vadWorker = worker;
+  const failed = (message: string) => {
+    if (vadWorker !== worker) return;
+    voiceLog("system", "speech.failed", { model: "vad", message, retries: vadFailures });
+    worker.terminate();
+    vadWorker = null;
+    vadReady = false;
+    vadFailures += 1;
+    if (vadFailures <= VAD_RETRIES) window.setTimeout(startVad, 2_000 * vadFailures);
+  };
+  worker.onmessage = ({ data }: MessageEvent<{ type: string; p?: number; message?: string }>) => {
+    if (data.type === "p") vadListener?.(data.p ?? 0);
+    else if (data.type === "ready") {
+      vadReady = true;
+      voiceLog("system", "speech.ready", { model: "vad", ms: Math.round(performance.now() - startedAt) });
+    } else if (data.type === "failed") failed(data.message ?? "");
+  };
+  worker.onerror = (event) => failed(event.message || "worker error");
+  worker.postMessage({ type: "load" });
+}
+
+/**
+ * The voice detector for one call: `listen` takes 512-sample windows of 16 kHz PCM and
  * `onProbability` gets each one's speech probability. Not ready (or failed), it hears nothing.
  */
 export function openVad(onProbability: (probability: number) => void) {
-  const worker = new Worker(new URL("./vad.worker.ts", import.meta.url), { type: "module" });
-  let ready = false;
-  worker.onmessage = ({ data }: MessageEvent<{ type: string; p?: number; message?: string }>) => {
-    if (data.type === "ready") ready = true;
-    else if (data.type === "p") onProbability(data.p ?? 0);
-    else if (data.type === "failed")
-      console.warn("lalala: the voice detector didn't load", data.message);
-  };
-  worker.onerror = (event) => console.warn("lalala: the voice detector failed", event.message);
-  worker.postMessage({ type: "load" });
+  startVad();
+  vadListener = onProbability;
+  vadWorker?.postMessage({ type: "reset" });
   return {
-    ready: () => ready,
+    ready: () => vadReady && vadListener === onProbability,
     listen: (window: Float32Array<ArrayBuffer>) =>
-      worker.postMessage({ type: "frame", pcm: window }, [window.buffer]),
-    close: () => worker.terminate(),
+      vadWorker?.postMessage({ type: "frame", pcm: window }, [window.buffer]),
+    close: () => {
+      if (vadListener === onProbability) vadListener = null;
+    },
   };
 }
 
@@ -763,6 +793,7 @@ export async function warmSpeak(
 export const automaticTriesComputer = (task: Task) => task === "stt";
 export function prewarm() {
   speechPrewarmed = true;
+  startVad();
   startEars();
   prewarmVoice();
   if (sttModel() === "computer" || replyVoice() === "computer" || automatic.stt())
