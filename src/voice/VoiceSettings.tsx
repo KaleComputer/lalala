@@ -31,6 +31,9 @@ import {
   pullSynced,
   setMicDeviceId,
   setReplyVoice,
+  SMALL_VOICES,
+  modelVoice,
+  setModelVoice,
   defaultReplyVoice,
   replyVoice,
   WARM_VOICE,
@@ -1776,6 +1779,7 @@ type VoiceBuild =
   | "kale-kokoro"
   | "kale-storyteller"
   | "kale-tts-1-tiny"
+  | "kale-tts-1-tiny-preview"
   | "computer";
 const STT_LABELS: Record<Exclude<SttModel, "auto">, string> = {
   "0.6b-gpu": "Parakeet 0.6B\u00a0·\u00a0GPU",
@@ -1789,6 +1793,7 @@ const VOICE_LABELS: Record<VoiceBuild, string> = {
   "kale-kokoro": "Kokoro (Kale's voice)",
   "kale-storyteller": "Storyteller (Kale's voice)",
   "kale-tts-1-tiny": "kale-tts-1-tiny",
+  "kale-tts-1-tiny-preview": "kale-tts-1-tiny preview",
   computer: "Kokoro 82M\u00a0·\u00a0Computer",
 };
 const STT_COSTS: Partial<Record<string, string>> = {
@@ -1802,6 +1807,7 @@ const VOICE_COSTS: Partial<Record<string, string>> = {
   "kale-kokoro": "68 MB download · ~0.2 GB memory",
   "kale-storyteller": "61 MB download · ~0.2 GB memory",
   "kale-tts-1-tiny": "61 MB download · ~0.2 GB memory",
+  "kale-tts-1-tiny-preview": "61 MB download · ~0.2 GB memory",
 };
 const MB = (bytes: number) =>
   bytes >= 1e9 ? `${(bytes / 1e9).toFixed(2)}\u00a0GB` : `${Math.round(bytes / 1e6)}\u00a0MB`;
@@ -1866,6 +1872,7 @@ const LOADED_KEYS: Record<string, string> = {
   "kale kokoro": "kale-kokoro",
   "kale-storyteller": "kale-storyteller",
   "kale-tts-1-tiny": "kale-tts-1-tiny",
+  "kale-tts-1-tiny-preview": "kale-tts-1-tiny-preview",
 };
 const seconds = (ms: number) => `${(ms / 1000).toFixed(ms < 100 ? 2 : 1)} s`;
 /** How fast your computer did a task, as measured from this device, once it has. */
@@ -2367,6 +2374,12 @@ export function SpeechSection() {
                 meta: VOICE_COSTS["kale-storyteller"],
               },
               {
+                value: "kale-tts-1-tiny-preview",
+                label: VOICE_LABELS["kale-tts-1-tiny-preview"],
+                detail: "two voices: storyteller, M3",
+                meta: VOICE_COSTS["kale-tts-1-tiny-preview"],
+              },
+              {
                 value: "kale-tts-1-tiny",
                 label: VOICE_LABELS["kale-tts-1-tiny"],
                 detail: "Hazel's voice, fastest",
@@ -2400,7 +2413,37 @@ export function SpeechSection() {
         ]}
         onChange={(value) => setReplyVoice(value)}
       />
+      <ModelVoiceRow />
     </Section>
+  );
+}
+
+let voiceSample: HTMLAudioElement | null = null;
+/**
+ * The voices inside the reply model, when it holds more than one (Tim, 15 Nov: "how can i change the
+ * voice inside of our model?"): synced like the other settings, each with its volcano line to play.
+ */
+function ModelVoiceRow() {
+  useSyncedSettings();
+  useReplyVoicePick();
+  const reply = replyVoice();
+  const small = SMALL_VOICES[reply];
+  if (!small || small.voices.length < 2) return null;
+  const play = (id: string) => {
+    voiceSample?.pause();
+    voiceSample = withSoundVolume(new Audio(`/models/${small.model}/samples/${id}.mp3`));
+    void voiceSample.play().catch(() => undefined);
+  };
+  return (
+    <PickRow
+      title="Voice"
+      description="Who speaks inside this model, from the next sentence."
+      label="Voice"
+      value={modelVoice(reply) ?? small.voices[0]!.id}
+      groups={[{ options: small.voices.map((entry) => ({ value: entry.id, label: entry.name, playable: true })) }]}
+      onPlay={play}
+      onChange={(id) => setModelVoice(small.model, id)}
+    />
   );
 }
 

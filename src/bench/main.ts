@@ -21,12 +21,13 @@ const models = {
 // WebGPU ended Tim's iPhone tab (15 Nov): a phone runs the CPU only unless ?gpu asks.
 const PHONE = /iPhone|iPad|iPod|Android/.test(navigator.userAgent);
 const WITH_GPU = !PHONE || new URLSearchParams(location.search).has("gpu");
-// The CPU on every core (up to 4, as lalala runs it) and on Transformers.js's default half of them:
-// the default made Tim's iPhone 35 % slower (15 Nov).
+// The CPU on every core (up to 4), as lalala runs it. A phone runs that one round only: a second
+// round's fresh copy of the model ended Tim's iPhone tab before iOS had freed the first (15 Nov).
+// Elsewhere also Transformers.js's default half of the cores, and WebGPU.
 const ALL_CORES = Math.min(4, navigator.hardwareConcurrency || 4);
 const PLAN: ReadonlyArray<{ model: "k10c"; backend: "wasm" | "webgpu"; threads?: number }> = [
   { model: "k10c", backend: "wasm", threads: ALL_CORES },
-  { model: "k10c", backend: "wasm", threads: Math.ceil(ALL_CORES / 2) },
+  ...(PHONE ? [] : [{ model: "k10c", backend: "wasm", threads: Math.ceil(ALL_CORES / 2) } as const]),
   ...(WITH_GPU ? [{ model: "k10c", backend: "webgpu" } as const] : []),
 ];
 

@@ -40,7 +40,9 @@ type Voice = {
   readonly hf: Transformers;
   readonly model: (inputs: object) => Promise<{ waveform: Tensor }>;
   readonly tokenize: (text: string, options?: object) => { input_ids: Tensor };
-  readonly voicepack: Float32Array;
+  readonly name: string;
+  /** Swapped by a "voice" message: another voice of the same model, no second copy of it. */
+  voicepack: Float32Array;
   readonly g2p: G2p;
   readonly normalize: (text: string) => string;
 };
@@ -103,6 +105,7 @@ async function load(device: string, name: string, voiceFile: string, threads?: n
   const ready: Voice = {
     hf,
     model,
+    name,
     tokenize,
     voicepack: new Float32Array(voicepack),
     g2p: new G2p(lex, new G2pModel(g2pModel)),
@@ -174,6 +177,19 @@ self.onmessage = (event: MessageEvent<Message>) => {
       message.threads,
     );
     voice.catch((error: unknown) => postMessage({ type: "failed", message: String(error) }));
+  }
+  if (message.type === "voice") {
+    queue = queue.then(async () => {
+      try {
+        const ready = await voice!;
+        const file = `${self.location.origin}/models/${ready.name}/voices/${message.voice}.bin`;
+        ready.voicepack = new Float32Array(await (await fetch(file)).arrayBuffer());
+        postMessage({ type: "text", id: message.id, text: "" });
+      } catch (error) {
+        postMessage({ type: "error", id: message.id, message: String(error) });
+      }
+    });
+    return;
   }
   if (message.type !== "speak") return;
   queue = queue.then(async () => {

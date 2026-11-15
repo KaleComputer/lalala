@@ -20,6 +20,8 @@ export type SyncedSettings = {
   readonly delegates: Delegates;
   /** A sound in extras/topicSounds-<name>.mp3, the built-in "chime", or "none". */
   readonly topicSound: string;
+  /** The voice picked inside each model that holds more than one, by model folder (SMALL_VOICES). */
+  readonly modelVoices: Readonly<Record<string, string>>;
   readonly at: number;
 };
 
@@ -32,6 +34,7 @@ export const BUILT_IN_TOPIC_SOUND = "chime";
 const DEFAULTS: SyncedSettings = {
   delegates: DEFAULT_DELEGATES,
   topicSound: DEFAULT_TOPIC_SOUND,
+  modelVoices: {},
   at: 0,
 };
 
@@ -67,6 +70,13 @@ function parseSynced(value: unknown): SyncedSettings | null {
       options,
     },
     topicSound: typeof value.topicSound === "string" ? value.topicSound : DEFAULT_TOPIC_SOUND,
+    modelVoices: isRecord(value.modelVoices)
+      ? Object.fromEntries(
+          Object.entries(value.modelVoices).filter(
+            (entry): entry is [string, string] => typeof entry[1] === "string",
+          ),
+        )
+      : {},
     at: typeof value.at === "number" ? value.at : 0,
   };
 }
@@ -163,11 +173,35 @@ export const WARM_VOICE = "kale-kokoro";
 export const TINY_VOICE = "kale-tts-1-tiny";
 /** The cheerful storyteller (voice 8 on the k10c recipe, 61 MB, 190 wpm): Tim's pick, 15 Nov. */
 export const STORY_VOICE = "kale-storyteller";
-/** Kale's small voices: their model folder (public/models) and voice file, for kaleVoice.worker. */
-export const SMALL_VOICES: Readonly<Record<string, { readonly model: string; readonly voice: string }>> = {
-  [STORY_VOICE]: { model: "kale-storyteller", voice: "storyteller" },
-  [TINY_VOICE]: { model: "kale-tts-1-tiny", voice: "hazel" },
+/** The two-voice kale-tts-1-tiny preview (storyteller and M3; Hazel's model underneath for now). */
+export const PREVIEW_VOICE = "kale-tts-1-tiny-preview";
+export type ModelVoice = { readonly id: string; readonly name: string };
+/**
+ * Kale's small voices: their model folder (public/models, for kaleVoice.worker) and the voices it
+ * holds (voices/<id>.bin, samples/<id>.mp3 for Settings' play buttons when there are several).
+ */
+export const SMALL_VOICES: Readonly<
+  Record<string, { readonly model: string; readonly voices: ReadonlyArray<ModelVoice> }>
+> = {
+  [STORY_VOICE]: { model: "kale-storyteller", voices: [{ id: "storyteller", name: "Storyteller" }] },
+  [TINY_VOICE]: { model: "kale-tts-1-tiny", voices: [{ id: "hazel", name: "Hazel" }] },
+  [PREVIEW_VOICE]: {
+    model: "kale-tts-1-tiny-preview",
+    voices: [
+      { id: "storyteller", name: "Storyteller" },
+      { id: "m3", name: "M3" },
+    ],
+  },
 };
+/** The voice a small model speaks with on this device: the one picked (synced), else its first. */
+export const modelVoice = (voice: string): string | null => {
+  const small = SMALL_VOICES[voice];
+  if (!small) return null;
+  const picked = current().modelVoices[small.model];
+  return small.voices.find((entry) => entry.id === picked)?.id ?? small.voices[0]!.id;
+};
+export const setModelVoice = (model: string, voice: string) =>
+  updateSynced({ modelVoices: { ...current().modelVoices, [model]: voice } });
 /** Kale's own voices: the warm Kokoro (llamaKokoro.worker) and the small ones (kaleVoice.worker). */
 export const isKaleVoice = (voice: string) => voice === WARM_VOICE || voice in SMALL_VOICES;
 

@@ -9,6 +9,7 @@ import {
   VOICE_CRASHED_KEY,
   WARM_VOICE,
   crashedVoice,
+  modelVoice,
   autoRetrySeconds,
   defaultReplyVoice,
   isKaleVoice,
@@ -452,7 +453,7 @@ const warm = modelWorker(
   },
   // The small voices on the CPU everywhere: WebGPU ended Tim's iPhone tab (15 Nov, a kill nothing
   // can catch), and Transformers.js's WebGPU kernels refuse their decoder's phase math (desktop WebKit).
-  () => ({ device: "wasm", ...SMALL_VOICES[kaleBuild()] }),
+  () => ({ device: "wasm", model: SMALL_VOICES[kaleBuild()]?.model, voice: modelVoice(kaleBuild()) }),
 );
 // A device that switches a model, or sends a task to the computer, frees the old one once its
 // current utterance or sentence is done; the new one loads right away when the page has.
@@ -460,6 +461,7 @@ let earsModel = sttModel();
 let voiceBuild = kokoroBuild();
 let voicePick = replyVoice();
 let warmBuild = kaleBuild();
+let warmVoice = modelVoice(kaleBuild());
 let crashAsk = crashedVoice();
 let retryEvery = autoRetrySeconds();
 document.addEventListener("lalala:settings", () => {
@@ -481,6 +483,12 @@ document.addEventListener("lalala:settings", () => {
     crashAsk = crashedVoice();
     if (!crashAsk && speechPrewarmed) prewarmVoice();
   }
+  // Another voice inside the same model: the running worker swaps its voice file, since a second
+  // copy of the model in a tab is what iOS ends it for (15 Nov).
+  if (kaleBuild() === warmBuild && modelVoice(kaleBuild()) !== warmVoice) {
+    warmVoice = modelVoice(kaleBuild());
+    if (warm.started()) void warm.ask({ type: "voice", voice: warmVoice }).catch(() => {});
+  }
   if (kokoroBuild() !== voiceBuild || replyVoice() !== voicePick) {
     if (kokoroBuild() !== voiceBuild) voice.releaseWhenIdle();
     // At once, not when idle: the two Kale voices are never in an iPhone tab's memory together.
@@ -490,6 +498,7 @@ document.addEventListener("lalala:settings", () => {
       markLive(null);
     }
     warmBuild = kaleBuild();
+    warmVoice = modelVoice(kaleBuild());
     voiceBuild = kokoroBuild();
     voicePick = replyVoice();
     if (voicePick === "computer") void refreshComputerSpeech();
