@@ -1963,9 +1963,11 @@ function automaticWhy(task: "stt" | "voice", computer: ReturnType<typeof compute
         }`;
   if (!automaticTriesComputer(task)) return "phones always use Kale's voice";
   if (computer === "absent") return "this browser; your computer once T3 Code is connected";
-  if (browserFaster(task)) return `this browser, faster here\u00a0· ${measured}${since}`;
+  // A missing measurement isn't a reason: the speeds show once there is a number.
+  const speeds = there === undefined && browser === undefined ? "" : `\u00a0· ${measured}`;
+  if (browserFaster(task)) return `this browser, faster here${speeds}${since}`;
   if (runs.where === "computer")
-    return `your computer, no download\u00a0· ${measured}${since}`;
+    return `your computer, no download${speeds}${since}`;
   // While your computer is tried, the group's line says why: here only what was measured and when it moved.
   const facts = [there === undefined && browser === undefined ? "" : measured, since.replace(/^\u00a0· /, "")];
   return facts.filter(Boolean).join("\u00a0· ");

@@ -941,7 +941,7 @@
 }
 /* Nothing to send yet: there, but quiet. */
 [data-lalala-pair-field] > button[aria-disabled="true"] {
-  opacity: 0.5;
+  opacity: 0.65;
   cursor: default;
 }
 /* Step 2's hint only speaks up when the address is wrong. */
@@ -1144,10 +1144,20 @@
   margin: 0;
   font-size: 12px;
 }
-/* Says the chips are T3 Code's, not buttons here. */
+/* Says the chips are T3 Code's, not buttons here. On a phone it takes its own line, so the chips get the row. */
 [data-lalala-t3-lead] {
   margin-right: 2px;
   color: var(--s-fg-2);
+}
+@media (max-width: 32rem) {
+  [data-lalala-t3-lead] {
+    flex-basis: 100%;
+  }
+}
+/* Retry now gets its own line under the failure, at every width. */
+[data-lalala-settings-info] > button {
+  display: flex;
+  margin: 6px 0 0;
 }
 [data-lalala-t3-path] > span {
   display: inline-flex;
@@ -1172,10 +1182,6 @@
   font-style: normal;
 }
 /* A picture of T3 Code's switches: framed, a little faded, never tappable. */
-/* Only the switch graphics fade: the names stay readable on every theme. */
-[data-lalala-t3-switch] {
-  opacity: 0.7;
-}
 [data-lalala-t3-switches] {
   pointer-events: none;
   display: grid;
