@@ -2105,7 +2105,9 @@ export function SpeechSection() {
   useEffect(() => {
     const was = before.current;
     before.current = computer;
-    if (computer !== "ready" || was === "ready" || was === "checking") return;
+    // Leaving ready takes the sentence back, so the next return is announced afresh.
+    if (computer !== "ready") return setRecovered(false);
+    if (was === "ready" || was === "checking") return;
     setRecovered(true);
     const timer = window.setTimeout(() => setRecovered(false), 8_000);
     return () => window.clearTimeout(timer);
