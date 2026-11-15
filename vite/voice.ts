@@ -176,7 +176,7 @@ export function lalalaPlugin(): Plugin {
       return;
     }
 
-    if (route === "/stt" && req.method === "POST") {
+    if (route === "/local/stt" && req.method === "POST") {
       readBody(req, MAX_AUDIO_BYTES)
         .then(async (audio) => {
           const response = await fetchSpeech("/stt", {
@@ -192,7 +192,7 @@ export function lalalaPlugin(): Plugin {
       return;
     }
 
-    if (route === "/tts" && req.method === "POST") {
+    if (route === "/local/tts" && req.method === "POST") {
       const aborter = new AbortController();
       res.on("close", () => aborter.abort());
       readBody(req, 64 * 1024)

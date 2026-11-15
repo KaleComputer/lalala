@@ -440,9 +440,13 @@ const COMPUTER_BACKOFF_MAX_S = 300;
 let computerState: ComputerSpeech | "checking" = "checking";
 let computerTimer = 0;
 let computerTries = 0;
+// A healthy service is no proof its speech works (a wrong route still answers health): the stand-ins
+// stay loaded and the backoff keeps growing until the computer has really answered, so a failing
+// computer can't make a phone reload Parakeet every few seconds until the tab runs out of memory.
 const standingIn = () => computerState !== "ready";
 
 type Task = "stt" | "voice";
+const computerAnswered: Record<Task, boolean> = { stt: false, voice: false };
 type Where = "browser" | "computer";
 const TIMINGS_KEY = "lalala:speech-timings";
 /** Milliseconds of work per second of audio, per task and path, averaged over recent turns. */
@@ -512,11 +516,11 @@ export const computerSpeechState = () => computerState;
 function fitModels() {
   if (wantsComputer.stt()) {
     if (standingIn()) startEars();
-    else ears.releaseWhenIdle();
+    else if (computerAnswered.stt) ears.releaseWhenIdle();
   }
   if (wantsComputer.voice()) {
     if (standingIn()) voiceStandIn() === "kokoro" ? voice.start() : startMatcha();
-    else {
+    else if (computerAnswered.voice) {
       voice.releaseWhenIdle();
       matcha.releaseWhenIdle();
     }
@@ -559,7 +563,8 @@ function scheduleComputer() {
 }
 function setComputer(state: ComputerSpeech) {
   const changed = state !== computerState;
-  computerTries = state === "down" ? computerTries + 1 : state === "ready" ? 0 : computerTries;
+  if (state !== "ready") computerAnswered.stt = computerAnswered.voice = false;
+  computerTries = state === "down" ? computerTries + 1 : computerTries;
   if (changed) computerSince = Date.now();
   computerState = state;
   trackWhere();
@@ -587,6 +592,13 @@ export async function refreshComputerSpeech(force = false) {
   setComputer(await checkComputerSpeech(force ? "force" : wanted ? "auto" : undefined));
 }
 let speechPrewarmed = false;
+/** The computer did a task: now its stand-in can go. */
+function computerWorked(task: Task) {
+  computerTries = 0;
+  if (computerAnswered[task]) return;
+  computerAnswered[task] = true;
+  if (speechPrewarmed) fitModels();
+}
 
 function wavOf(pcm: Float32Array): Blob {
   const data = new DataView(new ArrayBuffer(44 + pcm.length * 2));
@@ -651,6 +663,7 @@ export async function transcribe(pcm: Float32Array<ArrayBuffer>): Promise<string
     try {
       const text = await computerRoute().stt(wavOf(pcm));
       record("stt", "computer", performance.now() - startedAt, audioMs);
+      computerWorked("stt");
       return text;
     } catch (error) {
       voiceLog("system", "speech.computer-down", { task: "stt", message: String(error) });
@@ -696,6 +709,7 @@ async function computerSpeak(text: string): Promise<Float32Array<ArrayBuffer> | 
     const samples = new Float32Array(view.byteLength / 2);
     for (let i = 0; i < samples.length; i += 1) samples[i] = view.getInt16(i * 2, true) / 0x8000;
     record("voice", "computer", performance.now() - startedAt, (samples.length / 24_000) * 1000);
+    computerWorked("voice");
     return samples;
   } catch (error) {
     voiceLog("system", "speech.computer-down", { task: "voice", message: String(error) });
