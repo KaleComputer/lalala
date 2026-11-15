@@ -933,6 +933,11 @@
   align-self: center;
   margin: 0 8px;
 }
+/* Nothing to send yet: there, but quiet. */
+[data-lalala-pair-field] > button[aria-disabled="true"] {
+  opacity: 0.5;
+  cursor: default;
+}
 /* Step 2's hint only speaks up when the address is wrong. */
 [data-lalala-pair-or]:empty {
   display: none;
@@ -1056,6 +1061,7 @@
 }
 /* A list item keeps the disclosure triangle; the padding makes a 24px target. */
 [data-lalala-pair-terminal] > summary {
+  position: relative;
   padding: 4px 0;
   width: fit-content;
   color: var(--s-fg-2);
@@ -1160,9 +1166,12 @@
   font-style: normal;
 }
 /* A picture of T3 Code's switches: framed, a little faded, never tappable. */
+/* Only the switch graphics fade: the names stay readable on every theme. */
+[data-lalala-t3-switch] {
+  opacity: 0.7;
+}
 [data-lalala-t3-switches] {
   pointer-events: none;
-  opacity: 0.7;
   display: grid;
   gap: 0;
   max-width: 20rem;
@@ -1228,7 +1237,8 @@
     [data-lalala-settings-reset],
     [data-lalala-settings-list] [role="option"] > button,
     [data-lalala-settings-panel] > header > button,
-    [data-lalala-settings-back] > button
+    [data-lalala-settings-back] > button,
+    [data-lalala-pair-terminal] > summary
   )::after {
     content: "";
     position: absolute;

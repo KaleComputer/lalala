@@ -147,16 +147,15 @@ export function PairSteps(props: {
           }
         }}
       />
-      {value.trim() !== "" || busy ? (
-        <button
-          type="button"
-          data-lalala-settings-button=""
-          aria-disabled={busy || undefined}
-          onClick={() => busy || submit(value)}
-        >
-          {busy ? "Connecting…" : ask ? "Next" : "Connect"}
-        </button>
-      ) : null}
+      {/* Always there, so the step ends in its action; inactive until there's something to send. */}
+      <button
+        type="button"
+        data-lalala-settings-button=""
+        aria-disabled={busy || value.trim() === "" || undefined}
+        onClick={() => busy || value.trim() === "" || submit(value)}
+      >
+        {busy ? "Connecting…" : ask ? "Next" : "Connect"}
+      </button>
     </div>
   );
   const command = (text: string | null, missing?: string) => (
@@ -339,7 +338,7 @@ export function PairSteps(props: {
             <Step n={3} title="Create a pairing link in T3 Code">
               <T3Path steps={["Settings", "Sharing & access", "Create link"]} />
               <details data-lalala-pair-terminal="">
-                <summary>Use a terminal instead</summary>
+                <summary>Use a terminal on that computer instead</summary>
                 {command(
                   connectCommand,
                   "Paste your address in step 2 first.",

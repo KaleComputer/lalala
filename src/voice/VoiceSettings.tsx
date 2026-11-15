@@ -1960,12 +1960,15 @@ function automaticWhy(task: "stt" | "voice", computer: ReturnType<typeof compute
       : `per second of audio: computer ${there === undefined ? "not measured" : seconds(there)}, here ${
           browser === undefined ? "measured only when it stands in" : seconds(browser)
         }`;
-  if (!automaticTriesComputer(task)) return "Llama Matcha (a phone always uses it here)";
+  if (!automaticTriesComputer(task)) return "Llama Matcha · phones always use it";
   if (computer === "absent") return "this browser; your computer once T3 Code is connected";
   if (browserFaster(task)) return `this browser, faster here · ${measured}${since}`;
   if (runs.where === "computer")
     return `picked your computer${browser === undefined ? ", nothing to download" : ""} · ${measured}${since}`;
-  return `this browser until your computer answers · ${measured}${since}`;
+  // The group's line already says your computer is being tried: no measurements to repeat yet.
+  return `this browser until your computer answers${
+    there === undefined && browser === undefined ? "" : ` · ${measured}`
+  }${since}`;
 }
 
 /**
@@ -1995,7 +1998,13 @@ function TaskState(props: {
         ? auto
         : (STT_LABELS[picked as Exclude<SttModel, "auto">] ?? VOICE_LABELS[picked as VoiceBuild] ?? auto);
   // A stand-in says why it is here, on its own row too.
-  const meanwhile = !trying ? "" : couldNotStart ? " while your computer's speech service is down" : " while your computer starts";
+  // Automatic's own line says why it's here; a hand-picked computer has no such line, so Now: does.
+  const meanwhile =
+    !trying || picked === "auto"
+      ? ""
+      : couldNotStart
+        ? " while your computer's speech service is down"
+        : " while your computer starts";
   let now = `Now: ${nowText(active, waiting, meanwhile)}`;
   if (picked === "computer" && computer === "absent") now += " (connect T3 Code first)";
   if (status?.phase === "idle" && props.cost)
@@ -2007,7 +2016,8 @@ function TaskState(props: {
   return (
     <>
       {/* The live region says the phase; the changing megabytes stay out of it. */}
-      <span role="status" data-lalala-settings-state="">
+      {/* While your computer is tried, the group's line alone speaks: one outage, announced once. */}
+      <span role={trying ? undefined : "status"} data-lalala-settings-state="">
         <b data-lalala-settings-now="">Now:</b>{" "}
         {failed ? (
           <span data-lalala-settings-problem="">{now.slice(5)}</span>
