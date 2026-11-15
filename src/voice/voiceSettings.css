@@ -779,8 +779,8 @@
   }
   [data-lalala-settings-group]:has([data-lalala-settings-pick]) {
     display: grid;
-    /* One width for every group on a page, wide enough for "Llama Matcha (Kale's voice)". */
-    grid-template-columns: minmax(0, 1fr) 14rem;
+    /* One width for every group on a page, wide enough for "Automatic · Kokoro 82M". */
+    grid-template-columns: minmax(0, 1fr) 16rem;
   }
   [data-lalala-settings-group]:has([data-lalala-settings-pick]) > * {
     grid-column: 1 / -1;

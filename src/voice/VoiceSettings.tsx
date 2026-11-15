@@ -1900,6 +1900,8 @@ function runningName(task: "stt" | "voice", planned: string): string {
         : null;
   return (name === null ? planned : loadedName(name)).replace(" (Kale's voice)", "");
 }
+/** The same without its build: the closed select has room for the model, "Now:" says GPU or CPU. */
+const modelOnly = (name: string) => name.replace(/\u00a0·\u00a0(GPU|CPU|Computer)$/, "").replace(/ · (GPU|CPU|Computer)$/, "");
 
 /** What runs a task right now, in a few words: "Llama Matcha (Kale's voice), in this browser · ready". */
 export function nowText(active: ActiveSpeech, waiting: string, meanwhile = ""): string {
@@ -2144,7 +2146,7 @@ export function SpeechSection() {
         value={ears}
         shows={
           ears === "auto"
-            ? runningName("stt", tryingComputer("stt") ? STT_LABELS["110m"] : earsAuto)
+            ? modelOnly(runningName("stt", tryingComputer("stt") ? STT_LABELS["110m"] : earsAuto))
             : undefined
         }
         onReset={ears === "auto" ? undefined : () => setSttModel("auto")}
@@ -2225,7 +2227,7 @@ export function SpeechSection() {
         value={voice}
         shows={
           voice === "auto"
-            ? runningName("voice", voiceStandIn === null ? voiceAuto : VOICE_LABELS[voiceStandIn])
+            ? modelOnly(runningName("voice", voiceStandIn === null ? voiceAuto : VOICE_LABELS[voiceStandIn]))
             : undefined
         }
         onReset={voice === "auto" ? undefined : () => setReplyVoice("auto")}
