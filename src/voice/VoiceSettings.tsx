@@ -1034,6 +1034,16 @@ export function PickRow(props: {
       const room = Math.max(above, below);
       if (node.offsetHeight > room) node.style.maxHeight = `${room}px`;
     }
+    // A list that scrolls ends on a whole option, never through one, so the cut reads as "more below".
+    if (node.scrollHeight > node.clientHeight) {
+      const top = node.getBoundingClientRect().top;
+      const ends = [...node.querySelectorAll('[role="option"]')]
+        .map((option) => option.getBoundingClientRect().bottom - top)
+        .filter((bottom) => bottom <= node.clientHeight);
+      const last = ends.at(-1);
+      // The list's own edges count in its max-height (border-box).
+      if (last !== undefined) node.style.maxHeight = `${Math.floor(last) + node.offsetHeight - node.clientHeight}px`;
+    }
     node.querySelector('[aria-selected="true"]')?.scrollIntoView({ block: "nearest" });
     const outside = (event: Event) => {
       if (event.target instanceof Node && !node.parentElement?.contains(event.target)) {
@@ -1105,7 +1115,9 @@ export function PickRow(props: {
             aria-label={`${props.label}: ${options[selected]?.label ?? "none"}${
               options[selected]?.detail ? `, ${options[selected].detail}` : ""
             }${options[selected]?.disabled ? `, ${options[selected].meta ?? "unavailable"}` : ""}${
-              props.shows ? `, now ${props.shows}` : ""
+              props.shows
+                ? `, now ${props.shows.replace(" · Computer", ", on your computer").replace(" · here", ", in this browser")}`
+                : ""
             }`}
             aria-describedby={describedBy}
             disabled={props.disabled}
@@ -1968,8 +1980,13 @@ function automaticWhy(task: "stt" | "voice", computer: ReturnType<typeof compute
   if (browserFaster(task)) return `this browser, faster here${speeds}${since}`;
   // On your computer with nothing measured, Now: and the select already say it all: no line.
   if (runs.where === "computer") return speeds === "" && since === "" ? "" : `your computer${speeds}${since}`;
-  // While your computer is tried, the group's line says why: here only what was measured and when it moved.
-  const facts = [there === undefined && browser === undefined ? "" : measured, since.replace(/^\u00a0· /, "")];
+  // While your computer is tried, the group's line says why: here what Automatic picked meanwhile, what was
+  // measured and when it moved.
+  const facts = [
+    computer === "down" ? "this browser while your computer is down" : "",
+    there === undefined && browser === undefined ? "" : measured,
+    since.replace(/^\u00a0· /, ""),
+  ];
   return facts.filter(Boolean).join("\u00a0· ");
 }
 
