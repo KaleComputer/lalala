@@ -29,7 +29,10 @@ type Transformers = {
     backends: { onnx: { wasm: { numThreads: number } } };
   };
   StyleTextToSpeech2Model: {
-    from_pretrained(id: string, options: object): Promise<(inputs: object) => Promise<{ waveform: Tensor }>>;
+    from_pretrained(
+      id: string,
+      options: object,
+    ): Promise<((inputs: object) => Promise<{ waveform: Tensor }>) & { dispose(): Promise<unknown> }>;
   };
   AutoTokenizer: {
     from_pretrained(id: string, options?: object): Promise<(text: string, options?: object) => { input_ids: Tensor }>;
@@ -38,9 +41,10 @@ type Transformers = {
 };
 type Voice = {
   readonly hf: Transformers;
-  readonly model: (inputs: object) => Promise<{ waveform: Tensor }>;
+  readonly model: ((inputs: object) => Promise<{ waveform: Tensor }>) & { dispose(): Promise<unknown> };
   readonly tokenize: (text: string, options?: object) => { input_ids: Tensor };
   readonly name: string;
+  readonly speed: number;
   /** Swapped by a "voice" message: another voice of the same model, no second copy of it. */
   voicepack: Float32Array;
   readonly g2p: G2p;
@@ -54,12 +58,19 @@ type Message = {
   model?: string;
   voice?: string;
   threads?: number;
+  speed?: number;
 };
 
 let voice: Promise<Voice> | null = null;
 let queue: Promise<unknown> = Promise.resolve();
 
-async function load(device: string, name: string, voiceFile: string, threads?: number): Promise<Voice> {
+async function load(
+  device: string,
+  name: string,
+  voiceFile: string,
+  speed: number,
+  threads?: number,
+): Promise<Voice> {
   const hf = (await import(/* @vite-ignore */ TRANSFORMERS)) as Transformers;
   // Its runtime takes half the cores by default: 2 on Tim's iPhone, 4.8x real time against 7.3x
   // with all 4 (15 Nov). Every core, up to 4, as the direct runtime had.
@@ -106,6 +117,7 @@ async function load(device: string, name: string, voiceFile: string, threads?: n
     hf,
     model,
     name,
+    speed,
     tokenize,
     voicepack: new Float32Array(voicepack),
     g2p: new G2p(lex, new G2pModel(g2pModel)),
@@ -139,7 +151,7 @@ async function render(ready: Voice, ipa: string): Promise<Float32Array> {
   const { waveform } = await ready.model({
     input_ids,
     style: new ready.hf.Tensor("float32", ready.voicepack.slice(row * STYLE, (row + 1) * STYLE), [1, STYLE]),
-    speed: new ready.hf.Tensor("float32", Float32Array.from([1]), [1]),
+    speed: new ready.hf.Tensor("float32", Float32Array.from([ready.speed]), [1]),
   });
   return waveform.data;
 }
@@ -167,16 +179,38 @@ async function speak(ready: Voice, raw: string) {
   return { samples, timing: { g2pMs, modelMs: performance.now() - started - g2pMs } };
 }
 
+let device = "wasm";
+let threads: number | undefined;
+const start = (message: Message) => {
+  voice = load(device, message.model ?? "kale-tts-1-tiny", message.voice ?? "hazel", message.speed ?? 1, threads);
+  voice.catch((error: unknown) => postMessage({ type: "failed", message: String(error) }));
+};
+
 self.onmessage = (event: MessageEvent<Message>) => {
   const message = event.data;
   if (voice === null) {
-    voice = load(
-      message.device ?? "wasm",
-      message.model ?? "kale-tts-1-tiny",
-      message.voice ?? "hazel",
-      message.threads,
-    );
-    voice.catch((error: unknown) => postMessage({ type: "failed", message: String(error) }));
+    device = message.device ?? "wasm";
+    threads = message.threads;
+    start(message);
+    if (message.type === "load") return;
+  }
+  // Another model: its session is freed before the next loads into the memory it leaves, so this
+  // worker never holds two (a second copy is what iOS ends a tab for, 15 Nov).
+  if (message.type === "model") {
+    queue = queue.then(async () => {
+      try {
+        const old = await voice!.catch(() => null);
+        if (old?.name !== message.model) {
+          await old?.model.dispose();
+          start(message);
+          await voice;
+        }
+        postMessage({ type: "text", id: message.id, text: "" });
+      } catch (error) {
+        postMessage({ type: "error", id: message.id, message: String(error) });
+      }
+    });
+    return;
   }
   if (message.type === "voice") {
     queue = queue.then(async () => {

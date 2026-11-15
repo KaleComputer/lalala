@@ -167,7 +167,7 @@ const write = (key: string, value: string | null) => {
   document.dispatchEvent(new Event(EVENT));
 };
 
-/** Kale's warm voice, Kokoro (llamaKokoro.worker), by its id in the settings. */
+/** Kale's warm voice, Kokoro, by its id in the settings. */
 export const WARM_VOICE = "kale-kokoro";
 /** kale-tts-1-tiny (k10c, Hazel's voice, 61 MB). */
 export const TINY_VOICE = "kale-tts-1-tiny";
@@ -181,8 +181,13 @@ export type ModelVoice = { readonly id: string; readonly name: string };
  * holds (voices/<id>.bin, samples/<id>.mp3 for Settings' play buttons when there are several).
  */
 export const SMALL_VOICES: Readonly<
-  Record<string, { readonly model: string; readonly voices: ReadonlyArray<ModelVoice> }>
+  Record<
+    string,
+    { readonly model: string; readonly voices: ReadonlyArray<ModelVoice>; readonly speed?: number }
+  >
 > = {
+  // Its package's config.json: its duration head reads ~10 % short, so 0.92.
+  [WARM_VOICE]: { model: "kale-kokoro", voices: [{ id: "warm", name: "Warm" }], speed: 0.92 },
   [STORY_VOICE]: { model: "kale-storyteller", voices: [{ id: "storyteller", name: "Storyteller" }] },
   [TINY_VOICE]: { model: "kale-tts-1-tiny", voices: [{ id: "hazel", name: "Hazel" }] },
   [PREVIEW_VOICE]: {
@@ -202,8 +207,8 @@ export const modelVoice = (voice: string): string | null => {
 };
 export const setModelVoice = (model: string, voice: string) =>
   updateSynced({ modelVoices: { ...current().modelVoices, [model]: voice } });
-/** Kale's own voices: the warm Kokoro (llamaKokoro.worker) and the small ones (kaleVoice.worker). */
-export const isKaleVoice = (voice: string) => voice === WARM_VOICE || voice in SMALL_VOICES;
+/** Kale's own voices, all in kaleVoice.worker, one model at a time. */
+export const isKaleVoice = (voice: string) => voice in SMALL_VOICES;
 
 /**
  * The Kale voice a page died with (browser.ts). Nothing switches on its own (Tim, 15 Nov: "we show

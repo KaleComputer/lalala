@@ -7,7 +7,6 @@ import type { VoiceBarModel } from "../VoiceBar";
 import {
   SMALL_VOICES,
   VOICE_CRASHED_KEY,
-  WARM_VOICE,
   crashedVoice,
   modelVoice,
   autoRetrySeconds,
@@ -442,18 +441,21 @@ const kaleBuild = (): string => {
   const picked = replyVoice();
   return isKaleVoice(picked) ? picked : defaultReplyVoice();
 };
+/** What kaleVoice.worker loads for it: the model folder, the voice inside it, its speed. */
+const kaleModel = () => {
+  const build = kaleBuild();
+  return { model: SMALL_VOICES[build]?.model, voice: modelVoice(build), speed: SMALL_VOICES[build]?.speed ?? 1 };
+};
 const warm = modelWorker(
   "kale-kokoro",
   () => {
     liveVoice = kaleBuild();
     markLive(liveVoice);
-    return liveVoice === WARM_VOICE
-      ? new Worker(new URL("./llamaKokoro.worker.ts", import.meta.url), { type: "module" })
-      : new Worker(new URL("./kaleVoice.worker.ts", import.meta.url), { type: "module" });
+    return new Worker(new URL("./kaleVoice.worker.ts", import.meta.url), { type: "module" });
   },
   // The small voices on the CPU everywhere: WebGPU ended Tim's iPhone tab (15 Nov, a kill nothing
   // can catch), and Transformers.js's WebGPU kernels refuse their decoder's phase math (desktop WebKit).
-  () => ({ device: "wasm", model: SMALL_VOICES[kaleBuild()]?.model, voice: modelVoice(kaleBuild()) }),
+  () => ({ device: "wasm", ...kaleModel() }),
 );
 // A device that switches a model, or sends a task to the computer, frees the old one once its
 // current utterance or sentence is done; the new one loads right away when the page has.
@@ -491,11 +493,12 @@ document.addEventListener("lalala:settings", () => {
   }
   if (kokoroBuild() !== voiceBuild || replyVoice() !== voicePick) {
     if (kokoroBuild() !== voiceBuild) voice.releaseWhenIdle();
-    // At once, not when idle: the two Kale voices are never in an iPhone tab's memory together.
-    if (kaleBuild() !== warmBuild) {
-      warm.release();
-      liveVoice = null;
-      markLive(null);
+    // Another Kale model: the same worker frees the old one's session and loads the new one into the
+    // memory it leaves, so a tab never holds two copies (a second copy is what iOS ends it for).
+    if (kaleBuild() !== warmBuild && warm.started()) {
+      liveVoice = kaleBuild();
+      markLive(liveVoice);
+      void warm.ask({ type: "model", ...kaleModel() }).catch(() => {});
     }
     warmBuild = kaleBuild();
     warmVoice = modelVoice(kaleBuild());

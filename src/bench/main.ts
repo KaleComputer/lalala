@@ -18,17 +18,13 @@ const models = {
     ? { label: "storyteller", model: "kale-storyteller", voice: "storyteller" }
     : { label: "kale-tts-1-tiny", model: "kale-tts-1-tiny", voice: "hazel" },
 };
-// WebGPU ended Tim's iPhone tab (15 Nov): a phone runs the CPU only unless ?gpu asks.
-const PHONE = /iPhone|iPad|iPod|Android/.test(navigator.userAgent);
-const WITH_GPU = !PHONE || new URLSearchParams(location.search).has("gpu");
-// The CPU on every core (up to 4), as lalala runs it. A phone runs that one round only: a second
-// round's fresh copy of the model ended Tim's iPhone tab before iOS had freed the first (15 Nov).
-// Elsewhere also Transformers.js's default half of the cores, and WebGPU.
-const ALL_CORES = Math.min(4, navigator.hardwareConcurrency || 4);
+// One model, loaded once in one worker, its session reused for every run: a second copy in the same
+// tab is what ended Tim's iPhone tab (15 Nov). The runtime fixes its thread count and backend when
+// it starts, so another of either is its own page load: ?threads=2, ?gpu (WebGPU).
+const QUERY = new URLSearchParams(location.search);
+const THREADS = Number(QUERY.get("threads")) || Math.min(4, navigator.hardwareConcurrency || 4);
 const PLAN: ReadonlyArray<{ model: "k10c"; backend: "wasm" | "webgpu"; threads?: number }> = [
-  { model: "k10c", backend: "wasm", threads: ALL_CORES },
-  ...(PHONE ? [] : [{ model: "k10c", backend: "wasm", threads: Math.ceil(ALL_CORES / 2) } as const]),
-  ...(WITH_GPU ? [{ model: "k10c", backend: "webgpu" } as const] : []),
+  QUERY.has("gpu") ? { model: "k10c", backend: "webgpu" } : { model: "k10c", backend: "wasm", threads: THREADS },
 ];
 
 const median = (values: number[]) => {
@@ -64,7 +60,7 @@ document.head.append(style);
 const root = document.getElementById("root")!;
 root.innerHTML = `<main>
   <h1>${models.k10c.label} speed on this device</h1>
-  <p>${models.k10c.label} on the CPU${WITH_GPU ? " and on WebGPU" : ""}, ${RUNS} runs of the volcano line, median shown. Nothing plays unless you tap play. Under a minute, longer if the model still needs to download (61 MB).</p>
+  <p>${models.k10c.label} ${PLAN[0]!.backend === "webgpu" ? "on WebGPU" : `on the CPU, ${THREADS} threads`}, loaded once, ${RUNS} runs of the volcano line, median shown. Nothing plays unless you tap play. Under a minute, longer if the model still needs to download (61 MB).</p>
   <p id="gpu"></p>
   <button id="run">Run</button>
   <div id="status"></div>
@@ -220,8 +216,14 @@ async function start() {
   const copy = $("copy") as HTMLButtonElement;
   copy.hidden = false;
   copy.onclick = () => void navigator.clipboard.writeText(JSON.stringify(report)).then(() => (copy.textContent = "Copied"));
+  // Again in a fresh page, never a second copy of the model in this one.
   button.disabled = false;
   button.textContent = "Run again";
+  button.onclick = () => {
+    const again = new URL(location.href);
+    again.searchParams.set("auto", "");
+    location.assign(again);
+  };
 }
 
 function addRow(step: (typeof PLAN)[number], result: RunResult, audio: Float32Array<ArrayBuffer> | null) {
