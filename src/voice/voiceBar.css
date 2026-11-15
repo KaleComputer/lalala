@@ -30,40 +30,15 @@
   --fe: color-mix(in srgb, var(--lala-accent, #3dff8f) 85%, var(--color-surface));
 }
 /* Connecting (the user, 5 Nov): Presence's edge fill (an animated custom property, repainted on the main
-   thread) stuttered while the mic and the speech socket kept the page busy, then held until the call was
-   live. Instead the dim edge carries two light sweeps, top and bottom, moved by transform alone so they
-   stay smooth however busy the page is; they run only while connecting and vanish once it is live. */
+   thread) stuttered while the mic and the speech socket kept the page busy; the edge stays dim instead.
+   No light runs along the bar's edges in any state (Tim, 15 Nov): the room's ASCII display (callwave's
+   info) is the animation, and Presence's retry sweep (.fr-rsw, presence.css) is hidden too. */
 [data-lalala-presence] .fr[data-look~="draw"] {
   --fe: color-mix(in srgb, var(--lala-accent, #3dff8f) 24%, var(--color-surface));
   animation: none;
 }
-[data-lalala-presence] .fr[data-look~="draw"] .fr-body::before,
-[data-lalala-presence] .fr[data-look~="draw"] .fr-body::after {
-  content: "";
-  position: absolute;
-  z-index: 2;
-  left: 0;
-  width: 35%;
-  height: 1px;
-  background: linear-gradient(90deg, transparent, var(--hud), transparent);
-  pointer-events: none;
-  /* Six runs, then the dim edge holds: a stuck connect never repaints for long. */
-  animation: lalala-edge-sweep 1.1s linear 6;
-}
-[data-lalala-presence] .fr[data-look~="draw"] .fr-body::before {
-  top: 0;
-}
-[data-lalala-presence] .fr[data-look~="draw"] .fr-body::after {
-  bottom: 0;
-  animation-direction: reverse;
-}
-@keyframes lalala-edge-sweep {
-  from {
-    transform: translateX(-100%);
-  }
-  to {
-    transform: translateX(290%);
-  }
+[data-lalala-presence] .fr-rsw {
+  display: none;
 }
 
 /* The one jolt on no signal (Presence's fr-glitch), by translate alone: its drop-shadow colour split
