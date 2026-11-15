@@ -7,6 +7,8 @@ import {
   useState,
 } from "react";
 import { createPortal } from "react-dom";
+import { Button } from "@ui-sdk/react/button";
+import { Toggle } from "@ui-sdk/react/toggle";
 
 import { observeResize } from "~/lib/observeResize";
 
@@ -453,8 +455,7 @@ export function VoiceBar(props: {
         ? createPortal(
             // Where START CALL sits (the user, 8 Nov: one compact amber button); it opens the pairing.
             <div data-lalala-offline="">
-              <button
-                type="button"
+              <Button
                 onClick={() => {
                   if (props.offline) return props.offline();
                   closeOnConnectRef.current = true;
@@ -462,7 +463,7 @@ export function VoiceBar(props: {
                 }}
               >
                 Connect to T3 Code
-              </button>
+              </Button>
             </div>,
             room,
           )
@@ -485,21 +486,20 @@ export function VoiceBar(props: {
       ) : null}
       {micHost !== null && props.onMute
         ? createPortal(
-            <button
-              type="button"
+            <Toggle
               data-lalala-mic=""
               data-lalala-tab=""
               data-muted={props.muted ? "" : undefined}
-              aria-pressed={props.muted ?? false}
+              pressed={props.muted ?? false}
               aria-label="Mute microphone"
-              onClick={props.onMute}
+              onPressedChange={props.onMute}
             >
               <svg viewBox="0 0 24 24" aria-hidden="true">
                 <rect x="9" y="2" width="6" height="12" rx="3" />
                 <path d="M5 10v1a7 7 0 0 0 14 0v-1M12 18v4M8 22h8" />
                 {props.muted ? <path d="M4 3l16 18" /> : null}
               </svg>
-            </button>,
+            </Toggle>,
             micHost,
           )
         : null}
@@ -510,10 +510,10 @@ export function VoiceBar(props: {
         ? createPortal(
             // A newer phone build waits; during a call it applies only on this tap. It fills the lead
             // tab at the bar's left end, on desktop and phone alike (voiceBar.css).
-            <button
-              type="button"
+            <Button
               data-lalala-update=""
-              aria-label="Update"
+              aria-label="Update lalala"
+              data-agent-confirm="Reloads lalala to its new version, which ends a call in progress"
               onClick={() => {
                 voiceLog("system", "reload", { why: "update chip tapped" });
                 window.location.reload();
@@ -523,7 +523,7 @@ export function VoiceBar(props: {
                 <path d="M20 12a8 8 0 1 1-2.34-5.66" />
                 <path d="M20 4v4.5h-4.5" />
               </svg>
-            </button>,
+            </Button>,
             lead,
           )
         : null}

@@ -8,6 +8,7 @@ declare module "*?raw" {
 // Which host this build is (vite.config.mjs, from the mode): the app or lalala.talk.
 interface ImportMetaEnv {
   readonly LALALA_HOST: "app" | "site";
+  readonly LALALA_PORT: number;
 }
 interface ImportMeta {
   readonly env: ImportMetaEnv;

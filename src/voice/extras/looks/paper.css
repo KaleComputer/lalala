@@ -522,7 +522,6 @@
   background: rgba(96, 66, 36, 0.28);
 }
 :root[data-lala-look="paper"] [data-lalala-settings-panel] {
-  position: relative;
   border: 1px solid rgba(122, 88, 56, 0.18);
   border-radius: 10px;
   background: var(--paper-sheet);
@@ -594,7 +593,7 @@
   letter-spacing: 0.08em;
 }
 /* The chosen way to connect takes the highlighter, like the page you're on. */
-:root[data-lala-look="paper"] [data-lalala-pair-choice] > button[aria-checked="true"] {
+:root[data-lala-look="paper"] [data-lalala-pair-choice] > button[data-checked] {
   background: color-mix(in srgb, var(--paper-yellow) 30%, transparent);
 }
 /* A small button inside a sentence (Try your computer again, Copy) reads in the sentence's own type. */
@@ -610,12 +609,12 @@
     ),
   :root[data-lala-look="paper"]
     [data-lalala-settings-list]
-    [role="option"]
+    [data-slot="select-item"]
     > button:hover:not(:disabled) {
     background: color-mix(in srgb, var(--paper-green) 45%, var(--paper-sheet));
   }
 }
-:root[data-lala-look="paper"] [data-lalala-settings-list] [role="option"][data-active] {
+:root[data-lala-look="paper"] [data-lalala-settings-list] [data-slot="select-item"][data-highlighted] {
   background: color-mix(in srgb, var(--paper-yellow) 30%, transparent);
 }
 :root[data-lala-look="paper"] [data-lalala-settings-segments] {

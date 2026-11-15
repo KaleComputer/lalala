@@ -1,3 +1,4 @@
+import { Button } from "@ui-sdk/react/button";
 import { useState } from "react";
 import { type LookId, setLook, useLook } from "./look";
 import "./themeGallery.css";
@@ -57,15 +58,14 @@ export function ThemeGallery() {
                   <span data-theme-current="">
                     <span aria-hidden="true">✓</span> In use
                   </span>
-                  <button
-                    type="button"
+                  <Button
                     data-lalala-settings-button=""
                     data-quiet=""
                     aria-label={`Use the ${theme.name} theme`}
                     onClick={(event) => choose(theme, event.currentTarget)}
                   >
                     Use
-                  </button>
+                  </Button>
                 </div>
               </div>
             </li>

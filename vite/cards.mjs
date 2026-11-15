@@ -90,13 +90,17 @@ export function cardsPlugin({ dir, extrasDir }) {
     config: () => ({
       server: { fs: { allow: [NodePath.resolve(import.meta.dirname, ".."), dir] } },
       // One React for the page and the cards, wherever the cards folder's own node_modules point.
-      resolve: { dedupe: ["react", "react-dom"] },
+      resolve: { dedupe: ["react", "react-dom", "@ui-sdk/react", "@ui-sdk/core"] },
     }),
     resolveId(source, importer) {
       if (source === ID) return RESOLVED;
-      if (!importer || !source.startsWith(".")) return null;
+      if (!importer) return null;
       const from = importer.split("?")[0];
       if (!inside(dir, from)) return null;
+      // ui-sdk comes from lalala's own node_modules, one copy, so the brain's bridge sees cards too.
+      if (source.startsWith("@ui-sdk/"))
+        return this.resolve(source, NodePath.join(extrasDir, "CanvasCard.tsx"), { skipSelf: true });
+      if (!source.startsWith(".")) return null;
       const target = NodePath.resolve(NodePath.dirname(from), source.split("?")[0]);
       const query = source.includes("?") ? source.slice(source.indexOf("?")) : "";
       return this.resolve(source, importer, { skipSelf: true }).then(

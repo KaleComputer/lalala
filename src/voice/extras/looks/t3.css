@@ -599,15 +599,15 @@
   :is(
     [data-lalala-settings-status][data-ok],
     [data-lalala-settings-step="done"] [data-lalala-settings-step-n],
-    [data-lalala-settings-list] [role="option"] > button,
+    [data-lalala-settings-list] [data-slot="select-item"] > button,
     [data-lalala-settings-back] > button
   ) {
   color: var(--lala-accent);
 }
-:root[data-lala-look="t3"] [data-lalala-settings-list] [role="option"] > svg {
+:root[data-lala-look="t3"] [data-lalala-settings-list] [data-slot="select-item"] > svg {
   stroke: var(--lala-accent);
 }
-:root[data-lala-look="t3"] [data-lalala-settings-switch][aria-checked="true"] > span {
+:root[data-lala-look="t3"] [data-lalala-settings-switch][data-checked] > [data-slot="switch-thumb"] {
   background: var(--t3l-primary-ink);
 }
 

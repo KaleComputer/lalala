@@ -11,6 +11,8 @@ import {
   useSyncExternalStore,
 } from "react";
 import { createPortal } from "react-dom";
+import { Button } from "@ui-sdk/react/button";
+import { Input } from "@ui-sdk/react/input";
 
 import { liftOverKeyboard } from "./keyboardLift";
 import { StreamerText } from "./streamerMode";
@@ -129,9 +131,8 @@ export function CanvasTabs(props: {
 
   const tabs = (
     <span ref={tabsRef} data-lalala-canvas-tabs="">
-      <button
+      <Button
         ref={tabRef}
-        type="button"
         data-lalala-canvas-name=""
         data-lalala-tab=""
         data-open={open ? "" : undefined}
@@ -155,7 +156,7 @@ export function CanvasTabs(props: {
           <path d="m2 13 10 5 10-5" />
           <path d="m2 18 10 5 10-5" />
         </svg>
-      </button>
+      </Button>
     </span>
   );
 
@@ -171,7 +172,7 @@ export function CanvasTabs(props: {
           {canvases.list.map((canvas) => (
             <li key={canvas.id} data-active={canvas.id === canvases.active ? "" : undefined}>
               {editing && canvas.id === current?.id ? (
-                <input
+                <Input
                   aria-label="Canvas name"
                   autoFocus
                   defaultValue={canvas.name}
@@ -180,6 +181,10 @@ export function CanvasTabs(props: {
                     setRenaming(false);
                   }}
                   onFocus={(event) => event.currentTarget.select()}
+                  // A person's edit saves on blur; an agent's never blurs, so it saves as it lands.
+                  onValueChange={(name, details) => {
+                    if (details.source === "agent") api.rename(canvas.id, name);
+                  }}
                   onKeyDown={(event) => {
                     // Finished from the keyboard: the row that replaces the field takes focus.
                     if (event.key === "Enter" || event.key === "Escape") setByKey(true);
@@ -193,8 +198,7 @@ export function CanvasTabs(props: {
                   }}
                 />
               ) : (
-                <button
-                  type="button"
+                <Button
                   aria-current={canvas.id === canvases.active}
                   autoFocus={byKey && canvas.id === canvases.active}
                   onClick={() => {
@@ -210,7 +214,7 @@ export function CanvasTabs(props: {
                   <span>
                     <StreamerText text={canvas.name} />
                   </span>
-                </button>
+                </Button>
               )}
             </li>
           ))}
@@ -236,49 +240,50 @@ export function CanvasTabs(props: {
               cancelDelete();
             }}
           >
-            <button ref={cancelRef} type="button" onClick={cancelDelete}>
+            <Button ref={cancelRef} aria-label="Cancel deleting" onClick={cancelDelete}>
               Cancel
-            </button>
-            <button
-              type="button"
+            </Button>
+            <Button
+              aria-label="Delete forever"
               data-danger=""
+              data-agent-confirm={`Deletes the canvas “${deleting.name}” and its layout; its cards stay in the code`}
               onClick={() => {
                 api.remove(deleting.id);
                 close();
               }}
             >
               Delete
-            </button>
+            </Button>
           </div>
         </>
       ) : (
         <div data-lalala-canvas-actions="">
-          <button
-            type="button"
+          <Button
+            aria-label="New canvas"
             onClick={() => {
               api.create();
               setRenaming(true);
             }}
           >
             New
-          </button>
+          </Button>
           {current ? (
             <>
-              <button type="button" onClick={() => setRenaming(true)}>
+              <Button aria-label="Rename canvas" onClick={() => setRenaming(true)}>
                 Rename
-              </button>
-              <button
-                type="button"
+              </Button>
+              <Button
+                aria-label="Tidy canvas"
                 onClick={() => {
                   api.tidy();
                   close();
                 }}
               >
                 Tidy
-              </button>
-              <button
+              </Button>
+              <Button
                 ref={deleteRef}
-                type="button"
+                aria-label="Delete canvas"
                 data-danger=""
                 onClick={() => {
                   setRenaming(false);
@@ -286,7 +291,7 @@ export function CanvasTabs(props: {
                 }}
               >
                 Delete
-              </button>
+              </Button>
             </>
           ) : null}
         </div>

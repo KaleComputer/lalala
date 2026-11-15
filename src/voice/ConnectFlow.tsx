@@ -1,5 +1,9 @@
 import { Fragment, type ReactNode, useEffect, useId, useLayoutEffect, useRef, useState } from "react";
 
+import { Button } from "@ui-sdk/react/button";
+import { Input } from "@ui-sdk/react/input";
+import { Radio, RadioGroup } from "@ui-sdk/react/radio";
+
 import { StreamerText, useStreamerMode } from "./streamerMode";
 
 /** A phone or tablet: never the computer T3 Code runs on. */
@@ -107,7 +111,7 @@ export function PairSteps(props: {
 
   const field = (placeholder: string, label: string) => (
     <div data-lalala-pair-field="" data-failed={props.problem ? "" : undefined}>
-      <input
+      <Input
         ref={linkRef}
         key={ask ? "address" : "link"}
         type={ask ? "url" : "text"}
@@ -126,11 +130,13 @@ export function PairSteps(props: {
         // oxlint-disable-next-line jsx-a11y/no-autofocus -- the one field to fill once the address is asked for
         autoFocus={ask !== null}
         data-streamer-input={streamer ? "" : undefined}
+        // A pairing link is a credential: an agent may paste one, never read it back.
+        data-agent-secret={ask ? undefined : ""}
         value={value}
         // Read-only (not disabled) while pairing: focus stays here for the result.
         readOnly={busy}
         aria-busy={busy || undefined}
-        onChange={(event) => setValue(event.currentTarget.value)}
+        onValueChange={(next) => setValue(next)}
         onPaste={(event) => {
           const pasted = event.clipboardData.getData("text").trim();
           const field = event.currentTarget;
@@ -151,16 +157,20 @@ export function PairSteps(props: {
         }}
       />
       {/* Always there, so the step ends in its action; inactive until there's something to send. */}
-      <button
-        type="button"
+      <Button
+        aria-label={busy ? "Connecting" : ask ? "Next: use this address" : "Connect with this link"}
         data-lalala-settings-button=""
         aria-disabled={busy || value.trim() === "" || undefined}
         aria-describedby={value.trim() === "" && !busy ? `${choiceId}n` : undefined}
         // Nothing to send yet: the tap lands in the field instead.
-        onClick={() => (busy ? undefined : value.trim() === "" ? linkRef.current?.focus() : submit(value))}
+        onClick={() => {
+          if (busy) return;
+          if (value.trim() === "") linkRef.current?.focus();
+          else submit(value);
+        }}
       >
         {busy ? "Connecting…" : ask ? "Next" : "Connect"}
-      </button>
+      </Button>
       <span id={`${choiceId}n`} data-lalala-settings-sr="">
         {ask ? "Paste your T3 Connect address first" : "Paste the link or code first"}
       </span>
@@ -183,15 +193,17 @@ export function PairSteps(props: {
       <span role="status" data-lalala-settings-sr="">
         {text !== null && copied === text ? "Copied" : copyFailed ? "Couldn't copy: select the command and copy it." : ""}
       </span>
-      <button
-        type="button"
+      <Button
+        aria-label="Copy the command"
         data-lalala-settings-button=""
         data-quiet=""
         disabled={text === null}
-        onClick={() => text !== null && copy(text)}
+        onClick={() => {
+          if (text !== null) copy(text);
+        }}
       >
         {text !== null && copied === text ? "Copied" : "Copy"}
-      </button>
+      </Button>
     </p>
   );
   const status = (
@@ -209,35 +221,21 @@ export function PairSteps(props: {
             <h3 id={`${choiceId}t`}>Where does T3 Code run?</h3>
           </div>
           <div data-lalala-settings-control="">{status}</div>
-          <div
-            role="radiogroup"
+          <RadioGroup
             aria-labelledby={`${choiceId}t`}
             data-lalala-pair-choice=""
-            onKeyDown={(event) => {
-              if (!["ArrowLeft", "ArrowRight", "ArrowUp", "ArrowDown", "Home", "End"].includes(event.key))
-                return;
-              event.preventDefault();
-              const next: Where =
-                event.key === "Home" ? "here" : event.key === "End" ? "other" : path === "here" ? "other" : "here";
-              pick(next);
-              event.currentTarget.querySelector<HTMLElement>(`[data-where="${next}"]`)?.focus();
+            value={path}
+            onValueChange={(next) => {
+              if (next === "here" || next === "other") pick(next);
             }}
           >
             {WHERES.map((option) => (
-              <button
-                key={option.id}
-                type="button"
-                role="radio"
-                aria-checked={path === option.id}
-                tabIndex={path === option.id ? 0 : -1}
-                data-where={option.id}
-                onClick={() => pick(option.id)}
-              >
+              <Radio key={option.id} value={option.id} data-where={option.id}>
                 <span>{option.label}</span>
                 <small>{option.detail}</small>
-              </button>
+              </Radio>
             ))}
-          </div>
+          </RadioGroup>
         </div>
       ) : (
         <div data-lalala-settings-row="" data-lalala-pair="">
@@ -263,9 +261,15 @@ export function PairSteps(props: {
             <T3Path steps={["Settings", "Environments", "⋯ Copy MCP URL"]} />
             {field("", "Your T3 Connect address")}
             <p data-lalala-pair-alt="">
-              <button type="button" data-lalala-settings-button="" data-quiet="" disabled={busy} onClick={ask.onBack}>
+              <Button
+                aria-label="Back to the pairing link"
+                data-lalala-settings-button=""
+                data-quiet=""
+                disabled={busy}
+                onClick={ask.onBack}
+              >
                 Back
-              </button>
+              </Button>
             </p>
           </Step>
         ) : path === "here" ? (
@@ -296,7 +300,7 @@ export function PairSteps(props: {
             >
               <T3Path steps={["Settings", "Environments", "⋯ Copy MCP URL"]} />
               <div data-lalala-pair-field="" data-plain="">
-                <input
+                <Input
                   ref={addressRef}
                   type="url"
                   inputMode="url"
@@ -309,7 +313,7 @@ export function PairSteps(props: {
                   data-streamer-input={streamer ? "" : undefined}
                   value={connectAddress}
                   disabled={busy}
-                  onChange={(event) => setConnectAddress(event.currentTarget.value)}
+                  onValueChange={(next) => setConnectAddress(next)}
                   onBlur={() => setAddressChecked(connectAddress.trim() !== "")}
                   onPaste={(event) => {
                     const pasted = event.clipboardData.getData("text").trim();
@@ -531,15 +535,15 @@ export function ConnectedRows(props: {
           >
             {props.ok ? "Connected" : "Not connected"}
           </span>
-          <button
-            type="button"
+          <Button
+            aria-label="Retest the connection"
             data-lalala-settings-button=""
             data-quiet=""
             disabled={props.busy}
             onClick={props.onRetest}
           >
             Retest
-          </button>
+          </Button>
         </div>
       </div>
       {props.children}
@@ -575,13 +579,17 @@ export function ConnectedRows(props: {
           </div>
         </div>
         <div data-lalala-settings-control="">
-          <button
+          <Button
             ref={disconnectRef}
-            type="button"
+            aria-label="Disconnect from T3 Code"
             aria-describedby={confirming ? consequenceId : undefined}
             data-lalala-settings-button=""
             data-quiet=""
             data-danger=""
+            // The second press disconnects: that one asks the person.
+            data-agent-confirm={
+              confirming ? "Disconnects from T3 Code; the voice stops until you pair again" : undefined
+            }
             disabled={props.busy}
             onMouseDown={(event) => confirming && event.preventDefault()}
             onClick={() => {
@@ -591,11 +599,11 @@ export function ConnectedRows(props: {
             }}
           >
             Disconnect
-          </button>
+          </Button>
           {confirming ? (
-            <button
+            <Button
               ref={cancelRef}
-              type="button"
+              aria-label="Cancel disconnecting"
               aria-describedby={consequenceId}
               data-lalala-settings-button=""
               data-quiet=""
@@ -603,7 +611,7 @@ export function ConnectedRows(props: {
               onClick={cancel}
             >
               Cancel
-            </button>
+            </Button>
           ) : null}
         </div>
       </div>

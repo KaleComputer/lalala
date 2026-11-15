@@ -243,7 +243,8 @@ export function CanvasSurface({ children }: { readonly children: ReactNode }) {
       if (gesture?.kind === "group") moveGroup(gesture.grab, 0, 0);
       clear();
       menuOpenedAt = performance.now();
-      openCanvasMenu(target, at.x, at.y);
+      const box = surface.getBoundingClientRect();
+      openCanvasMenu(target, box.left + at.x, box.top + at.y);
     };
     const contextMenu = (event: MouseEvent) => {
       const target = event.target instanceof Element ? event.target : null;

@@ -1,3 +1,12 @@
+import { Button } from "@ui-sdk/react/button";
+import {
+  Menu,
+  MenuCheckboxItem,
+  MenuContent,
+  MenuGroup,
+  MenuGroupLabel,
+  MenuItem,
+} from "@ui-sdk/react/menu";
 import { useSyncExternalStore } from "react";
 import {
   cardInfo,
@@ -32,7 +41,7 @@ const subscribe = (listener: () => void) => {
 };
 const UNDO_MS = 8_000;
 
-/** Opens the card's or group's menu at a point on the surface (px from its top left). */
+/** Opens the card's or group's menu at a point in the window (client px). */
 export function openCanvasMenu(target: MenuFor, x: number, y: number) {
   open = { for: target, x, y };
   emit();
@@ -65,14 +74,14 @@ const Check = ({ on }: { readonly on: boolean }) => (
 /**
  * A card's or group's menu (right-click or a long press on its header or headline): hide its
  * pictures in streamer mode, or take it off the canvas; and the undo after a removal. Settings ›
- * Canvas lists what was removed, to put it back later.
+ * Canvas lists what was removed, to put it back later. One menu for the whole surface, never one per card.
  */
 export function CanvasMenu() {
   const state = useSyncExternalStore(subscribe, () => open);
   const lastUndo = useSyncExternalStore(subscribe, () => undo);
   const marks = useSyncExternalStore(subscribeMarks, getMarks);
 
-  let menu = null;
+  let content = null;
   if (state !== null) {
     const target = state.for;
     const card = target.kind === "card" ? cardInfo(target.id) : undefined;
@@ -88,74 +97,72 @@ export function CanvasMenu() {
       else setPrivate(key, !own === (card?.private ?? false) ? undefined : !own);
       closeCanvasMenu();
     };
-    menu = (
-      <div
-        role="menu"
-        aria-label={`${target.kind === "card" ? "Card" : "Group"} ${name}`}
-        data-lalala-canvas-float=""
-        data-lalala-canvas-menu=""
-        style={{ left: `${state.x}px`, top: `${state.y}px` }}
-        ref={(node) => {
-          if (node === null) return;
-          // Kept on screen: flipped left or up when it would run past an edge.
-          const box = node.getBoundingClientRect();
-          const parent = node.offsetParent?.getBoundingClientRect();
-          if (!parent) return;
-          if (box.right > parent.right - 8)
-            node.style.left = `${Math.max(8, state.x - box.width)}px`;
-          if (box.bottom > parent.bottom - 8)
-            node.style.top = `${Math.max(8, state.y - box.height)}px`;
-          node.querySelector<HTMLElement>("[role^=menuitem]:not(:disabled)")?.focus({
-            preventScroll: true,
-          });
-        }}
-        onKeyDown={(event) => {
-          if (event.key === "Escape") closeCanvasMenu();
-          if (event.key !== "ArrowDown" && event.key !== "ArrowUp") return;
-          event.preventDefault();
-          const items = [
-            ...event.currentTarget.querySelectorAll<HTMLElement>("[role^=menuitem]:not(:disabled)"),
-          ];
-          const at = items.indexOf(document.activeElement as HTMLElement);
-          const step = event.key === "ArrowDown" ? 1 : -1;
-          items[(at + step + items.length) % items.length]?.focus();
-        }}
-      >
-        <p data-lalala-canvas-menu-name="">
+    content = (
+      <MenuGroup>
+        <MenuGroupLabel data-lalala-canvas-menu-name="">
           <Hidden text={name} name />
-        </p>
-        <button
-          type="button"
-          role="menuitemcheckbox"
-          aria-checked={own || withGroup}
+        </MenuGroupLabel>
+        <MenuCheckboxItem
+          value="private"
+          checked={own || withGroup}
           disabled={withGroup}
-          onClick={togglePrivate}
+          onCheckedChange={togglePrivate}
         >
           <Check on={own || withGroup} />
           <span>
             {withGroup ? "Hidden in streamer mode with its group" : "Hide in streamer mode"}
           </span>
-        </button>
-        <button type="button" role="menuitem" data-danger="" onClick={() => remove(key, name)}>
+        </MenuCheckboxItem>
+        <MenuItem
+          value="remove"
+          destructive
+          data-danger=""
+          data-agent-confirm={
+            target.kind === "card"
+              ? `Takes the card “${name}” off the canvas`
+              : `Takes the group “${name}” and its cards off the canvas`
+          }
+          onSelect={() => remove(key, name)}
+        >
           <svg viewBox="0 0 24 24" aria-hidden="true">
             <path d="M6 6l12 12M18 6L6 18" />
           </svg>
           <span>{target.kind === "card" ? "Remove card" : "Remove group and its cards"}</span>
-        </button>
-      </div>
+        </MenuItem>
+      </MenuGroup>
     );
   }
 
   return (
     <>
-      {menu}
+      {/* Presses outside reach the canvas, as before: they close the menu and still pan. */}
+      <Menu
+        open={state !== null}
+        modal={false}
+        onOpenChange={(next) => {
+          if (!next) closeCanvasMenu();
+        }}
+      >
+        <MenuContent
+          anchor={state === null ? null : { x: state.x, y: state.y }}
+          side="bottom"
+          align="start"
+          sideOffset={0}
+          collisionPadding={8}
+          finalFocus="none"
+          data-lalala-canvas-float=""
+          data-lalala-canvas-menu=""
+        >
+          {content}
+        </MenuContent>
+      </Menu>
       {lastUndo === null ? null : (
         <div role="status" data-lalala-canvas-float="" data-lalala-canvas-undo="">
           <span>
             Removed <Hidden text={lastUndo.name} name />
           </span>
-          <button
-            type="button"
+          <Button
+            aria-label={`Undo removing ${lastUndo.name}`}
             onClick={() => {
               restoreMarked(lastUndo.key);
               window.clearTimeout(undoTimer);
@@ -164,7 +171,7 @@ export function CanvasMenu() {
             }}
           >
             Undo
-          </button>
+          </Button>
         </div>
       )}
     </>

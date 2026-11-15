@@ -5,12 +5,13 @@ import "@fontsource-variable/inter";
 import "../index.css";
 import "../updateChip";
 import "../voice/callGuard";
+// Before the first render, so the brain's bridge registers every control as it mounts.
+import "../voice/uiBridge";
 
 import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
 
 import { ConfirmDialogHost } from "../components/ConfirmDialogHost";
-import { TooltipProvider } from "../components/ui/tooltip";
 import { installAdapters } from "../voice/adapters";
 import { serverStorage } from "../voice/adapters/storage/server";
 import { CanvasPage } from "../voice/CanvasPage";
@@ -38,7 +39,7 @@ setVoiceOpen(true);
 
 function App() {
   return (
-    <TooltipProvider>
+    <>
       <div className="flex h-dvh min-h-0 w-full">
         <CanvasPage />
       </div>
@@ -51,7 +52,7 @@ function App() {
       <VoiceDock />
       <StreamerFilter />
       <ConfirmDialogHost />
-    </TooltipProvider>
+    </>
   );
 }
 

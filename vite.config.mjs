@@ -12,6 +12,7 @@ import { cardsDir, cardsPlugin } from "./vite/cards.mjs";
 import { isolationPlugin } from "./vite/isolation.mjs";
 import { leakGuardPlugin } from "./vite/leakGuard.mjs";
 import { t3BridgePlugin } from "./vite/t3bridge.mjs";
+import { uiBridgePlugin } from "./vite/uiBridge.mjs";
 import { lalalaPlugin } from "./vite/voice.ts";
 import { buildVersion } from "./site/version.mjs";
 
@@ -61,7 +62,11 @@ function versionPlugin() {
 export default defineConfig(({ mode }) => {
   const site = hostOf(mode) === "site";
   return {
-    define: { "import.meta.env.LALALA_HOST": JSON.stringify(hostOf(mode)) },
+    define: {
+      "import.meta.env.LALALA_HOST": JSON.stringify(hostOf(mode)),
+      // The brain reaches the page's controls through this machine's own port (vite/uiBridge.mjs).
+      "import.meta.env.LALALA_PORT": JSON.stringify(port),
+    },
     plugins: [
       ...(site
         ? [leakGuardPlugin({ root: import.meta.dirname })]
@@ -75,6 +80,8 @@ export default defineConfig(({ mode }) => {
               dir: cardsDir(brainRoot),
               extrasDir: NodePath.join(src, "voice/extras"),
             }),
+            // Before lalalaPlugin, whose /__lalala routes answer every other path.
+            uiBridgePlugin(),
             lalalaPlugin(),
             isolationPlugin(),
           ]),

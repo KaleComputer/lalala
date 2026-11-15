@@ -1,3 +1,4 @@
+import { Button } from "@ui-sdk/react/button";
 import { useEffect, useState } from "react";
 
 type Version = { sha: string; dirty: boolean; at: string; host: string };
@@ -53,8 +54,7 @@ export function VersionLabel(props: { readonly className?: string }) {
   if (!version) return null;
   const text = describe(version);
   return (
-    <button
-      type="button"
+    <Button
       data-lalala-version=""
       className={props.className}
       title="Copy the version"
@@ -67,6 +67,6 @@ export function VersionLabel(props: { readonly className?: string }) {
       }
     >
       {copied ? "Copied" : text}
-    </button>
+    </Button>
   );
 }

@@ -56,12 +56,21 @@
 }
 /* T3's route modal: rounded-2xl with the theme's plain border, never the accent. */
 /* Header first in the DOM (close before the pages); the grid puts T3's sidebar full height on the left. */
+/* The panel shows in the top layer, centred over the dimmed page (the 24px around it). */
 [data-lalala-settings-panel] {
+  position: fixed;
+  inset: 0;
+  box-sizing: border-box;
+  margin: auto;
+  padding: 0;
+  color: var(--s-fg);
   display: grid;
   grid-template: "nav header" auto "nav body" minmax(0, 1fr) / auto minmax(0, 1fr);
   /* Tall enough for the connect screen's longest path (four steps) without scrolling on a laptop. */
-  width: min(920px, 100%);
+  width: min(920px, calc(100% - 48px));
+  max-width: none;
   height: min(860px, calc(100dvh - 48px));
+  max-height: none;
   overflow: hidden;
   border: 1px solid var(--s-frame);
   border-radius: 16px;
@@ -142,6 +151,34 @@
 }
 [data-lalala-settings-panel] > header svg {
   width: 16px;
+}
+/* T3's tooltip (the reset buttons', the icon rail's names): its popover tokens, a short fade and scale. */
+[data-lalala-settings] [data-slot="tooltip-content"] {
+  box-sizing: border-box;
+  max-width: 20rem;
+  margin: 0;
+  padding: 4px 8px;
+  overflow: visible;
+  border: 1px solid var(--border);
+  border-radius: calc(var(--radius) - 2px);
+  color: var(--popover-foreground);
+  background: var(--popover);
+  box-shadow: 0 4px 6px -1px rgb(0 0 0 / 5%), 0 2px 4px -2px rgb(0 0 0 / 5%);
+  font: 400 12px / 1.375 var(--s-sans);
+  text-wrap: balance;
+  overflow-wrap: anywhere;
+  pointer-events: none;
+  transform-origin: var(--transform-origin);
+  transition:
+    opacity 150ms,
+    scale 150ms;
+}
+[data-lalala-settings] [data-slot="tooltip-content"]:is([data-starting-style], [data-ending-style]) {
+  opacity: 0;
+  scale: 0.98;
+}
+[data-lalala-settings] [data-slot="tooltip-content"][data-instant] {
+  transition: none;
 }
 /* Saving the brain's model: quiet text beside the close. */
 [data-lalala-settings-saving] {
@@ -515,7 +552,7 @@
   text-overflow: ellipsis;
   white-space: nowrap;
 }
-:is([data-lalala-settings-pick], [data-lalala-settings-list] [role="option"]) > span {
+:is([data-lalala-settings-pick], [data-lalala-settings-list] [data-slot="select-item"]) > span {
   flex: 1;
 }
 /* The harness's state: a dot and a word, green when it answers, amber when not. */
@@ -555,7 +592,8 @@
 }
 @media (hover: hover) {
   :is([data-lalala-settings-pick], [data-lalala-settings-button]):hover:not(:disabled):not(
-      [aria-disabled="true"]
+      [aria-disabled="true"],
+      [data-readonly]
     ) {
     background: var(--s-active);
   }
@@ -625,23 +663,22 @@
   opacity: 0.64;
   cursor: default;
 }
-[data-lalala-settings-control] [aria-disabled="true"] {
+[data-lalala-settings-control] :is([aria-disabled="true"], [data-readonly]) {
   opacity: 0.64;
   cursor: progress;
 }
+/* T3's select list, in the top layer under its trigger (above it when there is more room). */
 [data-lalala-settings-list] {
-  position: absolute;
-  z-index: 1;
-  top: calc(100% + 6px);
-  right: 0;
+  margin: 0;
+  color: var(--s-fg);
   /* Tall enough for the speech lists' last group (the computer) without scrolling on most screens. */
-  max-height: min(28rem, 70dvh);
+  max-height: min(28rem, 70dvh, var(--available-height));
   overflow-y: auto;
   overscroll-behavior: contain;
   scroll-padding-block: 4px;
   scroll-margin-block: 12px;
   width: max-content;
-  min-width: 100%;
+  min-width: var(--anchor-width);
   max-width: min(22rem, calc(100cqw - 2 * var(--s-inset) - 2px));
   box-sizing: border-box;
   padding: 4px;
@@ -666,21 +703,17 @@
 [data-lalala-settings-list][data-more] {
   scroll-padding-bottom: 18px;
 }
-[data-lalala-settings-list][data-above] {
-  top: auto;
-  bottom: calc(100% + 6px);
-}
-[data-lalala-settings-list] [role="group"] + [role="group"] {
+[data-lalala-settings-list] [data-slot="select-group"] + [data-slot="select-group"] {
   margin-top: 4px;
   padding-top: 4px;
   border-top: 1px solid var(--s-divider);
 }
-[data-lalala-settings-list] [role="group"] > div[aria-hidden] {
+[data-lalala-settings-list] [data-slot="select-group-label"] {
   padding: 6px 8px;
   color: var(--s-fg-2);
   font: 500 12px / 16px var(--s-sans);
 }
-[data-lalala-settings-list] [role="option"] {
+[data-lalala-settings-list] [data-slot="select-item"] {
   display: flex;
   align-items: center;
   gap: 8px;
@@ -691,23 +724,23 @@
   cursor: pointer;
 }
 /* Listed with its reason: the reason chip stays readable, only the name (and a check) steps back. */
-[data-lalala-settings-list] [role="option"][aria-disabled="true"] {
+[data-lalala-settings-list] [data-slot="select-item"][data-disabled] {
   opacity: 1;
   color: var(--s-fg-2);
   cursor: default;
 }
-[data-lalala-settings-list] [role="option"][aria-disabled="true"] > svg {
+[data-lalala-settings-list] [data-slot="select-item"][data-disabled] > svg {
   opacity: 0.5;
 }
 /* The one cue for where the keyboard or mouse is; the chosen option carries the check. */
-[data-lalala-settings-list] [role="option"][data-active] {
+[data-lalala-settings-list] [data-slot="select-item"][data-highlighted] {
   background: var(--s-active);
 }
-[data-lalala-settings-list]:focus-visible [role="option"][data-active] {
+[data-lalala-settings-list][data-modality="keyboard"] [data-slot="select-item"][data-highlighted] {
   outline: 2px solid var(--s-primary);
   outline-offset: -2px;
 }
-[data-lalala-settings-list] [role="option"] > span {
+[data-lalala-settings-list] [data-slot="select-item"] > span {
   min-width: 0;
   overflow-wrap: anywhere;
 }
@@ -727,21 +760,21 @@
   font-variant-numeric: tabular-nums;
   text-align: start;
 }
-[data-lalala-settings-list] [role="option"] > svg {
+[data-lalala-settings-list] [data-slot="select-item"] > svg {
   stroke: var(--s-primary);
   stroke-width: 1.75;
 }
-[data-lalala-settings-list] [role="option"] > button {
+[data-lalala-settings-list] [data-slot="select-item"] > button {
   width: 24px;
   height: 24px;
   border: 1px solid var(--s-input);
   border-radius: 50%;
   color: var(--s-primary);
 }
-[data-lalala-settings-list] [role="option"] > button:disabled {
+[data-lalala-settings-list] [data-slot="select-item"] > button:disabled {
   visibility: hidden;
 }
-[data-lalala-settings-list] [role="option"] > button > svg {
+[data-lalala-settings-list] [data-slot="select-item"] > button > svg {
   width: 9px;
   margin-left: 1px;
   fill: currentColor;
@@ -831,7 +864,7 @@
   box-shadow: inset 0 0 0 1px var(--s-input);
   transition: background-color 150ms;
 }
-[data-lalala-settings-switch] > span {
+[data-lalala-settings-switch] > [data-slot="switch-thumb"] {
   position: absolute;
   top: 2px;
   left: 2px;
@@ -841,11 +874,11 @@
   background: var(--s-fg-2);
   transition: translate 150ms;
 }
-[data-lalala-settings-switch][aria-checked="true"] {
+[data-lalala-settings-switch][data-checked] {
   background: var(--s-primary);
   box-shadow: none;
 }
-[data-lalala-settings-switch][aria-checked="true"] > span {
+[data-lalala-settings-switch][data-checked] > [data-slot="switch-thumb"] {
   background: var(--s-bg);
   translate: calc(var(--s-thumb) - 4px) 0;
 }
@@ -872,52 +905,36 @@
     width: 208px;
   }
 }
-/* --value (0–100) from the row; the fill ends under the thumb's centre, which travels 1rem less. */
-[data-lalala-settings-slider] > input {
-  --fill: calc(var(--value) * 1% + (50 - var(--value)) * 0.01rem);
-  --track: linear-gradient(to right, var(--s-primary) var(--fill), var(--s-input) var(--fill));
+/* ui-sdk places the fill and the thumb along the track; the thumb's own input takes focus. */
+[data-lalala-settings-slider] [data-slot="slider-control"] {
   flex: 1;
   min-width: 0;
   height: 24px;
-  margin: 0;
-  padding: 0;
-  appearance: none;
-  background: transparent;
-  outline: 0;
+  display: flex;
+  align-items: center;
   cursor: pointer;
+  touch-action: none;
 }
-[data-lalala-settings-slider] > input:focus-visible {
-  --thumb-ring: 0 0 0 3px var(--s-primary);
-}
-[data-lalala-settings-slider] > input::-webkit-slider-runnable-track {
+[data-lalala-settings-slider] [data-slot="slider-track"] {
+  width: 100%;
   height: 6px;
   border-radius: 999px;
-  background: var(--track);
+  background: var(--s-input);
 }
-[data-lalala-settings-slider] > input::-moz-range-track {
-  height: 6px;
-  border-radius: 999px;
-  background: var(--track);
+[data-lalala-settings-slider] [data-slot="slider-indicator"] {
+  border-radius: inherit;
+  background: var(--s-primary);
 }
-[data-lalala-settings-slider] > input::-webkit-slider-thumb {
-  appearance: none;
-  box-sizing: border-box;
-  width: 16px;
-  height: 16px;
-  margin-top: -5px;
-  border: 2px solid var(--s-primary);
-  border-radius: 50%;
-  background: var(--s-bg);
-  box-shadow: var(--thumb-ring, none);
-}
-[data-lalala-settings-slider] > input::-moz-range-thumb {
+[data-lalala-settings-slider] [data-slot="slider-thumb"] {
   box-sizing: border-box;
   width: 16px;
   height: 16px;
   border: 2px solid var(--s-primary);
   border-radius: 50%;
   background: var(--s-bg);
-  box-shadow: var(--thumb-ring, none);
+}
+[data-lalala-settings-slider] [data-slot="slider-thumb"]:has(:focus-visible) {
+  box-shadow: 0 0 0 3px var(--s-primary);
 }
 /* Pairing: one field across the row for whatever T3 Code gave, a quiet line under it. */
 :is([data-lalala-pair-field], [data-lalala-pair-alt]) {
@@ -1034,11 +1051,11 @@
   border: 1.5px solid var(--s-fg-2);
   border-radius: 50%;
 }
-[data-lalala-pair-choice] > button[aria-checked="true"] {
+[data-lalala-pair-choice] > button[data-checked] {
   border-color: color-mix(in srgb, var(--s-primary) 55%, var(--s-border));
   background: var(--s-active);
 }
-[data-lalala-pair-choice] > button[aria-checked="true"]::after {
+[data-lalala-pair-choice] > button[data-checked]::after {
   border: 4px solid var(--s-primary);
 }
 [data-lalala-pair-choice] > button:focus-visible {
@@ -1261,7 +1278,7 @@
   [data-lalala-settings-nav] button {
     height: 44px;
   }
-  [data-lalala-settings-slider] > input {
+  [data-lalala-settings-slider] [data-slot="slider-control"] {
     height: 44px;
   }
   :is(
@@ -1269,7 +1286,7 @@
     [data-lalala-settings-pick],
     [data-lalala-settings-switch],
     [data-lalala-settings-reset],
-    [data-lalala-settings-list] [role="option"] > button,
+    [data-lalala-settings-list] [data-slot="select-item"] > button,
     [data-lalala-settings-panel] > header > button,
     [data-lalala-settings-back] > button,
     [data-lalala-pair-terminal] > summary

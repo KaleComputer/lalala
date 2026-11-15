@@ -12,7 +12,9 @@ import { delegatesTag } from "./settingsStore";
  * lalala.talk's prebuilt page shows the files its harness reads (brainCards.ts).
  */
 const brief = () => {
-  const host = globalThis.__lalalaAdapters?.harness?.readFile ? cardsBrief : filesBrief;
+  const host = globalThis.__lalalaAdapters?.harness?.readFile
+    ? cardsBrief
+    : filesBrief.replaceAll("{port}", String(import.meta.env.LALALA_PORT));
   const own = globalThis.__lalalaUserRules?.trim();
   return own
     ? `${brainBrief}${host.trimEnd()}\n\nThe user's own rules (these win where they differ)\n\n${own}\n`
