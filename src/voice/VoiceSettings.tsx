@@ -1770,7 +1770,7 @@ export function SoundSection() {
 }
 
 type BrowserEars = Exclude<SttModel, "auto" | "computer">;
-type VoiceBuild = "kokoro-gpu" | "kokoro-cpu" | "kale-kokoro" | "computer";
+type VoiceBuild = "kokoro-gpu" | "kokoro-cpu" | "kale-kokoro" | "kale-tts-1-tiny" | "computer";
 const STT_LABELS: Record<Exclude<SttModel, "auto">, string> = {
   "0.6b-gpu": "Parakeet 0.6B\u00a0·\u00a0GPU",
   "0.6b-cpu": "Parakeet 0.6B\u00a0·\u00a0CPU",
@@ -1781,6 +1781,7 @@ const VOICE_LABELS: Record<VoiceBuild, string> = {
   "kokoro-gpu": "Kokoro\u00a082M\u00a0·\u00a0GPU",
   "kokoro-cpu": "Kokoro\u00a082M\u00a0·\u00a0CPU",
   "kale-kokoro": "Kokoro (Kale's voice)",
+  "kale-tts-1-tiny": "kale-tts-1-tiny",
   computer: "Kokoro 82M\u00a0·\u00a0Computer",
 };
 const STT_COSTS: Partial<Record<string, string>> = {
@@ -1792,6 +1793,7 @@ const VOICE_COSTS: Partial<Record<string, string>> = {
   "kokoro-gpu": "327 MB download · ~0.4 GB memory",
   "kokoro-cpu": "93 MB download · ~0.2 GB memory",
   "kale-kokoro": "68 MB download · ~0.2 GB memory",
+  "kale-tts-1-tiny": "61 MB download · GPU where it can",
 };
 const MB = (bytes: number) =>
   bytes >= 1e9 ? `${(bytes / 1e9).toFixed(2)}\u00a0GB` : `${Math.round(bytes / 1e6)}\u00a0MB`;
@@ -1854,6 +1856,7 @@ const LOADED_KEYS: Record<string, string> = {
   "kokoro 82m gpu": "kokoro-gpu",
   "kokoro 82m cpu": "kokoro-cpu",
   "kale kokoro": "kale-kokoro",
+  "kale-tts-1-tiny": "kale-tts-1-tiny",
 };
 const seconds = (ms: number) => `${(ms / 1000).toFixed(ms < 100 ? 2 : 1)} s`;
 /** How fast your computer did a task, as measured from this device, once it has. */
@@ -2110,11 +2113,11 @@ export function SpeechSection() {
       : gpu.f16
         ? "0.6b-gpu"
         : "0.6b-cpu";
-  // Automatic's voice on every device: Kale's warm voice (Tim's pick, 15 Nov).
-  const autoVoice: VoiceBuild = "kale-kokoro";
-  // Who stands in for your computer's voice: the same Kokoro 82M here on a desktop, Kale's Kokoro on a phone.
+  // Automatic's voice: kale-tts-1-tiny on a phone, Kale's warm voice elsewhere (Tim, 15 Nov).
+  const autoVoice: VoiceBuild = phone ? "kale-tts-1-tiny" : "kale-kokoro";
+  // Who stands in for your computer's voice: the same Kokoro 82M here on a desktop, kale-tts-1-tiny on a phone.
   const voiceStandIn: VoiceBuild | null = phone
-    ? "kale-kokoro"
+    ? "kale-tts-1-tiny"
     : gpu === null
       ? null
       : gpu.any
@@ -2347,6 +2350,12 @@ export function SpeechSection() {
                 label: VOICE_LABELS["kale-kokoro"],
                 detail: "warm, fast",
                 meta: VOICE_COSTS["kale-kokoro"],
+              },
+              {
+                value: "kale-tts-1-tiny",
+                label: VOICE_LABELS["kale-tts-1-tiny"],
+                detail: "Hazel's voice, fastest",
+                meta: VOICE_COSTS["kale-tts-1-tiny"],
               },
             ],
           },

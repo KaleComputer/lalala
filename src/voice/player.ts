@@ -19,7 +19,7 @@ import { voiceLog } from "./voiceLog";
 import { voiceErrorText } from "./voiceErrors";
 import {
   BUILT_IN_TOPIC_SOUND,
-  WARM_VOICE,
+  isKaleVoice,
   replyVoice,
   subscribeSettings,
   syncedSettings,
@@ -170,7 +170,7 @@ export class SpeechPlayer {
     const previous = this.preparedVoice === null ? null : replyVoicePlugin(this.preparedVoice);
     this.preparedVoice = voice;
     previous?.unload();
-    if (voice === WARM_VOICE) {
+    if (isKaleVoice(voice)) {
       releaseKokoro();
       startWarmVoice();
       return;
@@ -444,8 +444,8 @@ export class SpeechPlayer {
     };
     try {
       const voice = replyVoice();
-      const plugin = voice === WARM_VOICE ? null : replyVoicePlugin(voice);
-      if (voice === WARM_VOICE || plugin !== null) {
+      const plugin = isKaleVoice(voice) ? null : replyVoicePlugin(voice);
+      if (isKaleVoice(voice) || plugin !== null) {
         // Kale's voice renders in its worker, a plugin voice in this tab, a whole sentence at a time;
         // both play in Kokoro's chunks.
         const renderStart = performance.now();

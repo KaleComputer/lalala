@@ -159,16 +159,20 @@ const write = (key: string, value: string | null) => {
 
 /** Kale's warm voice, Kokoro (llamaKokoro.worker), by its id in the settings. */
 export const WARM_VOICE = "kale-kokoro";
+/** kale-tts-1-tiny (k10c, Hazel's voice, 61 MB), in the same worker as the warm voice. */
+export const TINY_VOICE = "kale-tts-1-tiny";
+/** Either of Kale's own voices: both speak from llamaKokoro.worker. */
+export const isKaleVoice = (voice: string) => voice === WARM_VOICE || voice === TINY_VOICE;
 
 /**
- * The reply voice every device starts on: Kale's warm voice, Kokoro, which Tim picked by ear
- * (15 Nov) and which renders a sentence fast on a phone's CPU.
+ * The reply voice every device starts on: kale-tts-1-tiny on a phone (Tim, 15 Nov: "use it also
+ * here on this device, on the phone"), Kale's warm Kokoro elsewhere (his pick by ear, 15 Nov).
  */
-export const defaultReplyVoice = (): string => WARM_VOICE;
+export const defaultReplyVoice = (): string => (phone() ? TINY_VOICE : WARM_VOICE);
 
 /**
  * Who speaks the replies on this device: "auto" (nothing stored: defaultReplyVoice), Kale's
- * "kale-kokoro", "kokoro-gpu", "kokoro-cpu" (Kokoro 82M), "computer" (Kokoro on the computer running
+ * "kale-kokoro" or "kale-tts-1-tiny", "kokoro-gpu", "kokoro-cpu" (Kokoro 82M), "computer" (Kokoro on the computer running
  * T3, opt-in), or a voice the user's cards registered (replyVoices.ts) by its id.
  */
 export const replyVoicePick = (): string => {

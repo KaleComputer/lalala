@@ -5,8 +5,10 @@
 // hides: setting a model up takes seconds on a phone (Tim, 14 Nov: "always a cold start").
 import type { VoiceBarModel } from "../VoiceBar";
 import {
+  TINY_VOICE,
   WARM_VOICE,
   autoRetrySeconds,
+  isKaleVoice,
   isPhoneDevice,
   replyVoice,
   replyVoicePick,
@@ -386,16 +388,24 @@ const voice = modelWorker(
   () => new Worker(new URL("./kokoro.worker.ts", import.meta.url), { type: "module" }),
   () => ({ build: kokoroBuild() }),
 );
-// Kale's warm voice. Matcha, which spoke on phones before it, is gone (Tim, 15 Nov).
+// Kale's own voices, one at a time in one worker: the warm Kokoro, or kale-tts-1-tiny (a phone's
+// Automatic voice, and the one standing in for your computer there). Matcha is gone (Tim, 15 Nov).
+const kaleBuild = (): "warm" | "tiny" => {
+  const picked = replyVoice();
+  if (picked === WARM_VOICE) return "warm";
+  return picked === TINY_VOICE || isPhoneDevice() ? "tiny" : "warm";
+};
 const warm = modelWorker(
   "kale-kokoro",
   () => new Worker(new URL("./llamaKokoro.worker.ts", import.meta.url), { type: "module" }),
+  () => ({ build: kaleBuild() }),
 );
 // A device that switches a model, or sends a task to the computer, frees the old one once its
 // current utterance or sentence is done; the new one loads right away when the page has.
 let earsModel = sttModel();
 let voiceBuild = kokoroBuild();
 let voicePick = replyVoice();
+let warmBuild = kaleBuild();
 let retryEvery = autoRetrySeconds();
 document.addEventListener("lalala:settings", () => {
   trackWhere();
@@ -414,6 +424,8 @@ document.addEventListener("lalala:settings", () => {
   }
   if (kokoroBuild() !== voiceBuild || replyVoice() !== voicePick) {
     if (kokoroBuild() !== voiceBuild) voice.releaseWhenIdle();
+    if (kaleBuild() !== warmBuild) warm.releaseWhenIdle();
+    warmBuild = kaleBuild();
     voiceBuild = kokoroBuild();
     voicePick = replyVoice();
     if (voicePick === "computer") void refreshComputerSpeech();
@@ -690,12 +702,23 @@ let vadReady = false;
 let vadFailures = 0;
 let vadListener: ((probability: number) => void) | null = null;
 const VAD_RETRIES = 3;
+// The models wait for the detector's first load (ready or failed), at most this long.
+const VAD_FIRST_MS = 10_000;
+let vadSettled: (() => void) | null = null;
 function startVad() {
   if (vadWorker !== null) return;
   const startedAt = performance.now();
   const worker = new Worker(new URL("./vad.worker.ts", import.meta.url), { type: "module" });
   vadWorker = worker;
+  if (vadFailures === 0 && vadSettled === null) {
+    const settled = new Promise<void>((resolve) => {
+      vadSettled = resolve;
+      window.setTimeout(resolve, VAD_FIRST_MS);
+    });
+    modelTurn = modelTurn.then(() => settled);
+  }
   const failed = (message: string) => {
+    vadSettled?.();
     if (vadWorker !== worker) return;
     voiceLog("system", "speech.failed", { model: "vad", message, retries: vadFailures });
     worker.terminate();
@@ -707,6 +730,7 @@ function startVad() {
   worker.onmessage = ({ data }: MessageEvent<{ type: string; p?: number; message?: string }>) => {
     if (data.type === "p") vadListener?.(data.p ?? 0);
     else if (data.type === "ready") {
+      vadSettled?.();
       vadReady = true;
       voiceLog("system", "speech.ready", { model: "vad", ms: Math.round(performance.now() - startedAt) });
     } else if (data.type === "failed") failed(data.message ?? "");
@@ -802,7 +826,7 @@ export function prewarm() {
 /** The reply voice's browser model; with the computer picked, fitModels decides once it has answered. */
 function prewarmVoice() {
   const picked = replyVoice();
-  if (picked === WARM_VOICE) startWarmVoice();
+  if (isKaleVoice(picked)) startWarmVoice();
   else if (picked.startsWith("kokoro")) startKokoro();
 }
 
@@ -821,7 +845,7 @@ export function activeSpeech(task: "stt" | "voice"): ActiveSpeech {
   // Standing in for your computer: Kale's Kokoro on a phone, the same Kokoro here on a desktop.
   if (wantsComputer.voice())
     return { where: "browser", status: (voiceStandIn() === "warm" ? warm : voice).status() };
-  if (picked === WARM_VOICE) return { where: "browser", status: warm.status() };
+  if (isKaleVoice(picked)) return { where: "browser", status: warm.status() };
   if (picked.startsWith("kokoro")) return { where: "browser", status: voice.status() };
   return { where: "card", name: picked };
 }
@@ -847,7 +871,7 @@ export function speechStatus(task: "stt" | "voice"): ModelStatus | null {
   const picked = replyVoice();
   if (onComputer.voice()) return null;
   if (wantsComputer.voice()) return (voiceStandIn() === "warm" ? warm : voice).status();
-  if (picked === WARM_VOICE) return warm.status();
+  if (isKaleVoice(picked)) return warm.status();
   if (picked.startsWith("kokoro")) return voice.status();
   return null;
 }
