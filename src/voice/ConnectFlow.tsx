@@ -124,11 +124,16 @@ export function PairSteps(props: {
         autoFocus={ask !== null}
         data-streamer-input={streamer ? "" : undefined}
         value={value}
-        disabled={busy}
+        // Read-only (not disabled) while pairing: focus stays here for the result.
+        readOnly={busy}
+        aria-busy={busy || undefined}
         onChange={(event) => setValue(event.currentTarget.value)}
         onPaste={(event) => {
           const pasted = event.clipboardData.getData("text").trim();
-          if (pasted === "") return;
+          const field = event.currentTarget;
+          // Only a paste over the whole field sends it; pasting into part of it stays a normal paste.
+          const whole = field.value === "" || (field.selectionStart === 0 && field.selectionEnd === field.value.length);
+          if (pasted === "" || !whole || busy) return;
           event.preventDefault();
           setValue(pasted);
           submit(pasted);
@@ -142,9 +147,14 @@ export function PairSteps(props: {
           }
         }}
       />
-      {value.trim() !== "" && !busy ? (
-        <button type="button" data-lalala-settings-button="" onClick={() => submit(value)}>
-          {ask ? "Next" : "Connect"}
+      {value.trim() !== "" || busy ? (
+        <button
+          type="button"
+          data-lalala-settings-button=""
+          aria-disabled={busy || undefined}
+          onClick={() => busy || submit(value)}
+        >
+          {busy ? "Connecting…" : ask ? "Next" : "Connect"}
         </button>
       ) : null}
     </div>
@@ -296,7 +306,10 @@ export function PairSteps(props: {
                   onBlur={() => setAddressChecked(connectAddress.trim() !== "")}
                   onPaste={(event) => {
                     const pasted = event.clipboardData.getData("text").trim();
-                    if (pasted === "") return;
+                    const field = event.currentTarget;
+                    const whole =
+                      field.value === "" || (field.selectionStart === 0 && field.selectionEnd === field.value.length);
+                    if (pasted === "" || !whole) return;
                     event.preventDefault();
                     setConnectAddress(pasted);
                     setAddressChecked(true);
@@ -316,6 +329,7 @@ export function PairSteps(props: {
               </div>
               <p
                 id={`${choiceId}a`}
+                role="status"
                 data-lalala-pair-or=""
                 data-wrong={addressWrong ? "" : undefined}
               >

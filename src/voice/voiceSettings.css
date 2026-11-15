@@ -704,7 +704,7 @@
   font: 600 12px / 17px var(--lala-font, var(--s-mono));
   letter-spacing: 0.02em;
   font-variant-numeric: tabular-nums;
-  text-align: center;
+  text-align: start;
 }
 [data-lalala-settings-list] [role="option"] > svg {
   stroke: var(--s-primary);

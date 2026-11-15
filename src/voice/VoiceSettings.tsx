@@ -1841,7 +1841,7 @@ function measuredComputer(task: "stt" | "voice"): string | undefined {
 function measuredMeta(task: "stt" | "voice"): string | undefined {
   const { browser, computer } = speechTimings()[task];
   return browser !== undefined && computer !== undefined
-    ? `Measured: your computer ${seconds(computer)}, this browser ${seconds(browser)} per second`
+    ? `Measured per second: computer ${seconds(computer)} · here ${seconds(browser)}`
     : undefined;
 }
 
@@ -1968,7 +1968,7 @@ function TaskState(props: {
         )}
         {status?.phase === "downloading" && status.total > 0 ? (
           <>
-            <span aria-hidden="true">{` ${MB(status.loaded)} of ${MB(status.total)}`}</span>
+            <span aria-hidden="true">{` ${MB(status.loaded)} of\u00a0${MB(status.total)}`}</span>
             <span
               role="progressbar"
               aria-label={props.task === "stt" ? "Speech-to-text model download" : "Reply voice model download"}
