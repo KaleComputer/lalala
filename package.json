@@ -10,7 +10,10 @@
   "scripts": {
     "start": "node server.mjs",
     "pair": "node server.mjs pair",
-    "speech": "scripts/speech.sh"
+    "speech": "scripts/speech.sh",
+    "build:site": "vite build --mode site",
+    "check": "node scripts/check.mjs",
+    "prepare": "git config core.hooksPath .githooks 2>/dev/null || true"
   },
   "dependencies": {
     "@base-ui/react": "1.9.0",

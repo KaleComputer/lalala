@@ -49,6 +49,24 @@ with it the adapters in `src/voice/adapters`:
 
 Speech is the same on both (`src/voice/browserSpeech`).
 
+### Deploying lalala.talk
+
+This repo is the one place to edit. A push to `main` is a deploy: Vercel builds `site/` (its
+`npm run build`: the site typecheck, then `vite build --mode site`) and serves it at lalala.talk.
+Nothing is copied over by hand. Your own cards stay in the brain's project (`cards/`, see
+[Cards](#cards)) and never enter this repo or the site.
+
+Two checks keep a push from going wrong:
+
+- **The leak guard** (`vite/leakGuard.mjs`) runs inside every site build. It stops the build when a
+  module comes from outside `src/`, `public/`, `index.html`, `scripts/speech*` or `node_modules/`
+  (your cards, `.env`, `brain.user.md`), or when the output holds a secret-looking token, a
+  home-folder path or a value from `.env`. A stopped build ships nothing; the last deploy stays.
+- **`npm run check`** runs before each push (`.githooks/pre-push`, switched on by `npm install`):
+  the same text rules over every tracked file, the site typecheck and a guarded site build in a
+  temp folder. A typecheck error that only Vercel would see otherwise leaves lalala.talk on an old
+  deploy without a word.
+
 ## Requirements
 
 - **Node.js 22.12 or later**.

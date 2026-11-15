@@ -14,3 +14,5 @@
 /site/node_modules
 /site/.next
 /site/out
+# The Mac speech service: lalala.talk writes it to a paired computer (src/voice/browserSpeech).
+!/scripts

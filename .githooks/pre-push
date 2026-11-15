@@ -1,0 +1,5 @@
+#!/bin/sh
+# A push to main deploys lalala.talk. scripts/check.mjs stops it when the site wouldn't build or would
+# ship something private. Enabled per clone by `npm install` (package.json's prepare) or
+# `git config core.hooksPath .githooks`.
+exec node "$(git rev-parse --show-toplevel)/scripts/check.mjs"

@@ -10,6 +10,7 @@ import { defineConfig } from "vite";
 
 import { cardsDir, cardsPlugin } from "./vite/cards.mjs";
 import { isolationPlugin } from "./vite/isolation.mjs";
+import { leakGuardPlugin } from "./vite/leakGuard.mjs";
 import { t3BridgePlugin } from "./vite/t3bridge.mjs";
 import { lalalaPlugin } from "./vite/voice.ts";
 import { buildVersion } from "./site/version.mjs";
@@ -63,7 +64,7 @@ export default defineConfig(({ mode }) => {
     define: { "import.meta.env.LALALA_HOST": JSON.stringify(hostOf(mode)) },
     plugins: [
       ...(site
-        ? []
+        ? [leakGuardPlugin({ root: import.meta.dirname })]
         : [
             t3BridgePlugin({
               threadId: process.env.LALALA_THREAD_ID?.trim(),
