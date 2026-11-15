@@ -1960,11 +1960,11 @@ function automaticWhy(task: "stt" | "voice", computer: ReturnType<typeof compute
       : `per second of audio: computer ${there === undefined ? "not measured" : seconds(there)}, here ${
           browser === undefined ? "measured only when it stands in" : seconds(browser)
         }`;
-  if (!automaticTriesComputer(task)) return "Kale's voice (a phone always uses it here)";
+  if (!automaticTriesComputer(task)) return "Llama Matcha (a phone always uses it here)";
   if (computer === "absent") return "this browser; your computer once T3 Code is connected";
   if (browserFaster(task)) return `this browser, faster here · ${measured}${since}`;
   if (runs.where === "computer")
-    return `your computer${browser === undefined ? " (nothing to download)" : ""} · ${measured}${since}`;
+    return `picked your computer${browser === undefined ? ", nothing to download" : ""} · ${measured}${since}`;
   return `this browser until your computer answers · ${measured}${since}`;
 }
 
@@ -2302,7 +2302,7 @@ export function SpeechSection() {
                   options: plugins.map((plugin) => ({
                     value: plugin.id,
                     label: plugin.label,
-                    meta: "In this browser · size set by its card",
+                    meta: "In this browser · size unknown until it loads",
                   })),
                 },
               ]
