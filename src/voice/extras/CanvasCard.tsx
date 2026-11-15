@@ -221,13 +221,17 @@ export function CanvasCard(props: {
     const body = card?.querySelector<HTMLElement>("[data-lalala-card-body]");
     if (!shown || !near || !card || !body) return;
     let frame = 0;
+    let grewFrom: number | null = null;
     const measure = () => {
       frame = 0;
       if (card.hasAttribute("data-lalala-card-off")) return;
-      fitCard(key, {
-        w: body.scrollWidth - body.clientWidth,
-        h: body.scrollHeight - body.clientHeight,
-      });
+      const more = { w: body.scrollWidth - body.clientWidth, h: body.scrollHeight - body.clientHeight };
+      // Content that grows with its card (100% plus a margin) would never fit: stop after one try.
+      if (grewFrom !== null && more.h > 1 && more.h >= grewFrom) return;
+      const before = getCards()[key];
+      fitCard(key, more);
+      // Only a taller card counts: widening a narrow one first may leave the overflow as it was.
+      grewFrom = (getCards()[key]?.h ?? 0) > (before?.h ?? 0) ? more.h : null;
     };
     const soon = () => {
       if (frame === 0) frame = window.requestAnimationFrame(measure);
