@@ -1,6 +1,7 @@
-// ?bench=k10c on either host (src/main.tsx): kale-tts-1-tiny (k10c), Kale's 61 MB voice, through the
-// same Transformers.js worker lalala speaks with (kaleTtsTiny.worker), on the CPU and (not on phones,
-// unless ?gpu) WebGPU, each in a worker that ends after its run. Silent unless play is tapped.
+// ?bench=storyteller or ?bench=k10c on either host (src/main.tsx): one of Kale's 61 MB voices (the
+// storyteller, or kale-tts-1-tiny) through the same Transformers.js worker lalala speaks with
+// (kaleVoice.worker), on the CPU and (not on phones, unless ?gpu) WebGPU, each in a worker that ends
+// after its run. Silent unless play is tapped.
 // The numbers go to the session log (the app) or to .lalala/bench/ on the paired computer (lalala.talk).
 const VOLCANO = [
   "A volcano is a place where very hot, melted rock comes up out of the ground.",
@@ -11,7 +12,12 @@ const RUNS = 5;
 const SITE = import.meta.env.LALALA_HOST === "site";
 const RATE = 24_000;
 
-const models = { k10c: { label: "kale-tts-1-tiny" } };
+const STORY = new URLSearchParams(location.search).get("bench") === "storyteller";
+const models = {
+  k10c: STORY
+    ? { label: "storyteller", model: "kale-storyteller", voice: "storyteller" }
+    : { label: "kale-tts-1-tiny", model: "kale-tts-1-tiny", voice: "hazel" },
+};
 // WebGPU ended Tim's iPhone tab (15 Nov): a phone runs the CPU only unless ?gpu asks.
 const PHONE = /iPhone|iPad|iPod|Android/.test(navigator.userAgent);
 const WITH_GPU = !PHONE || new URLSearchParams(location.search).has("gpu");
@@ -52,8 +58,8 @@ document.head.append(style);
 (window as Window & { __lalalaBootDone?: () => void }).__lalalaBootDone?.();
 const root = document.getElementById("root")!;
 root.innerHTML = `<main>
-  <h1>kale-tts-1-tiny speed on this device</h1>
-  <p>kale-tts-1-tiny (k10c) on the CPU${WITH_GPU ? " and on WebGPU" : ""}, ${RUNS} runs of the volcano line, median shown. Nothing plays unless you tap play. Under a minute, longer if the model still needs to download (61 MB).</p>
+  <h1>${models.k10c.label} speed on this device</h1>
+  <p>${models.k10c.label} on the CPU${WITH_GPU ? " and on WebGPU" : ""}, ${RUNS} runs of the volcano line, median shown. Nothing plays unless you tap play. Under a minute, longer if the model still needs to download (61 MB).</p>
   <p id="gpu"></p>
   <button id="run">Run</button>
   <div id="status"></div>
@@ -93,8 +99,8 @@ function play(samples: Float32Array<ArrayBuffer>) {
 }
 
 async function runOne(step: (typeof PLAN)[number], onStage: (stage: string) => void) {
-  const base = { model: step.model, backend: step.backend };
-  const worker = new Worker(new URL("../voice/browserSpeech/kaleTtsTiny.worker.ts", import.meta.url), {
+  const base = { model: models[step.model].model, backend: step.backend };
+  const worker = new Worker(new URL("../voice/browserSpeech/kaleVoice.worker.ts", import.meta.url), {
     type: "module",
   });
   const waiting = new Map<number, (data: { samples?: Float32Array<ArrayBuffer>; message?: string }) => void>();
@@ -117,7 +123,8 @@ async function runOne(step: (typeof PLAN)[number], onStage: (stage: string) => v
     });
   try {
     const started = performance.now();
-    worker.postMessage({ type: "load", device: step.backend });
+    const { model, voice } = models[step.model];
+    worker.postMessage({ type: "load", device: step.backend, model, voice });
     const error = await ready;
     if (error !== null) return { result: { ...base, error }, audio: null };
     const loadMs = performance.now() - started;

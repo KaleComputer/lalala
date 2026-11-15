@@ -1770,7 +1770,13 @@ export function SoundSection() {
 }
 
 type BrowserEars = Exclude<SttModel, "auto" | "computer">;
-type VoiceBuild = "kokoro-gpu" | "kokoro-cpu" | "kale-kokoro" | "kale-tts-1-tiny" | "computer";
+type VoiceBuild =
+  | "kokoro-gpu"
+  | "kokoro-cpu"
+  | "kale-kokoro"
+  | "kale-storyteller"
+  | "kale-tts-1-tiny"
+  | "computer";
 const STT_LABELS: Record<Exclude<SttModel, "auto">, string> = {
   "0.6b-gpu": "Parakeet 0.6B\u00a0·\u00a0GPU",
   "0.6b-cpu": "Parakeet 0.6B\u00a0·\u00a0CPU",
@@ -1781,6 +1787,7 @@ const VOICE_LABELS: Record<VoiceBuild, string> = {
   "kokoro-gpu": "Kokoro\u00a082M\u00a0·\u00a0GPU",
   "kokoro-cpu": "Kokoro\u00a082M\u00a0·\u00a0CPU",
   "kale-kokoro": "Kokoro (Kale's voice)",
+  "kale-storyteller": "Storyteller (Kale's voice)",
   "kale-tts-1-tiny": "kale-tts-1-tiny",
   computer: "Kokoro 82M\u00a0·\u00a0Computer",
 };
@@ -1793,6 +1800,7 @@ const VOICE_COSTS: Partial<Record<string, string>> = {
   "kokoro-gpu": "327 MB download · ~0.4 GB memory",
   "kokoro-cpu": "93 MB download · ~0.2 GB memory",
   "kale-kokoro": "68 MB download · ~0.2 GB memory",
+  "kale-storyteller": "61 MB download · ~0.2 GB memory",
   "kale-tts-1-tiny": "61 MB download · ~0.2 GB memory",
 };
 const MB = (bytes: number) =>
@@ -1856,6 +1864,7 @@ const LOADED_KEYS: Record<string, string> = {
   "kokoro 82m gpu": "kokoro-gpu",
   "kokoro 82m cpu": "kokoro-cpu",
   "kale kokoro": "kale-kokoro",
+  "kale-storyteller": "kale-storyteller",
   "kale-tts-1-tiny": "kale-tts-1-tiny",
 };
 const seconds = (ms: number) => `${(ms / 1000).toFixed(ms < 100 ? 2 : 1)} s`;
@@ -2113,7 +2122,7 @@ export function SpeechSection() {
       : gpu.f16
         ? "0.6b-gpu"
         : "0.6b-cpu";
-  // Automatic's voice: kale-tts-1-tiny on a phone, Kale's warm voice elsewhere (settingsStore).
+  // Automatic's voice: the storyteller on every device (settingsStore).
   const autoVoice = defaultReplyVoice() as VoiceBuild;
   // Who stands in for your computer's voice: the same Kokoro 82M here on a desktop, Automatic's on a phone.
   const voiceStandIn: VoiceBuild | null = phone
@@ -2350,6 +2359,12 @@ export function SpeechSection() {
                 label: VOICE_LABELS["kale-kokoro"],
                 detail: "warm, fast",
                 meta: VOICE_COSTS["kale-kokoro"],
+              },
+              {
+                value: "kale-storyteller",
+                label: VOICE_LABELS["kale-storyteller"],
+                detail: "cheerful, 190 words a minute",
+                meta: VOICE_COSTS["kale-storyteller"],
               },
               {
                 value: "kale-tts-1-tiny",

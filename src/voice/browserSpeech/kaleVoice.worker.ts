@@ -1,17 +1,18 @@
-// kale-tts-1-tiny (k10c): Kokoro's text side with Kale's own small decoder, Hazel's voice, 61 MB.
-// It runs through Transformers.js the way kokoro-js runs Kokoro (StyleTextToSpeech2Model and its
-// tokenizer), from the model folder lalala serves (public/models/kale-tts-1-tiny, which loads the
-// same way from any host). Transformers.js picks the backend and reports load and run errors; only
-// the words come from Kale's own front end (matcha/kaleTts.js, as the warm voice). Credits: NOTICE.md.
+// Kale's small voices (61 MB each: Kokoro's text side with Kale's own small decoder): the storyteller
+// (Automatic) and kale-tts-1-tiny (Hazel's voice), one per worker, named by the load message. They run
+// through Transformers.js the way kokoro-js runs Kokoro (StyleTextToSpeech2Model and its tokenizer),
+// from the model folders lalala serves (public/models/<model>, which load the same way from any host).
+// Transformers.js reports load and run errors; only the words come from Kale's own front end
+// (matcha/kaleTts.js, as the warm voice). Credits: NOTICE.md.
 import { G2p, G2pModel, normalizer, readTable } from "./matcha/kaleTts.js";
 
 const TRANSFORMERS = "https://cdn.jsdelivr.net/npm/@huggingface/transformers@3.8.1/dist/transformers.min.js";
-const MODEL = "kale-tts-1-tiny";
 const RATE = 24_000;
 const STYLE = 256;
 // Kokoro reads at most 512 ids, its two pads included.
 const MAX_IDS = 510;
 const PIECE_GAP_S = 0.06;
+const PEAK = 0.95;
 const EXPECTED = 66_100_000;
 const FRONT_END = {
   g2pModel: new URL("./matcha/g2p.bin", import.meta.url).href,
@@ -38,12 +39,12 @@ type Voice = {
   readonly g2p: G2p;
   readonly normalize: (text: string) => string;
 };
-type Message = { type: string; id?: number; text?: string; device?: string };
+type Message = { type: string; id?: number; text?: string; device?: string; model?: string; voice?: string };
 
 let voice: Promise<Voice> | null = null;
 let queue: Promise<unknown> = Promise.resolve();
 
-async function load(device: string): Promise<Voice> {
+async function load(device: string, name: string, voiceFile: string): Promise<Voice> {
   const hf = (await import(/* @vite-ignore */ TRANSFORMERS)) as Transformers;
   // Only lalala's own copy of the model, never a download from the Hub.
   hf.env.allowLocalModels = true;
@@ -52,10 +53,10 @@ async function load(device: string): Promise<Voice> {
   hf.env.localModelPath = "/models/";
   const cached = await caches
     .open("transformers-cache")
-    .then((cache) => cache.match(new URL(`/models/${MODEL}/onnx/model.onnx`, self.location.origin).href))
+    .then((cache) => cache.match(new URL(`/models/${name}/onnx/model.onnx`, self.location.origin).href))
     .then((hit) => hit !== undefined)
     .catch(() => false);
-  postMessage({ type: "load", name: MODEL, expected: EXPECTED, cached });
+  postMessage({ type: "load", name, expected: EXPECTED, cached });
   const files = new Map<string, { loaded: number; total: number }>();
   const progress = (info: { status?: string; file?: string; loaded?: number; total?: number }) => {
     if (info.status !== "progress" || !info.file || !info.total) return;
@@ -65,7 +66,7 @@ async function load(device: string): Promise<Voice> {
     postMessage({ type: "progress", loaded, total: Math.max(EXPECTED, loaded) });
   };
   const [model, tokenize, voicepack, g2pModel, lexicon, override] = await Promise.all([
-    hf.StyleTextToSpeech2Model.from_pretrained(MODEL, {
+    hf.StyleTextToSpeech2Model.from_pretrained(name, {
       dtype: "fp32",
       device,
       progress_callback: progress,
@@ -73,8 +74,8 @@ async function load(device: string): Promise<Voice> {
       // copies of the 16-bit text side cost a phone ~150 MB (WebKit) for ~5 % speed.
       session_options: { graphOptimizationLevel: "disabled" },
     }),
-    hf.AutoTokenizer.from_pretrained(MODEL),
-    fetch(`${hf.env.localModelPath}${MODEL}/voices/hazel.bin`).then((response) => response.arrayBuffer()),
+    hf.AutoTokenizer.from_pretrained(name),
+    fetch(`${hf.env.localModelPath}${name}/voices/${voiceFile}.bin`).then((response) => response.arrayBuffer()),
     fetch(FRONT_END.g2pModel).then((response) => response.arrayBuffer()),
     fetch(FRONT_END.lexicon).then((response) => response.text()),
     fetch(FRONT_END.override).then((response) => response.text()),
@@ -139,13 +140,17 @@ async function speak(ready: Voice, raw: string) {
     samples.set(part, at);
     at += part.length;
   }
+  // The storyteller's peaks reach ~0.98: brought under the warm voice's 0.95, never louder.
+  let peak = 0;
+  for (const sample of samples) peak = Math.max(peak, Math.abs(sample));
+  if (peak > PEAK) for (let i = 0; i < samples.length; i++) samples[i] = (samples[i]! * PEAK) / peak;
   return { samples, timing: { g2pMs, modelMs: performance.now() - started - g2pMs } };
 }
 
 self.onmessage = (event: MessageEvent<Message>) => {
   const message = event.data;
   if (voice === null) {
-    voice = load(message.device ?? "wasm");
+    voice = load(message.device ?? "wasm", message.model ?? "kale-tts-1-tiny", message.voice ?? "hazel");
     voice.catch((error: unknown) => postMessage({ type: "failed", message: String(error) }));
   }
   if (message.type !== "speak") return;

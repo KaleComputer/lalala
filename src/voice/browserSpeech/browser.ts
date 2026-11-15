@@ -5,14 +5,15 @@
 // hides: setting a model up takes seconds on a phone (Tim, 14 Nov: "always a cold start").
 import type { VoiceBarModel } from "../VoiceBar";
 import {
-  TINY_CRASHED_KEY,
-  TINY_VOICE,
+  SMALL_VOICES,
+  VOICE_CRASHED_KEY,
+  WARM_VOICE,
+  crashedVoice,
   autoRetrySeconds,
   defaultReplyVoice,
   isKaleVoice,
   isPhoneDevice,
   replyVoice,
-  tinyCrashed,
   replyVoicePick,
   sttModel,
 } from "../settingsStore";
@@ -61,29 +62,55 @@ for (const name of ["parakeet", "kokoro", "kale-kokoro", "llama-kokoro"]) {
   });
 }
 // kale-tts-1-tiny took Tim's iPhone tab down on WebGPU (15 Nov), loading and right after it was
-// ready: a kill no script can catch. A page that ends with it in memory and no pagehide leaves this
-// mark; the next load holds the voice and asks what to do (settingsStore's tinyCrashed).
-const TINY_LIVE = "lalala:tiny-live";
-let tinyLive = false;
-const markTiny = (on: boolean) =>
-  storage((store) => (on ? store.setItem(TINY_LIVE, String(Date.now())) : store.removeItem(TINY_LIVE)));
+// ready: a kill no script can catch. A page that ends with a Kale voice in memory and no pagehide
+// leaves this mark; the next load holds that voice and asks what to do (settingsStore's crashedVoice).
+// The mark names its page, which holds a Web Lock for its life: another open lalala tab's mark is
+// no crash, since the browser frees a page's locks only when the page is gone.
+const VOICE_LIVE = "lalala:voice-live";
+const PAGE = Math.random().toString(36).slice(2, 10);
+const pageLock = (page: string) => `lalala:page:${page}`;
+let liveVoice: string | null = null;
+let lockHeld = false;
+const markLive = (voice: string | null) => {
+  storage((store) => (voice ? store.setItem(VOICE_LIVE, `${voice} ${PAGE}`) : store.removeItem(VOICE_LIVE)));
+  if (voice === null || lockHeld || !navigator.locks) return;
+  lockHeld = true;
+  void navigator.locks.request(pageLock(PAGE), () => new Promise<never>(() => {}));
+};
+let died: string | null = null;
 storage((store) => {
-  if (store.getItem(TINY_LIVE) === null) return;
-  store.removeItem(TINY_LIVE);
-  store.setItem(TINY_CRASHED_KEY, String(Date.now()));
-  voiceLog("system", "speech.died", { model: TINY_VOICE, asks: true });
+  died = store.getItem(VOICE_LIVE);
+});
+const crashChecked: Promise<void> =
+  died === null
+    ? Promise.resolve()
+    : (navigator.locks?.query() ?? Promise.resolve({ held: [] }))
+        .then(({ held }) => {
+          const [voice, page] = died!.split(" ");
+          if (held?.some((lock) => lock.name === pageLock(page ?? ""))) return;
+          storage((store) => {
+            store.removeItem(VOICE_LIVE);
+            store.setItem(VOICE_CRASHED_KEY, voice!);
+          });
+          voiceLog("system", "speech.died", { model: voice, asks: true });
+          document.dispatchEvent(new Event("lalala:settings"));
+        })
+        .catch(() => {});
+let crashKnown = died === null;
+void crashChecked.then(() => {
+  crashKnown = true;
 });
 // The page ending on purpose (a reload, going away) or hiding is no crash.
 const onPageHide = () => {
   for (const name of loadingNow) markLoading(name, false);
-  markTiny(false);
+  markLive(null);
 };
 window.addEventListener("pagehide", onPageHide);
 document.addEventListener("visibilitychange", () => {
   if (document.visibilityState === "hidden") onPageHide();
   else {
     for (const name of loadingNow) markLoading(name, true);
-    if (tinyLive) markTiny(true);
+    markLive(liveVoice);
   }
 });
 
@@ -409,24 +436,23 @@ const voice = modelWorker(
 );
 // Kale's own voices, one at a time in one worker: the warm Kokoro (Automatic, and the phone's
 // stand-in for your computer), or kale-tts-1-tiny when picked. Matcha is gone (Tim, 15 Nov).
-const kaleBuild = (): "warm" | "tiny" => {
+/** The Kale voice to load: the one picked, or Automatic's while standing in for your computer. */
+const kaleBuild = (): string => {
   const picked = replyVoice();
-  if (isKaleVoice(picked)) return picked === TINY_VOICE ? "tiny" : "warm";
-  // Standing in for your computer: Automatic's Kale voice.
-  return defaultReplyVoice() === TINY_VOICE ? "tiny" : "warm";
+  return isKaleVoice(picked) ? picked : defaultReplyVoice();
 };
 const warm = modelWorker(
   "kale-kokoro",
   () => {
-    tinyLive = kaleBuild() === "tiny";
-    markTiny(tinyLive);
-    return tinyLive
-      ? new Worker(new URL("./kaleTtsTiny.worker.ts", import.meta.url), { type: "module" })
-      : new Worker(new URL("./llamaKokoro.worker.ts", import.meta.url), { type: "module" });
+    liveVoice = kaleBuild();
+    markLive(liveVoice);
+    return liveVoice === WARM_VOICE
+      ? new Worker(new URL("./llamaKokoro.worker.ts", import.meta.url), { type: "module" })
+      : new Worker(new URL("./kaleVoice.worker.ts", import.meta.url), { type: "module" });
   },
-  // kale-tts-1-tiny on the CPU everywhere: WebGPU ended Tim's iPhone tab (15 Nov, a kill nothing
-  // can catch), and Transformers.js's WebGPU kernels refuse its decoder's phase math (desktop WebKit).
-  () => ({ device: "wasm" }),
+  // The small voices on the CPU everywhere: WebGPU ended Tim's iPhone tab (15 Nov, a kill nothing
+  // can catch), and Transformers.js's WebGPU kernels refuse their decoder's phase math (desktop WebKit).
+  () => ({ device: "wasm", ...SMALL_VOICES[kaleBuild()] }),
 );
 // A device that switches a model, or sends a task to the computer, frees the old one once its
 // current utterance or sentence is done; the new one loads right away when the page has.
@@ -434,7 +460,7 @@ let earsModel = sttModel();
 let voiceBuild = kokoroBuild();
 let voicePick = replyVoice();
 let warmBuild = kaleBuild();
-let crashAsk = tinyCrashed();
+let crashAsk = crashedVoice();
 let retryEvery = autoRetrySeconds();
 document.addEventListener("lalala:settings", () => {
   trackWhere();
@@ -451,8 +477,8 @@ document.addEventListener("lalala:settings", () => {
     if (earsModel === "computer") void refreshComputerSpeech();
     else if (speechPrewarmed) startEars();
   }
-  if (tinyCrashed() !== crashAsk) {
-    crashAsk = tinyCrashed();
+  if (crashedVoice() !== crashAsk) {
+    crashAsk = crashedVoice();
     if (!crashAsk && speechPrewarmed) prewarmVoice();
   }
   if (kokoroBuild() !== voiceBuild || replyVoice() !== voicePick) {
@@ -460,8 +486,8 @@ document.addEventListener("lalala:settings", () => {
     // At once, not when idle: the two Kale voices are never in an iPhone tab's memory together.
     if (kaleBuild() !== warmBuild) {
       warm.release();
-      tinyLive = false;
-      markTiny(false);
+      liveVoice = null;
+      markLive(null);
     }
     warmBuild = kaleBuild();
     voiceBuild = kokoroBuild();
@@ -700,8 +726,12 @@ export const releaseKokoro = () => voice.releaseWhenIdle();
 /** The same for Kale's warm voice, Kale's Kokoro. */
 export const startWarmVoice = () => {
   if (voiceOff || onComputer.voice()) return;
+  if (!crashKnown) {
+    void crashChecked.then(startWarmVoice);
+    return;
+  }
   // It took the tab down last time: nothing loads until the bar's ask is answered.
-  if (kaleBuild() === "tiny" && tinyCrashed()) return;
+  if (crashedVoice() === kaleBuild()) return;
   if (wantsComputer.voice() && voiceStandIn() === "kokoro") return;
   warm.start();
 };

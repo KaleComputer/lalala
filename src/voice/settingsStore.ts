@@ -159,30 +159,37 @@ const write = (key: string, value: string | null) => {
 
 /** Kale's warm voice, Kokoro (llamaKokoro.worker), by its id in the settings. */
 export const WARM_VOICE = "kale-kokoro";
-/** kale-tts-1-tiny (k10c, Hazel's voice, 61 MB), in the same worker as the warm voice. */
+/** kale-tts-1-tiny (k10c, Hazel's voice, 61 MB). */
 export const TINY_VOICE = "kale-tts-1-tiny";
-/** Either of Kale's own voices: both speak from llamaKokoro.worker. */
-export const isKaleVoice = (voice: string) => voice === WARM_VOICE || voice === TINY_VOICE;
+/** The cheerful storyteller (voice 8 on the k10c recipe, 61 MB, 190 wpm): Tim's pick, 15 Nov. */
+export const STORY_VOICE = "kale-storyteller";
+/** Kale's small voices: their model folder (public/models) and voice file, for kaleVoice.worker. */
+export const SMALL_VOICES: Readonly<Record<string, { readonly model: string; readonly voice: string }>> = {
+  [STORY_VOICE]: { model: "kale-storyteller", voice: "storyteller" },
+  [TINY_VOICE]: { model: "kale-tts-1-tiny", voice: "hazel" },
+};
+/** Kale's own voices: the warm Kokoro (llamaKokoro.worker) and the small ones (kaleVoice.worker). */
+export const isKaleVoice = (voice: string) => voice === WARM_VOICE || voice in SMALL_VOICES;
 
 /**
- * Set when a page died with kale-tts-1-tiny loaded (browser.ts). Nothing switches on its own (Tim,
- * 15 Nov: "we show that something is wrong, and ask what we should do"): the voice waits, and the
- * bar asks (VoiceCrashAsk.tsx) until a pick answers it.
+ * The Kale voice a page died with (browser.ts). Nothing switches on its own (Tim, 15 Nov: "we show
+ * that something is wrong, and ask what we should do"): that voice waits, and the bar asks
+ * (VoiceCrashAsk.tsx) until a pick answers it.
  */
-export const TINY_CRASHED_KEY = "lalala:tiny-crashed";
-export const tinyCrashed = () => read(TINY_CRASHED_KEY) !== null;
-/** "Try it again": the ask goes and kale-tts-1-tiny loads. */
-export const retryTinyVoice = () => write(TINY_CRASHED_KEY, null);
+export const VOICE_CRASHED_KEY = "lalala:voice-crashed";
+export const crashedVoice = () => read(VOICE_CRASHED_KEY);
+/** "Try it again": the ask goes and the voice loads. */
+export const retryCrashedVoice = () => write(VOICE_CRASHED_KEY, null);
 
 /**
- * The reply voice every device starts on: kale-tts-1-tiny on a phone (Tim, 15 Nov: "use it also
- * here on this device, on the phone"), Kale's warm Kokoro elsewhere (his pick by ear).
+ * The reply voice every device starts on: the cheerful storyteller (Tim, 15 Nov: "this of course
+ * goes into lalala"); kale-tts-1-tiny and the warm Kokoro are picks in Settings.
  */
-export const defaultReplyVoice = (): string => (phone() ? TINY_VOICE : WARM_VOICE);
+export const defaultReplyVoice = (): string => STORY_VOICE;
 
 /**
  * Who speaks the replies on this device: "auto" (nothing stored: defaultReplyVoice), Kale's
- * "kale-kokoro" or "kale-tts-1-tiny", "kokoro-gpu", "kokoro-cpu" (Kokoro 82M), "computer" (Kokoro on the computer running
+ * "kale-storyteller", "kale-kokoro" or "kale-tts-1-tiny", "kokoro-gpu", "kokoro-cpu" (Kokoro 82M), "computer" (Kokoro on the computer running
  * T3, opt-in), or a voice the user's cards registered (replyVoices.ts) by its id.
  */
 export const replyVoicePick = (): string => {
@@ -197,7 +204,7 @@ export const replyVoicePick = (): string => {
 };
 /** Any pick answers the crash ask too. */
 export const setReplyVoice = (voice: string) => {
-  write(TINY_CRASHED_KEY, null);
+  write(VOICE_CRASHED_KEY, null);
   write(REPLY_VOICE_KEY, voice === "auto" ? null : voice);
 };
 /** The voice that speaks now, with "auto" resolved for this device. */
