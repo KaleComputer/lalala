@@ -165,18 +165,20 @@ export const TINY_VOICE = "kale-tts-1-tiny";
 export const isKaleVoice = (voice: string) => voice === WARM_VOICE || voice === TINY_VOICE;
 
 /**
- * Set when a page died with kale-tts-1-tiny loaded (browser.ts): this device speaks with the warm
- * Kokoro from then on, until kale-tts-1-tiny is picked again by hand.
+ * Set when a page died with kale-tts-1-tiny loaded (browser.ts). Nothing switches on its own (Tim,
+ * 15 Nov: "we show that something is wrong, and ask what we should do"): the voice waits, and the
+ * bar asks (VoiceCrashAsk.tsx) until a pick answers it.
  */
 export const TINY_CRASHED_KEY = "lalala:tiny-crashed";
 export const tinyCrashed = () => read(TINY_CRASHED_KEY) !== null;
+/** "Try it again": the ask goes and kale-tts-1-tiny loads. */
+export const retryTinyVoice = () => write(TINY_CRASHED_KEY, null);
 
 /**
  * The reply voice every device starts on: kale-tts-1-tiny on a phone (Tim, 15 Nov: "use it also
- * here on this device, on the phone"), on its CPU (WebGPU ended his iPhone's tab, 15 Nov), Kale's
- * warm Kokoro elsewhere (his pick by ear) and on a phone whose tab kale-tts-1-tiny took down.
+ * here on this device, on the phone"), Kale's warm Kokoro elsewhere (his pick by ear).
  */
-export const defaultReplyVoice = (): string => (phone() && !tinyCrashed() ? TINY_VOICE : WARM_VOICE);
+export const defaultReplyVoice = (): string => (phone() ? TINY_VOICE : WARM_VOICE);
 
 /**
  * Who speaks the replies on this device: "auto" (nothing stored: defaultReplyVoice), Kale's
@@ -193,14 +195,14 @@ export const replyVoicePick = (): string => {
   if (stored === "llama-kokoro") return WARM_VOICE;
   return stored;
 };
+/** Any pick answers the crash ask too. */
 export const setReplyVoice = (voice: string) => {
-  if (voice === TINY_VOICE) write(TINY_CRASHED_KEY, null);
+  write(TINY_CRASHED_KEY, null);
   write(REPLY_VOICE_KEY, voice === "auto" ? null : voice);
 };
 /** The voice that speaks now, with "auto" resolved for this device. */
 export const replyVoice = (): string => {
   const pick = replyVoicePick();
-  if (pick === TINY_VOICE && tinyCrashed()) return WARM_VOICE;
   return pick === "auto" ? defaultReplyVoice() : pick;
 };
 

@@ -7,12 +7,12 @@ import type { VoiceBarModel } from "../VoiceBar";
 import {
   TINY_CRASHED_KEY,
   TINY_VOICE,
-  WARM_VOICE,
   autoRetrySeconds,
   defaultReplyVoice,
   isKaleVoice,
   isPhoneDevice,
   replyVoice,
+  tinyCrashed,
   replyVoicePick,
   sttModel,
 } from "../settingsStore";
@@ -61,8 +61,8 @@ for (const name of ["parakeet", "kokoro", "kale-kokoro", "llama-kokoro"]) {
   });
 }
 // kale-tts-1-tiny took Tim's iPhone tab down on WebGPU (15 Nov), loading and right after it was
-// ready. A page that ends with it in memory and no pagehide leaves this mark; the next load turns
-// the device back to the warm Kokoro (settingsStore's tinyCrashed) instead of dying again.
+// ready: a kill no script can catch. A page that ends with it in memory and no pagehide leaves this
+// mark; the next load holds the voice and asks what to do (settingsStore's tinyCrashed).
 const TINY_LIVE = "lalala:tiny-live";
 let tinyLive = false;
 const markTiny = (on: boolean) =>
@@ -71,7 +71,7 @@ storage((store) => {
   if (store.getItem(TINY_LIVE) === null) return;
   store.removeItem(TINY_LIVE);
   store.setItem(TINY_CRASHED_KEY, String(Date.now()));
-  voiceLog("system", "speech.fallback", { from: TINY_VOICE, to: WARM_VOICE, why: "the page died with it" });
+  voiceLog("system", "speech.died", { model: TINY_VOICE, asks: true });
 });
 // The page ending on purpose (a reload, going away) or hiding is no crash.
 const onPageHide = () => {
@@ -431,6 +431,7 @@ let earsModel = sttModel();
 let voiceBuild = kokoroBuild();
 let voicePick = replyVoice();
 let warmBuild = kaleBuild();
+let crashAsk = tinyCrashed();
 let retryEvery = autoRetrySeconds();
 document.addEventListener("lalala:settings", () => {
   trackWhere();
@@ -446,6 +447,10 @@ document.addEventListener("lalala:settings", () => {
     ears.releaseWhenIdle();
     if (earsModel === "computer") void refreshComputerSpeech();
     else if (speechPrewarmed) startEars();
+  }
+  if (tinyCrashed() !== crashAsk) {
+    crashAsk = tinyCrashed();
+    if (!crashAsk && speechPrewarmed) prewarmVoice();
   }
   if (kokoroBuild() !== voiceBuild || replyVoice() !== voicePick) {
     if (kokoroBuild() !== voiceBuild) voice.releaseWhenIdle();
@@ -692,6 +697,8 @@ export const releaseKokoro = () => voice.releaseWhenIdle();
 /** The same for Kale's warm voice, Kale's Kokoro. */
 export const startWarmVoice = () => {
   if (voiceOff || onComputer.voice()) return;
+  // It took the tab down last time: nothing loads until the bar's ask is answered.
+  if (kaleBuild() === "tiny" && tinyCrashed()) return;
   if (wantsComputer.voice() && voiceStandIn() === "kokoro") return;
   warm.start();
 };
