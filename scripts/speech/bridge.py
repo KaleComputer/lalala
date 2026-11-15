@@ -28,6 +28,7 @@ IN = os.path.join(HERE, "in")
 OUT = os.path.join(HERE, "out")
 STATUS = os.path.join(HERE, "status.json")
 WANTED = os.path.join(HERE, "wanted")
+RETRY = os.path.join(HERE, "retry")  # written by the page's Retry now: start the service again at once
 PID = os.path.join(HERE, "bridge.pid")
 SPEECH = os.path.join(HERE, "scripts", "speech.sh")
 PORT = int(os.environ.get("LALALA_LOCAL_PORT", "5797"))
@@ -149,6 +150,12 @@ def main():
         if now - checked >= 1:
             checked = now
             found = health()
+            if found is None and os.path.exists(RETRY):
+                started_at = 0.0
+            try:
+                os.remove(RETRY)
+            except OSError:
+                pass
             if found is not None:
                 state, reason = found, None
             elif started_at == 0 or (state == "down" and now - started_at > 30):

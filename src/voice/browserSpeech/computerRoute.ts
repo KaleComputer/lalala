@@ -137,6 +137,11 @@ const t3Route: ComputerRoute = {
     const live = Date.now() / 1000 - at < FRESH_S && status?.state !== "off";
     if (live) {
       const state = status!.state;
+      // Retry now: the running bridge starts the service again at once.
+      if (start === "force" && state === "down") {
+        await files.writeFile(`${DIR}/retry`, String(Date.now())).catch(() => {});
+        return { state: "starting", reason: null };
+      }
       return {
         state: state === "ready" || state === "loading" || state === "down" ? state : "starting",
         reason: typeof status!.reason === "string" ? status!.reason : null,

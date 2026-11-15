@@ -1935,16 +1935,19 @@ function automaticWhy(task: "stt" | "voice", computer: ReturnType<typeof compute
   const { browser, computer: there } = speechTimings()[task];
   const runs = speechRunsAt(task);
   const since = runs.since === null ? "" : ` · since ${clock(runs.since)}`;
-  const both =
-    browser !== undefined && there !== undefined
-      ? `measured ${seconds(there)} there vs ${seconds(browser)} here per second of audio`
-      : null;
+  // Each timing on its own, so a missing one says so instead of hiding the other.
+  const measured =
+    there === undefined && browser === undefined
+      ? "not measured yet"
+      : `per second of audio: computer ${there === undefined ? "not measured" : seconds(there)}, here ${
+          browser === undefined ? "not measured" : seconds(browser)
+        }`;
   if (!automaticTriesComputer(task)) return "Kale's voice, in this browser: a phone keeps it";
   if (computer === "absent") return "this browser; your computer once T3 Code is connected";
-  if (browserFaster(task)) return `this browser, faster here: ${both}${since}`;
+  if (browserFaster(task)) return `this browser, faster here · ${measured}${since}`;
   if (runs.where === "computer")
-    return `your computer, ${both ?? "this browser not measured yet"}${since}`;
-  return `this browser${since}`;
+    return `your computer${browser === undefined ? " (nothing to download)" : ""} · ${measured}${since}`;
+  return `this browser until your computer answers · ${measured}${since}`;
 }
 
 /**
@@ -2008,8 +2011,7 @@ function TaskState(props: {
           </>
         ) : null}
       </span>
-      {/* While your computer is tried, "Now:" and the group's live line already say why. */}
-      {picked === "auto" && !trying ? (
+      {picked === "auto" ? (
         <span data-lalala-settings-why="">
           <b data-lalala-settings-now="">Automatic:</b> {automaticWhy(props.task, computer)}
         </span>
