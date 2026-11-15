@@ -1793,7 +1793,7 @@ const VOICE_COSTS: Partial<Record<string, string>> = {
   "kokoro-gpu": "327 MB download · ~0.4 GB memory",
   "kokoro-cpu": "93 MB download · ~0.2 GB memory",
   "kale-kokoro": "68 MB download · ~0.2 GB memory",
-  "kale-tts-1-tiny": "61 MB download · GPU where it can",
+  "kale-tts-1-tiny": "61 MB download · ~0.2 GB memory",
 };
 const MB = (bytes: number) =>
   bytes >= 1e9 ? `${(bytes / 1e9).toFixed(2)}\u00a0GB` : `${Math.round(bytes / 1e6)}\u00a0MB`;
@@ -2113,11 +2113,11 @@ export function SpeechSection() {
       : gpu.f16
         ? "0.6b-gpu"
         : "0.6b-cpu";
-  // Automatic's voice on every device: Kale's warm voice (Tim's pick, 15 Nov).
-  const autoVoice: VoiceBuild = "kale-kokoro";
-  // Who stands in for your computer's voice: the same Kokoro 82M here on a desktop, Kale's Kokoro on a phone.
+  // Automatic's voice: kale-tts-1-tiny on a phone, Kale's warm voice elsewhere (settingsStore).
+  const autoVoice = defaultReplyVoice() as VoiceBuild;
+  // Who stands in for your computer's voice: the same Kokoro 82M here on a desktop, Automatic's on a phone.
   const voiceStandIn: VoiceBuild | null = phone
-    ? "kale-kokoro"
+    ? autoVoice
     : gpu === null
       ? null
       : gpu.any

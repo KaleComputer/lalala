@@ -5,9 +5,11 @@
 // hides: setting a model up takes seconds on a phone (Tim, 14 Nov: "always a cold start").
 import type { VoiceBarModel } from "../VoiceBar";
 import {
+  TINY_CRASHED_KEY,
   TINY_VOICE,
   WARM_VOICE,
   autoRetrySeconds,
+  defaultReplyVoice,
   isKaleVoice,
   isPhoneDevice,
   replyVoice,
@@ -58,14 +60,31 @@ for (const name of ["parakeet", "kokoro", "kale-kokoro", "llama-kokoro"]) {
     voiceLog("system", "speech.died", { model: name });
   });
 }
+// kale-tts-1-tiny took Tim's iPhone tab down on WebGPU (15 Nov), loading and right after it was
+// ready. A page that ends with it in memory and no pagehide leaves this mark; the next load turns
+// the device back to the warm Kokoro (settingsStore's tinyCrashed) instead of dying again.
+const TINY_LIVE = "lalala:tiny-live";
+let tinyLive = false;
+const markTiny = (on: boolean) =>
+  storage((store) => (on ? store.setItem(TINY_LIVE, String(Date.now())) : store.removeItem(TINY_LIVE)));
+storage((store) => {
+  if (store.getItem(TINY_LIVE) === null) return;
+  store.removeItem(TINY_LIVE);
+  store.setItem(TINY_CRASHED_KEY, String(Date.now()));
+  voiceLog("system", "speech.fallback", { from: TINY_VOICE, to: WARM_VOICE, why: "the page died with it" });
+});
 // The page ending on purpose (a reload, going away) or hiding is no crash.
 const onPageHide = () => {
   for (const name of loadingNow) markLoading(name, false);
+  markTiny(false);
 };
 window.addEventListener("pagehide", onPageHide);
 document.addEventListener("visibilitychange", () => {
   if (document.visibilityState === "hidden") onPageHide();
-  else for (const name of loadingNow) markLoading(name, true);
+  else {
+    for (const name of loadingNow) markLoading(name, true);
+    if (tinyLive) markTiny(true);
+  }
 });
 
 const memory = () => {
@@ -392,13 +411,19 @@ const voice = modelWorker(
 // stand-in for your computer), or kale-tts-1-tiny when picked. Matcha is gone (Tim, 15 Nov).
 const kaleBuild = (): "warm" | "tiny" => {
   const picked = replyVoice();
-  if (picked === WARM_VOICE) return "warm";
-  return picked === TINY_VOICE ? "tiny" : "warm";
+  if (isKaleVoice(picked)) return picked === TINY_VOICE ? "tiny" : "warm";
+  // Standing in for your computer: Automatic's Kale voice.
+  return defaultReplyVoice() === TINY_VOICE ? "tiny" : "warm";
 };
 const warm = modelWorker(
   "kale-kokoro",
-  () => new Worker(new URL("./llamaKokoro.worker.ts", import.meta.url), { type: "module" }),
-  () => ({ build: kaleBuild() }),
+  () => {
+    tinyLive = kaleBuild() === "tiny";
+    markTiny(tinyLive);
+    return new Worker(new URL("./llamaKokoro.worker.ts", import.meta.url), { type: "module" });
+  },
+  // WebGPU ended Tim's iPhone tab (15 Nov): phones run it on the CPU.
+  () => ({ build: kaleBuild(), gpu: !isPhoneDevice() }),
 );
 // A device that switches a model, or sends a task to the computer, frees the old one once its
 // current utterance or sentence is done; the new one loads right away when the page has.
@@ -424,7 +449,12 @@ document.addEventListener("lalala:settings", () => {
   }
   if (kokoroBuild() !== voiceBuild || replyVoice() !== voicePick) {
     if (kokoroBuild() !== voiceBuild) voice.releaseWhenIdle();
-    if (kaleBuild() !== warmBuild) warm.releaseWhenIdle();
+    // At once, not when idle: the two Kale voices are never in an iPhone tab's memory together.
+    if (kaleBuild() !== warmBuild) {
+      warm.release();
+      tinyLive = false;
+      markTiny(false);
+    }
     warmBuild = kaleBuild();
     voiceBuild = kokoroBuild();
     voicePick = replyVoice();

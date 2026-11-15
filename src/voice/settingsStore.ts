@@ -165,10 +165,18 @@ export const TINY_VOICE = "kale-tts-1-tiny";
 export const isKaleVoice = (voice: string) => voice === WARM_VOICE || voice === TINY_VOICE;
 
 /**
- * The reply voice every device starts on: Kale's warm Kokoro (Tim's pick by ear, 15 Nov).
- * kale-tts-1-tiny is a manual pick: as the iPhone's Automatic voice it ended the tab (15 Nov).
+ * Set when a page died with kale-tts-1-tiny loaded (browser.ts): this device speaks with the warm
+ * Kokoro from then on, until kale-tts-1-tiny is picked again by hand.
  */
-export const defaultReplyVoice = (): string => WARM_VOICE;
+export const TINY_CRASHED_KEY = "lalala:tiny-crashed";
+export const tinyCrashed = () => read(TINY_CRASHED_KEY) !== null;
+
+/**
+ * The reply voice every device starts on: kale-tts-1-tiny on a phone (Tim, 15 Nov: "use it also
+ * here on this device, on the phone"), on its CPU (WebGPU ended his iPhone's tab, 15 Nov), Kale's
+ * warm Kokoro elsewhere (his pick by ear) and on a phone whose tab kale-tts-1-tiny took down.
+ */
+export const defaultReplyVoice = (): string => (phone() && !tinyCrashed() ? TINY_VOICE : WARM_VOICE);
 
 /**
  * Who speaks the replies on this device: "auto" (nothing stored: defaultReplyVoice), Kale's
@@ -185,10 +193,14 @@ export const replyVoicePick = (): string => {
   if (stored === "llama-kokoro") return WARM_VOICE;
   return stored;
 };
-export const setReplyVoice = (voice: string) => write(REPLY_VOICE_KEY, voice === "auto" ? null : voice);
+export const setReplyVoice = (voice: string) => {
+  if (voice === TINY_VOICE) write(TINY_CRASHED_KEY, null);
+  write(REPLY_VOICE_KEY, voice === "auto" ? null : voice);
+};
 /** The voice that speaks now, with "auto" resolved for this device. */
 export const replyVoice = (): string => {
   const pick = replyVoicePick();
+  if (pick === TINY_VOICE && tinyCrashed()) return WARM_VOICE;
   return pick === "auto" ? defaultReplyVoice() : pick;
 };
 

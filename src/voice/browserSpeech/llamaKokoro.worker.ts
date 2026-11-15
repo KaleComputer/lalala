@@ -5,7 +5,8 @@
 // Hazel's. Tim picked it by ear on 15 Nov over Matcha. Files ship with lalala (llamaKokoro/; the
 // names stay, so no device downloads it again), the runtime comes from the CDN. Credits: NOTICE.md.
 // The load message's `build: "tiny"` speaks kale-tts-1-tiny instead (k10c, Hazel's voice, 61 MB,
-// kaleTtsTiny/): same inputs and front end, on WebGPU where the browser has it, else on wasm.
+// kaleTtsTiny/): same inputs and front end, on WebGPU where the page allows it (not on phones) and the
+// browser has it, else on wasm.
 import { G2p, G2pModel, normalizer, readTable } from "./matcha/kaleTts.js";
 
 const ORT_BASE = "https://cdn.jsdelivr.net/npm/onnxruntime-web@1.24.1/dist/";
@@ -115,14 +116,14 @@ async function fetchAll(build: Build, onBytes: (loaded: number, total: number) =
   return bodies;
 }
 
-/** WebGPU for kale-tts-1-tiny where this browser has an adapter (~5× wasm in WebKit, 15 Nov bench). */
+/** WebGPU for kale-tts-1-tiny where this browser has an adapter (~5× wasm in desktop WebKit, 15 Nov). */
 async function hasGpu() {
   const gpu = (navigator as Navigator & { gpu?: { requestAdapter(): Promise<unknown> } }).gpu;
   return (await gpu?.requestAdapter().catch(() => null)) != null;
 }
 
-async function load(build: Build): Promise<Voice> {
-  const gpu = build === BUILDS.tiny && (await hasGpu());
+async function load(build: Build, allowGpu: boolean): Promise<Voice> {
+  const gpu = build === BUILDS.tiny && allowGpu && (await hasGpu());
   const bundle = gpu ? "ort.webgpu.min.mjs" : "ort.wasm.min.mjs";
   const ort = (await import(/* @vite-ignore */ /* webpackIgnore: true */ /* turbopackIgnore: true */ `${ORT_BASE}${bundle}`)) as Ort;
   ort.env.wasm.wasmPaths = ORT_BASE;
@@ -226,11 +227,11 @@ async function speak(ready: Voice, raw: string) {
 }
 
 self.onmessage = (
-  event: MessageEvent<{ type: string; id?: number; text?: string; build?: "warm" | "tiny" }>,
+  event: MessageEvent<{ type: string; id?: number; text?: string; build?: "warm" | "tiny"; gpu?: boolean }>,
 ) => {
   const message = event.data;
   if (voice === null) {
-    voice = load(BUILDS[message.build ?? "warm"]);
+    voice = load(BUILDS[message.build ?? "warm"], message.gpu === true);
     voice.catch((error: unknown) => postMessage({ type: "failed", message: String(error) }));
   }
   if (message.type !== "speak") return;

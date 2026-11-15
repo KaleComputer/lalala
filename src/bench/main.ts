@@ -1,6 +1,6 @@
 // ?bench=k10c on either host (src/main.tsx): kale-tts-1-tiny (k10c), Kale's 61 MB voice (Kokoro's text side and our
-// own small decoder), against the warm Kokoro lalala speaks with today, each on WebGPU and on wasm,
-// one model at a time in a worker that ends after its run. Silent unless a play button is tapped.
+// own small decoder), on wasm and (not on phones) WebGPU, each in a worker that ends after its run.
+// Silent unless a play button is tapped.
 // The numbers go to the session log (the app) or to .lalala/bench/ on the paired computer (lalala.talk).
 import type { BenchJob } from "../voice/browserSpeech/bench.worker";
 
@@ -26,20 +26,14 @@ const models = {
     cache: "lalala-kale-tts-1-tiny",
     speed: 1,
   },
-  kokoro: {
-    label: "warm Kokoro (live)",
-    model: new URL("../voice/browserSpeech/llamaKokoro/llama-kokoro-f40warm.onnx", import.meta.url).href,
-    voicepack: new URL("../voice/browserSpeech/llamaKokoro/voicepack-f40warm.f32", import.meta.url).href,
-    // The live voice's own cache: on a phone that already talked, it doesn't download again.
-    cache: "lalala-llama-kokoro",
-    speed: 0.92,
-  },
 };
+// kale-tts-1-tiny alone (Tim: "just kale-tts-1-tiny"). WebGPU ended his iPhone's tab (15 Nov): a
+// phone runs it on the CPU only, unless ?gpu asks; elsewhere WebGPU runs after the CPU.
+const PHONE = /iPhone|iPad|iPod|Android/.test(navigator.userAgent);
+const WITH_GPU = !PHONE || new URLSearchParams(location.search).has("gpu");
 const PLAN = [
-  { model: "k10c", backend: "webgpu" },
   { model: "k10c", backend: "wasm" },
-  { model: "kokoro", backend: "webgpu" },
-  { model: "kokoro", backend: "wasm" },
+  ...(WITH_GPU ? [{ model: "k10c", backend: "webgpu" }] : []),
 ] as const;
 
 type RunResult = Record<string, unknown> & { model: string; backend: string };
@@ -69,7 +63,7 @@ document.head.append(style);
 const root = document.getElementById("root")!;
 root.innerHTML = `<main>
   <h1>kale-tts-1-tiny speed on this device</h1>
-  <p>kale-tts-1-tiny (k10c) and the warm Kokoro, each on WebGPU and on CPU (wasm), one at a time. ${RUNS} runs each of the volcano line, median shown. Nothing plays unless you tap play. About a minute, longer if the models still need to download (~130 MB).</p>
+  <p>kale-tts-1-tiny (k10c) on the CPU${WITH_GPU ? " and on WebGPU" : ""}, ${RUNS} runs of the volcano line, median shown. Nothing plays unless you tap play. Under a minute, longer if the model still needs to download (61 MB).</p>
   <p id="gpu"></p>
   <button id="run">Run</button>
   <div id="status"></div>
@@ -174,6 +168,7 @@ async function start() {
   const results: RunResult[] = [];
   for (const step of PLAN) {
     const label = `${models[step.model].label} on ${step.backend === "webgpu" ? "WebGPU" : "CPU"}`;
+    log?.("bench.step", step);
     $("status").textContent = `${label}: loading…`;
     const { result, audio } =
       step.backend === "webgpu" && !device.gpu.webgpu
@@ -233,3 +228,5 @@ void gpuInfo().then((gpu) => {
     : `WebGPU isn't available in this browser (${gpu.reason}): only the CPU runs will run.`;
 });
 $("run").onclick = () => void start();
+// ?bench=k10c&auto starts on its own (the iOS Simulator's memory check has no one to tap).
+if (new URLSearchParams(location.search).has("auto")) void start();
