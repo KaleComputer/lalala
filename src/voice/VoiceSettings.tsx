@@ -1983,7 +1983,11 @@ function automaticWhy(task: "stt" | "voice", computer: ReturnType<typeof compute
   // While your computer is tried, the group's line says why: here what Automatic picked meanwhile, what was
   // measured and when it moved.
   const facts = [
-    computer === "down" ? "this browser while your computer is down" : "",
+    computer === "down"
+      ? "this browser while your computer is down"
+      : computer === "starting" || computer === "loading"
+        ? "this browser while your computer starts"
+        : "",
     there === undefined && browser === undefined ? "" : measured,
     since.replace(/^\u00a0· /, ""),
   ];
@@ -2026,6 +2030,9 @@ function TaskState(props: {
         : " while your computer starts";
   let now = `Now: ${nowText(active, waiting, meanwhile)}`;
   if (picked === "computer" && computer === "absent") now += " (connect T3 Code first)";
+  // Loading without byte progress (kokoro-js reports none) still names what it costs.
+  if (status?.phase === "loading" && props.cost)
+    now = now.replace(" · loading", ` · loading, ${props.cost.split(" download")[0]}`);
   if (status?.phase === "idle" && props.cost)
     now = now.replace(" · loads with the\u00a0call", ` · ${props.cost.split(" download")[0]}, loads with the\u00a0call`);
   if (failed)

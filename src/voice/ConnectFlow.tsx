@@ -353,7 +353,7 @@ export function PairSteps(props: {
                 )}
               </details>
             </Step>
-            <Step n={4} title="Paste the link or code">
+            <Step n={4} title="Paste the link or code from step 3">
               {field(phone ? "The link or code" : "https://…/pair#token=… or the code", "Pairing link or code")}
             </Step>
           </>
