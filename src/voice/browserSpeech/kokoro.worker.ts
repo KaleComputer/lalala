@@ -1,5 +1,6 @@
 // Kokoro 82M on ONNX (kokoro-js), the reply voice, rendered off the page's thread. The libraries come
 // from the CDN: the page ships no copy of them.
+import { Normalizer, spokenText } from "./dizione/spoken.js";
 import { trackFiles } from "./readout";
 import { forgetDownloads, resumableFetch } from "./resumableFetch";
 
@@ -213,7 +214,28 @@ async function phonemesWithMarkup(text: string) {
   return out;
 }
 
-async function render(tts: KokoroTTS, text: string) {
+// dizione's text rules (./dizione) before eSpeak: money, dates, codes and the like as words. Letters to name are
+// joined with hyphens, the way eSpeak names them ("A-M"; "A M" reads the article).
+const rules = new Normalizer();
+const spell = (letters: string) => [...letters.toUpperCase()].join("-");
+
+/** The text as words, misaki's markup left as it is (and as close to its neighbours as it was). */
+function spoken(text: string) {
+  const words = (piece: string) => {
+    const said = spokenText(piece, rules, spell);
+    return said === "" ? piece.replace(/\S+/g, "") : (/^\s/.test(piece) ? " " : "") + said + (/\s$/.test(piece) ? " " : "");
+  };
+  let out = "";
+  let at = 0;
+  for (const mark of text.matchAll(MARKUP)) {
+    out += words(text.slice(at, mark.index)) + mark[0];
+    at = mark.index + mark[0].length;
+  }
+  return (out + words(text.slice(at))).replace(/ +/g, " ").trim();
+}
+
+async function render(tts: KokoroTTS, raw: string) {
+  const text = spoken(raw);
   if (!text.includes("](/")) return tts.generate(text, { voice: VOICE });
   const { input_ids } = tts.tokenizer(await phonemesWithMarkup(text), { truncation: true });
   return tts.generate_from_ids(input_ids, { voice: VOICE });

@@ -69,6 +69,15 @@ voice must follow them.
 No espeak-ng (or other GPL code or data) is used at runtime. The runtime is
 [onnxruntime-web](https://github.com/microsoft/onnxruntime) (MIT), loaded from jsDelivr.
 
+## dizione's text rules (included: `src/voice/browserSpeech/dizione`)
+
+Both browser voices read numbers, money, dates, times, units, codes and abbreviations with a
+JavaScript port of the text rules of [dizione](https://github.com/n4ze3m/dizione) by Muhammed
+Nazeem (`spoken.js`, `tables.js` from its `normalize.py` and `data/`), and Llama Matcha picks the
+reading of words like "read" and "live" with a port of its homograph picker (`homographs.js`;
+`homographs.data.js` is its built `homographs.json`, weights trained on the Wikipedia Homograph
+Data). Apache-2.0; the license is in `src/voice/browserSpeech/dizione/LICENSE`.
+
 ## Sounds
 
 The topic sounds in `src/voice/extras/topicSounds-*.mp3` were generated with ElevenLabs (sound

@@ -3,7 +3,7 @@
 // CPU (WASM), about 19x faster than Kokoro's q8 build in Safari: acoustic weights stored in 8 bits,
 // the vocoder's in 16 (it is the part 8 bits hurt). Files ship with lalala (matcha/), the runtime
 // comes from the CDN. "Built with Llama": NOTICE.md and the settings' credits.
-import { Voice, normalize } from "./matcha/kaleTts.js";
+import { Voice } from "./matcha/kaleTts.js";
 
 const ORT = "https://cdn.jsdelivr.net/npm/onnxruntime-web@1.24.1/dist/ort.wasm.min.mjs";
 const CACHE = "lalala-matcha";
@@ -129,7 +129,7 @@ self.onmessage = (event: MessageEvent<{ type: string; id?: number; text?: string
   queue = queue.then(async () => {
     try {
       const ready = await voice!;
-      const text = normalize(message.text!);
+      const text = ready.normalize(message.text!);
       const started = performance.now();
       const { pcm, ms } = await ready.speakSentence(text, {
         lengthScale: LENGTH_SCALE,

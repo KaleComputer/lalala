@@ -17,10 +17,11 @@ export type Sentence = {
 export class Voice {
   static load(ort: unknown, files: VoiceFiles, options?: { sessionOptions?: object }): Promise<Voice>;
   readonly sampleRate: number;
+  /** Numbers, money, dates and the like as words, ready for speakSentence. */
+  normalize(text: string): string;
   speakSentence(
     sentence: string,
     options?: { lengthScale?: number; noiseScale?: number },
   ): Promise<Sentence>;
 }
 
-export function normalize(text: string): string;
