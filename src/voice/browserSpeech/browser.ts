@@ -420,10 +420,13 @@ const warm = modelWorker(
   () => {
     tinyLive = kaleBuild() === "tiny";
     markTiny(tinyLive);
-    return new Worker(new URL("./llamaKokoro.worker.ts", import.meta.url), { type: "module" });
+    return tinyLive
+      ? new Worker(new URL("./kaleTtsTiny.worker.ts", import.meta.url), { type: "module" })
+      : new Worker(new URL("./llamaKokoro.worker.ts", import.meta.url), { type: "module" });
   },
-  // WebGPU ended Tim's iPhone tab (15 Nov): phones run it on the CPU.
-  () => ({ build: kaleBuild(), gpu: !isPhoneDevice() }),
+  // kale-tts-1-tiny on the CPU everywhere: WebGPU ended Tim's iPhone tab (15 Nov, a kill nothing
+  // can catch), and Transformers.js's WebGPU kernels refuse its decoder's phase math (desktop WebKit).
+  () => ({ device: "wasm" }),
 );
 // A device that switches a model, or sends a task to the computer, frees the old one once its
 // current utterance or sentence is done; the new one loads right away when the page has.

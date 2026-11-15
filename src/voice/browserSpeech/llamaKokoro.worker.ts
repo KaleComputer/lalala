@@ -4,44 +4,26 @@
 // Kale's front end (matcha/kaleTts.js: dizione's text rules, the word list, the G2p), the same as
 // Hazel's. Tim picked it by ear on 15 Nov over Matcha. Files ship with lalala (llamaKokoro/; the
 // names stay, so no device downloads it again), the runtime comes from the CDN. Credits: NOTICE.md.
-// The load message's `build: "tiny"` speaks kale-tts-1-tiny instead (k10c, Hazel's voice, 61 MB,
-// kaleTtsTiny/): same inputs and front end, on WebGPU where the page allows it (not on phones) and the
-// browser has it, else on wasm.
 import { G2p, G2pModel, normalizer, readTable } from "./matcha/kaleTts.js";
 
-const ORT_BASE = "https://cdn.jsdelivr.net/npm/onnxruntime-web@1.24.1/dist/";
+const ORT = "https://cdn.jsdelivr.net/npm/onnxruntime-web@1.24.1/dist/ort.wasm.min.mjs";
+const CACHE = "lalala-llama-kokoro";
 // Matcha's files, cached on devices before 15 Nov: nothing loads them any more.
 const OLD_CACHES = ["lalala-matcha"];
 const RATE = 24_000;
 
 // Spelled out at each file: bundlers only emit an asset for this exact form.
-const FRONT_END = {
+const FILES = {
+  model: new URL("./llamaKokoro/llama-kokoro-f40warm.onnx", import.meta.url).href,
+  voicepack: new URL("./llamaKokoro/voicepack-f40warm.f32", import.meta.url).href,
   ids: new URL("./llamaKokoro/ipa2kokoro.json", import.meta.url).href,
   g2pModel: new URL("./matcha/g2p.bin", import.meta.url).href,
   lexicon: new URL("./matcha/lexicon.tsv", import.meta.url).href,
   override: new URL("./matcha/override.tsv", import.meta.url).href,
 };
-const BUILDS = {
-  warm: {
-    name: "kale kokoro",
-    cache: "lalala-llama-kokoro",
-    model: new URL("./llamaKokoro/llama-kokoro-f40warm.onnx", import.meta.url).href,
-    voicepack: new URL("./llamaKokoro/voicepack-f40warm.f32", import.meta.url).href,
-    expected: 72_900_000,
-    // Its package's config.json: its duration head reads ~10 % short, so 0.92.
-    speed: 0.92,
-  },
-  tiny: {
-    name: "kale-tts-1-tiny",
-    // The bench (?bench=k10c) fills the same cache.
-    cache: "lalala-kale-tts-1-tiny",
-    model: new URL("./kaleTtsTiny/kale-tts-1-tiny.onnx", import.meta.url).href,
-    voicepack: new URL("./kaleTtsTiny/voicepack-kale-tts-1-tiny.f32", import.meta.url).href,
-    expected: 66_100_000,
-    speed: 1,
-  },
-};
-type Build = (typeof BUILDS)[keyof typeof BUILDS];
+const EXPECTED = 72_900_000;
+// The voice's own settings (its package's config.json): its duration head reads ~10 % short, so 0.92.
+const SPEED = 0.92;
 const STYLE = 256;
 // Kokoro reads at most 512 ids, its two pads included.
 const MAX_IDS = 510;
@@ -66,25 +48,23 @@ type Voice = {
   readonly toId: Map<string, number>;
   readonly g2p: G2p;
   readonly normalize: (text: string) => string;
-  readonly speed: number;
 };
 
 let voice: Promise<Voice> | null = null;
 let queue: Promise<unknown> = Promise.resolve();
 
 /** Each file from this browser's cache, else the network (then cached); bytes reported as they come. */
-async function fetchAll(build: Build, onBytes: (loaded: number, total: number) => void) {
+async function fetchAll(onBytes: (loaded: number, total: number) => void) {
   for (const old of OLD_CACHES) void caches.delete(old).catch(() => {});
-  const cache = await caches.open(build.cache).catch(() => null);
-  const urls = [build.model, build.voicepack, ...Object.values(FRONT_END)];
-  const EXPECTED = build.expected;
+  const cache = await caches.open(CACHE).catch(() => null);
+  const urls = Object.values(FILES);
   // A new build's files have new names: the old ones only fill the device's storage.
   if (cache !== null) {
     for (const old of await cache.keys()) if (!urls.includes(old.url)) void cache.delete(old);
   }
   const hits = await Promise.all(urls.map((url) => cache?.match(url) ?? undefined));
   const cached = hits.every((hit) => hit !== undefined);
-  postMessage({ type: "load", name: build.name, expected: EXPECTED, cached });
+  postMessage({ type: "load", name: "kale kokoro", expected: EXPECTED, cached });
   const loaded = new Map<string, number>();
   const report = () => {
     let sum = 0;
@@ -116,42 +96,22 @@ async function fetchAll(build: Build, onBytes: (loaded: number, total: number) =
   return bodies;
 }
 
-/** WebGPU for kale-tts-1-tiny where this browser has an adapter (~5× wasm in desktop WebKit, 15 Nov). */
-async function hasGpu() {
-  const gpu = (navigator as Navigator & { gpu?: { requestAdapter(): Promise<unknown> } }).gpu;
-  return (await gpu?.requestAdapter().catch(() => null)) != null;
-}
-
-async function load(build: Build, allowGpu: boolean): Promise<Voice> {
-  const gpu = build === BUILDS.tiny && allowGpu && (await hasGpu());
-  const bundle = gpu ? "ort.webgpu.min.mjs" : "ort.wasm.min.mjs";
-  const ort = (await import(/* @vite-ignore */ /* webpackIgnore: true */ /* turbopackIgnore: true */ `${ORT_BASE}${bundle}`)) as Ort;
-  ort.env.wasm.wasmPaths = ORT_BASE;
+async function load(): Promise<Voice> {
+  const ort = (await import(/* @vite-ignore */ /* webpackIgnore: true */ /* turbopackIgnore: true */ ORT)) as Ort;
+  ort.env.wasm.wasmPaths = ORT.slice(0, ORT.lastIndexOf("/") + 1);
   // Cross-origin isolated pages (both hosts) run the WASM on several threads.
   ort.env.wasm.numThreads = self.crossOriginIsolated
     ? Math.min(4, navigator.hardwareConcurrency || 4)
     : 1;
-  const bodies = await fetchAll(build, (loaded, total) => postMessage({ type: "progress", loaded, total }));
+  const bodies = await fetchAll((loaded, total) => postMessage({ type: "progress", loaded, total }));
   const text = (at: number) => new TextDecoder().decode(bodies[at]);
   postMessage({ type: "stage", stage: "session", threads: ort.env.wasm.numThreads });
   // Unoptimized: the optimizer's 32-bit copies of the 16-bit text side left the page ~150 MB bigger
   // (WebKit, 15 Nov: ~0.95 GB with it as with Matcha, ~1.1 GB without) for ~5 % speed.
-  const wasm = () =>
-    ort.InferenceSession.create(new Uint8Array(bodies[0]!), {
-      executionProviders: ["wasm"],
-      graphOptimizationLevel: "disabled",
-    });
-  let backend = gpu ? "webgpu" : "wasm";
-  const session = gpu
-    ? await ort.InferenceSession.create(new Uint8Array(bodies[0]!), { executionProviders: ["webgpu"] }).catch(
-        (error: unknown) => {
-          backend = "wasm";
-          postMessage({ type: "stage", stage: "webgpu-failed", message: String(error) });
-          return wasm();
-        },
-      )
-    : await wasm();
-  postMessage({ type: "stage", stage: "backend", backend });
+  const session = await ort.InferenceSession.create(new Uint8Array(bodies[0]!), {
+    executionProviders: ["wasm"],
+    graphOptimizationLevel: "disabled",
+  });
   // The runtime holds its own copy of the weights now: the download's goes.
   bodies[0] = new ArrayBuffer(0);
   const lex = readTable(text(4));
@@ -163,7 +123,6 @@ async function load(build: Build, allowGpu: boolean): Promise<Voice> {
     toId: new Map(Object.entries(JSON.parse(text(2)) as Record<string, number>)),
     g2p: new G2p(lex, new G2pModel(bodies[3]!)),
     normalize: normalizer(lex),
-    speed: build.speed,
   };
   await speak(ready, "Hi.");
   postMessage({ type: "ready" });
@@ -199,7 +158,7 @@ async function render(ready: Voice, ipa: string): Promise<Float32Array> {
   const result = await ready.session.run({
     input_ids: new ort.Tensor("int64", BigInt64Array.from(ids.map(BigInt)), [1, ids.length]),
     style: new ort.Tensor("float32", voicepack.slice(row * STYLE, (row + 1) * STYLE), [1, STYLE]),
-    speed: new ort.Tensor("float32", Float32Array.from([ready.speed]), [1]),
+    speed: new ort.Tensor("float32", Float32Array.from([SPEED]), [1]),
   });
   return result.waveform!.data;
 }
@@ -226,12 +185,10 @@ async function speak(ready: Voice, raw: string) {
   return { samples, timing: { g2pMs, modelMs: performance.now() - started - g2pMs } };
 }
 
-self.onmessage = (
-  event: MessageEvent<{ type: string; id?: number; text?: string; build?: "warm" | "tiny"; gpu?: boolean }>,
-) => {
+self.onmessage = (event: MessageEvent<{ type: string; id?: number; text?: string }>) => {
   const message = event.data;
   if (voice === null) {
-    voice = load(BUILDS[message.build ?? "warm"], message.gpu === true);
+    voice = load();
     voice.catch((error: unknown) => postMessage({ type: "failed", message: String(error) }));
   }
   if (message.type !== "speak") return;

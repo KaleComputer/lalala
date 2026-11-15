@@ -1,9 +1,7 @@
-// ?bench=k10c on either host (src/main.tsx): kale-tts-1-tiny (k10c), Kale's 61 MB voice (Kokoro's text side and our
-// own small decoder), on wasm and (not on phones) WebGPU, each in a worker that ends after its run.
-// Silent unless a play button is tapped.
+// ?bench=k10c on either host (src/main.tsx): kale-tts-1-tiny (k10c), Kale's 61 MB voice, through the
+// same Transformers.js worker lalala speaks with (kaleTtsTiny.worker), on the CPU and (not on phones,
+// unless ?gpu) WebGPU, each in a worker that ends after its run. Silent unless play is tapped.
 // The numbers go to the session log (the app) or to .lalala/bench/ on the paired computer (lalala.talk).
-import type { BenchJob } from "../voice/browserSpeech/bench.worker";
-
 const VOLCANO = [
   "A volcano is a place where very hot, melted rock comes up out of the ground.",
   "Ash and smoky gases can come out too.",
@@ -11,30 +9,22 @@ const VOLCANO = [
 ];
 const RUNS = 5;
 const SITE = import.meta.env.LALALA_HOST === "site";
+const RATE = 24_000;
 
-const frontEnd = {
-  ids: new URL("../voice/browserSpeech/llamaKokoro/ipa2kokoro.json", import.meta.url).href,
-  g2pModel: new URL("../voice/browserSpeech/matcha/g2p.bin", import.meta.url).href,
-  lexicon: new URL("../voice/browserSpeech/matcha/lexicon.tsv", import.meta.url).href,
-  override: new URL("../voice/browserSpeech/matcha/override.tsv", import.meta.url).href,
-};
-const models = {
-  k10c: {
-    label: "kale-tts-1-tiny",
-    model: new URL("../voice/browserSpeech/kaleTtsTiny/kale-tts-1-tiny.onnx", import.meta.url).href,
-    voicepack: new URL("../voice/browserSpeech/kaleTtsTiny/voicepack-kale-tts-1-tiny.f32", import.meta.url).href,
-    cache: "lalala-kale-tts-1-tiny",
-    speed: 1,
-  },
-};
-// kale-tts-1-tiny alone (Tim: "just kale-tts-1-tiny"). WebGPU ended his iPhone's tab (15 Nov): a
-// phone runs it on the CPU only, unless ?gpu asks; elsewhere WebGPU runs after the CPU.
+const models = { k10c: { label: "kale-tts-1-tiny" } };
+// WebGPU ended Tim's iPhone tab (15 Nov): a phone runs the CPU only unless ?gpu asks.
 const PHONE = /iPhone|iPad|iPod|Android/.test(navigator.userAgent);
 const WITH_GPU = !PHONE || new URLSearchParams(location.search).has("gpu");
 const PLAN = [
   { model: "k10c", backend: "wasm" },
   ...(WITH_GPU ? [{ model: "k10c", backend: "webgpu" }] : []),
 ] as const;
+
+const median = (values: number[]) => {
+  const sorted = [...values].sort((a, b) => a - b);
+  const mid = sorted.length >> 1;
+  return sorted.length % 2 ? sorted[mid]! : (sorted[mid - 1]! + sorted[mid]!) / 2;
+};
 
 type RunResult = Record<string, unknown> & { model: string; backend: string };
 
@@ -102,36 +92,67 @@ function play(samples: Float32Array<ArrayBuffer>) {
   source.start();
 }
 
-function runOne(step: (typeof PLAN)[number], onStage: (stage: string) => void) {
-  const model = models[step.model];
-  const job: BenchJob = {
-    ...frontEnd,
-    model: model.model,
-    voicepack: model.voicepack,
-    cache: model.cache,
-    backend: step.backend,
-    speed: model.speed,
-    sentences: VOLCANO,
-    runs: RUNS,
-  };
-  return new Promise<{ result: RunResult; audio: Float32Array<ArrayBuffer> | null }>((resolve) => {
-    const worker = new Worker(new URL("../voice/browserSpeech/bench.worker.ts", import.meta.url), {
-      type: "module",
-    });
-    const base = { model: step.model, backend: step.backend };
-    const finish = (result: RunResult, audio: Float32Array<ArrayBuffer> | null = null) => {
-      worker.terminate();
-      resolve({ result, audio });
-    };
-    worker.onmessage = ({ data }) => {
-      if (data.type === "stage") onStage(data.stage);
-      else if (data.type === "done") finish({ ...base, ...data.result }, data.audio);
-      else if (data.type === "skipped") finish({ ...base, skipped: data.reason });
-      else if (data.type === "failed") finish({ ...base, error: data.message });
-    };
-    worker.onerror = (event) => finish({ ...base, error: event.message || "worker error" });
-    worker.postMessage(job);
+async function runOne(step: (typeof PLAN)[number], onStage: (stage: string) => void) {
+  const base = { model: step.model, backend: step.backend };
+  const worker = new Worker(new URL("../voice/browserSpeech/kaleTtsTiny.worker.ts", import.meta.url), {
+    type: "module",
   });
+  const waiting = new Map<number, (data: { samples?: Float32Array<ArrayBuffer>; message?: string }) => void>();
+  let loaded: (error: string | null) => void = () => {};
+  const ready = new Promise<string | null>((resolve) => (loaded = resolve));
+  let cached = false;
+  worker.onmessage = ({ data }) => {
+    if (data.type === "load") cached = data.cached;
+    else if (data.type === "ready") loaded(null);
+    else if (data.type === "failed") loaded(data.message);
+    else if (data.type === "audio" || data.type === "error") waiting.get(data.id)?.(data);
+  };
+  worker.onerror = (event) => loaded(event.message || "worker error");
+  let nextId = 1;
+  const speak = (text: string) =>
+    new Promise<Float32Array<ArrayBuffer>>((resolve, reject) => {
+      const id = nextId++;
+      waiting.set(id, (data) => (data.samples ? resolve(data.samples) : reject(new Error(data.message))));
+      worker.postMessage({ type: "speak", id, text });
+    });
+  try {
+    const started = performance.now();
+    worker.postMessage({ type: "load", device: step.backend });
+    const error = await ready;
+    if (error !== null) return { result: { ...base, error }, audio: null };
+    const loadMs = performance.now() - started;
+    onStage("loaded");
+    const first: number[] = [];
+    const line: number[] = [];
+    let audio = new Float32Array(0);
+    for (let run = 0; run < RUNS; run++) {
+      let at = performance.now();
+      await speak(VOLCANO[0]!);
+      first.push(performance.now() - at);
+      at = performance.now();
+      audio = await speak(VOLCANO.join(" "));
+      line.push(performance.now() - at);
+      onStage(`run ${run + 1}/${RUNS}`);
+    }
+    const audioS = audio.length / RATE;
+    const lineMs = median(line);
+    const result: RunResult = {
+      ...base,
+      cached,
+      loadMs: Math.round(loadMs),
+      firstSoundMs: Math.round(median(first)),
+      lineMs: Math.round(lineMs),
+      audioS: Math.round(audioS * 100) / 100,
+      realtime: Math.round((audioS / (lineMs / 1000)) * 10) / 10,
+      firstRunsMs: first.map(Math.round),
+      lineRunsMs: line.map(Math.round),
+    };
+    return { result, audio };
+  } catch (error) {
+    return { result: { ...base, error: String(error) }, audio: null };
+  } finally {
+    worker.terminate();
+  }
 }
 
 async function save(report: Record<string, unknown>) {
