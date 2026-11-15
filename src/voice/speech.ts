@@ -143,10 +143,11 @@ class LalalaCapture extends AudioWorkletProcessor {
     this.frame = new Int16Array(${FRAME_SAMPLES});
     this.filled = 0;
     this.energy = 0;
+    this.silence = new Float32Array(128);
   }
   process(inputs) {
-    const input = inputs[0] && inputs[0][0];
-    if (!input) return true;
+    // Muted, the mic is gone from the graph: silent frames keep the call's clock going.
+    const input = (inputs[0] && inputs[0][0]) || this.silence;
     for (; this.position < input.length; this.position += this.step) {
       const sample = Math.max(-1, Math.min(1, input[Math.floor(this.position)]));
       this.energy += sample * sample;
@@ -222,6 +223,12 @@ function isInterruption(heard: string, spoken: ReadonlyArray<string>): boolean {
   if (command !== undefined && theirs.some((word) => command.includes(word))) return true;
   if (theirs.length < 2 || !hasForeignRun(heard, spoken)) return false;
   return all.length <= MAX_SHORT_INTERRUPTION || theirs.length / all.length >= MIN_THEIR_SHARE;
+}
+
+/** iOS's audio session: play-and-record while the mic is open, playback while it is muted. */
+function playAndRecord(on: boolean): void {
+  const audioSession = (navigator as { audioSession?: { type: string } }).audioSession;
+  if (audioSession !== undefined) audioSession.type = on ? "play-and-record" : "playback";
 }
 
 /**
@@ -349,9 +356,31 @@ export class VoiceSession {
     if (this.muted === muted) return;
     this.muted = muted;
     voiceLog("voice", muted ? "mic.mute" : "mic.unmute");
-    for (const track of this.stream?.getAudioTracks() ?? []) track.enabled = !muted;
-    if (!muted) return;
+    if (!muted) {
+      playAndRecord(true);
+      void this.reopenMic();
+      return;
+    }
     this.endHeardTurn();
+    this.releaseMic();
+  }
+
+  /**
+   * Muted is no microphone at all: a disabled track still runs the platform's voice processing, and
+   * iOS ducks everything else playing under Tim's voice (15 Nov: the Hazel player dimmed while he
+   * talked muted). The tracks stop, the session plays only, and unmuting opens the mic anew.
+   */
+  private releaseMic(): void {
+    this.microphone?.disconnect();
+    this.microphone = null;
+    for (const track of this.stream?.getTracks() ?? []) track.stop();
+    if (this.reviveTimer !== null) window.clearTimeout(this.reviveTimer);
+    this.reviveTimer = null;
+    if (this.micPaused) {
+      this.micPaused = false;
+      this.events.onMicPaused?.(false);
+    }
+    if (this.stream !== null) playAndRecord(false);
   }
 
   /** The mic stops hearing Tim: his turn ends (sent if it had his voice), held replies play. */
@@ -382,7 +411,7 @@ export class VoiceSession {
   private readonly checkMic = (): void => {
     const context = this.context;
     const stream = this.stream;
-    if (context === null || stream === null) return;
+    if (context === null || stream === null || this.muted) return;
     const tracks = stream.getAudioTracks();
     const ended = tracks.some((track) => track.readyState === "ended");
     const silenced = tracks.some((track) => track.muted);
@@ -427,7 +456,7 @@ export class VoiceSession {
   /** Tim tapped the paused bar: run the context and open the mic anew if it is still deaf. */
   revive(): void {
     const context = this.context;
-    if (context === null) return;
+    if (context === null || this.muted) return;
     voiceLog("voice", "mic.revive", { context: context.state });
     void context.resume().catch(() => {});
     const deaf = (this.stream?.getAudioTracks() ?? []).some(
@@ -445,7 +474,7 @@ export class VoiceSession {
     this.reopening = true;
     try {
       const stream = await this.openMic();
-      if (this.context !== context || this.stream === null) {
+      if (this.context !== context || this.stream === null || this.muted) {
         for (const track of stream.getTracks()) track.stop();
         return;
       }
@@ -456,7 +485,6 @@ export class VoiceSession {
       this.stream = stream;
       for (const track of old.getTracks()) track.stop();
       this.watchTracks(stream);
-      for (const track of stream.getAudioTracks()) track.enabled = !this.muted;
       voiceLog("system", "mic.reopen", { context: context.state });
     } catch (cause) {
       voiceLog("system", "error", { where: "mic.reopen", message: String(cause) });
@@ -613,7 +641,7 @@ export class VoiceSession {
     void this.context?.close();
     // iOS keeps a play-and-record session after the call, and other audio on the page then plays distorted.
     const audioSession = (navigator as { audioSession?: { type: string } }).audioSession;
-    if (audioSession?.type === "play-and-record" && this.sessionBefore !== null) {
+    if (audioSession !== undefined && this.sessionBefore !== null) {
       audioSession.type = this.sessionBefore;
     }
     this.sessionBefore = null;
