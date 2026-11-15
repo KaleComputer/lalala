@@ -433,7 +433,7 @@
   margin-top: 6px;
   overflow: hidden;
   border-radius: 1px;
-  background: var(--s-divider);
+  /* No track: a scan moving through empty space, never a bar that fills like a download. */
 }
 [data-lalala-settings-trying]::after {
   content: "";

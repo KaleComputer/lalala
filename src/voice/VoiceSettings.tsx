@@ -1934,7 +1934,10 @@ const elapsed = (since: number) => {
 function automaticWhy(task: "stt" | "voice", computer: ReturnType<typeof computerSpeechState>): string {
   const { browser, computer: there } = speechTimings()[task];
   const runs = speechRunsAt(task);
-  const since = runs.since === null ? "" : ` · since ${clock(runs.since)}`;
+  const since =
+    runs.since === null
+      ? ""
+      : ` · moved from ${runs.where === "computer" ? "this browser" : "your computer"} at ${clock(runs.since)}`;
   // Each timing on its own, so a missing one says so instead of hiding the other.
   const measured =
     there === undefined && browser === undefined
@@ -1942,7 +1945,7 @@ function automaticWhy(task: "stt" | "voice", computer: ReturnType<typeof compute
       : `per second of audio: computer ${there === undefined ? "not measured" : seconds(there)}, here ${
           browser === undefined ? "not measured" : seconds(browser)
         }`;
-  if (!automaticTriesComputer(task)) return "Kale's voice, in this browser: a phone keeps it";
+  if (!automaticTriesComputer(task)) return "Kale's voice (a phone always uses it here)";
   if (computer === "absent") return "this browser; your computer once T3 Code is connected";
   if (browserFaster(task)) return `this browser, faster here · ${measured}${since}`;
   if (runs.where === "computer")
@@ -1977,7 +1980,7 @@ function TaskState(props: {
         ? auto
         : (STT_LABELS[picked as Exclude<SttModel, "auto">] ?? VOICE_LABELS[picked as VoiceBuild] ?? auto);
   // A stand-in says why it is here, on its own row too.
-  const meanwhile = !trying ? "" : couldNotStart ? " while your computer is out" : " while your computer starts";
+  const meanwhile = !trying ? "" : couldNotStart ? " while your computer's speech service is down" : " while your computer starts";
   let now = `Now: ${nowText(active, waiting, meanwhile)}`;
   if (picked === "computer" && computer === "absent") now += " (connect T3 Code first)";
   if (status?.phase === "idle" && props.cost)

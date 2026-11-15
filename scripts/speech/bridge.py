@@ -137,6 +137,10 @@ def alone():
 def main():
     os.makedirs(IN, exist_ok=True)
     os.makedirs(OUT, exist_ok=True)
+    ignore = os.path.join(HERE, ".gitignore")
+    if not os.path.exists(ignore):
+        with open(ignore, "w") as file:
+            file.write("*\n")
     if not alone():
         print("lalala speech bridge: already running")
         return

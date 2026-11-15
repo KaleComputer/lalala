@@ -81,12 +81,18 @@ const RESTART_MS = 20_000;
 const ANSWER_MS = 20_000;
 let installed = false;
 let startedAt = 0;
+// When this page first started the bridge and nothing has answered since: a start that never shows up
+// (no python3, the terminal busy) is a failure to report, not "starting" forever.
+let firstRunAt = 0;
+const BRIDGE_SILENT_MS = 30_000;
 
 const harness = () => globalThis.__lalalaAdapters?.harness;
 
 async function install(files: NonNullable<ReturnType<typeof harness>>) {
   if (installed) return;
   await Promise.all([
+    // The bridge's files change every second: never in the project's git status or T3's diffs.
+    files.writeFile!(`${DIR}/.gitignore`, "*\n"),
     files.writeFile!(`${DIR}/bridge.py`, bridgePy),
     files.writeFile!(`${DIR}/scripts/speech.sh`, speechSh),
     files.writeFile!(`${DIR}/scripts/speech/server.py`, serverPy),
@@ -108,7 +114,8 @@ async function ask(request: Record<string, unknown>): Promise<Record<string, unk
   const id = `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
   await files.writeFile(`${DIR}/in/${id}.json`, JSON.stringify(request));
   const until = Date.now() + ANSWER_MS;
-  for (let wait = 40; Date.now() < until; wait = Math.min(wait * 1.3, 250)) {
+  // Each look is a round trip through T3: the first one when an answer is likely there, then sparser.
+  for (let wait = 100; Date.now() < until; wait = Math.min(wait * 1.3, 300)) {
     await new Promise((resolve) => setTimeout(resolve, wait));
     const raw = await files.readFile(`${DIR}/out/${id}.json`);
     if (raw === null) continue;
@@ -135,6 +142,7 @@ const t3Route: ComputerRoute = {
     if (start) void files.writeFile(`${DIR}/wanted`, String(Date.now())).catch(() => {});
     const at = typeof status?.at === "number" ? status.at : 0;
     const live = Date.now() / 1000 - at < FRESH_S && status?.state !== "off";
+    if (live) firstRunAt = 0;
     if (live) {
       const state = status!.state;
       // Retry now: the running bridge starts the service again at once.
@@ -149,8 +157,21 @@ const t3Route: ComputerRoute = {
     }
     if (!start) return { state: "off", reason: null };
     // Nothing answers there: write the bridge and start it in a T3 terminal (again every 20 s at most).
+    if (firstRunAt !== 0 && Date.now() - firstRunAt > BRIDGE_SILENT_MS && start !== "force") {
+      if (Date.now() - startedAt > RESTART_MS) {
+        startedAt = Date.now();
+        void install(files)
+          .then(() => files.run!(`python3 ${DIR}/bridge.py`))
+          .catch(() => {});
+      }
+      return {
+        state: "down",
+        reason: "The bridge didn't start in T3 Code's lalala-speech terminal. Is python3 installed there?",
+      };
+    }
     if (start === "force" || Date.now() - startedAt > RESTART_MS) {
       startedAt = Date.now();
+      if (firstRunAt === 0 || start === "force") firstRunAt = Date.now();
       try {
         await install(files);
         await files.run(`python3 ${DIR}/bridge.py`);
