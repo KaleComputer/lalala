@@ -81,6 +81,10 @@ async function act(steps: AgentStep[], card: string | undefined) {
   return result;
 }
 
+function labelOf(ref: string) {
+  return agent.snapshot().find((component) => component.ref === ref)?.label;
+}
+
 function refOf(label: string) {
   return agent.snapshot().find((component) => component.label === label)?.ref;
 }
@@ -101,6 +105,9 @@ async function undo(count: number) {
   for (const step of steps) {
     const result = await agent.act({ steps: [step] });
     if (!result.ok) notPutBack.push(result.error?.message ?? `${step.ref} ${step.action}`);
+    // A control that now shows something else (a reject that moved on to the next take) changes nothing: say so.
+    else if (!result.steps.some((done) => (done.changes ?? []).length > 0))
+      notPutBack.push(`${labelOf(step.ref) ?? step.ref} already reads ${JSON.stringify(step.args[0])}, so nothing changed`);
   }
   return {
     ok: notPutBack.length === 0,
