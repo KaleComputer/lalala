@@ -25,7 +25,7 @@ import { brainFileReader } from "./adapters";
 import { applyCardTags, takeCards } from "./brainCards";
 import { compactEstimateMs, compactionDue, shareBrainThread } from "./brainCompaction";
 import { markBriefed, needsBrief, withBrief, withCanvas } from "./brief";
-import { prewarm, speechProgress } from "./browserSpeech/browser";
+import { prewarm, speechProgress, speechStatus } from "./browserSpeech/browser";
 import { afterCanvasShown } from "./canvasShown";
 import { followCommand, setFollowing, takeFocus } from "./follow";
 import { type VoicePhase, VoiceSession } from "./speech";
@@ -239,6 +239,8 @@ export function VoiceHost({
 
   // The in-browser models' download and warm-up (the bar's readout); null once ready.
   const [loading, setLoading] = useState<ReadonlyArray<VoiceBarModel> | null>(null);
+  // Why the reply voice is still not loaded while it tries again (never quiet on "voice loading").
+  const [voiceLoadError, setVoiceLoadError] = useState<string | null>(null);
 
   // oxlint-disable-next-line t3code/no-unreasoned-state-sync -- starts the speech models' workers (outside React) once the canvas is shown, so a call finds them ready
   useEffect(() => {
@@ -273,6 +275,7 @@ export function VoiceHost({
     const read = () => {
       const models = speechProgress();
       setLoading(models);
+      setVoiceLoadError(models === null ? null : (speechStatus("voice")?.error ?? null));
       if (models === null) window.clearInterval(timer);
     };
     timer = window.setInterval(read, MODELS_READ_EVERY_MS);
@@ -909,6 +912,8 @@ export function VoiceHost({
     ? OFFLINE_TEXT
     : brainRetrying && phase !== "off"
       ? BRAIN_RETRY_TEXT
+      : voiceLoadError !== null && (phase !== "off" || starting)
+        ? voiceLoadError
       : notSent && heldCount > 0
       ? NOT_SENT_TEXT
       : error;

@@ -263,7 +263,11 @@ export const SMALL_VOICES: Readonly<
     bytes: 61_508_590,
   },
 };
-/** The voice a small model speaks with on this device: the one picked (synced), else its first. */
+/**
+ * The voice a small model speaks with: the one picked for that model (synced; Settings or the brain),
+ * else its first, the default (Tim, 16 Nov). Picks are kept per model, so a switch never carries a
+ * voice into a model that doesn't have it.
+ */
 export const modelVoice = (voice: string): string | null => {
   const small = SMALL_VOICES[voice];
   if (!small) return null;

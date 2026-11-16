@@ -181,7 +181,7 @@ async function dropStaleModel(name: string): Promise<void> {
 async function modelBytes(url: string, expected: number, name: string): Promise<ArrayBuffer> {
   const cache = await caches.open(DIRECT_CACHE).catch(() => null);
   const hit = await cache?.match(url);
-  postMessage({ type: "load", name, expected, cached: hit !== undefined });
+  postMessage({ type: "load", name, expected, cached: hit !== undefined, voice: loadingVoice });
   if (hit) return hit.arrayBuffer();
   const response = await fetch(url);
   if (!response.ok || response.body === null) throw new Error(`download ${response.status} ${url}`);
@@ -200,6 +200,7 @@ async function modelBytes(url: string, expected: number, name: string): Promise<
   return blob.arrayBuffer();
 }
 
+let loadingVoice = "";
 async function loadDirect(
   name: string,
   voiceFile: string,
@@ -207,6 +208,7 @@ async function loadDirect(
   expected: number,
   threads?: number,
 ): Promise<Voice> {
+  loadingVoice = voiceFile;
   await trace("runtime-import", { runtime: "onnxruntime-web 1.24.1 wasm" });
   const ort = (await import(/* @vite-ignore */ ORT_DIRECT)) as DirectOrt;
   ort.env.wasm.wasmPaths = ORT_DIRECT.slice(0, ORT_DIRECT.lastIndexOf("/") + 1);
@@ -322,7 +324,7 @@ async function loadOn(
     .then((cache) => cache.match(new URL(`/models/${name}/onnx/model_web.onnx`, self.location.origin).href))
     .then((hit) => hit !== undefined)
     .catch(() => false);
-  postMessage({ type: "load", name, expected, cached });
+  postMessage({ type: "load", name, expected, cached, voice: voiceFile });
   // The old graphs (onnx/model.onnx) are never loaded again: free the phone's storage they hold.
   void caches
     .open("transformers-cache")

@@ -32,6 +32,9 @@ type Reply =
   | { type: "error"; id: number; message: string };
 
 const MODEL_FAILED = "The voice models didn't load.";
+/** iOS refusing a model's memory ("RangeError: Out of memory"): it often grants it seconds later. */
+const OUT_OF_MEMORY = /out of memory/i;
+export const MEMORY_TEXT = "Not enough memory for this voice on this phone right now. Still trying.";
 /** The worker's words when a model can't fit this browser's storage (parakeet.worker's NO_ROOM). */
 const NO_ROOM = /Not enough storage for the voice models/;
 const NO_ROOM_RETRY_S = 180;
@@ -152,7 +155,12 @@ function modelWorker(
   spawn: () => Worker,
   loadMessage: () => Record<string, unknown> = () => ({}),
   /** Hears every message from the worker, and its end (released or failed). */
-  watch: { message?: (data: LoadMessage | Reply) => void; ended?: () => void } = {},
+  watch: {
+    message?: (data: LoadMessage | Reply) => void;
+    ended?: () => void;
+    /** A smaller model to suggest when this one doesn't fit in memory (never switched to on its own). */
+    smaller?: () => string | null;
+  } = {},
 ) {
   let worker: Worker | null = null;
   let download: { name: string; loaded: number; total: number; cached: boolean } | null = null;
@@ -223,10 +231,13 @@ function modelWorker(
     failed = true;
     retries += 1;
     // A browser without what the model needs says so; anything else is the general line.
+    const smaller = OUT_OF_MEMORY.test(cause) ? watch.smaller?.() : null;
     failure =
       cause.includes(NEEDS_WEBGPU) || NO_ROOM.test(cause)
         ? cause.replace(/^\w*Error:\s*/, "")
-        : MODEL_FAILED;
+        : OUT_OF_MEMORY.test(cause)
+          ? `${MEMORY_TEXT}${smaller ? ` ${smaller} is smaller: pick it in Settings.` : ""}`
+          : MODEL_FAILED;
     markFailed(new Error(failure));
     scheduleRetry();
     notify();
@@ -305,6 +316,7 @@ function modelWorker(
           name: data.name,
           expected: data.expected,
           cached: data.cached,
+          ...("voice" in data && data.voice ? { voice: data.voice } : {}),
           ...memory(),
         });
       } else if (data.type === "stage") {
@@ -453,6 +465,8 @@ const gpu = gpuTrial("lalala", (since) => voiceLog("system", "webgpu.crashed", {
 // Phones stay on the CPU: WebGPU-first took Tim's iPhone tab down in a loop while the voice loaded
 // (16 Nov, 2493e61), before the marker could keep it off.
 let gpuFailedHere = false;
+// After "Out of memory", the next tries start onnxruntime on one thread: a lighter start (logged).
+let memoryTight = false;
 const gpuTry = () => !isPhoneDevice() && !gpuFailedHere && gpu.allowed();
 export const webGpuBenched = () => gpu.benched();
 export const retryWebGpu = () => {
@@ -470,6 +484,7 @@ const warm = modelWorker(
   () => ({
     device: gpuTry() ? "gpu-if-available" : "wasm",
     ...kaleModel(),
+    ...(memoryTight ? { threads: 1 } : {}),
   }),
   {
     // Over once the first real sentence came back on WebGPU, or the model ended up on the CPU.
@@ -480,10 +495,19 @@ const warm = modelWorker(
         voiceLog("system", "webgpu.failed", { message: data.message.slice(0, 300) });
         queueMicrotask(() => warm.start());
       }
+      if (data.type === "failed" && OUT_OF_MEMORY.test(data.message)) memoryTight = true;
       if (data.type === "audio") gpu.passed();
       if (data.type === "stage" && data.stage === "backend" && data.device !== "webgpu") gpu.passed();
     },
     ended: () => gpu.passed(),
+    smaller: () => {
+      const build = kaleBuild();
+      return build === "kale-tts-1-tiny-10"
+        ? "kale-tts-1-nano · 10 voices"
+        : build === "kale-tts-1-tiny" || build === "k10c" || build === "kale-storyteller"
+          ? "kale-tts-1-nano"
+          : null;
+    },
   },
 );
 // A device that switches a model, or sends a task to the computer, frees the old one once its

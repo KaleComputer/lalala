@@ -77,6 +77,8 @@ export function errorTag(message: string, live: boolean): ErrorTag {
       hint: retry,
       said: `The voice models didn't load.${again}`,
     };
+  if (/not enough memory/i.test(message))
+    return { tag: "Not enough memory", hint: "Still trying", said: message };
   if (/microphone is in use/i.test(message))
     return { tag: "Mic in use", hint: "Starts once it's free", said: message };
   if (/no microphone/i.test(message))
