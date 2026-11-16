@@ -453,8 +453,6 @@ const warm = modelWorker(
   () => ({
     device: isPhoneDevice() ? "wasm" : "gpu-if-available",
     ...kaleModel(),
-    // The British front end is staged until the GB fine-tuned weights: ?en-gb tries it on a page.
-    enGb: typeof location !== "undefined" && new URLSearchParams(location.search).has("en-gb"),
   }),
 );
 // A device that switches a model, or sends a task to the computer, frees the old one once its

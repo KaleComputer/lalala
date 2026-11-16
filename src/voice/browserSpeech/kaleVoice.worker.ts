@@ -39,9 +39,8 @@ const FRONT_ENDS: Record<string, FrontEndFiles | null> = {
     override: new URL("./matcha/override.tsv", import.meta.url).href,
     terms: new URL("./matcha/terms.tsv", import.meta.url).href,
   },
-  // British English (british-16nov: CMUdict-made list through Kale's us -> gb rules, Britfone 3.0.1).
-  // Staged, not on: today's models learned US ids only, so d03 and d13 switch together with the GB
-  // fine-tuned weights. Until then only a page opened with ?en-gb uses it (enGbOn).
+  // British English (british-16nov: CMUdict-made list through Kale's us -> gb rules, Britfone 3.0.1),
+  // for d03 and d13, fine-tuned on British ids (bundle-gb16).
   "en-gb": {
     g2pModel: new URL("./matcha/en-gb/g2p.bin", import.meta.url).href,
     lexicon: new URL("./matcha/en-gb/lexicon.tsv", import.meta.url).href,
@@ -50,9 +49,7 @@ const FRONT_ENDS: Record<string, FrontEndFiles | null> = {
     british: true,
   },
 };
-/** The British front end is staged behind this; the load message's enGb turns it on for a page. */
-let enGbOn = false;
-const frontEndReady = (accent: string) => (accent === "en-gb" ? enGbOn : FRONT_ENDS[accent] != null);
+const frontEndReady = (accent: string) => FRONT_ENDS[accent] != null;
 type FrontEnd = {
   readonly accent: string;
   readonly g2p: G2p;
@@ -133,8 +130,6 @@ type Message = {
   gpuCache?: string;
   /** A bench run's id: log every step to the session log (WebGPU bench runs). */
   trace?: string;
-  /** Use the staged British front end for en-gb voices (a page opened with ?en-gb). */
-  enGb?: boolean;
   speed?: number;
   /** The model's own bytes (settingsStore's SMALL_VOICES), for the download bar. */
   expected?: number;
@@ -158,6 +153,22 @@ type DirectOrt = {
   Tensor: new (type: string, data: BigInt64Array | Float32Array, dims: number[]) => Tensor;
 };
 const DIRECT_CACHE = "lalala-kale-voices";
+// New weights behind the same file name (bundle-gb16, 16 Nov: British d03 and d13): a browser's
+// copy from before is dropped once, from both caches, so it never runs old weights on new voice files.
+const MODEL_REVISION = "gb16";
+async function dropStaleModel(name: string): Promise<void> {
+  const marker = new URL(`/models/${name}/.revision`, self.location.origin).href;
+  const graph = new URL(`/models/${name}/onnx/model_web.onnx`, self.location.origin).href;
+  try {
+    const cache = await caches.open(DIRECT_CACHE);
+    if ((await (await cache.match(marker))?.text()) === MODEL_REVISION) return;
+    await cache.delete(graph);
+    await (await caches.open("transformers-cache")).delete(graph);
+    await cache.put(marker, new Response(MODEL_REVISION));
+  } catch {
+    // No Cache API (a private window): nothing was kept either.
+  }
+}
 
 /** The model file from this browser's cache, else the network (then cached), its bytes reported as they come. */
 async function modelBytes(url: string, expected: number, name: string): Promise<ArrayBuffer> {
@@ -263,6 +274,7 @@ async function load(
   // "wasm": WebGPU ended Tim's iPhone tab (15 Nov), a kill nothing can catch.
   if (device === "gpu-if-available") device = (await hasGpu()) ? "webgpu" : "wasm";
   await trace("worker", { device, model: name, voice: voiceFile, ...(device === "webgpu" ? await gpuDetails() : {}) });
+  await dropStaleModel(name);
   if (device === "wasm") return loadDirect(name, voiceFile, speed, expected, threads);
   await trace("runtime-import");
   const hf = (await import(/* @vite-ignore */ TRANSFORMERS_GPU)) as Transformers;
@@ -510,7 +522,6 @@ self.onmessage = (event: MessageEvent<Message>) => {
   const message = event.data;
   if (voice === null) {
     device = message.device ?? "wasm";
-    enGbOn = message.enGb === true;
     threads = message.threads;
     traceId = message.trace ?? null;
     // lazyRelease by default: the default "bucket" cache took WebKit's GPU process to 2.4 GB (Mac, 16 Nov).
