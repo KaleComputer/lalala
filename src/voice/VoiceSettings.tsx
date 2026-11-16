@@ -2453,7 +2453,13 @@ function ModelVoiceRow() {
       value={modelVoice(reply) ?? small.voices[0]!.id}
       groups={[{ options: small.voices.map((entry) => ({ value: entry.id, label: entry.name, playable: true })) }]}
       onPlay={play}
-      onChange={(id) => setModelVoice(small.model, id)}
+      // The preview stops with the pick: the call goes on in the new voice, and a sample still
+      // playing under it was the faint second voice Tim heard (16 Nov).
+      onChange={(id) => {
+        voiceSample?.pause();
+        voiceSample = null;
+        setModelVoice(small.model, id);
+      }}
     />
   );
 }
