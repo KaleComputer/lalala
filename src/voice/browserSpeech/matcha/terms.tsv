@@ -88,3 +88,10 @@ team lead	team leed
 tech lead	tech leed
 release lead	release leed
 voice lead	voice leed
+# Tim, 16 Nov: "you say JS as one word". JS spaced; ".js" also as a suffix (Node.js, Transformers.js, main.js).
+.js	dot J S
+JS	J S
+js	J S
+kokoro-js	kokoro J S
+onnxruntime-web	onyx runtime web
+onnxruntime	onyx runtime
