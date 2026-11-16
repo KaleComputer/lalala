@@ -16,7 +16,7 @@
   "normalizer": {
     "type": "Replace",
     "pattern": {
-      "Regex": "[^$;:,.!? abdefhijklmnopstuvwzɑɐæɔðəɚɛɜɡɪŋθɹɾʃʊʌʒʔˈˌː̩ᵻ]"
+      "Regex": "[^$;:,.!? abdefhijklmnopstuvwzɑɐæɔðəɚɛɜɡɪŋθɹɾʃʊʌʒʔˈˌː̩ᵻɒ]"
     },
     "content": ""
   },
@@ -117,7 +117,8 @@
       "ˌ": 157,
       "ː": 158,
       "̩": 7,
-      "ᵻ": 177
+      "ᵻ": 177,
+      "ɒ": 71
     }
   }
 }
