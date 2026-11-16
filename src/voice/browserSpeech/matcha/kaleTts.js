@@ -3,7 +3,7 @@
 // for unknown words) -> token ids -> Matcha-TTS (ONNX, mel) -> Vocos (ONNX, magnitude and phase) ->
 // inverse STFT -> 22,050 Hz PCM. Copied from Kale's browser demo (kale-tts.js) as an ES module; `ort`
 // is onnxruntime-web, passed in. Kale's voices (../kaleVoice.worker.ts) use its front end alone
-// (normalizer, G2p): text -> IPA, the same as Hazel's.
+// (normalizer, G2p): text -> IPA.
 /* eslint-disable */
 import { Normalizer, spokenText } from "../dizione/spoken.js";
 import { covers, pronounce } from "../dizione/homographs.js";
