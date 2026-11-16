@@ -14,18 +14,27 @@ const LINES: ReadonlyArray<Line> = LINE_SET.lines;
 const BUCKETS = ["short", "medium", "long", "paragraph"] as const;
 const QUERY = new URLSearchParams(location.search);
 /**
- * ?bench=suite: Tim's one link. nano and tiny, each on the CPU and on WebGPU, one step per page load
- * (the page moves itself on), so a tab never holds two models. A step that ends the tab is seen on the
- * next load (still "running" in this browser's storage), reported, and skipped; errors are caught.
+ * ?bench=suite: Tim's one link (16 Nov). The 10-voice nano, then the 10-voice tiny (Ettin text side),
+ * each through onnxruntime-web directly and through Transformers.js, all on the CPU (WebGPU ended his
+ * iPhone tab). One step per page load (the page moves itself on), so the tab unloads one model before
+ * the next. A step that ends the tab is seen on the next load (still "running" in this browser's
+ * storage), reported, and skipped; errors are caught.
  */
 const SUITE = QUERY.get("bench") === "suite";
 const SUITE_STEPS = [
-  { bench: "nano", backend: "wasm" },
-  { bench: "nano", backend: "webgpu" },
-  { bench: "tiny", backend: "wasm" },
-  { bench: "tiny", backend: "webgpu" },
+  { bench: "nano10", backend: "wasm", runtime: "direct" },
+  { bench: "nano10", backend: "wasm", runtime: "transformers" },
+  { bench: "tiny10", backend: "wasm", runtime: "direct" },
+  { bench: "tiny10", backend: "wasm", runtime: "transformers" },
 ] as const;
 const STEP = Math.min(SUITE_STEPS.length - 1, Math.max(0, Number(QUERY.get("step")) || 0));
+/** On the CPU: onnxruntime-web's plain wasm build directly (lalala's phone path), or Transformers.js. */
+const RUNTIME: "direct" | "transformers" = SUITE
+  ? SUITE_STEPS[STEP].runtime
+  : QUERY.get("runtime") === "transformers"
+    ? "transformers"
+    : "direct";
+const runtimeName = (runtime: string) => (runtime === "transformers" ? "Transformers.js" : "onnxruntime-web");
 const SUITE_KEY = "lalala:bench-suite";
 type SuiteResult = {
   readonly step: number;
@@ -33,6 +42,7 @@ type SuiteResult = {
   firstP50?: number | null;
   xrtP50?: number | null;
   loadMs?: number;
+  peakMB?: number | null;
   message?: string;
 };
 const suiteState = (): SuiteResult[] => {
@@ -58,6 +68,8 @@ const RATE = 24_000;
 const BENCH_MODELS = {
   nano: { label: "kale-tts-1-nano", model: "kale-tts-1-nano", voice: "v7" },
   tiny: { label: "kale-tts-1-tiny", model: "kale-tts-1-tiny", voice: "v7" },
+  nano10: { label: "kale-tts-1-nano · 10 voices", model: "kale-tts-1-nano-10", voice: "s057b" },
+  tiny10: { label: "kale-tts-1-tiny · 10 voices (Ettin)", model: "kale-tts-1-tiny-10", voice: "s057b" },
   storyteller: { label: "storyteller", model: "kale-storyteller", voice: "storyteller" },
   k10c: { label: "k10c (Hazel)", model: "k10c", voice: "hazel" },
 };
@@ -147,7 +159,7 @@ document.head.append(style);
 const root = document.getElementById("root")!;
 root.innerHTML = `<main>
   <h1>${SUITE ? `Speed suite · step ${STEP + 1} of ${SUITE_STEPS.length}: ` : ""}${MODEL.label} speed on this device</h1>
-  <p>${BACKEND === "webgpu" ? "WebGPU" : `CPU, ${THREADS} threads`}. Loads the model once, warms up, then speaks ${LINES.length} lines (short replies to paragraphs) ${RUNS} times, sentence by sentence as lalala does. Nothing plays unless you tap play. A few minutes; keep this page in front.</p>
+  <p>${BACKEND === "webgpu" ? "WebGPU" : `CPU, ${THREADS} threads, ${runtimeName(RUNTIME)}`}. Loads the model once, warms up, then speaks ${LINES.length} lines (short replies to paragraphs) ${RUNS} times, sentence by sentence as lalala does. Nothing plays unless you tap play. A few minutes; keep this page in front.</p>
   <button id="run">Run</button>
   <div id="status"></div>
   <table><thead><tr><th>lines</th><th>first audio p50 · p90 · min</th><th>× real time p50 · p90 · min</th></tr></thead><tbody id="rows"></tbody></table>
@@ -273,6 +285,7 @@ async function start() {
     model: MODEL.model,
     voice: MODEL.voice,
     backend: BACKEND,
+    runtime: RUNTIME,
     runs: RUNS,
     lines: LINES.length,
     lineSet: `src/bench/lines.json v${LINE_SET.version}`,
@@ -289,6 +302,7 @@ async function start() {
       model: MODEL.model,
       voice: MODEL.voice,
       threads: THREADS,
+      runtime: RUNTIME,
       ...(BACKEND === "webgpu" ? { trace: BENCH_ID, gpuCache: GPU_CACHE } : {}),
     });
     const error = await voice.ready;
@@ -352,7 +366,13 @@ async function start() {
     log?.("bench.done", { ...summary, all: undefined, ...flat("all", summary.all), ...Object.assign({}, ...BUCKETS.map((bucket) => flat(bucket, summary[bucket]))) });
     showSummary(summary, device, voice.info);
     status("Done.");
-    suiteStepEnded({ status: "done", firstP50: summary.all.firstP50, xrtP50: summary.all.xrtP50, loadMs });
+    suiteStepEnded({
+      status: "done",
+      firstP50: summary.all.firstP50,
+      xrtP50: summary.all.xrtP50,
+      loadMs,
+      peakMB: peak.bytes === null ? null : Math.round(peak.bytes / 1e6),
+    });
     const report = { at: new Date().toISOString(), device, runtime: voice.info, summary, lines: results };
     $("saved").textContent = await save(report).catch((cause: unknown) => `Couldn't save: ${String(cause)}`);
     const copy = $("copy") as HTMLButtonElement;
@@ -448,17 +468,18 @@ function nextSuiteStep(results: SuiteResult[]) {
 }
 function showSuite(results: SuiteResult[]) {
   log?.("bench.suite", Object.fromEntries(results.flatMap((entry) => {
-    const name = `${SUITE_STEPS[entry.step]?.bench}_${SUITE_STEPS[entry.step]?.backend}`;
-    return [[`${name}_status`, entry.status], [`${name}_xrt`, entry.xrtP50 ?? null], [`${name}_first`, entry.firstP50 ?? null], [`${name}_message`, entry.message ?? null]];
+    const name = `${SUITE_STEPS[entry.step]?.bench}_${SUITE_STEPS[entry.step]?.runtime}`;
+    return [[`${name}_status`, entry.status], [`${name}_xrt`, entry.xrtP50 ?? null], [`${name}_first`, entry.firstP50 ?? null], [`${name}_loadMs`, entry.loadMs ?? null], [`${name}_peakMB`, entry.peakMB ?? null], [`${name}_message`, entry.message ?? null]];
   })));
   const table = results
     .toSorted((a, b) => a.step - b.step)
     .map((entry) => {
       const step = SUITE_STEPS[entry.step]!;
-      const what = `${BENCH_MODELS[step.bench].label} · ${step.backend === "webgpu" ? "WebGPU" : "CPU"}`;
+      const what = `${BENCH_MODELS[step.bench].label} · ${runtimeName(step.runtime)}`;
+      const memoryText = entry.peakMB == null ? "" : `, ${entry.peakMB} MB`;
       const result =
         entry.status === "done"
-          ? `${entry.xrtP50}× real time, first audio ${((entry.firstP50 ?? 0) / 1000).toFixed(2)} s`
+          ? `${entry.xrtP50}× real time, first audio ${((entry.firstP50 ?? 0) / 1000).toFixed(2)} s, load ${((entry.loadMs ?? 0) / 1000).toFixed(1)} s${memoryText}`
           : entry.status === "crashed"
             ? "the tab died here (the Mac log has the last step)"
             : `error: ${entry.message}`;
@@ -488,7 +509,7 @@ if (SUITE && QUERY.has("auto")) {
     mine.status = "crashed";
     saveSuite(results);
     void logger().then((write) => {
-      write?.("bench.crashed", { suiteStep: STEP, model: MODEL.model, backend: BACKEND });
+      write?.("bench.crashed", { suiteStep: STEP, model: MODEL.model, backend: BACKEND, runtime: RUNTIME });
       nextSuiteStep(results);
     });
   } else if (mine) {

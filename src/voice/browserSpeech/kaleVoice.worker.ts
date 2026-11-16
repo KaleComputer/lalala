@@ -6,6 +6,7 @@
 // (matcha/kaleTts.js, as the warm voice). Credits: NOTICE.md.
 import { G2p, G2pModel, normalizer, readTable } from "./matcha/kaleTts.js";
 import { BritishG2p, britishNormalizer } from "./matcha/enGb.js";
+import { EttinTokenizer, ettinInputs, wordIndex } from "./matcha/ettin.js";
 import { termsReplacer } from "./terms";
 
 // Transformers.js 4.3.2 with onnxruntime-web 1.31.1 instead of its pinned 1.31.0-dev (faster wasm), built
@@ -100,7 +101,7 @@ type Transformers = {
   AutoTokenizer: {
     from_pretrained(id: string, options?: object): Promise<(text: string, options?: object) => { input_ids: Tensor }>;
   };
-  Tensor: new (type: string, data: Float32Array, dims: number[]) => unknown;
+  Tensor: new (type: string, data: Float32Array | BigInt64Array, dims: number[]) => unknown;
 };
 type Voice = {
   readonly hf: Transformers;
@@ -117,6 +118,8 @@ type Voice = {
   frontEnd: FrontEnd;
   /** Each voice's accent tag from the model's voices.json (en-us when it has none). */
   readonly accents: Readonly<Record<string, string>>;
+  /** The Ettin text side (the 10-voice kale-tts-1-tiny): its tokenizer, and the last sentence as context. */
+  readonly ettin: { readonly tok: EttinTokenizer; prev: string } | null;
 };
 type Message = {
   type: string;
@@ -131,6 +134,8 @@ type Message = {
   /** A bench run's id: log every step to the session log (WebGPU bench runs). */
   trace?: string;
   speed?: number;
+  /** On the CPU: "transformers" runs it through Transformers.js instead of onnxruntime-web directly (the bench). */
+  runtime?: string;
   /** The model's own bytes (settingsStore's SMALL_VOICES), for the download bar. */
   expected?: number;
 };
@@ -254,7 +259,10 @@ async function loadDirect(
     async (inputs: object) => (await session.run(inputs as Record<string, unknown>)) as { waveform: Tensor },
     { dispose: () => session.release() },
   );
-  const ready: Voice = { hf: shim, model, name, speed, tokenize, voicepack, extra, voiceInputs, frontEnd, accents };
+  const ready: Voice = {
+    ...{ hf: shim, model, name, speed, tokenize, voicepack, extra, voiceInputs, frontEnd, accents },
+    ettin: await ettinFor(name),
+  };
   await trace("warmup");
   await speak(ready, "Hi.");
   await trace("warmup-done");
@@ -275,7 +283,7 @@ async function load(
   if (device === "gpu-if-available") device = (await hasGpu()) ? "webgpu" : "wasm";
   await trace("worker", { device, model: name, voice: voiceFile, ...(device === "webgpu" ? await gpuDetails() : {}) });
   await dropStaleModel(name);
-  if (device === "wasm") return loadDirect(name, voiceFile, speed, expected, threads);
+  if (device === "wasm" && runtime !== "transformers") return loadDirect(name, voiceFile, speed, expected, threads);
   await trace("runtime-import");
   const hf = (await import(/* @vite-ignore */ TRANSFORMERS_GPU)) as Transformers;
   await trace("runtime-ready");
@@ -350,6 +358,7 @@ async function load(
     transformers: hf.env.version ?? null,
   });
   const ready: Voice = {
+    ettin: await ettinFor(name),
     hf,
     model,
     name,
@@ -434,6 +443,18 @@ async function hasGpu() {
   return (await gpu?.requestAdapter().catch(() => null)) != null;
 }
 
+/** A model with the Ettin text side ships Ettin's tokenizer next to it (ettin-tokenizer.json). */
+async function ettinFor(name: string): Promise<Voice["ettin"]> {
+  const json = await fetch(`/models/${name}/ettin-tokenizer.json`)
+    .then((response) => (response.ok ? response.json() : null))
+    .catch(() => null);
+  return json?.model?.vocab ? { tok: new EttinTokenizer(json), prev: "" } : null;
+}
+
+/** A sentence's sound ids, without the pads. */
+const idsOf = (ready: Voice, ipa: string) =>
+  Array.from(ready.tokenize(ipa, { truncation: true }).input_ids.data as unknown as ArrayLike<bigint | number>, Number).slice(1, -1);
+
 /** A voice's style table and, for a model holding several voices in one graph, its own constants. */
 async function voiceFiles(
   hf: Transformers,
@@ -463,7 +484,8 @@ async function voiceFiles(
 }
 
 /** One IPA piece through the model, as kokoro-js's generate_from_ids: its tokens pick the style row. */
-async function render(ready: Voice, ipa: string): Promise<Float32Array> {
+type EttinFeeds = { readonly e: ReturnType<typeof ettinInputs>; readonly widx: number[] };
+async function render(ready: Voice, ipa: string, words: EttinFeeds | null = null): Promise<Float32Array> {
   const { input_ids } = ready.tokenize(ipa, { truncation: true });
   const n = input_ids.dims.at(-1)! - 2;
   if (n <= 0) return new Float32Array(0);
@@ -474,19 +496,52 @@ async function render(ready: Voice, ipa: string): Promise<Float32Array> {
     style: new ready.hf.Tensor("float32", ready.voicepack.slice(row * STYLE, (row + 1) * STYLE), [1, STYLE]),
     speed: new ready.hf.Tensor("float32", Float32Array.from([ready.speed]), [1]),
     ...ready.extra,
+    ...(words ? ettinTensors(ready, words) : {}),
   });
   return waveform.data;
+}
+
+/** The Ettin inputs as the release's kale-tts.mjs feeds them; widx also covers the two pads. */
+function ettinTensors(ready: Voice, { e, widx }: EttinFeeds) {
+  const T = ready.hf.Tensor;
+  const big = (values: number[]) => BigInt64Array.from(values, BigInt);
+  return {
+    ettin_ids: new T("int64", big(e.ettin_ids), [1, e.S]),
+    ettin_mask: new T("int64", big(e.ettin_mask), [1, e.S]),
+    wavg: new T("float32", e.wavg, [1, e.W, e.S]),
+    widx: new T("int64", big([widx[0] ?? 0, ...widx, widx.at(-1) ?? 0]), [1, widx.length + 2]),
+  };
 }
 
 /** A sentence (the player sends one at a time) as 24 kHz PCM. */
 async function speak(ready: Voice, raw: string) {
   const started = performance.now();
-  const ipa = ready.frontEnd.g2p.phonemes(ready.frontEnd.normalize(raw));
+  const said = ready.frontEnd.normalize(raw);
+  const ipa = ready.frontEnd.g2p.phonemes(said);
+  // Ettin's word features: its sub-tokens of the sentence (the one before as context), and which word
+  // each sound id belongs to, from the same words through the same g2p.
+  let words: { e: ReturnType<typeof ettinInputs>; widx: number[]; all: number[] } | null = null;
+  if (ready.ettin) {
+    const list = said.split(/\s+/).filter(Boolean);
+    const all = idsOf(ready, ipa);
+    const per = list.map((word) => idsOf(ready, ready.frontEnd.g2p.phonemes(word)));
+    words = { e: ettinInputs(ready.ettin.tok, said, ready.ettin.prev), widx: wordIndex(all, per, list.length), all };
+    ready.ettin.prev = said;
+  }
   const g2pMs = performance.now() - started;
   const parts: Float32Array[] = [];
+  let idAt = 0;
   for (const piece of pieces(ipa)) {
     if (parts.length > 0) parts.push(new Float32Array(Math.round(PIECE_GAP_S * RATE)));
-    parts.push(await render(ready, piece));
+    if (!words) {
+      parts.push(await render(ready, piece));
+      continue;
+    }
+    // A piece drops the space it was cut at: find where its ids start in the sentence's.
+    const ids = idsOf(ready, piece);
+    while (idAt < words.all.length && words.all[idAt] !== ids[0]) idAt++;
+    parts.push(await render(ready, piece, { e: words.e, widx: words.widx.slice(idAt, idAt + ids.length) }));
+    idAt += ids.length;
   }
   const samples = new Float32Array(parts.reduce((sum, part) => sum + part.length, 0));
   let at = 0;
@@ -503,6 +558,7 @@ async function speak(ready: Voice, raw: string) {
 
 let device = "wasm";
 let threads: number | undefined;
+let runtime: string | undefined;
 const start = (message: Message) => {
   voice = load(
     device,
@@ -523,6 +579,7 @@ self.onmessage = (event: MessageEvent<Message>) => {
   if (voice === null) {
     device = message.device ?? "wasm";
     threads = message.threads;
+    runtime = message.runtime;
     traceId = message.trace ?? null;
     // lazyRelease by default: the default "bucket" cache took WebKit's GPU process to 2.4 GB (Mac, 16 Nov).
     gpuCache = message.gpuCache ?? "lazyRelease";

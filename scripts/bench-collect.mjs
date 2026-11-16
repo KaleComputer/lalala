@@ -125,6 +125,7 @@ const report = {
   },
   runtime: {
     backend: start.backend,
+    path: start.runtime ?? null,
     threads: start.threads ?? null,
     onnxruntimeWeb: start.ort ?? null,
     transformersJs: start.transformers ?? null,
@@ -177,7 +178,7 @@ const report = {
 if (lines.length !== start.runs * start.lines) report.incomplete = `${lines.length} of ${start.runs * start.lines} line runs logged`;
 
 fs.mkdirSync(args.out, { recursive: true });
-const file = path.join(args.out, `${device}-${start.model}-${stamp}.json`);
+const file = path.join(args.out, `${device}-${start.model}${start.runtime ? `-${start.runtime}` : ""}-${stamp}.json`);
 fs.writeFileSync(file, `${JSON.stringify(report, null, 1)}\n`);
 const s = report.summary.all;
 console.log(

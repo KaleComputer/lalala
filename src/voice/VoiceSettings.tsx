@@ -1749,7 +1749,7 @@ const VOICE_COSTS: Partial<Record<string, string>> = {
   "kale-tts-1-nano": "11 MB download · ~0.3 GB memory",
   "kale-tts-1-tiny": "62 MB download · ~0.3 GB memory",
   "kale-tts-1-nano-10": "11 MB download · ~0.3 GB memory",
-  "kale-tts-1-tiny-10": "62 MB download · ~0.3 GB memory",
+  "kale-tts-1-tiny-10": "78 MB download · ~0.4 GB memory",
   k10c: "62 MB download · ~0.2 GB memory",
   "kale-tts-1-tiny-preview": "61 MB download · ~0.2 GB memory",
 };
@@ -2335,7 +2335,7 @@ export function SpeechSection() {
               {
                 value: "kale-tts-1-tiny-10",
                 label: VOICE_LABELS["kale-tts-1-tiny-10"],
-                detail: "the 10 named voices, clearest",
+                detail: "the 10 named voices, Ettin text side, clearest",
                 meta: VOICE_COSTS["kale-tts-1-tiny-10"],
               },
               {
