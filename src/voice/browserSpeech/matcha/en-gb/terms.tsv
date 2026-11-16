@@ -6,7 +6,7 @@ t3 code	T three code
 T3code	T three code
 aws	AWS
 api	API
-cli	C L I
+cli	C L eye
 gpu	GPU
 url	URL
 WebGPU	web GPU
@@ -50,7 +50,7 @@ sdk	SDK
 onnx	onyx
 # Spaced, since run together they were misheard (STT as "SDT", CLI as "cla"); ONNX is said "onyx".
 STT	S T T
-CLI	C L I
+CLI	C L eye
 ONNX	onyx
 # Weekdays and model sizes (the open-release worker, 16 Nov). One file for lalala and the release.
 Mon	Monday
@@ -88,3 +88,12 @@ team lead	team leed
 tech lead	tech leed
 release lead	release leed
 voice lead	voice leed
+# Tim, 16 Nov: "you say JS as one word". JS spaced; ".js" also as a suffix (Node.js, Transformers.js, main.js).
+.js	dot J S
+JS	J S
+js	J S
+kokoro-js	kokoro J S
+onnxruntime-web	onyx runtime web
+onnxruntime	onyx runtime
+# Tim, 16 Nov: CLI still sounded wrong. "C L I" ended on an unstressed "I"; "eye" carries the stress.
+CLIs	C L eyes
