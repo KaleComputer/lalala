@@ -1,9 +1,16 @@
 [
  {
-  "name": "kdec.style",
+  "name": "voice_sound",
   "dims": [
    1,
    16
+  ]
+ },
+ {
+  "name": "voice_pitch_floor",
+  "dims": [
+   1,
+   1
   ]
  }
 ]

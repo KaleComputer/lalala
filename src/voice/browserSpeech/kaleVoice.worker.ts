@@ -163,15 +163,18 @@ const DIRECT_CACHE = "lalala-kale-voices";
 // Ettin tiny): a browser's copy from before is dropped once, from both caches, so it never runs old
 // weights on new voice files.
 const MODEL_REVISION = "r10-ettin";
+/** A model whose graph changed again after that, by its own revision. */
+const MODEL_REVISIONS: Record<string, string> = { "kale-tts-1-tiny-10-classic": "end-clamp" };
 async function dropStaleModel(name: string): Promise<void> {
   const marker = new URL(`/models/${name}/.revision`, self.location.origin).href;
   const graph = new URL(`/models/${name}/onnx/model_web.onnx`, self.location.origin).href;
   try {
     const cache = await caches.open(DIRECT_CACHE);
-    if ((await (await cache.match(marker))?.text()) === MODEL_REVISION) return;
+    const revision = MODEL_REVISIONS[name] ?? MODEL_REVISION;
+    if ((await (await cache.match(marker))?.text()) === revision) return;
     await cache.delete(graph);
     await (await caches.open("transformers-cache")).delete(graph);
-    await cache.put(marker, new Response(MODEL_REVISION));
+    await cache.put(marker, new Response(revision));
   } catch {
     // No Cache API (a private window): nothing was kept either.
   }
