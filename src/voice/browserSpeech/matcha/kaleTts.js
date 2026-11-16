@@ -281,7 +281,8 @@ class G2p {
   }
 
   spell(word) {
-    const parts = [...word].map((ch) => { const c = ch.toLowerCase(); return this.lex.get(c) ?? LETTER_SOUND[c] ?? ""; }).filter((p) => p);
+    // The letter A is "ay"; the word list's "a" is the article ("uh"), which made VAD "vee-uh-dee".
+    const parts = [...word].map((ch) => { const c = ch.toLowerCase(); return c === "a" ? "ˈeɪ" : this.lex.get(c) ?? LETTER_SOUND[c] ?? ""; }).filter((p) => p);
     if (!parts.length) return "";
     return parts.slice(0, -1).map(secondary).join("") + parts[parts.length - 1];
   }

@@ -30,3 +30,21 @@ kubectl	cube control
 nginx	engine X
 OpenAI	open AI
 Wi-Fi	wifi
+# Acronyms said letter by letter (Tim, 16 Nov: "VLLM, like each letter spoken"). A plural spells its
+# letters apart, since a joined run with an s reads as a word ("LLMs" came out "lelms").
+vLLM	VLLM
+vllm	VLLM
+LLMs	L L M's
+GPUs	G P U's
+CPUs	C P U's
+NPUs	N P U's
+TPUs	T P U's
+PRs	P R's
+llm	LLM
+tts	TTS
+stt	STT
+vad	VAD
+asr	ASR
+mcp	MCP
+sdk	SDK
+onnx	ONNX
