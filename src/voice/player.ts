@@ -27,8 +27,8 @@ import {
 } from "./settingsStore";
 
 const TTS_SAMPLE_RATE = 24_000;
-const FIRST_CHUNK_SAMPLES = 1_200; // 50 ms: start quickly
-const CHUNK_SAMPLES = 4_800; // then 200 ms pieces
+const FIRST_CHUNK_S = 0.05; // start quickly
+const CHUNK_S = 0.2; // then 200 ms pieces
 const SCHEDULE_AHEAD_S = 0.03;
 // A piece that ends this much before its scheduled end was cut short (not by us).
 const EARLY_END_S = 0.06;
@@ -350,7 +350,7 @@ export class SpeechPlayer {
     this.playhead = 0;
     this.held = [];
     for (const piece of pending) {
-      const from = Math.floor(Math.max(0, now - piece.startAt) * TTS_SAMPLE_RATE);
+      const from = Math.floor(Math.max(0, now - piece.startAt) * this.rateOf(piece.index));
       if (piece.samples.length - from < 240) continue;
       this.held.push({
         samples: from === 0 ? piece.samples : piece.samples.slice(from),
@@ -455,6 +455,8 @@ export class SpeechPlayer {
             : await plugin.speak(sentence.text, signal);
         if (signal.aborted) return;
         const { samples } = rendered;
+        const output = await this.toOutputRate(samples);
+        if (signal.aborted) return;
         const timing = {
           renderMs: performance.now() - renderStart,
           audioMs: (samples.length / TTS_SAMPLE_RATE) * 1000,
@@ -469,11 +471,7 @@ export class SpeechPlayer {
             ]),
           ),
         });
-        for (let at = 0; at < samples.length;) {
-          const size = sentence.chunks.length === 0 ? FIRST_CHUNK_SAMPLES : CHUNK_SAMPLES;
-          sentence.chunks.push(samples.slice(at, at + size));
-          at += size;
-        }
+        this.chunk(sentence, output);
         notify();
         return;
       }
@@ -485,11 +483,9 @@ export class SpeechPlayer {
         renderMs: Math.round(performance.now() - renderStart),
         audioMs: Math.round((samples.length / TTS_SAMPLE_RATE) * 1000),
       });
-      for (let at = 0; at < samples.length;) {
-        const size = sentence.chunks.length === 0 ? FIRST_CHUNK_SAMPLES : CHUNK_SAMPLES;
-        sentence.chunks.push(samples.slice(at, at + size));
-        at += size;
-      }
+      const output = await this.toOutputRate(samples);
+      if (signal.aborted) return;
+      this.chunk(sentence, output);
       notify();
     } catch (error) {
       sentence.failed = true;
@@ -651,7 +647,7 @@ export class SpeechPlayer {
     if (fromSentenceStart) {
       for (let index = 0; index < first.index; index += 1) {
         const chunk = first.sentence.chunks[index]!;
-        replayedS += chunk.length / TTS_SAMPLE_RATE;
+        replayedS += chunk.length / this.rateOf(index);
         this.schedule(chunk, first.sentence, index);
       }
     }
@@ -659,10 +655,10 @@ export class SpeechPlayer {
       const full = piece.sentence.chunks[piece.index] ?? piece.samples;
       const playedS = fromSentenceStart ? 0 : Math.max(0, now - piece.startAt);
       const samples = fromSentenceStart ? full : piece.samples;
-      const from = Math.min(samples.length, Math.floor(playedS * TTS_SAMPLE_RATE));
+      const from = Math.min(samples.length, Math.floor(playedS * this.rateOf(piece.index)));
       if (samples.length - from < 240) continue;
       const rest = from === 0 ? samples : samples.slice(from);
-      replayedS += rest.length / TTS_SAMPLE_RATE;
+      replayedS += rest.length / this.rateOf(piece.index);
       this.schedule(rest, piece.sentence, piece.index);
     }
     if (fromSentenceStart) {
@@ -678,6 +674,39 @@ export class SpeechPlayer {
     });
   }
 
+  /**
+   * A sentence's audio at the output's own rate, resampled once as a whole. Pieces at 24 kHz were each
+   * resampled on their own and clicked at every 200 ms edge, a tick Tim heard in headphones (16 Nov).
+   */
+  private async toOutputRate(audio: Float32Array): Promise<Float32Array<ArrayBuffer>> {
+    const rate = this.context.sampleRate;
+    const samples = Float32Array.from(audio);
+    if (rate === TTS_SAMPLE_RATE || samples.length === 0) return samples;
+    const offline = new OfflineAudioContext(1, Math.ceil((samples.length / TTS_SAMPLE_RATE) * rate), rate);
+    const buffer = offline.createBuffer(1, samples.length, TTS_SAMPLE_RATE);
+    buffer.copyToChannel(samples, 0);
+    const source = offline.createBufferSource();
+    source.buffer = buffer;
+    source.connect(offline.destination);
+    source.start(0);
+    return (await offline.startRendering()).getChannelData(0) as Float32Array<ArrayBuffer>;
+  }
+
+  /** Cuts a sentence (at the output rate) into its pieces: a short first one, then 200 ms. */
+  private chunk(sentence: QueuedSentence, samples: Float32Array<ArrayBuffer>): void {
+    const rate = this.context.sampleRate;
+    for (let at = 0; at < samples.length;) {
+      const size = Math.round((sentence.chunks.length === 0 ? FIRST_CHUNK_S : CHUNK_S) * rate);
+      sentence.chunks.push(samples.slice(at, at + size));
+      at += size;
+    }
+  }
+
+  /** The rate of a piece's samples: sentences at the output's rate, the topic sound (-1) at 24 kHz. */
+  private rateOf(index: number): number {
+    return index === -1 ? TTS_SAMPLE_RATE : this.context.sampleRate;
+  }
+
   private schedule(
     samples: Float32Array<ArrayBuffer>,
     sentence: QueuedSentence,
@@ -688,7 +717,7 @@ export class SpeechPlayer {
       this.held.push({ samples, sentence, index });
       return;
     }
-    const buffer = this.context.createBuffer(1, samples.length, TTS_SAMPLE_RATE);
+    const buffer = this.context.createBuffer(1, samples.length, this.rateOf(index));
     buffer.copyToChannel(samples, 0);
     const source = this.context.createBufferSource();
     source.buffer = buffer;
