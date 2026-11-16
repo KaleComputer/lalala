@@ -203,27 +203,27 @@ export const PREVIEW_VOICE = "kale-tts-1-tiny-preview";
 export type ModelVoice = { readonly id: string; readonly name: string };
 /** kale-tts-1-tiny's and -nano's voices, in the picker's order, named as in the release's voices.json. */
 const EIGHT_VOICES: ReadonlyArray<ModelVoice> = [
-  { id: "v7", name: "Storyteller (American woman, 30s, cheerful)" },
-  { id: "m3", name: "Host (American man, 20s, bright)" },
-  { id: "d03", name: "British woman (30s, crisp)" },
-  { id: "d13", name: "British man (50s, crisp)" },
-  { id: "f03", name: "Young woman (American, 20s, light)" },
-  { id: "f06", name: "Woman (40s, deep and confident)" },
-  { id: "f13", name: "Young man (Latino American, 20s, upbeat)" },
-  { id: "e21", name: "Storyteller man (Latino American, 50s, calm)" },
+  { id: "v7", name: "Storyteller" },
+  { id: "m3", name: "Host" },
+  { id: "d03", name: "British woman" },
+  { id: "d13", name: "British man" },
+  { id: "f03", name: "Young woman" },
+  { id: "f06", name: "Woman" },
+  { id: "f13", name: "Young man" },
+  { id: "e21", name: "Storyteller man" },
 ];
-/** The 10-voice build's voices, in the release's order and names (voices10.json, Tim's ok, 16 Nov). */
+/** The 10-voice build's voices, in the release's order, by name only (Tim, 16 Nov: no descriptions). */
 const TEN_VOICES: ReadonlyArray<ModelVoice> = [
-  { id: "s057b", name: "Kenzie · esports hype woman" },
-  { id: "f06", name: "Simone · deep and confident woman" },
-  { id: "d03", name: "Amy · British woman, crisp news-style" },
-  { id: "w165", name: "Frankie · hard-boiled detective's partner" },
-  { id: "w602", name: "Darlene · rough low-voiced old trucker woman" },
-  { id: "m3", name: "Owen · bright young host" },
-  { id: "t071", name: "Toby · mischievous prankster" },
-  { id: "d13", name: "Jack · British man, crisp news-style" },
-  { id: "x328", name: "Earl · African American jazz granddad" },
-  { id: "h013f", name: "Magnus · deep dramatic trailer narrator" },
+  { id: "s057b", name: "Kenzie" },
+  { id: "f06", name: "Simone" },
+  { id: "d03", name: "Amy" },
+  { id: "w165", name: "Frankie" },
+  { id: "w602", name: "Darlene" },
+  { id: "m3", name: "Owen" },
+  { id: "t071", name: "Toby" },
+  { id: "d13", name: "Jack" },
+  { id: "x328", name: "Earl" },
+  { id: "h013f", name: "Magnus" },
 ];
 /**
  * Kale's small voices: their model folder (public/models, for kaleVoice.worker) and the voices it
