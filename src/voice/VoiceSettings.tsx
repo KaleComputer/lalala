@@ -1754,7 +1754,7 @@ const VOICE_COSTS: Partial<Record<string, string>> = {
   "kale-tts-1-nano": "11 MB download · ~0.3 GB memory",
   "kale-tts-1-tiny": "62 MB download · ~0.3 GB memory",
   "kale-tts-1-nano-10": "11 MB download · ~0.3 GB memory",
-  "kale-tts-1-tiny-10": "169 MB download · ~0.9 GB memory",
+  "kale-tts-1-tiny-10": "77 MB download · ~0.6 GB memory",
   "kale-tts-1-tiny-10-classic": "62 MB download · ~0.3 GB memory",
   k10c: "62 MB download · ~0.2 GB memory",
   "kale-tts-1-tiny-preview": "61 MB download · ~0.2 GB memory",

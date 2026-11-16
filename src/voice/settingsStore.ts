@@ -253,9 +253,9 @@ export const SMALL_VOICES: Readonly<
   [NANO_VOICE]: { model: "kale-tts-1-nano", voices: EIGHT_VOICES, bytes: 10_676_685 },
   [TINY_VOICE]: { model: "kale-tts-1-tiny", voices: EIGHT_VOICES, bytes: 61_524_303 },
   [NANO10_VOICE]: { model: "kale-tts-1-nano-10", voices: TEN_VOICES, bytes: 10_811_514 },
-  // The Ettin text side, fixed export D (16 Nov; the first one garbled sound and timing), in two parts;
-  // its tokenizer (2.1 MB) loads with it.
-  [TINY10_VOICE]: { model: "kale-tts-1-tiny-10", voices: TEN_VOICES, bytes: 169_225_982 },
+  // The Ettin text side, export ettin-q (16 Nov; the first one garbled sound and timing); its
+  // tokenizer (2.1 MB) loads with it.
+  [TINY10_VOICE]: { model: "kale-tts-1-tiny-10", voices: TEN_VOICES, bytes: 76_554_603 },
   [TINY10_CLASSIC_VOICE]: { model: "kale-tts-1-tiny-10-classic", voices: TEN_VOICES, bytes: 61_524_035 },
   [K10C_VOICE]: { model: "k10c", voices: [{ id: "hazel", name: "Hazel" }], bytes: 61_507_783 },
   [PREVIEW_VOICE]: {
