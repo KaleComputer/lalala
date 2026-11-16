@@ -190,7 +190,7 @@ export function CanvasCard(props: {
         card.toggleAttribute("data-lalala-card-off", off);
         // A modal dialog in a card not drawn stays modal but unseen, and the whole page stops
         // taking clicks: the view moving to another card closes it.
-        if (off) for (const dialog of card.querySelectorAll("dialog[open]")) dialog.close();
+        if (off) for (const dialog of card.querySelectorAll<HTMLDialogElement>("dialog[open]")) dialog.close();
         // A list not drawn has no height to scroll: back where it was.
         if (!off && body && scrollTops[key]) body.scrollTop = scrollTops[key];
       }
