@@ -68,7 +68,16 @@ const lineSetFile = path.join(root, "src/bench/lines.json");
 const lineSet = JSON.parse(fs.readFileSync(lineSetFile, "utf8"));
 const modelFile = path.join(root, "public/models", start.model, "onnx/model_web.onnx");
 const dirty = git("status", "--porcelain", "--", "src/bench", "src/voice/browserSpeech", `public/models/${start.model}`);
-const device = args.device ?? start.device ?? "unknown";
+// Tim's rule: a phone-sized browser on the Mac is never a phone. "iphone-…" files come only from his own
+// runs; a Mac test browser (its user agent says lalala-test or Headless) is "mac webkit, phone-sized".
+const macTest = /lalala-test|Headless/.test(start.ua ?? "");
+const device = args.device ?? start.device ?? (macTest ? "mac-webkit-phone-sized" : "unknown");
+const realIphone = /iPhone/.test(start.ua ?? "") && !macTest;
+if (/iphone/i.test(device) && !realIphone) {
+  console.error(`refused: run ${id} is not from a real iPhone (user agent: ${(start.ua ?? "").slice(0, 80)}); name it after the Mac browser`);
+  process.exit(1);
+}
+if (macTest && /iPhone|Android/.test(start.ua ?? "") && !args.label) args.label = "mac webkit, phone-sized";
 const at = new Date(start.t);
 const stamp = new Intl.DateTimeFormat("sv-SE", {
   timeZone: "Europe/Berlin",
