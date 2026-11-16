@@ -158,9 +158,10 @@ type DirectOrt = {
   Tensor: new (type: string, data: BigInt64Array | Float32Array, dims: number[]) => Tensor;
 };
 const DIRECT_CACHE = "lalala-kale-voices";
-// New weights behind the same file name (bundle-gb16, 16 Nov: British d03 and d13): a browser's
-// copy from before is dropped once, from both caches, so it never runs old weights on new voice files.
-const MODEL_REVISION = "gb16";
+// New weights behind the same file name (16 Nov: bundle-gb16, then the release 10-voice nano and the
+// Ettin tiny): a browser's copy from before is dropped once, from both caches, so it never runs old
+// weights on new voice files.
+const MODEL_REVISION = "r10-ettin";
 async function dropStaleModel(name: string): Promise<void> {
   const marker = new URL(`/models/${name}/.revision`, self.location.origin).href;
   const graph = new URL(`/models/${name}/onnx/model_web.onnx`, self.location.origin).href;
