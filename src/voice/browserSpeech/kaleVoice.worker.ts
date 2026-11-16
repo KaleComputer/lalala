@@ -8,7 +8,11 @@ import { G2p, G2pModel, normalizer, readTable } from "./matcha/kaleTts.js";
 import { BritishG2p, britishNormalizer } from "./matcha/enGb.js";
 import { termsReplacer } from "./terms";
 
-const TRANSFORMERS = "https://cdn.jsdelivr.net/npm/@huggingface/transformers@3.8.1/dist/transformers.min.js";
+// Transformers.js 4.3.2 with onnxruntime-web 1.31.1 instead of its pinned 1.31.0-dev (faster wasm), built
+// for the browser by esm.sh; the runtime's wasm comes from jsDelivr. The models are float32-only web
+// graphs (release-draft make_web_graph.py): this runtime has no float->double Cast.
+const TRANSFORMERS =
+  "https://esm.sh/@huggingface/transformers@4.3.2?deps=onnxruntime-web@1.31.1,onnxruntime-common@1.31.1";
 const RATE = 24_000;
 const STYLE = 256;
 // Kokoro reads at most 512 ids, its two pads included.
@@ -142,6 +146,9 @@ async function load(
   expected: number,
   threads?: number,
 ): Promise<Voice> {
+  // "gpu-if-available" (desktops): WebGPU where the browser has an adapter, else the CPU. Phones send
+  // "wasm": WebGPU ended Tim's iPhone tab (15 Nov), a kill nothing can catch.
+  if (device === "gpu-if-available") device = (await hasGpu()) ? "webgpu" : "wasm";
   const hf = (await import(/* @vite-ignore */ TRANSFORMERS)) as Transformers;
   // Its runtime takes half the cores by default: 2 on Tim's iPhone, 4.8x real time against 7.3x
   // with all 4 (15 Nov). Every core, up to 4, as the direct runtime had.
@@ -154,10 +161,18 @@ async function load(
   hf.env.localModelPath = "/models/";
   const cached = await caches
     .open("transformers-cache")
-    .then((cache) => cache.match(new URL(`/models/${name}/onnx/model.onnx`, self.location.origin).href))
+    .then((cache) => cache.match(new URL(`/models/${name}/onnx/model_web.onnx`, self.location.origin).href))
     .then((hit) => hit !== undefined)
     .catch(() => false);
   postMessage({ type: "load", name, expected, cached });
+  // The old graphs (onnx/model.onnx) are never loaded again: free the phone's storage they hold.
+  void caches
+    .open("transformers-cache")
+    .then(async (cache) => {
+      for (const request of await cache.keys())
+        if (/\/models\/[^/]+\/onnx\/model\.onnx$/.test(request.url)) await cache.delete(request);
+    })
+    .catch(() => {});
   const files = new Map<string, { loaded: number; total: number }>();
   const progress = (info: { status?: string; file?: string; loaded?: number; total?: number }) => {
     if (info.status !== "progress" || !info.file || !info.total) return;
@@ -176,11 +191,14 @@ async function load(
   const [model, tokenize, [voicepack, extra], frontEnd] = await Promise.all([
     hf.StyleTextToSpeech2Model.from_pretrained(name, {
       dtype: "fp32",
+      // The float32 web graph has its own name: a browser that cached the old onnx/model.onnx (same URL)
+      // gave the new runtime the old double-precision graph ("Cast(13)", Tim's iPhone, 16 Nov).
+      model_file_name: "model_web",
       device,
       progress_callback: progress,
       // As the bench run that held on Tim's iPhone (15 Nov) and the warm voice: the optimizer's 32-bit
       // copies of the 16-bit text side cost a phone ~150 MB (WebKit) for ~5 % speed.
-      session_options: { graphOptimizationLevel: "disabled" },
+      ...(device === "wasm" ? { session_options: { graphOptimizationLevel: "disabled" } } : {}),
     }),
     hf.AutoTokenizer.from_pretrained(name),
     voiceFiles(hf, name, voiceFile, voiceInputs),
@@ -229,6 +247,11 @@ function pieces(ipa: string): string[] {
   }
   out.push(rest.join(""));
   return out;
+}
+
+async function hasGpu() {
+  const gpu = (navigator as Navigator & { gpu?: { requestAdapter(): Promise<unknown> } }).gpu;
+  return (await gpu?.requestAdapter().catch(() => null)) != null;
 }
 
 /** A voice's style table and, for a model holding several voices in one graph, its own constants. */

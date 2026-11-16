@@ -66,7 +66,7 @@ const summarize = (runs) => ({
 
 const lineSetFile = path.join(root, "src/bench/lines.json");
 const lineSet = JSON.parse(fs.readFileSync(lineSetFile, "utf8"));
-const modelFile = path.join(root, "public/models", start.model, "onnx/model.onnx");
+const modelFile = path.join(root, "public/models", start.model, "onnx/model_web.onnx");
 const dirty = git("status", "--porcelain", "--", "src/bench", "src/voice/browserSpeech", `public/models/${start.model}`);
 const device = args.device ?? start.device ?? "unknown";
 const at = new Date(start.t);

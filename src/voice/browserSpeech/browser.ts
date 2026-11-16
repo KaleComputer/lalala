@@ -454,10 +454,10 @@ const warm = modelWorker(
     markLive(liveVoice);
     return new Worker(new URL("./kaleVoice.worker.ts", import.meta.url), { type: "module" });
   },
-  // The small voices on the CPU everywhere: WebGPU ended Tim's iPhone tab (15 Nov, a kill nothing
-  // can catch), and Transformers.js's WebGPU kernels refuse their decoder's phase math (desktop WebKit).
+  // Phones on the CPU: WebGPU ended Tim's iPhone tab (15 Nov), a kill nothing can catch. Desktops
+  // use WebGPU where the browser has an adapter (nano ~80x real time against ~40x on the CPU).
   () => ({
-    device: "wasm",
+    device: isPhoneDevice() ? "wasm" : "gpu-if-available",
     ...kaleModel(),
     // The British front end is staged until the GB fine-tuned weights: ?en-gb tries it on a page.
     enGb: typeof location !== "undefined" && new URLSearchParams(location.search).has("en-gb"),
