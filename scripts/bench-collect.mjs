@@ -3,7 +3,7 @@
 // benchmark JSON: device, runtime, lalala commit, model and line-set hashes, every line run and the
 // p50 / p90 / min summary, overall and per line-length bucket.
 //   node scripts/bench-collect.mjs --log <sessions-YYYY-MM-DD.jsonl> --out <dir> [--bench <id>]
-//     [--device <name>] [--cpu "<cpu>"] [--ram "<ram>"]
+//     [--device <name>] [--label "<what the device is>"] [--cpu "<cpu>"] [--ram "<ram>"]
 // Without --bench it takes the newest finished run. The file is <device>-<model>-<YYYYMMDD-HHMM>.json
 // (the run's start, Europe/Berlin). Times in the file are ISO (UTC).
 import { execFileSync } from "node:child_process";
@@ -85,6 +85,7 @@ const stamp = new Intl.DateTimeFormat("sv-SE", {
 const report = {
   schema: "lalala speed bench v1",
   device,
+  deviceLabel: args.label ?? null,
   model: start.model,
   voice: start.voice,
   startedAt: start.t,
