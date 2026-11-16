@@ -8,9 +8,17 @@ const escape = (text: string) => text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 export function termsReplacer(table: string): (text: string) => string {
   const terms = readTable(table);
   if (terms.size === 0) return (text) => text;
-  const forms = [...terms.keys()].toSorted((a, b) => b.length - a.length).map(escape);
-  const pattern = new RegExp(`(?<![\\p{L}\\p{N}_])(?:${forms.join("|")})(?![\\p{L}\\p{N}_])`, "gu");
-  const lookUp = (text: string) => text.replace(pattern, (form) => terms.get(form) ?? form);
+  // A written form starting with "." is a suffix too: ".js" also matches in "Node.js" and "main.js".
+  const forms = [...terms.keys()]
+    .toSorted((a, b) => b.length - a.length)
+    .map((form) => (form.startsWith(".") ? escape(form) : `(?<![\\p{L}\\p{N}_])${escape(form)}`));
+  const pattern = new RegExp(`(?:${forms.join("|")})(?![\\p{L}\\p{N}_])`, "gu");
+  const lookUp = (text: string) =>
+    text.replace(pattern, (form: string, at: number, whole: string) => {
+      const spoken = terms.get(form) ?? form;
+      // A suffix right after a word gets its own word: "Node.js" -> "Node dot J S".
+      return form.startsWith(".") && at > 0 && /[\p{L}\p{N}]/u.test(whole[at - 1]!) ? ` ${spoken}` : spoken;
+    });
   // Again after the split, for the words it frees ("getUserById" -> "... By Id" -> "... by ID").
   return (text) => lookUp(splitCamelCase(lookUp(text)));
 }

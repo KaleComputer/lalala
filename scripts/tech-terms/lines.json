@@ -655,5 +655,49 @@
     "env"
    ]
   ]
+ },
+ {
+  "text": "It runs on Transformers.js in the browser.",
+  "terms": [
+   [
+    "transformersjs",
+    "transformersdotjs"
+   ]
+  ]
+ },
+ {
+  "text": "The server uses Node.js and the site uses Next.js.",
+  "terms": [
+   [
+    "nodejs",
+    "nodedotjs"
+   ],
+   [
+    "nextjs",
+    "nextdotjs"
+   ]
+  ]
+ },
+ {
+  "text": "kokoro-js loads the model with onnxruntime-web.",
+  "terms": [
+   [
+    "kokorojs"
+   ],
+   [
+    "onnxruntimeweb",
+    "onyxruntimeweb",
+    "onnxruntime",
+    "onyxruntime"
+   ]
+  ]
+ },
+ {
+  "text": "Plain JS is fine for this script.",
+  "terms": [
+   [
+    "js"
+   ]
+  ]
  }
 ]
