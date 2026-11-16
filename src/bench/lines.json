@@ -1,0 +1,356 @@
+{
+ "name": "lalala speed bench lines",
+ "version": 1,
+ "lines": [
+  {
+   "id": "s01",
+   "bucket": "short",
+   "text": "Sure."
+  },
+  {
+   "id": "s02",
+   "bucket": "short",
+   "text": "Got it."
+  },
+  {
+   "id": "s03",
+   "bucket": "short",
+   "text": "On it."
+  },
+  {
+   "id": "s04",
+   "bucket": "short",
+   "text": "Done!"
+  },
+  {
+   "id": "s05",
+   "bucket": "short",
+   "text": "Yes, that works."
+  },
+  {
+   "id": "s06",
+   "bucket": "short",
+   "text": "No, not yet."
+  },
+  {
+   "id": "s07",
+   "bucket": "short",
+   "text": "Give me a second."
+  },
+  {
+   "id": "s08",
+   "bucket": "short",
+   "text": "That's live now."
+  },
+  {
+   "id": "s09",
+   "bucket": "short",
+   "text": "Tests pass."
+  },
+  {
+   "id": "s10",
+   "bucket": "short",
+   "text": "The build is green."
+  },
+  {
+   "id": "s11",
+   "bucket": "short",
+   "text": "It costs $4.99."
+  },
+  {
+   "id": "s12",
+   "bucket": "short",
+   "text": "See you at 10:30."
+  },
+  {
+   "id": "s13",
+   "bucket": "short",
+   "text": "Three files changed."
+  },
+  {
+   "id": "s14",
+   "bucket": "short",
+   "text": "Push it to GitHub."
+  },
+  {
+   "id": "s15",
+   "bucket": "short",
+   "text": "Open T3 Code."
+  },
+  {
+   "id": "s16",
+   "bucket": "short",
+   "text": "It's on AWS."
+  },
+  {
+   "id": "s17",
+   "bucket": "short",
+   "text": "Reload the page."
+  },
+  {
+   "id": "s18",
+   "bucket": "short",
+   "text": "Version 2.0.1 is out."
+  },
+  {
+   "id": "s19",
+   "bucket": "short",
+   "text": "That took 12 seconds."
+  },
+  {
+   "id": "s20",
+   "bucket": "short",
+   "text": "Call 555-0123."
+  },
+  {
+   "id": "m01",
+   "bucket": "medium",
+   "text": "I found the bug: the worker never released the old session."
+  },
+  {
+   "id": "m02",
+   "bucket": "medium",
+   "text": "The API returns JSON, and the CLI prints it as a table."
+  },
+  {
+   "id": "m03",
+   "bucket": "medium",
+   "text": "Your meeting moved to Thursday, November 20 at 3:15 PM."
+  },
+  {
+   "id": "m04",
+   "bucket": "medium",
+   "text": "The model is 10 MB and runs at about 20 times real time on this Mac."
+  },
+  {
+   "id": "m05",
+   "bucket": "medium",
+   "text": "I pushed the fix to main, and lalala.talk deploys in about a minute."
+  },
+  {
+   "id": "m06",
+   "bucket": "medium",
+   "text": "Kubernetes restarted the pod twice in the last hour."
+  },
+  {
+   "id": "m07",
+   "bucket": "medium",
+   "text": "The query in PostgreSQL took 230 milliseconds, which is fine."
+  },
+  {
+   "id": "m08",
+   "bucket": "medium",
+   "text": "WebGPU crashed the tab on iOS, so we run it on the CPU there."
+  },
+  {
+   "id": "m09",
+   "bucket": "medium",
+   "text": "The bill came to $1,284.50, a little more than last month."
+  },
+  {
+   "id": "m10",
+   "bucket": "medium",
+   "text": "Merge PR #482 after the checks pass."
+  },
+  {
+   "id": "m11",
+   "bucket": "medium",
+   "text": "The volcano card loads in 2.4 seconds on the tablet."
+  },
+  {
+   "id": "m12",
+   "bucket": "medium",
+   "text": "Set the timeout to 30 s and retry three times."
+  },
+  {
+   "id": "m13",
+   "bucket": "medium",
+   "text": "The download is 61 MB, so give it a moment on cellular."
+  },
+  {
+   "id": "m14",
+   "bucket": "medium",
+   "text": "Ask Claude in T3 Code to write the tests first."
+  },
+  {
+   "id": "m15",
+   "bucket": "medium",
+   "text": "The hook is called useEffect, and it runs after every render."
+  },
+  {
+   "id": "m16",
+   "bucket": "medium",
+   "text": "It is 72 degrees and sunny in San Francisco right now."
+  },
+  {
+   "id": "m17",
+   "bucket": "medium",
+   "text": "The report covers Q3 2026, from July 1 to September 30."
+  },
+  {
+   "id": "m18",
+   "bucket": "medium",
+   "text": "We moved the docs from README.md into the wiki."
+  },
+  {
+   "id": "m19",
+   "bucket": "medium",
+   "text": "Battery is at 64%, so the tablet run can go ahead."
+  },
+  {
+   "id": "m20",
+   "bucket": "medium",
+   "text": "Next.js and React render the UI in about 80 ms."
+  },
+  {
+   "id": "m21",
+   "bucket": "medium",
+   "text": "The 7B model beats the 70B one on this small task."
+  },
+  {
+   "id": "m22",
+   "bucket": "medium",
+   "text": "Copy .env.example to .env.local before you start."
+  },
+  {
+   "id": "m23",
+   "bucket": "medium",
+   "text": "The STT model hears you, and the CLI starts it."
+  },
+  {
+   "id": "m24",
+   "bucket": "medium",
+   "text": "We serve the model with vLLM on two GPUs."
+  },
+  {
+   "id": "m25",
+   "bucket": "medium",
+   "text": "Your flight leaves at 6:45 AM from gate B12."
+  },
+  {
+   "id": "l01",
+   "bucket": "long",
+   "text": "I looked at the logs from last night, and the server restarted at 2:14 AM because it ran out of memory while it was rebuilding the search index."
+  },
+  {
+   "id": "l02",
+   "bucket": "long",
+   "text": "The new voice is about six times smaller than the old one, and on your iPhone it starts speaking in under a second, even right after a reload."
+  },
+  {
+   "id": "l03",
+   "bucket": "long",
+   "text": "If you want, I can split the pull request into two parts: the database migration first, and then the UI changes once the migration is live."
+  },
+  {
+   "id": "l04",
+   "bucket": "long",
+   "text": "The benchmark ran each line three times after a warm-up, and it reports the median and the 90th percentile for the first audio and the full line."
+  },
+  {
+   "id": "l05",
+   "bucket": "long",
+   "text": "Between January and March, sign-ups grew from 1,200 to 4,750 a month, mostly from the Product Hunt launch and two newsletter mentions."
+  },
+  {
+   "id": "l06",
+   "bucket": "long",
+   "text": "The kids spent 18 minutes on the volcano card today, and the ones who finished it asked for a harder version with real lava temperatures."
+  },
+  {
+   "id": "l07",
+   "bucket": "long",
+   "text": "You have three meetings tomorrow: design review at 9:30, the investor call at 1:00, and a short check-in with the release team at 4:45."
+  },
+  {
+   "id": "l08",
+   "bucket": "long",
+   "text": "The tablet test passed on the S10 Lite with 714 MB of free memory left, which is well above the 500 MB line where Android starts closing apps."
+  },
+  {
+   "id": "l09",
+   "bucket": "long",
+   "text": "OAuth sign-in works again: the redirect URL had a trailing slash, so GitHub rejected it, and now it matches the one in the app settings."
+  },
+  {
+   "id": "l10",
+   "bucket": "long",
+   "text": "We compared four small models on 192 lines, and the clearest one misread about five words in a hundred, close to what the teacher model does."
+  },
+  {
+   "id": "l11",
+   "bucket": "long",
+   "text": "The cache hit rate went from 62% to 91% after we stopped putting the user ID into the cache key for the public pages."
+  },
+  {
+   "id": "l12",
+   "bucket": "long",
+   "text": "To try it, open lalala on your phone, pick the voice in Settings under Speech models, and say something long enough to hear a few sentences."
+  },
+  {
+   "id": "l13",
+   "bucket": "long",
+   "text": "The export to ONNX kept the 16-bit text side and the 8-bit decoder, so the file stayed at 10 MB without a change you can hear."
+  },
+  {
+   "id": "l14",
+   "bucket": "long",
+   "text": "A volcano is a place where very hot, melted rock comes up out of the ground, and ash and smoky gases can come out too."
+  },
+  {
+   "id": "l15",
+   "bucket": "long",
+   "text": "The night run finished at 6:55 with all eight voices trained, and the British pair needs one more pass because of the American text front end."
+  },
+  {
+   "id": "p01",
+   "bucket": "paragraph",
+   "text": "Here's where things stand. The fix for the download bar is live, and nano now shows its real size of about eleven megabytes. The bench page runs each model on its own, so your phone never holds two copies. I'll send the numbers as soon as your run lands."
+  },
+  {
+   "id": "p02",
+   "bucket": "paragraph",
+   "text": "A volcano is a place where very hot, melted rock comes up out of the ground. Ash and smoky gases can come out too. Deep under the ground, the melted rock waits in a big pool called a magma chamber. When the pressure gets too high, it pushes up and erupts."
+  },
+  {
+   "id": "p03",
+   "bucket": "paragraph",
+   "text": "I went through the failing tests. Two of them were flaky and depended on the clock, so I made them use a fake timer. The third one was real: the parser dropped the last line of a file without a newline at the end. That's fixed, and all 412 tests pass now."
+  },
+  {
+   "id": "p04",
+   "bucket": "paragraph",
+   "text": "Your week looks busy. On Monday you have the board update at 10:00. Tuesday is free until the dentist at 4:30 PM. Wednesday has two calls with the release team, and on Friday the launch goes out at 9:00 AM Pacific time."
+  },
+  {
+   "id": "p05",
+   "bucket": "paragraph",
+   "text": "We tried three ways to make the phone faster. Using all four CPU cores helped the most, about forty percent. Turning off the graph optimizer saved memory but cost a little speed. WebGPU was fastest on the Mac, but it crashed the tab on iOS, so we left it off there."
+  },
+  {
+   "id": "p06",
+   "bucket": "paragraph",
+   "text": "The new pricing page is ready for review. The basic plan stays at $9 a month, the team plan goes from $29 to $24 per seat, and annual billing saves two months. I kept the free tier, but it now has a limit of three projects instead of five."
+  },
+  {
+   "id": "p07",
+   "bucket": "paragraph",
+   "text": "Last night the agents ran 146 jobs. 139 finished, four were retried and passed, and three failed because the GPU quota ran out at 3:20 AM. I moved those three to this morning's queue, and they should be done before your first meeting."
+  },
+  {
+   "id": "p08",
+   "bucket": "paragraph",
+   "text": "To set it up, clone the repository, run npm install, and copy .env.example to .env.local. Then start the dev server with npm run dev and open localhost on port 5780. The first load downloads the voice, which takes about ten seconds on Wi-Fi."
+  },
+  {
+   "id": "p09",
+   "bucket": "paragraph",
+   "text": "The model card needs three things before we publish: the speed table from real devices, the clarity scores per voice, and a short note on what the model is not good at. I have the first two drafts ready, and the speed runs are going now."
+  },
+  {
+   "id": "p10",
+   "bucket": "paragraph",
+   "text": "Here is the short version of the incident. At 14:02 the database ran out of connections, the API started returning errors, and about 8% of requests failed for six minutes. We raised the pool size, added an alert at 80% use, and wrote up the timeline for the team."
+  }
+ ]
+}

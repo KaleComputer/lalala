@@ -1,42 +1,82 @@
-// ?bench=<model> on either host (src/main.tsx): one of Kale's voices through the same Transformers.js worker lalala speaks with
-// (kaleVoice.worker), on the CPU and (not on phones, unless ?gpu) WebGPU, each in a worker that ends
-// after its run. Silent unless play is tapped.
-// The numbers go to the session log (the app) or to .lalala/bench/ on the paired computer (lalala.talk).
-const VOLCANO = [
-  "A volcano is a place where very hot, melted rock comes up out of the ground.",
-  "Ash and smoky gases can come out too.",
-  "Deep under the ground, the melted rock waits in a big pool called a magma chamber.",
-];
-const RUNS = 5;
+// ?bench=<model> on either host (src/main.tsx): a speed benchmark of one of Kale's voices through the
+// same Transformers.js worker lalala speaks with (kaleVoice.worker), on the line set in lines.json
+// (short replies to paragraphs, numbers, tech terms). Each line is spoken sentence by sentence, as
+// lalala's player does: first audio is its first sentence, × real time its whole audio over its time.
+// One model per page load, loaded once and reused for every run: a second copy in a tab is what ended
+// Tim's iPhone tab (15 Nov). The runtime fixes threads and backend when it starts, so ?threads=2 and
+// ?gpu are their own page loads. ?runs=3 (default), ?device=mac-chrome names the device for the
+// results; ?auto starts without a tap. Silent unless play is tapped. Every line goes to the session
+// log (the app) as it ends; scripts/bench-collect.mjs makes the per-device JSON from it.
+import LINE_SET from "./lines.json";
+
+type Line = { readonly id: string; readonly bucket: string; readonly text: string };
+const LINES: ReadonlyArray<Line> = LINE_SET.lines;
+const BUCKETS = ["short", "medium", "long", "paragraph"] as const;
+const QUERY = new URLSearchParams(location.search);
+const RUNS = Math.max(1, Math.min(10, Number(QUERY.get("runs")) || 3));
+const WARMUP = ["Hi there.", "The build is green, and the tests pass."];
 const SITE = import.meta.env.LALALA_HOST === "site";
 const RATE = 24_000;
 
-// ?bench=nano (Automatic), tiny, storyteller or k10c (Hazel), each in its first voice.
+// ?bench=nano or tiny (the model card's two), storyteller or k10c (Hazel), each in its first voice.
 const BENCH_MODELS = {
   nano: { label: "kale-tts-1-nano", model: "kale-tts-1-nano", voice: "v7" },
   tiny: { label: "kale-tts-1-tiny", model: "kale-tts-1-tiny", voice: "v7" },
   storyteller: { label: "storyteller", model: "kale-storyteller", voice: "storyteller" },
   k10c: { label: "k10c (Hazel)", model: "k10c", voice: "hazel" },
 };
-const models = {
-  k10c: BENCH_MODELS[(new URLSearchParams(location.search).get("bench") ?? "") as keyof typeof BENCH_MODELS] ?? BENCH_MODELS.nano,
-};
-// One model, loaded once in one worker, its session reused for every run: a second copy in the same
-// tab is what ended Tim's iPhone tab (15 Nov). The runtime fixes its thread count and backend when
-// it starts, so another of either is its own page load: ?threads=2, ?gpu (WebGPU).
-const QUERY = new URLSearchParams(location.search);
+const MODEL =
+  BENCH_MODELS[(QUERY.get("bench") ?? "") as keyof typeof BENCH_MODELS] ?? BENCH_MODELS.nano;
+const BACKEND: "wasm" | "webgpu" = QUERY.has("gpu") ? "webgpu" : "wasm";
 const THREADS = Number(QUERY.get("threads")) || Math.min(4, navigator.hardwareConcurrency || 4);
-const PLAN: ReadonlyArray<{ model: "k10c"; backend: "wasm" | "webgpu"; threads?: number }> = [
-  QUERY.has("gpu") ? { model: "k10c", backend: "webgpu" } : { model: "k10c", backend: "wasm", threads: THREADS },
-];
+const BENCH_ID = `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 6)}`;
 
-const median = (values: number[]) => {
+/** The sentences lalala's player would send one at a time. */
+const sentencesOf = (text: string) =>
+  text
+    .split(/(?<=[.!?…])\s+/)
+    .map((part) => part.trim())
+    .filter(Boolean);
+
+const quantile = (values: ReadonlyArray<number>, q: number) => {
+  if (values.length === 0) return null;
   const sorted = [...values].sort((a, b) => a - b);
-  const mid = sorted.length >> 1;
-  return sorted.length % 2 ? sorted[mid]! : (sorted[mid - 1]! + sorted[mid]!) / 2;
+  const at = (sorted.length - 1) * q;
+  const low = Math.floor(at);
+  return sorted[low]! + (sorted[Math.min(low + 1, sorted.length - 1)]! - sorted[low]!) * (at - low);
+};
+const round = (value: number | null, places = 0) =>
+  value === null ? null : Math.round(value * 10 ** places) / 10 ** places;
+
+type LineRun = {
+  readonly run: number;
+  readonly id: string;
+  readonly bucket: string;
+  readonly chars: number;
+  readonly sentences: number;
+  readonly audioS: number;
+  readonly firstMs: number;
+  readonly totalMs: number;
+  readonly xrt: number;
 };
 
-type RunResult = Record<string, unknown> & { model: string; backend: string };
+/**
+ * p50 / p90 / min for a group of line runs. First audio's p90 is its slow end; × real time's "p90"
+ * is the slow end too (the value 90 % of lines beat), so both read as "worst but typical".
+ */
+function summarize(runs: ReadonlyArray<LineRun>) {
+  const first = runs.map((run) => run.firstMs);
+  const xrt = runs.map((run) => run.xrt);
+  return {
+    n: runs.length,
+    firstP50: round(quantile(first, 0.5)),
+    firstP90: round(quantile(first, 0.9)),
+    firstMin: round(quantile(first, 0)),
+    xrtP50: round(quantile(xrt, 0.5), 1),
+    xrtP90: round(quantile(xrt, 0.1), 1),
+    xrtMin: round(quantile(xrt, 0), 1),
+  };
+}
 
 const css = `
 :root { color-scheme: light dark; --bg: #fafaf9; --fg: #1c1917; --muted: #78716c; --line: #e7e5e4; --accent: #2563eb; }
@@ -62,39 +102,74 @@ document.head.append(style);
 (window as Window & { __lalalaBootDone?: () => void }).__lalalaBootDone?.();
 const root = document.getElementById("root")!;
 root.innerHTML = `<main>
-  <h1>${models.k10c.label} speed on this device</h1>
-  <p>${models.k10c.label} ${PLAN[0]!.backend === "webgpu" ? "on WebGPU" : `on the CPU, ${THREADS} threads`}, loaded once, ${RUNS} runs of the volcano line, median shown. Nothing plays unless you tap play. Under a minute, longer if the model still needs to download (61 MB).</p>
-  <p id="gpu"></p>
+  <h1>${MODEL.label} speed on this device</h1>
+  <p>${BACKEND === "webgpu" ? "WebGPU" : `CPU, ${THREADS} threads`}. Loads the model once, warms up, then speaks ${LINES.length} lines (short replies to paragraphs) ${RUNS} times, sentence by sentence as lalala does. Nothing plays unless you tap play. A few minutes; keep this page in front.</p>
   <button id="run">Run</button>
   <div id="status"></div>
-  <table><thead><tr><th>model</th><th>backend</th><th>load</th><th>first sound</th><th>× real time</th><th></th></tr></thead><tbody id="rows"></tbody></table>
+  <table><thead><tr><th>lines</th><th>first audio p50 · p90 · min</th><th>× real time p50 · p90 · min</th></tr></thead><tbody id="rows"></tbody></table>
+  <p id="meta"></p>
   <p id="saved"></p>
   <button id="copy" class="small" hidden>Copy results</button>
+  <button id="play" class="small" hidden>Play the last line</button>
 </main>`;
 const $ = (id: string) => document.getElementById(id)!;
-
-async function gpuInfo() {
-  const gpu = (navigator as Navigator & { gpu?: { requestAdapter(): Promise<{ info?: Record<string, string> } | null> } }).gpu;
-  if (!gpu) return { webgpu: false, reason: "no navigator.gpu" };
-  const adapter = await gpu.requestAdapter().catch(() => null);
-  if (!adapter) return { webgpu: false, reason: "no adapter" };
-  const info = adapter.info ?? {};
-  return { webgpu: true, vendor: info.vendor ?? "", architecture: info.architecture ?? "" };
-}
-
-const sec = (ms: unknown) => (typeof ms === "number" ? `${(ms / 1000).toFixed(2)} s` : "–");
 
 let log: ((type: string, data: Record<string, unknown>) => void) | null = null;
 async function logger() {
   if (SITE) return null;
   const { voiceLog } = await import("../voice/voiceLog");
-  return (type: string, data: Record<string, unknown>) => voiceLog("system", type, data);
+  return (type: string, data: Record<string, unknown>) =>
+    voiceLog("system", type, { bench: BENCH_ID, ...data });
+}
+
+/** What the browser says about the device: Chrome's client hints where it has them, else the user agent. */
+async function deviceInfo() {
+  type Hints = { getHighEntropyValues(keys: string[]): Promise<Record<string, unknown>> };
+  const data = (navigator as Navigator & { userAgentData?: Hints }).userAgentData;
+  const hints = await data
+    ?.getHighEntropyValues(["model", "platform", "platformVersion", "architecture", "fullVersionList"])
+    .catch(() => null);
+  const browsers = Array.isArray(hints?.fullVersionList)
+    ? (hints.fullVersionList as { brand: string; version: string }[])
+        .filter((entry) => !/Not.?A.?Brand/i.test(entry.brand))
+        .map((entry) => `${entry.brand} ${entry.version}`)
+        .join(", ")
+    : null;
+  return {
+    device: QUERY.get("device"),
+    ua: navigator.userAgent,
+    hintModel: (hints?.model as string) || null,
+    hintPlatform: hints ? `${hints.platform} ${hints.platformVersion}` : null,
+    hintArch: (hints?.architecture as string) ?? null,
+    browsers,
+    cores: navigator.hardwareConcurrency ?? null,
+    memoryGB: (navigator as Navigator & { deviceMemory?: number }).deviceMemory ?? null,
+    isolated: self.crossOriginIsolated,
+  };
+}
+
+/**
+ * The page's memory with its workers, where the browser measures it: Chrome's
+ * measureUserAgentSpecificMemory (cross-origin isolated pages), else Chrome's JS heap of this page
+ * alone, else nothing (Safari exposes neither).
+ */
+async function memory(): Promise<{ bytes: number | null; method: string }> {
+  const perf = performance as Performance & {
+    measureUserAgentSpecificMemory?: () => Promise<{ bytes: number }>;
+    memory?: { usedJSHeapSize: number };
+  };
+  if (self.crossOriginIsolated && perf.measureUserAgentSpecificMemory) {
+    const measured = await perf.measureUserAgentSpecificMemory().catch(() => null);
+    if (measured) return { bytes: measured.bytes, method: "measureUserAgentSpecificMemory" };
+  }
+  if (perf.memory) return { bytes: perf.memory.usedJSHeapSize, method: "performance.memory (page heap only)" };
+  return { bytes: null, method: "not exposed by this browser" };
 }
 
 let audioContext: AudioContext | null = null;
 function play(samples: Float32Array<ArrayBuffer>) {
   audioContext ??= new AudioContext();
-  const buffer = audioContext.createBuffer(1, samples.length, 24_000);
+  const buffer = audioContext.createBuffer(1, samples.length, RATE);
   buffer.copyToChannel(samples, 0);
   const source = audioContext.createBufferSource();
   source.buffer = buffer;
@@ -102,123 +177,144 @@ function play(samples: Float32Array<ArrayBuffer>) {
   source.start();
 }
 
-async function runOne(step: (typeof PLAN)[number], onStage: (stage: string) => void) {
-  const base = { model: models[step.model].model, backend: step.backend, threads: step.threads };
+function voiceWorker() {
   const worker = new Worker(new URL("../voice/browserSpeech/kaleVoice.worker.ts", import.meta.url), {
     type: "module",
   });
   const waiting = new Map<number, (data: { samples?: Float32Array<ArrayBuffer>; message?: string }) => void>();
-  let loaded: (error: string | null) => void = () => {};
-  const ready = new Promise<string | null>((resolve) => (loaded = resolve));
-  let cached = false;
+  let settle: (error: string | null) => void = () => {};
+  const ready = new Promise<string | null>((resolve) => (settle = resolve));
+  const info: Record<string, unknown> = { cached: false };
   worker.onmessage = ({ data }) => {
-    if (data.type === "load") cached = data.cached;
-    else if (data.type === "ready") loaded(null);
-    else if (data.type === "failed") loaded(data.message);
+    if (data.type === "load") info.cached = data.cached;
+    else if (data.type === "stage" && data.stage === "backend") {
+      info.threads = data.threads;
+      info.ort = data.ort;
+      info.transformers = data.transformers;
+    } else if (data.type === "ready") settle(null);
+    else if (data.type === "failed") settle(data.message);
     else if (data.type === "audio" || data.type === "error") waiting.get(data.id)?.(data);
   };
-  worker.onerror = (event) => loaded(event.message || "worker error");
+  worker.onerror = (event) => settle(event.message || "worker error");
   let nextId = 1;
   const speak = (text: string) =>
     new Promise<Float32Array<ArrayBuffer>>((resolve, reject) => {
       const id = nextId++;
-      waiting.set(id, (data) => (data.samples ? resolve(data.samples) : reject(new Error(data.message))));
+      waiting.set(id, (data) => {
+        waiting.delete(id);
+        if (data.samples) resolve(data.samples);
+        else reject(new Error(data.message));
+      });
       worker.postMessage({ type: "speak", id, text });
     });
-  try {
-    const started = performance.now();
-    const { model, voice } = models[step.model];
-    worker.postMessage({ type: "load", device: step.backend, model, voice, threads: step.threads });
-    const error = await ready;
-    if (error !== null) return { result: { ...base, error }, audio: null };
-    const loadMs = performance.now() - started;
-    onStage("loaded");
-    const first: number[] = [];
-    const line: number[] = [];
-    let audio = new Float32Array(0);
-    for (let run = 0; run < RUNS; run++) {
-      let at = performance.now();
-      await speak(VOLCANO[0]!);
-      first.push(performance.now() - at);
-      at = performance.now();
-      audio = await speak(VOLCANO.join(" "));
-      line.push(performance.now() - at);
-      onStage(`run ${run + 1}/${RUNS}`);
-    }
-    const audioS = audio.length / RATE;
-    const lineMs = median(line);
-    const result: RunResult = {
-      ...base,
-      cached,
-      loadMs: Math.round(loadMs),
-      firstSoundMs: Math.round(median(first)),
-      lineMs: Math.round(lineMs),
-      audioS: Math.round(audioS * 100) / 100,
-      realtime: Math.round((audioS / (lineMs / 1000)) * 10) / 10,
-      firstRunsMs: first.map(Math.round),
-      lineRunsMs: line.map(Math.round),
-    };
-    return { result, audio };
-  } catch (error) {
-    return { result: { ...base, error: String(error) }, audio: null };
-  } finally {
-    worker.terminate();
-  }
-}
-
-async function save(report: Record<string, unknown>) {
-  const json = JSON.stringify(report, null, 2);
-  if (!SITE) {
-    log?.("bench.k10c", report);
-    return "Saved to the session log on your computer.";
-  }
-  const { browserBrain, browserHarness } = await import("../voice/adapters/harness/browser");
-  if (!browserBrain()) return "Not paired with your computer here: tap Copy results and send them.";
-  const harness = browserHarness();
-  const stamp = new Date().toISOString().replaceAll(":", "").slice(0, 15);
-  await harness.writeFile!(".lalala/bench/.gitignore", "*\n");
-  await harness.writeFile!(`.lalala/bench/k10c-${stamp}.json`, json);
-  return "Saved to your computer (.lalala/bench).";
+  return { worker, ready, info, speak };
 }
 
 async function start() {
   const button = $("run") as HTMLButtonElement;
   button.disabled = true;
-  $("rows").innerHTML = "";
-  $("saved").textContent = "";
   log = await logger();
-  const device = {
-    ua: navigator.userAgent,
-    cores: navigator.hardwareConcurrency,
-    isolated: self.crossOriginIsolated,
-    gpu: await gpuInfo(),
-    host: SITE ? "site" : "app",
-    text: VOLCANO.join(" "),
-    runs: RUNS,
+  const device = await deviceInfo();
+  const voice = voiceWorker();
+  const status = (text: string) => ($("status").textContent = text);
+  const peak = { bytes: null as number | null, method: "not exposed by this browser" };
+  const sample = async () => {
+    const now = await memory();
+    peak.method = now.method;
+    if (now.bytes !== null) peak.bytes = Math.max(peak.bytes ?? 0, now.bytes);
   };
-  log?.("bench.start", device);
-  const results: RunResult[] = [];
-  for (const step of PLAN) {
-    const label = `${models[step.model].label} on ${step.backend === "webgpu" ? "WebGPU" : `CPU, ${step.threads} threads`}`;
-    log?.("bench.step", step);
-    $("status").textContent = `${label}: loading…`;
-    const { result, audio } =
-      step.backend === "webgpu" && !device.gpu.webgpu
-        ? { result: { ...step, skipped: `WebGPU isn't available here (${device.gpu.reason})` }, audio: null }
-        : await runOne(step, (stage) => {
-            $("status").textContent = `${label}: ${stage}`;
-          });
-    results.push(result);
-    // Each run as it ends: a tab the phone kills halfway still leaves the runs before it.
-    log?.("bench.run", result);
-    addRow(step, result, audio);
+  const base = {
+    model: MODEL.model,
+    voice: MODEL.voice,
+    backend: BACKEND,
+    runs: RUNS,
+    lines: LINES.length,
+    lineSet: `src/bench/lines.json v${LINE_SET.version}`,
+  };
+  let lastAudio: Float32Array<ArrayBuffer> | null = null;
+  try {
+    status("Loading the model…");
+    const loadStarted = performance.now();
+    voice.worker.postMessage({ type: "load", device: BACKEND, model: MODEL.model, voice: MODEL.voice, threads: THREADS });
+    const error = await voice.ready;
+    if (error !== null) throw new Error(error);
+    const loadMs = Math.round(performance.now() - loadStarted);
+    await sample();
+    log?.("bench.start", { ...base, ...device, ...voice.info, loadMs });
+    status("Warming up…");
+    for (const text of WARMUP) await voice.speak(text);
+    const results: LineRun[] = [];
+    for (let run = 1; run <= RUNS; run++) {
+      for (const [at, line] of LINES.entries()) {
+        status(`Run ${run} of ${RUNS} · line ${at + 1} of ${LINES.length}`);
+        const sentences = sentencesOf(line.text);
+        const started = performance.now();
+        let firstMs = 0;
+        let samples = 0;
+        const parts: Float32Array<ArrayBuffer>[] = [];
+        for (const sentence of sentences) {
+          const audio = await voice.speak(sentence);
+          if (firstMs === 0) firstMs = performance.now() - started;
+          samples += audio.length;
+          if (run === RUNS && at === LINES.length - 1) parts.push(audio);
+        }
+        const totalMs = performance.now() - started;
+        const audioS = samples / RATE;
+        const result: LineRun = {
+          run,
+          id: line.id,
+          bucket: line.bucket,
+          chars: line.text.length,
+          sentences: sentences.length,
+          audioS: Math.round(audioS * 1000) / 1000,
+          firstMs: Math.round(firstMs),
+          totalMs: Math.round(totalMs),
+          xrt: Math.round((audioS / (totalMs / 1000)) * 100) / 100,
+        };
+        results.push(result);
+        log?.("bench.line", result);
+        if (parts.length > 0) {
+          const joined = new Float32Array(parts.reduce((sum, part) => sum + part.length, 0));
+          let offset = 0;
+          for (const part of parts) {
+            joined.set(part, offset);
+            offset += part.length;
+          }
+          lastAudio = joined;
+        }
+      }
+      await sample();
+    }
+    const summary = {
+      ...base,
+      loadMs,
+      cold: !voice.info.cached,
+      peakMemoryBytes: peak.bytes,
+      memoryMethod: peak.method,
+      all: summarize(results),
+      ...Object.fromEntries(BUCKETS.map((bucket) => [bucket, summarize(results.filter((run) => run.bucket === bucket))])),
+    };
+    log?.("bench.done", { ...summary, all: undefined, ...flat("all", summary.all), ...Object.assign({}, ...BUCKETS.map((bucket) => flat(bucket, summary[bucket]))) });
+    showSummary(summary, device, voice.info);
+    status("Done.");
+    const report = { at: new Date().toISOString(), device, runtime: voice.info, summary, lines: results };
+    $("saved").textContent = await save(report).catch((cause: unknown) => `Couldn't save: ${String(cause)}`);
+    const copy = $("copy") as HTMLButtonElement;
+    copy.hidden = false;
+    copy.onclick = () => void navigator.clipboard.writeText(JSON.stringify(report)).then(() => (copy.textContent = "Copied"));
+    (window as Window & { __benchReport?: unknown }).__benchReport = report;
+  } catch (error) {
+    status(`Didn't finish: ${String(error)}`);
+    log?.("bench.failed", { ...base, message: String(error) });
+  } finally {
+    voice.worker.terminate();
   }
-  const report = { at: new Date().toISOString(), device, results };
-  $("status").textContent = "Done.";
-  $("saved").textContent = await save(report).catch((error: unknown) => `Couldn't save: ${String(error)}`);
-  const copy = $("copy") as HTMLButtonElement;
-  copy.hidden = false;
-  copy.onclick = () => void navigator.clipboard.writeText(JSON.stringify(report)).then(() => (copy.textContent = "Copied"));
+  if (lastAudio) {
+    const audio = lastAudio;
+    const playButton = $("play") as HTMLButtonElement;
+    playButton.hidden = false;
+    playButton.onclick = () => play(audio);
+  }
   // Again in a fresh page, never a second copy of the model in this one.
   button.disabled = false;
   button.textContent = "Run again";
@@ -229,42 +325,51 @@ async function start() {
   };
 }
 
-function addRow(step: (typeof PLAN)[number], result: RunResult, audio: Float32Array<ArrayBuffer> | null) {
-  const row = document.createElement("tr");
-  const backend = step.backend === "webgpu" ? "WebGPU" : `CPU · ${step.threads} threads`;
-  const cell = (text: string) => {
-    const td = document.createElement("td");
-    td.textContent = text;
-    row.append(td);
-    return td;
-  };
-  cell(models[step.model].label);
-  cell(backend);
-  if (result.skipped || result.error) {
-    const td = cell(String(result.skipped ?? result.error));
-    td.colSpan = 4;
-    td.className = "note";
-  } else {
-    cell(`${sec(result.loadMs)}${result.cached ? "" : " incl. download"}`);
-    cell(sec(result.firstSoundMs));
-    cell(`${result.realtime}× (${sec(result.lineMs)})`);
-    const td = cell("");
-    if (audio) {
-      const playButton = document.createElement("button");
-      playButton.className = "small";
-      playButton.textContent = "Play";
-      playButton.onclick = () => play(audio);
-      td.append(playButton);
+/** A summary group as top-level keys: the session log keeps objects only a few levels deep. */
+const flat = (prefix: string, group: Record<string, unknown>) =>
+  Object.fromEntries(Object.entries(group).map(([key, value]) => [`${prefix}_${key}`, value]));
+
+function showSummary(
+  summary: Record<string, unknown> & { all: ReturnType<typeof summarize> },
+  device: Awaited<ReturnType<typeof deviceInfo>>,
+  runtime: Record<string, unknown>,
+) {
+  const ms = (value: number | null) => (value === null ? "–" : `${(value / 1000).toFixed(2)} s`);
+  const x = (value: number | null) => (value === null ? "–" : `${value}×`);
+  const rows = [["all lines", summary.all], ...BUCKETS.map((bucket) => [bucket, summary[bucket]])] as [
+    string,
+    ReturnType<typeof summarize>,
+  ][];
+  for (const [name, group] of rows) {
+    const row = document.createElement("tr");
+    for (const text of [
+      `${name} (${group.n})`,
+      `${ms(group.firstP50)} · ${ms(group.firstP90)} · ${ms(group.firstMin)}`,
+      `${x(group.xrtP50)} · ${x(group.xrtP90)} · ${x(group.xrtMin)}`,
+    ]) {
+      const cell = document.createElement("td");
+      cell.textContent = text;
+      row.append(cell);
     }
+    $("rows").append(row);
   }
-  $("rows").append(row);
+  const memoryText =
+    summary.peakMemoryBytes === null
+      ? `memory: ${summary.memoryMethod}`
+      : `peak memory ${Math.round((summary.peakMemoryBytes as number) / 1e6)} MB (${summary.memoryMethod})`;
+  $("meta").textContent = `load ${ms(summary.loadMs as number)}${summary.cold ? " incl. download" : ""} · ${memoryText} · ${runtime.threads ?? "?"} threads · onnxruntime-web ${runtime.ort ?? "?"} · Transformers.js ${runtime.transformers ?? "?"} · ${device.cores ?? "?"} cores`;
 }
 
-void gpuInfo().then((gpu) => {
-  $("gpu").textContent = gpu.webgpu
-    ? `WebGPU: yes${gpu.vendor ? ` (${gpu.vendor} ${gpu.architecture})` : ""}`
-    : `WebGPU isn't available in this browser (${gpu.reason}): only the CPU runs will run.`;
-});
+async function save(report: Record<string, unknown>) {
+  if (!SITE) return "Saved to the session log on your computer.";
+  const { browserBrain, browserHarness } = await import("../voice/adapters/harness/browser");
+  if (!browserBrain()) return "Not paired with your computer here: tap Copy results and send them.";
+  const harness = browserHarness();
+  const stamp = new Date().toISOString().replaceAll(":", "").slice(0, 15);
+  await harness.writeFile!(".lalala/bench/.gitignore", "*\n");
+  await harness.writeFile!(`.lalala/bench/${MODEL.model}-${stamp}.json`, JSON.stringify(report, null, 2));
+  return "Saved to your computer (.lalala/bench).";
+}
+
 $("run").onclick = () => void start();
-// ?bench=k10c&auto starts on its own (the iOS Simulator's memory check has no one to tap).
-if (new URLSearchParams(location.search).has("auto")) void start();
+if (QUERY.has("auto")) void start();

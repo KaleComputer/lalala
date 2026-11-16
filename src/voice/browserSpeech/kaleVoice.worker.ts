@@ -28,6 +28,7 @@ type Transformers = {
     allowRemoteModels: boolean;
     localModelPath: string;
     backends: { onnx: { wasm: { numThreads: number } } };
+    version?: string;
   };
   StyleTextToSpeech2Model: {
     from_pretrained(
@@ -121,7 +122,15 @@ async function load(
     fetch(FRONT_END.override).then((response) => response.text()),
     fetch(FRONT_END.terms).then((response) => response.text()),
   ]);
-  postMessage({ type: "stage", stage: "backend", device, threads: hf.env.backends.onnx.wasm.numThreads });
+  const onnx = hf.env.backends.onnx as { wasm: { numThreads: number }; versions?: { web?: string } };
+  postMessage({
+    type: "stage",
+    stage: "backend",
+    device,
+    threads: onnx.wasm.numThreads,
+    ort: onnx.versions?.web ?? null,
+    transformers: hf.env.version ?? null,
+  });
   const lex = readTable(lexicon);
   readTable(override, lex);
   const ready: Voice = {
