@@ -1,18 +1,21 @@
 // The brain reads and sets the canvas's ui-sdk controls through vite/uiBridge.mjs: the dev server
 // sends one call to the page the user last touched, and this page answers it with ui-sdk's bridge.
 // Controls marked `data-agent-confirm` refuse the brain ("Needs a person"), so it asks instead.
-import { createAgent, type AgentComponent, type AgentStep } from "@ui-sdk/react/agent";
-import { createHistory, describeEntry } from "@ui-sdk/react/history";
+import { createAgent, type AgentStep, type ObservedChange } from "@ui-sdk/react/agent";
 
 type Call =
   | { tool: "snapshot"; filter?: string }
   | { tool: "query"; text?: string; within?: string; kind?: string }
-  | { tool: "act"; steps: AgentStep[] }
+  | { tool: "act"; steps: AgentStep[]; card?: string }
   | { tool: "undo"; count?: number }
   | { tool: "history" };
 
+type Change = { ref: string; label?: string; key: string; previous: unknown; value: unknown };
+
 const agent = createAgent();
-const history = createHistory(agent);
+const UNDOABLE = new Set(["value", "checked", "pressed", "open"]);
+/** The brain's acts, oldest first, each with what it changed: one "undo" puts back one act. */
+const done: { said: string; changes: Change[] }[] = [];
 
 const words = (text: string) =>
   text
@@ -20,50 +23,118 @@ const words = (text: string) =>
     .replace(/\p{Diacritic}/gu, "")
     .toLowerCase();
 
-const matches = (component: AgentComponent, filter: string) =>
-  words(`${component.label ?? ""} ${component.row ?? ""}`).includes(words(filter));
+const missing = (result: { ok: boolean; error?: { message: string } }) =>
+  !result.ok && /^No component/.test(result.error?.message ?? "");
 
-/** Entries an undo already put back, and the entries the undo itself made, which are never undone. */
-const settled = new Set<string>();
+/** Moves the view to a card (its title or id), so a card that isn't drawn mounts its controls. */
+async function reveal(card: string, ref: string) {
+  if (!globalThis.__lalalaCanvases?.focus(card)) return false;
+  for (let tries = 0; tries < 30; tries += 1) {
+    await new Promise((resolve) => setTimeout(resolve, 100));
+    const found = await agent.query({ text: ref });
+    if (Array.isArray(found) && found.some((component) => !component.offPage && !component.disabled)) return true;
+  }
+  return false;
+}
 
-/** The brain's last `count` changes, put back newest first; presses without a value can't be. */
-async function undo(count: number) {
-  const done = history
-    .entries()
-    .filter((entry) => entry.source === "agent" && !entry.reverted && !entry.redacted && !settled.has(entry.id))
-    .slice(-count)
-    .reverse();
-  if (done.length === 0) return { ok: true, undone: [], note: "nothing the brain changed is left to undo" };
-  const before = new Set(history.entries().map((entry) => entry.id));
-  const result = await agent.act({
-    steps: done.map((entry) => ({
-      ref: entry.ref,
-      action: `set${entry.key[0]!.toUpperCase()}${entry.key.slice(1)}`,
-      args: [entry.previous],
-    })),
+async function act(steps: AgentStep[], card: string | undefined) {
+  const seen: ObservedChange[] = [];
+  const stop = agent.subscribe((change) => {
+    if (change.source === "agent") seen.push(change);
   });
-  for (const entry of done) settled.add(entry.id);
-  for (const entry of history.entries()) if (!before.has(entry.id)) settled.add(entry.id);
-  return { ...result, undone: done.map(describeEntry) };
+  let result = await agent.act({ steps });
+  if (card && missing(result) && (await reveal(card, steps[result.error!.step]?.ref ?? ""))) {
+    result = await agent.act({ steps: steps.slice(result.error!.step) });
+  }
+  // Change reports settle after the act's own promise.
+  await new Promise((resolve) => setTimeout(resolve, 0));
+  stop();
+  // Everything the act set off counts, like a picked take that starts playing, so one undo puts it all back.
+  const changes = new Map<string, Change>();
+  for (const change of seen) {
+    const id = `${change.ref} ${change.key}`;
+    if (!UNDOABLE.has(change.key) || change.value === "[redacted]") continue;
+    const first = changes.get(id);
+    changes.set(id, {
+      ref: change.ref,
+      label: change.label,
+      key: change.key,
+      previous: first ? first.previous : change.previous,
+      value: change.value,
+    });
+  }
+  // A toggle or switch that reported only its new state was the other one before.
+  for (const step of result.steps ?? []) {
+    for (const change of step.changes ?? []) {
+      const ref = change.label === undefined ? step.ref : (refOf(change.label) ?? step.ref);
+      const id = `${ref} ${change.key}`;
+      if (changes.has(id) || typeof change.value !== "boolean" || !UNDOABLE.has(change.key)) continue;
+      changes.set(id, { ref, label: change.label, key: change.key, previous: !change.value, value: change.value });
+    }
+  }
+  const kept = [...changes.values()].filter((change) => JSON.stringify(change.previous) !== JSON.stringify(change.value));
+  if (kept.length > 0) {
+    const said = kept.map((change) => `${change.label ?? change.ref} ${change.key} → ${JSON.stringify(change.value)}`).join(", ");
+    done.push({ said, changes: kept });
+    if (done.length > 50) done.shift();
+  }
+  return result;
+}
+
+function refOf(label: string) {
+  return agent.snapshot().find((component) => component.label === label)?.ref;
+}
+
+/** The brain's last `count` acts, put back newest first; a press with no value to restore can't be. */
+async function undo(count: number) {
+  const taken = done.splice(Math.max(0, done.length - count)).reverse();
+  if (taken.length === 0) return { ok: true, undone: [], note: "nothing the brain changed is left to undo" };
+  const steps = taken.flatMap((entry) =>
+    [...entry.changes].reverse().map((change) => ({
+      ref: change.ref,
+      action: `set${change.key[0]!.toUpperCase()}${change.key.slice(1)}`,
+      args: [change.previous],
+    })),
+  );
+  // One step at a time: a value the card no longer offers (a take hidden by a filter) skips, the rest go back.
+  const notPutBack: string[] = [];
+  for (const step of steps) {
+    const result = await agent.act({ steps: [step] });
+    if (!result.ok) notPutBack.push(result.error?.message ?? `${step.ref} ${step.action}`);
+  }
+  return {
+    ok: notPutBack.length === 0,
+    undone: taken.map((entry) => entry.said),
+    ...(notPutBack.length > 0 ? { notPutBack } : {}),
+  };
 }
 
 async function run(call: Call): Promise<unknown> {
   switch (call.tool) {
     case "snapshot": {
       const all = agent.snapshot();
-      return call.filter ? all.filter((component) => matches(component, call.filter!)) : all;
+      const filter = call.filter ? words(call.filter) : "";
+      const shown = filter
+        ? all.filter((component) => words(`${component.label ?? ""} ${component.row ?? ""}`).includes(filter))
+        : all;
+      // A list's rows read as all their text run together; its own item labels are what a step takes.
+      return Promise.all(
+        shown.map(async (component) => {
+          if (!component.items?.length) return component;
+          const found = await agent.query({ within: component.ref });
+          const own = Array.isArray(found) ? found[0] : undefined;
+          return own?.items?.length ? { ...component, items: own.items } : component;
+        }),
+      );
     }
     case "query":
       return agent.query({ text: call.text, within: call.within, kind: call.kind });
     case "act":
-      return agent.act({ steps: call.steps ?? [] });
+      return act(call.steps ?? [], call.card);
     case "undo":
       return undo(Math.max(1, Math.min(20, Math.floor(call.count ?? 1))));
     case "history":
-      return history
-        .entries()
-        .slice(-20)
-        .map((entry) => ({ ...(entry.reverted ? { reverted: true } : {}), said: describeEntry(entry) }));
+      return done.map((entry) => entry.said);
   }
 }
 

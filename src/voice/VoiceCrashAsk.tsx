@@ -1,3 +1,4 @@
+import { Button } from "@ui-sdk/react/button";
 import { useSyncExternalStore } from "react";
 import { createPortal } from "react-dom";
 
@@ -49,13 +50,13 @@ export function VoiceCrashAsk(props: { readonly host: HTMLElement }) {
         </p>
         <div data-lalala-crash-choices="">
           {crashed === WARM_VOICE ? null : (
-            <button type="button" data-suggested="" onClick={() => pick("warm")}>
+            <Button data-suggested="" onClick={() => pick("warm")}>
               Try warm Kokoro
-            </button>
+            </Button>
           )}
-          <button type="button" onClick={() => pick("again")}>
+          <Button onClick={() => pick("again")}>
             Try {crashed === WARM_VOICE ? "it" : name} again
-          </button>
+          </Button>
         </div>
       </div>
     </div>,

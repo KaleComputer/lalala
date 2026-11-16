@@ -236,6 +236,9 @@ export function VoiceSettings(props: {
   return (
     <Dialog
       open={open}
+      // Beside the page, not over it: the canvas and its cards stay live (and reachable by the brain).
+      modal={false}
+      closeOnOutsidePress
       onOpenChange={(next, details) => {
         if (next) return openVoiceSettings();
         if (details.reason === "escape-key" && stepBack.current?.()) return details.cancel();
@@ -1038,11 +1041,21 @@ export function PickRow(props: {
   const options = props.groups.flatMap((group) => group.options);
   const selected = options.find((option) => option.value === props.value);
   const listRef = useRef<HTMLDivElement>(null);
+  const triggerRef = useRef<HTMLButtonElement>(null);
+  // The list keeps its full height and opens upward when below is short; ui-sdk would shrink it instead.
+  const [side, setSide] = useState<"top" | "bottom">("bottom");
 
   return (
     <Row title={props.title} description={props.description} onReset={props.onReset} field>
       <Select
         value={selected ? props.value : null}
+        onOpenChange={(open) => {
+          const rect = triggerRef.current?.getBoundingClientRect();
+          if (!open || !rect) return;
+          const wanted = Math.min(448, window.innerHeight * 0.7, options.length * 34 + 24);
+          const below = window.innerHeight - rect.bottom;
+          setSide(below >= wanted || below >= rect.top ? "bottom" : "top");
+        }}
         disabled={props.disabled}
         readOnly={props.busy}
         onValueChange={(value) => {
@@ -1056,7 +1069,7 @@ export function PickRow(props: {
           if (open && listRef.current) markMore(listRef.current);
         }}
       >
-        <SelectTrigger aria-label={props.label} data-lalala-settings-pick="">
+        <SelectTrigger ref={triggerRef} aria-label={props.label} data-lalala-settings-pick="">
           <span>
             {/* Automatic shows what it runs and where: "Auto · Kokoro 82M · computer". */}
             {props.shows ? "Auto" : <PickLabel option={selected} />}
@@ -1074,6 +1087,7 @@ export function PickRow(props: {
         </SelectTrigger>
         <SelectContent
           ref={listRef}
+          side={side}
           align="end"
           sideOffset={6}
           collisionPadding={14}
