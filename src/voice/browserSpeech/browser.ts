@@ -502,7 +502,7 @@ const warm = modelWorker(
     ended: () => gpu.passed(),
     smaller: () => {
       const build = kaleBuild();
-      return build === "kale-tts-1-tiny-10"
+      return build === "kale-tts-1-tiny-10" || build === "kale-tts-1-tiny-10-classic"
         ? "kale-tts-1-nano · 10 voices"
         : build === "kale-tts-1-tiny" || build === "k10c" || build === "kale-storyteller"
           ? "kale-tts-1-nano"

@@ -1716,6 +1716,7 @@ type VoiceBuild =
   | "kale-tts-1-tiny"
   | "kale-tts-1-nano-10"
   | "kale-tts-1-tiny-10"
+  | "kale-tts-1-tiny-10-classic"
   | "k10c"
   | "kale-tts-1-tiny-preview"
   | "computer";
@@ -1733,7 +1734,8 @@ const VOICE_LABELS: Record<VoiceBuild, string> = {
   "kale-tts-1-nano": "kale-tts-1-nano",
   "kale-tts-1-tiny": "kale-tts-1-tiny",
   "kale-tts-1-nano-10": "kale-tts-1-nano\u00a0·\u00a010 voices",
-  "kale-tts-1-tiny-10": "kale-tts-1-tiny\u00a0·\u00a010 voices",
+  "kale-tts-1-tiny-10": "kale-tts-1-tiny\u00a0·\u00a010 voices\u00a0·\u00a0new encoder",
+  "kale-tts-1-tiny-10-classic": "kale-tts-1-tiny\u00a0·\u00a010 voices",
   k10c: "k10c (Hazel)",
   "kale-tts-1-tiny-preview": "kale-tts-1-tiny preview",
   computer: "Kokoro 82M\u00a0·\u00a0Computer",
@@ -1752,6 +1754,7 @@ const VOICE_COSTS: Partial<Record<string, string>> = {
   "kale-tts-1-tiny": "62 MB download · ~0.3 GB memory",
   "kale-tts-1-nano-10": "11 MB download · ~0.3 GB memory",
   "kale-tts-1-tiny-10": "78 MB download · ~0.4 GB memory",
+  "kale-tts-1-tiny-10-classic": "62 MB download · ~0.3 GB memory",
   k10c: "62 MB download · ~0.2 GB memory",
   "kale-tts-1-tiny-preview": "61 MB download · ~0.2 GB memory",
 };
@@ -1821,6 +1824,7 @@ const LOADED_KEYS: Record<string, string> = {
   "kale-tts-1-tiny": "kale-tts-1-tiny",
   "kale-tts-1-nano-10": "kale-tts-1-nano-10",
   "kale-tts-1-tiny-10": "kale-tts-1-tiny-10",
+  "kale-tts-1-tiny-10-classic": "kale-tts-1-tiny-10-classic",
   k10c: "k10c",
   "kale-tts-1-tiny-preview": "kale-tts-1-tiny-preview",
 };
@@ -2333,6 +2337,12 @@ export function SpeechSection() {
                 label: VOICE_LABELS["kale-tts-1-nano-10"],
                 detail: "the 10 named voices (Kenzie … Magnus), smallest and fastest",
                 meta: VOICE_COSTS["kale-tts-1-nano-10"],
+              },
+              {
+                value: "kale-tts-1-tiny-10-classic",
+                label: VOICE_LABELS["kale-tts-1-tiny-10-classic"],
+                detail: "the 10 named voices, the text encoder from before",
+                meta: VOICE_COSTS["kale-tts-1-tiny-10-classic"],
               },
               {
                 value: "kale-tts-1-tiny-10",

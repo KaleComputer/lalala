@@ -194,6 +194,8 @@ export const TINY_VOICE = "kale-tts-1-tiny";
 /** The 10-voice kale-tts-1-nano and -tiny (release10, 16 Nov), with the voices' public names; nano is Automatic. */
 export const NANO10_VOICE = "kale-tts-1-nano-10";
 export const TINY10_VOICE = "kale-tts-1-tiny-10";
+/** The same 10-voice tiny with the text encoder from before Ettin (375ccba), to hear them side by side. */
+export const TINY10_CLASSIC_VOICE = "kale-tts-1-tiny-10-classic";
 /** k10c (61 MB, Hazel's voice), which was called kale-tts-1-tiny until the clean build took the name. */
 export const K10C_VOICE = "k10c";
 /** The cheerful storyteller (voice 8 on the k10c recipe, 61 MB, 190 wpm): Tim's pick, 15 Nov. */
@@ -253,6 +255,7 @@ export const SMALL_VOICES: Readonly<
   [NANO10_VOICE]: { model: "kale-tts-1-nano-10", voices: TEN_VOICES, bytes: 10_811_514 },
   // The Ettin text side: its tokenizer (2.1 MB) loads with it.
   [TINY10_VOICE]: { model: "kale-tts-1-tiny-10", voices: TEN_VOICES, bytes: 78_050_494 },
+  [TINY10_CLASSIC_VOICE]: { model: "kale-tts-1-tiny-10-classic", voices: TEN_VOICES, bytes: 61_524_035 },
   [K10C_VOICE]: { model: "k10c", voices: [{ id: "hazel", name: "Hazel" }], bytes: 61_507_783 },
   [PREVIEW_VOICE]: {
     model: "kale-tts-1-tiny-preview",
