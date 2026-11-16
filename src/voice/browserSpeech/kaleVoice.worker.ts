@@ -7,6 +7,7 @@
 import { G2p, G2pModel, normalizer, readTable } from "./matcha/kaleTts.js";
 import { BritishG2p, britishNormalizer } from "./matcha/enGb.js";
 import { EttinTokenizer, ettinInputs, wordIndex } from "./matcha/ettin.js";
+import { webGpuWorks } from "./gpuTrial";
 import { termsReplacer } from "./terms";
 
 // Transformers.js 4.3.2 with onnxruntime-web 1.31.1 instead of its pinned 1.31.0-dev (faster wasm), built
@@ -271,6 +272,7 @@ async function loadDirect(
   return ready;
 }
 
+/** WebGPU where it loads and speaks its warm-up; any error there (caught) and the CPU takes over. */
 async function load(
   device: string,
   name: string,
@@ -279,9 +281,24 @@ async function load(
   expected: number,
   threads?: number,
 ): Promise<Voice> {
-  // "gpu-if-available" (desktops): WebGPU where the browser has an adapter, else the CPU. Phones send
-  // "wasm": WebGPU ended Tim's iPhone tab (15 Nov), a kill nothing can catch.
-  if (device === "gpu-if-available") device = (await hasGpu()) ? "webgpu" : "wasm";
+  if (device === "gpu-if-available") device = (await webGpuWorks()) ? "webgpu" : "wasm";
+  if (device !== "webgpu") return loadOn(device, name, voiceFile, speed, expected, threads);
+  try {
+    return await loadOn("webgpu", name, voiceFile, speed, expected, threads);
+  } catch (error) {
+    postMessage({ type: "stage", stage: "gpu-fallback", message: String(error).slice(0, 300) });
+    return loadOn("wasm", name, voiceFile, speed, expected, threads);
+  }
+}
+
+async function loadOn(
+  device: string,
+  name: string,
+  voiceFile: string,
+  speed: number,
+  expected: number,
+  threads?: number,
+): Promise<Voice> {
   await trace("worker", { device, model: name, voice: voiceFile, ...(device === "webgpu" ? await gpuDetails() : {}) });
   await dropStaleModel(name);
   if (device === "wasm" && runtime !== "transformers") return loadDirect(name, voiceFile, speed, expected, threads);
@@ -437,11 +454,6 @@ async function gpuDetails() {
     maxStorageBuffersPerShaderStage: limits.maxStorageBuffersPerShaderStage,
     features: [...(adapter.features ?? [])].join(","),
   };
-}
-
-async function hasGpu() {
-  const gpu = (navigator as Navigator & { gpu?: { requestAdapter(): Promise<unknown> } }).gpu;
-  return (await gpu?.requestAdapter().catch(() => null)) != null;
 }
 
 /** A model with the Ettin text side ships Ettin's tokenizer next to it (ettin-tokenizer.json). */

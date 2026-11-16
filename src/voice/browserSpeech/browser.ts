@@ -16,6 +16,7 @@ import {
   sttModel,
 } from "../settingsStore";
 import { voiceLog } from "../voiceLog";
+import { gpuTrial } from "./gpuTrial";
 import type { LoadMessage } from "./readout";
 import { type ComputerSpeech, computerRoute } from "./computerRoute";
 
@@ -150,6 +151,8 @@ function modelWorker(
   key: string,
   spawn: () => Worker,
   loadMessage: () => Record<string, unknown> = () => ({}),
+  /** Hears every message from the worker, and its end (released or failed). */
+  watch: { message?: (data: LoadMessage | Reply) => void; ended?: () => void } = {},
 ) {
   let worker: Worker | null = null;
   let download: { name: string; loaded: number; total: number; cached: boolean } | null = null;
@@ -213,6 +216,7 @@ function modelWorker(
     if (failed && NO_ROOM.test(failure ?? "")) start();
   };
   const fail = (cause: string) => {
+    watch.ended?.();
     console.warn("lalala: a speech model didn't load", cause);
     voiceLog("system", "speech.failed", { model: key, message: cause, retries, ...memory() });
     settle();
@@ -228,6 +232,7 @@ function modelWorker(
     notify();
   };
   const release = () => {
+    watch.ended?.();
     cancelRetry();
     failure = null;
     queued = false;
@@ -291,6 +296,7 @@ function modelWorker(
     const spawned = spawn();
     worker = spawned;
     spawned.onmessage = ({ data }: MessageEvent<LoadMessage | Reply>) => {
+      watch.message?.(data);
       if (data.type === "load") {
         download = { name: data.name, loaded: 0, total: data.expected, cached: data.cached };
         notify();
@@ -441,19 +447,34 @@ const kaleModel = () => {
   const small = SMALL_VOICES[build];
   return { model: small?.model, voice: modelVoice(build), speed: small?.speed ?? 1, expected: small?.bytes };
 };
+// WebGPU first on every device (Tim, 16 Nov), the CPU when it isn't there or errors (the worker
+// falls back); a try that took the tab down leaves its marker, and that device stays on the CPU.
+const gpu = gpuTrial("lalala", (since) => voiceLog("system", "webgpu.crashed", { since }));
+export const webGpuBenched = () => gpu.benched();
+export const retryWebGpu = () => {
+  gpu.reset();
+  document.dispatchEvent(new Event("lalala:settings"));
+};
 const warm = modelWorker(
   "kale-kokoro",
   () => {
     liveVoice = kaleBuild();
     markLive(liveVoice);
+    if (gpu.allowed()) gpu.begin();
     return new Worker(new URL("./kaleVoice.worker.ts", import.meta.url), { type: "module" });
   },
-  // Phones on the CPU: WebGPU ended Tim's iPhone tab (15 Nov), a kill nothing can catch. Desktops
-  // use WebGPU where the browser has an adapter (nano ~80x real time against ~40x on the CPU).
   () => ({
-    device: isPhoneDevice() ? "wasm" : "gpu-if-available",
+    device: gpu.allowed() ? "gpu-if-available" : "wasm",
     ...kaleModel(),
   }),
+  {
+    // Over once the first real sentence came back on WebGPU, or the model ended up on the CPU.
+    message: (data) => {
+      if (data.type === "audio") gpu.passed();
+      if (data.type === "stage" && data.stage === "backend" && data.device !== "webgpu") gpu.passed();
+    },
+    ended: () => gpu.passed(),
+  },
 );
 // A device that switches a model, or sends a task to the computer, frees the old one once its
 // current utterance or sentence is done; the new one loads right away when the page has.

@@ -87,6 +87,8 @@ import {
   speechStateVersion,
   speechStatus,
   subscribeSpeechState,
+  retryWebGpu,
+  webGpuBenched,
 } from "./browserSpeech/browser";
 import { viaT3 } from "./browserSpeech/computerRoute";
 import { useLook } from "./extras/look";
@@ -2385,6 +2387,7 @@ export function SpeechSection() {
         onChange={(value) => setReplyVoice(value)}
       />
       <ModelVoiceRow />
+      <GpuRow />
     </Section>
   );
 }
@@ -2394,6 +2397,22 @@ let voiceSample: HTMLAudioElement | null = null;
  * The voices inside the reply model, when it holds more than one (Tim, 15 Nov: "how can i change the
  * voice inside of our model?"): synced like the other settings, each with its volcano line to play.
  */
+/** Only after WebGPU took this device's tab down: the voice stays on the CPU here until tried again. */
+function GpuRow() {
+  useSyncedSettings();
+  if (!webGpuBenched()) return null;
+  return (
+    <Row
+      title="WebGPU"
+      description="Off on this device: the voice ended the page on WebGPU once, so it runs on the CPU. Trying again uses WebGPU from the next load."
+    >
+      <Button data-lalala-settings-button="" data-quiet="" onClick={retryWebGpu}>
+        Try WebGPU again
+      </Button>
+    </Row>
+  );
+}
+
 function ModelVoiceRow() {
   useSyncedSettings();
   useReplyVoicePick();
