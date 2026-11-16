@@ -1,0 +1,6 @@
+{
+  "architectures": [
+    "StyleTextToSpeech2Model"
+  ],
+  "model_type": "style_text_to_speech_2"
+}

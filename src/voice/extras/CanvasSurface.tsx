@@ -440,7 +440,7 @@ export function CanvasSurface({ children }: { readonly children: ReactNode }) {
           const camera = getCamera();
           hoverSwap(moved, { x: (at.x - camera.x) / z, y: (at.y - camera.y) / z });
         } else {
-          setCard(gesture.id, { ...rect, w: rect.w + dx, h: rect.h + dy });
+          setCard(gesture.id, { ...rect, w: rect.w + dx, h: rect.h + dy, sized: true });
         }
       }
     };

@@ -6,11 +6,11 @@
  */
 import {
   kokoroSpeak,
-  matchaSpeak,
   releaseKokoro,
-  releaseMatcha,
+  releaseWarmVoice,
   startKokoro,
-  startMatcha,
+  startWarmVoice,
+  warmSpeak,
 } from "./browserSpeech/browser";
 import { replyVoicePlugin } from "./replyVoices";
 import { soundGain } from "./extras/soundVolume";
@@ -19,6 +19,7 @@ import { voiceLog } from "./voiceLog";
 import { voiceErrorText } from "./voiceErrors";
 import {
   BUILT_IN_TOPIC_SOUND,
+  isKaleVoice,
   replyVoice,
   subscribeSettings,
   syncedSettings,
@@ -169,12 +170,12 @@ export class SpeechPlayer {
     const previous = this.preparedVoice === null ? null : replyVoicePlugin(this.preparedVoice);
     this.preparedVoice = voice;
     previous?.unload();
-    if (voice === "matcha") {
+    if (isKaleVoice(voice)) {
       releaseKokoro();
-      startMatcha();
+      startWarmVoice();
       return;
     }
-    releaseMatcha();
+    releaseWarmVoice();
     const plugin = replyVoicePlugin(voice);
     if (plugin === null) {
       startKokoro();
@@ -443,14 +444,14 @@ export class SpeechPlayer {
     };
     try {
       const voice = replyVoice();
-      const plugin = voice === "matcha" ? null : replyVoicePlugin(voice);
-      if (voice === "matcha" || plugin !== null) {
+      const plugin = isKaleVoice(voice) ? null : replyVoicePlugin(voice);
+      if (isKaleVoice(voice) || plugin !== null) {
         // Kale's voice renders in its worker, a plugin voice in this tab, a whole sentence at a time;
         // both play in Kokoro's chunks.
         const renderStart = performance.now();
         const rendered =
           plugin === null
-            ? await matchaSpeak(sentence.text)
+            ? await warmSpeak(sentence.text)
             : await plugin.speak(sentence.text, signal);
         if (signal.aborted) return;
         const { samples } = rendered;

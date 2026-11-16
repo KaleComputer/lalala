@@ -20,6 +20,8 @@ export type SyncedSettings = {
   readonly delegates: Delegates;
   /** A sound in extras/topicSounds-<name>.mp3, the built-in "chime", or "none". */
   readonly topicSound: string;
+  /** The voice picked inside each model that holds more than one, by model folder (SMALL_VOICES). */
+  readonly modelVoices: Readonly<Record<string, string>>;
   readonly at: number;
 };
 
@@ -32,6 +34,7 @@ export const BUILT_IN_TOPIC_SOUND = "chime";
 const DEFAULTS: SyncedSettings = {
   delegates: DEFAULT_DELEGATES,
   topicSound: DEFAULT_TOPIC_SOUND,
+  modelVoices: {},
   at: 0,
 };
 
@@ -67,6 +70,13 @@ function parseSynced(value: unknown): SyncedSettings | null {
       options,
     },
     topicSound: typeof value.topicSound === "string" ? value.topicSound : DEFAULT_TOPIC_SOUND,
+    modelVoices: isRecord(value.modelVoices)
+      ? Object.fromEntries(
+          Object.entries(value.modelVoices).filter(
+            (entry): entry is [string, string] => typeof entry[1] === "string",
+          ),
+        )
+      : {},
     at: typeof value.at === "number" ? value.at : 0,
   };
 }
@@ -157,24 +167,113 @@ const write = (key: string, value: string | null) => {
   document.dispatchEvent(new Event(EVENT));
 };
 
+/** Kale's warm voice, Kokoro, by its id in the settings. */
+export const WARM_VOICE = "kale-kokoro";
+/** kale-tts-1-nano (~10 MB, 8 voices in one graph, clean recipe): Automatic (Tim, 16 Nov). */
+export const NANO_VOICE = "kale-tts-1-nano";
+/** kale-tts-1-tiny (61 MB, the same 8 voices, clean recipe, no Hazel). */
+export const TINY_VOICE = "kale-tts-1-tiny";
+/** k10c (61 MB, Hazel's voice), which was called kale-tts-1-tiny until the clean build took the name. */
+export const K10C_VOICE = "k10c";
+/** The cheerful storyteller (voice 8 on the k10c recipe, 61 MB, 190 wpm): Tim's pick, 15 Nov. */
+export const STORY_VOICE = "kale-storyteller";
+/** The two-voice kale-tts-1-tiny preview (storyteller and M3; Hazel's model underneath for now). */
+export const PREVIEW_VOICE = "kale-tts-1-tiny-preview";
+export type ModelVoice = { readonly id: string; readonly name: string };
+/** kale-tts-1-tiny's and -nano's voices, in the picker's order, named as in the release's voices.json. */
+const EIGHT_VOICES: ReadonlyArray<ModelVoice> = [
+  { id: "v7", name: "Storyteller (American woman, 30s, cheerful)" },
+  { id: "m3", name: "Host (American man, 20s, bright)" },
+  { id: "d03", name: "British woman (30s, crisp)" },
+  { id: "d13", name: "British man (50s, crisp)" },
+  { id: "f03", name: "Young woman (American, 20s, light)" },
+  { id: "f06", name: "Woman (40s, deep and confident)" },
+  { id: "f13", name: "Young man (Latino American, 20s, upbeat)" },
+  { id: "e21", name: "Storyteller man (Latino American, 50s, calm)" },
+];
 /**
- * The reply voice a device starts on: Kale's own Matcha voice on phones, where Kokoro on the CPU
- * took about twice a sentence's length to render it (Tim's iPhone, 14 Nov); Kokoro elsewhere.
+ * Kale's small voices: their model folder (public/models, for kaleVoice.worker) and the voices it
+ * holds (voices/<id>.bin, samples/<id>.mp3 for Settings' play buttons when there are several).
  */
-export const defaultReplyVoice = (): string => (phone() ? "matcha" : "kokoro");
+export const SMALL_VOICES: Readonly<
+  Record<
+    string,
+    {
+      readonly model: string;
+      readonly voices: ReadonlyArray<ModelVoice>;
+      readonly speed?: number;
+      /** The model's own download: its graph and one voice (the bar's total, Settings' cost). */
+      readonly bytes: number;
+    }
+  >
+> = {
+  // Its package's config.json: its duration head reads ~10 % short, so 0.92.
+  [WARM_VOICE]: { model: "kale-kokoro", voices: [{ id: "warm", name: "Warm" }], speed: 0.92, bytes: 68_142_913 },
+  [STORY_VOICE]: {
+    model: "kale-storyteller",
+    voices: [{ id: "storyteller", name: "Storyteller" }],
+    bytes: 61_507_783,
+  },
+  [NANO_VOICE]: { model: "kale-tts-1-nano", voices: EIGHT_VOICES, bytes: 10_676_685 },
+  [TINY_VOICE]: { model: "kale-tts-1-tiny", voices: EIGHT_VOICES, bytes: 61_524_303 },
+  [K10C_VOICE]: { model: "k10c", voices: [{ id: "hazel", name: "Hazel" }], bytes: 61_507_783 },
+  [PREVIEW_VOICE]: {
+    model: "kale-tts-1-tiny-preview",
+    voices: [
+      { id: "storyteller", name: "Storyteller" },
+      { id: "m3", name: "M3" },
+    ],
+    bytes: 61_508_590,
+  },
+};
+/** The voice a small model speaks with on this device: the one picked (synced), else its first. */
+export const modelVoice = (voice: string): string | null => {
+  const small = SMALL_VOICES[voice];
+  if (!small) return null;
+  const picked = current().modelVoices[small.model];
+  return small.voices.find((entry) => entry.id === picked)?.id ?? small.voices[0]!.id;
+};
+export const setModelVoice = (model: string, voice: string) =>
+  updateSynced({ modelVoices: { ...current().modelVoices, [model]: voice } });
+/** Kale's own voices, all in kaleVoice.worker, one model at a time. */
+export const isKaleVoice = (voice: string) => voice in SMALL_VOICES;
 
 /**
- * Who speaks the replies on this device: "auto" (nothing stored: defaultReplyVoice), "kokoro" (its
- * build picked by the device), "kokoro-gpu", "kokoro-cpu", Kale's "matcha", "computer" (Kokoro on
- * the computer running T3, opt-in), or a voice the user's cards registered (replyVoices.ts) by its id.
+ * The Kale voice a page died with (browser.ts). Nothing switches on its own (Tim, 15 Nov: "we show
+ * that something is wrong, and ask what we should do"): that voice waits, and the bar asks
+ * (VoiceCrashAsk.tsx) until a pick answers it.
+ */
+export const VOICE_CRASHED_KEY = "lalala:voice-crashed";
+export const crashedVoice = () => read(VOICE_CRASHED_KEY);
+/** "Try it again": the ask goes and the voice loads. */
+export const retryCrashedVoice = () => write(VOICE_CRASHED_KEY, null);
+
+/**
+ * The reply voice every device starts on: kale-tts-1-nano (Tim, 16 Nov); kale-tts-1-tiny, the
+ * storyteller, k10c and the warm Kokoro are picks in Settings.
+ */
+export const defaultReplyVoice = (): string => NANO_VOICE;
+
+/**
+ * Who speaks the replies on this device: "auto" (nothing stored: defaultReplyVoice), Kale's
+ * "kale-storyteller", "kale-kokoro" or "kale-tts-1-tiny", "kokoro-gpu", "kokoro-cpu" (Kokoro 82M), "computer" (Kokoro on the computer running
+ * T3, opt-in), or a voice the user's cards registered (replyVoices.ts) by its id.
  */
 export const replyVoicePick = (): string => {
   const stored = read(REPLY_VOICE_KEY) ?? "auto";
-  // Before 15 Nov "kokoro" let the device pick Kokoro's build, as automatic does on a desktop.
+  // Before 15 Nov "kokoro" let the device pick Kokoro's build, as Automatic did on a desktop then;
+  // "matcha" was Matcha, now gone (Tim, 15 Nov): both are Automatic's voice now. "llama-kokoro" was
+  // this voice's id on 15 Nov.
   if (stored === "kokoro") return phone() ? "kokoro-cpu" : "auto";
+  if (stored === "matcha") return "auto";
+  if (stored === "llama-kokoro") return WARM_VOICE;
   return stored;
 };
-export const setReplyVoice = (voice: string) => write(REPLY_VOICE_KEY, voice === "auto" ? null : voice);
+/** Any pick answers the crash ask too. */
+export const setReplyVoice = (voice: string) => {
+  write(VOICE_CRASHED_KEY, null);
+  write(REPLY_VOICE_KEY, voice === "auto" ? null : voice);
+};
 /** The voice that speaks now, with "auto" resolved for this device. */
 export const replyVoice = (): string => {
   const pick = replyVoicePick();

@@ -11,6 +11,8 @@ export type Rect = {
   readonly y: number;
   readonly w: number;
   readonly h: number;
+  /** The user sized this card by hand: it no longer grows to fit its content (fitCard). */
+  readonly sized?: boolean;
 };
 type Saved = { readonly camera: Camera; readonly cards: Readonly<Record<string, Rect>> };
 /**
@@ -560,6 +562,8 @@ export function lookAt(wx: number, wy: number) {
 }
 
 export function setCard(id: string, rect: Rect) {
+  // A hand-sized card stays hand-sized through moves, tidies and group resizes.
+  const sized = rect.sized ?? live.cards[id]?.sized ?? false;
   live.cards = {
     ...live.cards,
     [id]: {
@@ -567,6 +571,7 @@ export function setCard(id: string, rect: Rect) {
       y: rect.y,
       w: Math.max(MIN_CARD.w, rect.w),
       h: Math.max(MIN_CARD.h, rect.h),
+      ...(sized ? { sized: true } : {}),
     },
   };
   if (!unsynced.has(id)) bases.set(id, seen === 0 ? UNKNOWN : sharedCards[id]);
@@ -574,6 +579,34 @@ export function setCard(id: string, rect: Rect) {
   unsynced.add(id);
   changed(true);
   schedulePush();
+}
+
+/** How big a card may grow on its own to fit what it shows, world px; past that it scrolls. */
+const FIT_MAX = { w: 1800, h: 1600 } as const;
+const FIT_WIDE = 760;
+
+/**
+ * Grows a card (never shrinks it) so content that overflows by `more` px fits, up to FIT_MAX;
+ * nothing for a card the user sized by hand or is dragging. Every device grows it the same way,
+ * and the shared layout keeps the largest, so they settle.
+ */
+export function fitCard(id: string, more: { readonly w: number; readonly h: number }) {
+  const rect = live.cards[id];
+  if (rect === undefined || rect.sized || held === id) return;
+  // A narrow card that runs long gets wider first, so text doesn't end up in a tall thin strip.
+  const widen = more.h > 1 && rect.w < FIT_WIDE ? FIT_WIDE : rect.w;
+  const w = more.w > 1 ? Math.min(FIT_MAX.w, Math.ceil(rect.w + more.w)) : widen;
+  const h = more.h > 1 && widen === rect.w ? Math.min(FIT_MAX.h, Math.ceil(rect.h + more.h)) : rect.h;
+  if (w <= rect.w && h <= rect.h) return;
+  setCard(id, { ...rect, w: Math.max(w, rect.w), h: Math.max(h, rect.h) });
+}
+
+/** Whether the card (its id in code) on the open canvas grows with its content; the card menu's switch. */
+export const growsWithContent = (id: string) => live.cards[boxKey(live.canvas, id)]?.sized !== true;
+export function setGrowsWithContent(id: string, grows: boolean) {
+  const key = boxKey(live.canvas, id);
+  const rect = live.cards[key];
+  if (rect !== undefined && (rect.sized !== true) !== grows) setCard(key, { ...rect, sized: !grows });
 }
 
 /** The card being dragged or resized: a shared update never moves it, and it is sent on release. */

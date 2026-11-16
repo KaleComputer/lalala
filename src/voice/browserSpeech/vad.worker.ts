@@ -21,6 +21,8 @@ type Ort = {
 
 let run: Promise<(window: Float32Array) => Promise<number>> | null = null;
 let queue: Promise<unknown> = Promise.resolve();
+// The worker lives as long as the page; each call starts the model's memory afresh.
+let fresh = false;
 
 async function load() {
   const ort = (await import(/* @vite-ignore */ /* webpackIgnore: true */ /* turbopackIgnore: true */ ORT)) as Ort;
@@ -32,6 +34,11 @@ async function load() {
   const input = new Float32Array(CONTEXT + WINDOW);
   postMessage({ type: "ready" });
   return async (window: Float32Array) => {
+    if (fresh) {
+      fresh = false;
+      state = new ort.Tensor("float32", new Float32Array(2 * 128), [2, 1, 128]);
+      input.fill(0);
+    }
     input.copyWithin(0, WINDOW);
     input.set(window, CONTEXT);
     const out = await session.run({
@@ -49,6 +56,7 @@ self.onmessage = (event: MessageEvent<{ type: string; pcm?: Float32Array }>) => 
     run = load();
     run.catch((error: unknown) => postMessage({ type: "failed", message: String(error) }));
   }
+  if (event.data.type === "reset") fresh = true;
   const pcm = event.data.pcm;
   if (event.data.type !== "frame" || pcm === undefined) return;
   queue = queue.then(async () => {

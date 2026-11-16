@@ -1,0 +1,90 @@
+# Technical terms as they are spoken: exact written form (case matters)<TAB>the words to say.
+# Applied before the text rules (dizione) and the word list, as a lookup, never a guess: add a term
+# after hearing it come out wrong. A run of capitals is spelled (AWS); keep it joined, since a lone A or I reads as a word.
+T3 Code	T three code
+t3 code	T three code
+T3code	T three code
+aws	AWS
+api	API
+cli	C L I
+gpu	GPU
+url	URL
+WebGPU	web GPU
+webgpu	web GPU
+WebGL	web GL
+PostgreSQL	postgres QL
+Postgres	postgres
+MySQL	my SQL
+SQLite	SQ lite
+GraphQL	graph QL
+OAuth	oh auth
+README	read me
+README.md	read me dot MD
+useEffect	use effect
+useState	use state
+useMemo	use memo
+useCallback	use callback
+useRef	use ref
+user_id	user ID
+kubectl	cube control
+nginx	engine X
+OpenAI	open AI
+Wi-Fi	wifi
+# Acronyms said letter by letter (Tim, 16 Nov: "VLLM, like each letter spoken"). A plural spells its
+# letters apart, since a joined run with an s reads as a word ("LLMs" came out "lelms").
+vLLM	VLLM
+vllm	VLLM
+LLMs	L L M's
+GPUs	G P U's
+CPUs	C P U's
+NPUs	N P U's
+TPUs	T P U's
+PRs	P R's
+llm	LLM
+tts	TTS
+stt	S T T
+vad	VAD
+asr	ASR
+mcp	MCP
+sdk	SDK
+onnx	onyx
+# Spaced, since run together they were misheard (STT as "SDT", CLI as "cla"); ONNX is said "onyx".
+STT	S T T
+CLI	C L I
+ONNX	onyx
+# Weekdays and model sizes (the open-release worker, 16 Nov). One file for lalala and the release.
+Mon	Monday
+Tue	Tuesday
+Tues	Tuesday
+Wed	Wednesday
+Thu	Thursday
+Thurs	Thursday
+Fri	Friday
+1B	one bee
+3B	three bee
+7B	seven bee
+8B	eight bee
+13B	thirteen bee
+14B	fourteen bee
+32B	thirty two bee
+70B	seventy bee
+405B	four hundred five bee
+# A word a camelCase name splits into ("getUserById").
+Id	ID
+# Dotfiles (the open-release worker, 16 Nov). ".env" alone as "dot en vee": "dot env" was heard ".end" (M3,
+# f13, e21); the longer forms keep "dot env", which every voice reads clearly there.
+.env	dot en vee
+.env.local	dot env dot local
+.env.example	dot env dot example
+# Tim, 16 Nov: MLX and SGLang were said wrong, and "the beta lead is" read "lead" as the metal.
+MLX	M L X
+mlx	M L X
+mlx-audio	M L X audio
+MLX-audio	M L X audio
+SGLang	S G lang
+sglang	S G lang
+beta lead	beta leed
+team lead	team leed
+tech lead	tech leed
+release lead	release leed
+voice lead	voice leed

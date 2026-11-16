@@ -11,11 +11,15 @@ import { useSyncExternalStore } from "react";
 import {
   cardInfo,
   cardMark,
+  getCards,
   getMarks,
   groupMark,
+  growsWithContent,
   removeMarked,
   restoreMarked,
+  setGrowsWithContent,
   setPrivate,
+  subscribe as subscribeCards,
   subscribeMarks,
 } from "./canvasStore";
 import { Hidden } from "./streamer";
@@ -80,6 +84,8 @@ export function CanvasMenu() {
   const state = useSyncExternalStore(subscribe, () => open);
   const lastUndo = useSyncExternalStore(subscribe, () => undo);
   const marks = useSyncExternalStore(subscribeMarks, getMarks);
+  // Re-reads the card's box, so the switch shows a resize made while the menu is open.
+  useSyncExternalStore(subscribeCards, getCards);
 
   let content = null;
   if (state !== null) {
@@ -113,6 +119,19 @@ export function CanvasMenu() {
             {withGroup ? "Hidden in streamer mode with its group" : "Hide in streamer mode"}
           </span>
         </MenuCheckboxItem>
+        {target.kind === "card" ? (
+          <MenuCheckboxItem
+            value="grow"
+            checked={growsWithContent(target.id)}
+            onCheckedChange={() => {
+              setGrowsWithContent(target.id, !growsWithContent(target.id));
+              closeCanvasMenu();
+            }}
+          >
+            <Check on={growsWithContent(target.id)} />
+            <span>Grow with its content</span>
+          </MenuCheckboxItem>
+        ) : null}
         <MenuItem
           value="remove"
           destructive

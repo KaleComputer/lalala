@@ -1,87 +1,30 @@
-// Kale's own small text-to-speech, no espeak: text -> words (a tiny number speller) -> IPA (a
-// CMUdict-derived word list, hand-checked overrides and a 0.9M-weight GRU for unknown words) -> token
-// ids -> Matcha-TTS (ONNX, mel) -> Vocos (ONNX, magnitude and phase) -> inverse STFT -> 22,050 Hz PCM.
-// Copied from Kale's browser demo (kale-tts.js) as an ES module, numbers said more fully here; `ort`
-// is onnxruntime-web, passed in.
+// Kale's own small text-to-speech, no espeak: text -> words (dizione's text rules, ../dizione) -> IPA (a
+// CMUdict-derived word list, hand-checked overrides, dizione's homograph picker and a 0.9M-weight GRU
+// for unknown words) -> token ids -> Matcha-TTS (ONNX, mel) -> Vocos (ONNX, magnitude and phase) ->
+// inverse STFT -> 22,050 Hz PCM. Copied from Kale's browser demo (kale-tts.js) as an ES module; `ort`
+// is onnxruntime-web, passed in. Kale's voices (../kaleVoice.worker.ts) use its front end alone
+// (normalizer, G2p): text -> IPA, the same as Hazel's.
 /* eslint-disable */
+import { Normalizer, spokenText } from "../dizione/spoken.js";
+import { covers, pronounce } from "../dizione/homographs.js";
 
 // ------------------------------------------------------------------------------------------------ text -> words
-const ONES = ["zero", "one", "two", "three", "four", "five", "six", "seven", "eight", "nine", "ten", "eleven", "twelve",
-  "thirteen", "fourteen", "fifteen", "sixteen", "seventeen", "eighteen", "nineteen"];
-const TENS = ["", "", "twenty", "thirty", "forty", "fifty", "sixty", "seventy", "eighty", "ninety"];
-const SCALES = [[1e9, "billion"], [1e6, "million"], [1e3, "thousand"], [100, "hundred"]];
-
-function intWords(n) {
-  if (n < 20) return ONES[n];
-  if (n < 100) return TENS[Math.floor(n / 10)] + (n % 10 ? " " + ONES[n % 10] : "");
-  for (const [v, name] of SCALES) {
-    if (n >= v) {
-      const rest = n % v;
-      return intWords(Math.floor(n / v)) + " " + name + (rest ? (rest < 100 && v >= 100 ? " and " : " ") + intWords(rest) : "");
-    }
-  }
-  return String(n);
-}
-
-function yearWords(n) {
-  // 1990 -> nineteen ninety, 2005 -> two thousand five, 1900 -> nineteen hundred
-  if (n >= 2000 && n < 2010) return intWords(n);
-  const hi = Math.floor(n / 100), lo = n % 100;
-  return intWords(hi) + " " + (lo === 0 ? "hundred" : lo < 10 ? "oh " + ONES[lo] : intWords(lo));
-}
-
-const ORDINAL = { one: "first", two: "second", three: "third", five: "fifth", eight: "eighth", nine: "ninth", twelve: "twelfth" };
-function ordinalWords(n) {
-  const words = intWords(n).split(" ");
-  const last = words.pop();
-  const said = ORDINAL[last] ?? (last.endsWith("y") ? last.slice(0, -1) + "ieth" : last + "th");
-  return [...words, said].join(" ");
-}
-const digits = (s) => s.split("").map((d) => ONES[+d]).join(" ");
-const decimal = (a, b) => intWords(+a) + " point " + digits(b);
-function timeWords(h, m) {
-  if (m === 0) return intWords(h) + " o'clock";
-  return intWords(h) + " " + (m < 10 ? "oh " + ONES[m] : intWords(m));
-}
-
 /**
- * Numbers, symbols and abbreviations as words. Every digit ends up as a word: "T3" is "T three",
- * "0.6B" "zero point six B", "4.5%" "four point five percent", "10:30" "ten thirty" (lalala's
- * additions to Kale's demo: the token pattern below reads letters only, so a digit left over was
- * dropped, "running T3" was said "running T", Tim 14 Nov).
+ * Numbers, money, dates, times, units, codes and abbreviations as words (dizione's rules). `lex` decides
+ * which letter runs are words; letters to name come out in capitals ("A M", "T three"), which the G2p spells.
  */
-function normalize(text) {
-  return text
-    .replace(/[‘’]/g, "'")
-    .replace(/[“”]/g, '"')
-    .replace(/(\d),(?=\d{3}\b)/g, "$1")
-    .replace(/\b([01]?\d|2[0-3]):([0-5]\d)\b/g, (_, h, m) => timeWords(+h, +m))
-    .replace(/\b(\d+(?:\.\d+)?)\s?%/g, "$1 percent")
-    .replace(/\$(\d+(?:\.\d+)?)(?:\s?([kmb]n?)\b)?/gi, (_, n, unit) => n + (unit ? " " + unit : "") + " dollars")
-    .replace(/€(\d+(?:\.\d+)?)/g, "$1 euros")
-    .replace(/£(\d+(?:\.\d+)?)/g, "$1 pounds")
-    .replace(/&/g, " and ")
-    .replace(/\+/g, " plus ")
-    .replace(/=/g, " equals ")
-    .replace(/@/g, " at ")
-    .replace(/#(?=\d)/g, " number ")
-    .replace(/\bDr\./g, "Doctor").replace(/\bMr\./g, "Mister").replace(/\bMrs\./g, "Missus").replace(/\be\.g\./gi, "for example")
-    .replace(/\b(\d+)(st|nd|rd|th)\b/gi, (_, n) => ordinalWords(+n))
-    .replace(/\b(1[1-9]\d0|20[0-9]0)s\b/g, (_, y) => yearWords(+y).replace(/y$/, "ie") + "s")
-    .replace(/(\d)x\b/g, "$1 times")
-    .replace(/(\d)\s?ms\b/g, "$1 milliseconds")
-    .replace(/(\d)\s?s\b/g, "$1 seconds")
-    .replace(/(\d)\s?([KMGT])B\b/g, (_, d, u) => d + " " + { K: "kilo", M: "mega", G: "giga", T: "tera" }[u] + "bytes")
-    // Digits glued to letters ("T3", "0.6B", "v2", "3D", "M5") are said apart.
-    .replace(/(\p{L})(?=\d)/gu, "$1 ")
-    .replace(/(\d)(?=\p{L})/gu, "$1 ")
-    .replace(/(\d+)\.(\d+)/g, (_, a, b) => decimal(a, b))
-    .replace(/\b(1[1-9]\d\d|20[0-9]\d)\b/g, (m) => yearWords(+m))
-    .replace(/\d+/g, (m) => (m.length > 12 || (m.length > 1 && m[0] === "0") ? digits(m) : intWords(+m)));
+function normalizer(lex) {
+  const rules = new Normalizer((word) => lex.has(word));
+  const spell = (letters) => {
+    const upper = letters.toUpperCase();
+    return upper.length <= 5 && !(upper.length >= 3 && lex.has(letters.toLowerCase())) ? upper : [...upper].join(" ");
+  };
+  // The sentence splitter cuts after "Dr.", leaving it last, where dizione cannot tell it from "drive".
+  return (text) => spokenText(text.replace(/\bDr\.(?=\s*$)/, "Doctor"), rules, spell);
 }
 
 /** Sentences, each one model call (as the app and the bench render). */
-function sentences(text) {
+function sentences(text, normalize) {
   const out = [];
   for (const part of normalize(text).split(/(?<=[.!?…])\s+|\n+/)) {
     const s = part.trim();
@@ -251,10 +194,29 @@ class G2p {
         const pair = this.lex.get(norm(tok).toLowerCase() + " " + norm(next).toLowerCase());
         if (pair !== undefined) { out.push(pair); skip = true; continue; }
       }
+      const reading = this.homograph(tok, tokens, i);
+      if (reading !== null) { out.push(reading); continue; }
       const ipa = this.word(tok, next);
       if (ipa) out.push(ipa);
     }
     return out.join(" ");
+  }
+
+  /**
+   * A homograph as its sentence means it ("read" past or present). The word list's own pronunciation stays
+   * when it is already the reading meant (closest to it of the readings); dizione's when another one is.
+   */
+  homograph(token, tokens, index) {
+    const w = norm(token), low = w.toLowerCase();
+    if (!covers(low) || (w.length > 1 && w === w.toUpperCase())) return null;
+    const { sense, senses, plural } = pronounce(low, tokens.map(norm), index);
+    const own = this.lex.get(plural ? low.slice(0, -1) : low);
+    let ipa = sense;
+    if (own !== undefined) {
+      const nearest = senses.reduce((best, s) => (distance(s, own) < distance(best, own) ? s : best));
+      if (nearest === sense) ipa = own;
+    }
+    return plural ? ipa + pluralSuffix(ipa) : ipa;
   }
 
   word(token, next) {
@@ -319,7 +281,8 @@ class G2p {
   }
 
   spell(word) {
-    const parts = [...word].map((ch) => { const c = ch.toLowerCase(); return this.lex.get(c) ?? LETTER_SOUND[c] ?? ""; }).filter((p) => p);
+    // The letter A is "ay"; the word list's "a" is the article ("uh"), which made VAD "vee-uh-dee".
+    const parts = [...word].map((ch) => { const c = ch.toLowerCase(); return c === "a" ? "ˈeɪ" : this.lex.get(c) ?? LETTER_SOUND[c] ?? ""; }).filter((p) => p);
     if (!parts.length) return "";
     return parts.slice(0, -1).map(secondary).join("") + parts[parts.length - 1];
   }
@@ -336,6 +299,17 @@ class G2p {
     }
     return stressFirstVowel(out);
   }
+}
+
+function distance(a, b) {
+  const x = [...a], y = [...b];
+  let row = Array.from({ length: y.length + 1 }, (_, j) => j);
+  for (let i = 1; i <= x.length; i++) {
+    const next = [i];
+    for (let j = 1; j <= y.length; j++) next[j] = Math.min(row[j] + 1, next[j - 1] + 1, row[j - 1] + (x[i - 1] === y[j - 1] ? 0 : 1));
+    row = next;
+  }
+  return row[y.length];
 }
 
 // ------------------------------------------------------------------------------------------------ IPA -> ids
@@ -423,6 +397,7 @@ class Voice {
     if (files.override) readTable(files.override, lex);
     const g2pBuf = files.g2pModel ? asBytes(files.g2pModel) : null;
     v.g2p = new G2p(lex, g2pBuf ? new G2pModel(g2pBuf.buffer.slice(g2pBuf.byteOffset, g2pBuf.byteOffset + g2pBuf.byteLength)) : null);
+    v.normalize = normalizer(lex);
     v.sampleRate = 22050; v.nFft = 1024; v.hop = 256;
     return v;
   }
@@ -453,7 +428,7 @@ class Voice {
   async speak(text, opts = {}) {
     const gap = new Float32Array(Math.round(((opts.gapMs ?? 120) / 1000) * this.sampleRate));
     const parts = [];
-    for (const s of sentences(text)) parts.push({ text: s, ...(await this.speakSentence(s, opts)) });
+    for (const s of sentences(text, this.normalize)) parts.push({ text: s, ...(await this.speakSentence(s, opts)) });
     const chunks = [];
     parts.forEach((p, i) => { if (i) chunks.push(gap); chunks.push(p.pcm); });
     const len = chunks.reduce((a, c) => a + c.length, 0);
@@ -479,4 +454,4 @@ function wav(pcm, sampleRate = 22050) {
   return new Uint8Array(buf);
 }
 
-export { Voice, G2p, G2pModel, readTable, readTokens, toIds, istft, normalize, sentences, fold, wav };
+export { Voice, G2p, G2pModel, normalizer, readTable, readTokens, toIds, istft, sentences, fold, wav };

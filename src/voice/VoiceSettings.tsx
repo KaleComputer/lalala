@@ -42,7 +42,12 @@ import {
   pullSynced,
   setMicDeviceId,
   setReplyVoice,
+  SMALL_VOICES,
+  modelVoice,
+  setModelVoice,
   defaultReplyVoice,
+  replyVoice,
+  WARM_VOICE,
   isPhoneDevice,
   setAutoRetrySeconds,
   setAutoStartCall,
@@ -1668,7 +1673,16 @@ export function SoundSection() {
 }
 
 type BrowserEars = Exclude<SttModel, "auto" | "computer">;
-type VoiceBuild = "kokoro-gpu" | "kokoro-cpu" | "matcha" | "computer";
+type VoiceBuild =
+  | "kokoro-gpu"
+  | "kokoro-cpu"
+  | "kale-kokoro"
+  | "kale-storyteller"
+  | "kale-tts-1-nano"
+  | "kale-tts-1-tiny"
+  | "k10c"
+  | "kale-tts-1-tiny-preview"
+  | "computer";
 const STT_LABELS: Record<Exclude<SttModel, "auto">, string> = {
   "0.6b-gpu": "Parakeet 0.6B\u00a0·\u00a0GPU",
   "0.6b-cpu": "Parakeet 0.6B\u00a0·\u00a0CPU",
@@ -1678,7 +1692,12 @@ const STT_LABELS: Record<Exclude<SttModel, "auto">, string> = {
 const VOICE_LABELS: Record<VoiceBuild, string> = {
   "kokoro-gpu": "Kokoro\u00a082M\u00a0·\u00a0GPU",
   "kokoro-cpu": "Kokoro\u00a082M\u00a0·\u00a0CPU",
-  matcha: "Llama Matcha (Kale's voice)",
+  "kale-kokoro": "Kokoro (Kale's voice)",
+  "kale-storyteller": "Storyteller (Kale's voice)",
+  "kale-tts-1-nano": "kale-tts-1-nano",
+  "kale-tts-1-tiny": "kale-tts-1-tiny",
+  k10c: "k10c (Hazel)",
+  "kale-tts-1-tiny-preview": "kale-tts-1-tiny preview",
   computer: "Kokoro 82M\u00a0·\u00a0Computer",
 };
 const STT_COSTS: Partial<Record<string, string>> = {
@@ -1689,7 +1708,12 @@ const STT_COSTS: Partial<Record<string, string>> = {
 const VOICE_COSTS: Partial<Record<string, string>> = {
   "kokoro-gpu": "327 MB download · ~0.4 GB memory",
   "kokoro-cpu": "93 MB download · ~0.2 GB memory",
-  matcha: "45 MB download · ~0.1 GB memory",
+  "kale-kokoro": "68 MB download · ~0.2 GB memory",
+  "kale-storyteller": "61 MB download · ~0.2 GB memory",
+  "kale-tts-1-nano": "11 MB download · ~0.3 GB memory",
+  "kale-tts-1-tiny": "62 MB download · ~0.3 GB memory",
+  k10c: "62 MB download · ~0.2 GB memory",
+  "kale-tts-1-tiny-preview": "61 MB download · ~0.2 GB memory",
 };
 const MB = (bytes: number) =>
   bytes >= 1e9 ? `${(bytes / 1e9).toFixed(2)}\u00a0GB` : `${Math.round(bytes / 1e6)}\u00a0MB`;
@@ -1739,7 +1763,7 @@ const LOADED_NAMES: Record<string, string> = {
   "parakeet 110m": "Parakeet 110M",
   "kokoro 82m gpu": "Kokoro 82M\u00a0·\u00a0GPU",
   "kokoro 82m cpu": "Kokoro 82M\u00a0·\u00a0CPU",
-  "llama matcha": "Llama Matcha (Kale's voice)",
+  "kale kokoro": "Kokoro (Kale's voice)",
   "parakeet 0.6b mlx": "Parakeet 0.6B",
   "kokoro 82m mlx": "Kokoro 82M",
 };
@@ -1751,7 +1775,12 @@ const LOADED_KEYS: Record<string, string> = {
   "parakeet 110m": "110m",
   "kokoro 82m gpu": "kokoro-gpu",
   "kokoro 82m cpu": "kokoro-cpu",
-  "llama matcha": "matcha",
+  "kale kokoro": "kale-kokoro",
+  "kale-storyteller": "kale-storyteller",
+  "kale-tts-1-nano": "kale-tts-1-nano",
+  "kale-tts-1-tiny": "kale-tts-1-tiny",
+  k10c: "k10c",
+  "kale-tts-1-tiny-preview": "kale-tts-1-tiny-preview",
 };
 const seconds = (ms: number) => `${(ms / 1000).toFixed(ms < 100 ? 2 : 1)} s`;
 /** How fast your computer did a task, as measured from this device, once it has. */
@@ -1828,7 +1857,7 @@ function runningName(task: "stt" | "voice", planned: string): string {
 /** The same without its build: the closed select has room for the model, "Now:" says GPU or CPU. */
 const modelOnly = (name: string) => name.replace(/\u00a0·\u00a0(GPU|CPU|Computer)$/, "").replace(/ · (GPU|CPU|Computer)$/, "");
 
-/** What runs a task right now, in a few words: "Llama Matcha (Kale's voice), in this browser · ready". */
+/** What runs a task right now, in a few words: "Kokoro (Kale's voice), in this browser · ready". */
 export function nowText(active: ActiveSpeech, waiting: string, meanwhile = ""): string {
   if (active.where === "computer") return `${loadedName(active.name)}, on your computer · ready, nothing downloads here`;
   if (active.where === "card") return "a voice from your cards";
@@ -1885,7 +1914,7 @@ function automaticWhy(task: "stt" | "voice", computer: ReturnType<typeof compute
       : `per second of audio: computer ${there === undefined ? "not measured" : seconds(there)}, here ${
           browser === undefined ? "measured only when it stands in" : seconds(browser)
         }`;
-  if (!automaticTriesComputer(task)) return "phones always use Kale's voice";
+  if (!automaticTriesComputer(task)) return "Kale's voice, always in this browser";
   if (computer === "absent") return "this browser; your computer once T3 Code is connected";
   // A missing measurement isn't a reason: the speeds show once there is a number.
   const speeds = there === undefined && browser === undefined ? "" : `\u00a0· ${measured}`;
@@ -2008,17 +2037,18 @@ export function SpeechSection() {
       : gpu.f16
         ? "0.6b-gpu"
         : "0.6b-cpu";
-  const autoVoice: VoiceBuild | null = phone
-    ? "matcha"
+  // Automatic's voice: kale-tts-1-nano on every device (settingsStore).
+  const autoVoice = defaultReplyVoice() as VoiceBuild;
+  // Who stands in for your computer's voice: the same Kokoro 82M here on a desktop, Automatic's on a phone.
+  const voiceStandIn: VoiceBuild | null = phone
+    ? autoVoice
     : gpu === null
       ? null
       : gpu.any
         ? "kokoro-gpu"
         : "kokoro-cpu";
-  // Who stands in for your computer's voice: the same Kokoro here on a desktop, Matcha on a phone.
-  const voiceStandIn: VoiceBuild | null = phone ? "matcha" : autoVoice;
   const earsAuto = autoEars === null ? CHECKING : STT_LABELS[autoEars];
-  const voiceAuto = autoVoice === null ? CHECKING : VOICE_LABELS[autoVoice];
+  const voiceAuto = VOICE_LABELS[autoVoice];
   // The computer's line in the list: its state, and how fast it is once it answers.
   const computerOption = (speed: string | undefined) =>
     computer === "absent"
@@ -2216,11 +2246,8 @@ export function SpeechSection() {
                 ...automaticOption(
                   "voice",
                   automaticTriesComputer("voice") ? computer : "absent",
-                  { label: voiceAuto, cost: autoVoice === null ? undefined : VOICE_COSTS[autoVoice] },
-                  {
-                    label: voiceAuto,
-                    cost: autoVoice === null ? "" : (VOICE_COSTS[autoVoice] ?? ""),
-                  },
+                  { label: voiceAuto, cost: VOICE_COSTS[autoVoice] },
+                  { label: voiceAuto, cost: VOICE_COSTS[autoVoice] ?? "" },
                 ),
               },
             ],
@@ -2242,10 +2269,40 @@ export function SpeechSection() {
                 meta: VOICE_COSTS["kokoro-cpu"],
               },
               {
-                value: "matcha",
-                label: VOICE_LABELS.matcha,
-                detail: "fastest",
-                meta: VOICE_COSTS.matcha,
+                value: "kale-kokoro",
+                label: VOICE_LABELS["kale-kokoro"],
+                detail: "warm, fast",
+                meta: VOICE_COSTS["kale-kokoro"],
+              },
+              {
+                value: "kale-tts-1-nano",
+                label: VOICE_LABELS["kale-tts-1-nano"],
+                detail: "8 voices, smallest and fastest",
+                meta: VOICE_COSTS["kale-tts-1-nano"],
+              },
+              {
+                value: "kale-tts-1-tiny",
+                label: VOICE_LABELS["kale-tts-1-tiny"],
+                detail: "8 voices, clearest",
+                meta: VOICE_COSTS["kale-tts-1-tiny"],
+              },
+              {
+                value: "kale-storyteller",
+                label: VOICE_LABELS["kale-storyteller"],
+                detail: "cheerful, 190 words a minute",
+                meta: VOICE_COSTS["kale-storyteller"],
+              },
+              {
+                value: "kale-tts-1-tiny-preview",
+                label: VOICE_LABELS["kale-tts-1-tiny-preview"],
+                detail: "two voices: storyteller, M3",
+                meta: VOICE_COSTS["kale-tts-1-tiny-preview"],
+              },
+              {
+                value: "k10c",
+                label: VOICE_LABELS.k10c,
+                detail: "Hazel's voice",
+                meta: VOICE_COSTS.k10c,
               },
             ],
           },
@@ -2275,7 +2332,37 @@ export function SpeechSection() {
         ]}
         onChange={(value) => setReplyVoice(value)}
       />
+      <ModelVoiceRow />
     </Section>
+  );
+}
+
+let voiceSample: HTMLAudioElement | null = null;
+/**
+ * The voices inside the reply model, when it holds more than one (Tim, 15 Nov: "how can i change the
+ * voice inside of our model?"): synced like the other settings, each with its volcano line to play.
+ */
+function ModelVoiceRow() {
+  useSyncedSettings();
+  useReplyVoicePick();
+  const reply = replyVoice();
+  const small = SMALL_VOICES[reply];
+  if (!small || small.voices.length < 2) return null;
+  const play = (id: string) => {
+    voiceSample?.pause();
+    voiceSample = withSoundVolume(new Audio(`/models/${small.model}/samples/${id}.mp3`));
+    void voiceSample.play().catch(() => undefined);
+  };
+  return (
+    <PickRow
+      title="Voice"
+      description="Who speaks inside this model, from the next sentence."
+      label="Voice"
+      value={modelVoice(reply) ?? small.voices[0]!.id}
+      groups={[{ options: small.voices.map((entry) => ({ value: entry.id, label: entry.name, playable: true })) }]}
+      onPlay={play}
+      onChange={(id) => setModelVoice(small.model, id)}
+    />
   );
 }
 
@@ -2330,10 +2417,7 @@ export function OpeningSection() {
   );
 }
 
-const LLAMA_LICENSE =
-  "https://github.com/KaleComputer/lalala/blob/main/src/voice/browserSpeech/matcha/LLAMA-3.2-LICENSE.txt";
-
-/** Who made the speech models; the Llama lines are its licence's terms for Kale's voice (NOTICE.md). */
+/** Who made the speech models (NOTICE.md). */
 export function CreditsSection() {
   return (
     <Section
@@ -2341,13 +2425,8 @@ export function CreditsSection() {
       fine
       note={
         <>
-          Speech runs on NVIDIA Parakeet (CC-BY-4.0), Kokoro (Apache-2.0), Silero VAD (MIT) and Kale's
-          voice, Llama Matcha. <strong>Built with Llama</strong>: Llama Matcha learned to speak from
-          audio made with Maya1, which is built on Llama 3.2. Llama 3.2 is licensed under the{" "}
-          <a href={LLAMA_LICENSE} target="_blank" rel="noreferrer">
-            Llama 3.2 Community License
-          </a>
-          , Copyright © Meta Platforms, Inc. All Rights Reserved.
+          Speech runs on NVIDIA Parakeet (CC-BY-4.0), Kokoro (Apache-2.0) and Silero VAD (MIT). Kale's
+          voice is a Kokoro tuned by Kale, based on Maya (Maya1, Apache-2.0).
         </>
       }
     />
