@@ -2,6 +2,7 @@
 // the voice plugin (speech, canvas layout, session log), the T3 bridge and the user's cards.
 // `vite build --mode site` is lalala.talk: a static build into site/out for Vercel, no server
 // routes, no private cards. Aliases point the voice code's T3 Code imports at stand-ins in src/t3.
+import * as NodeFS from "node:fs";
 import * as NodePath from "node:path";
 
 import tailwindcss from "@tailwindcss/vite";
@@ -15,6 +16,19 @@ import { t3BridgePlugin } from "./vite/t3bridge.mjs";
 import { uiBridgePlugin } from "./vite/uiBridge.mjs";
 import { lalalaPlugin } from "./vite/voice.ts";
 import { buildVersion } from "./site/version.mjs";
+
+/**
+ * Every ui-sdk entry, bundled up front: a card that first imports one at runtime would make Vite
+ * re-bundle and reload the page, and until then the page holds two Reacts and its cards fail.
+ */
+const uiSdkEntries = ["@ui-sdk/react", "@ui-sdk/core"].flatMap((name) => {
+  const pkg = JSON.parse(
+    NodeFS.readFileSync(NodePath.join(import.meta.dirname, "node_modules", name, "package.json"), "utf8"),
+  );
+  return Object.keys(pkg.exports ?? {})
+    .filter((entry) => !/\.(css|json)$/.test(entry))
+    .map((entry) => (entry === "." ? name : `${name}/${entry.slice(2)}`));
+});
 
 /** The host, from the mode: lalala.talk's static build, or the app with its server. */
 const hostOf = (mode) => (mode === "site" ? "site" : "app");
@@ -90,6 +104,7 @@ export default defineConfig(({ mode }) => {
       react(),
     ],
     build: { outDir: "site/out", emptyOutDir: true },
+    optimizeDeps: { include: uiSdkEntries },
     // Speech and the logo run in module workers that split into chunks.
     worker: { format: "es" },
     resolve: {
