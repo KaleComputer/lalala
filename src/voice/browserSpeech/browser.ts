@@ -456,7 +456,12 @@ const warm = modelWorker(
   },
   // The small voices on the CPU everywhere: WebGPU ended Tim's iPhone tab (15 Nov, a kill nothing
   // can catch), and Transformers.js's WebGPU kernels refuse their decoder's phase math (desktop WebKit).
-  () => ({ device: "wasm", ...kaleModel() }),
+  () => ({
+    device: "wasm",
+    ...kaleModel(),
+    // The British front end is staged until the GB fine-tuned weights: ?en-gb tries it on a page.
+    enGb: typeof location !== "undefined" && new URLSearchParams(location.search).has("en-gb"),
+  }),
 );
 // A device that switches a model, or sends a task to the computer, frees the old one once its
 // current utterance or sentence is done; the new one loads right away when the page has.
