@@ -5,6 +5,7 @@
 // Transformers.js reports load and run errors; only the words come from Kale's own front end
 // (matcha/kaleTts.js, as the warm voice). Credits: NOTICE.md.
 import { G2p, G2pModel, normalizer, readTable } from "./matcha/kaleTts.js";
+import { termsReplacer } from "./terms";
 
 const TRANSFORMERS = "https://cdn.jsdelivr.net/npm/@huggingface/transformers@3.8.1/dist/transformers.min.js";
 const RATE = 24_000;
@@ -18,6 +19,7 @@ const FRONT_END = {
   g2pModel: new URL("./matcha/g2p.bin", import.meta.url).href,
   lexicon: new URL("./matcha/lexicon.tsv", import.meta.url).href,
   override: new URL("./matcha/override.tsv", import.meta.url).href,
+  terms: new URL("./matcha/terms.tsv", import.meta.url).href,
 };
 
 type Tensor = { readonly data: Float32Array; readonly dims: ReadonlyArray<number> };
@@ -95,7 +97,7 @@ async function load(
     for (const file of files.values()) loaded += file.loaded;
     postMessage({ type: "progress", loaded, total: Math.max(EXPECTED, loaded) });
   };
-  const [model, tokenize, voicepack, g2pModel, lexicon, override] = await Promise.all([
+  const [model, tokenize, voicepack, g2pModel, lexicon, override, terms] = await Promise.all([
     hf.StyleTextToSpeech2Model.from_pretrained(name, {
       dtype: "fp32",
       device,
@@ -109,6 +111,7 @@ async function load(
     fetch(FRONT_END.g2pModel).then((response) => response.arrayBuffer()),
     fetch(FRONT_END.lexicon).then((response) => response.text()),
     fetch(FRONT_END.override).then((response) => response.text()),
+    fetch(FRONT_END.terms).then((response) => response.text()),
   ]);
   postMessage({ type: "stage", stage: "backend", device, threads: hf.env.backends.onnx.wasm.numThreads });
   const lex = readTable(lexicon);
@@ -121,12 +124,17 @@ async function load(
     tokenize,
     voicepack: new Float32Array(voicepack),
     g2p: new G2p(lex, new G2pModel(g2pModel)),
-    normalize: normalizer(lex),
+    normalize: spokenWith(normalizer(lex), termsReplacer(terms)),
   };
   await speak(ready, "Hi.");
   postMessage({ type: "ready" });
   return ready;
 }
+
+/** Technical terms as they are spoken (terms.tsv), then the text rules. */
+const spokenWith =
+  (rules: (text: string) => string, terms: (text: string) => string) => (text: string) =>
+    rules(terms(text));
 
 /** IPA in pieces Kokoro can read at once, cut at spaces (a sentence that long is rare). */
 function pieces(ipa: string): string[] {

@@ -1,0 +1,32 @@
+# Technical terms as they are spoken: exact written form (case matters)<TAB>the words to say.
+# Applied before the text rules (dizione) and the word list, as a lookup, never a guess: add a term
+# after hearing it come out wrong. A run of capitals is spelled (AWS); keep it joined, since a lone A or I reads as a word.
+T3 Code	T three code
+t3 code	T three code
+T3code	T three code
+aws	AWS
+api	API
+cli	CLI
+gpu	GPU
+url	URL
+WebGPU	web GPU
+webgpu	web GPU
+WebGL	web GL
+PostgreSQL	postgres QL
+Postgres	postgres
+MySQL	my SQL
+SQLite	SQ lite
+GraphQL	graph QL
+OAuth	oh auth
+README	read me
+README.md	read me dot MD
+useEffect	use effect
+useState	use state
+useMemo	use memo
+useCallback	use callback
+useRef	use ref
+user_id	user ID
+kubectl	cube control
+nginx	engine X
+OpenAI	open AI
+Wi-Fi	wifi
