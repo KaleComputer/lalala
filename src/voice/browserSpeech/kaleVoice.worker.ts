@@ -11,8 +11,12 @@ import { termsReplacer } from "./terms";
 // Transformers.js 4.3.2 with onnxruntime-web 1.31.1 instead of its pinned 1.31.0-dev (faster wasm), built
 // for the browser by esm.sh; the runtime's wasm comes from jsDelivr. The models are float32-only web
 // graphs (release-draft make_web_graph.py): this runtime has no float->double Cast.
-const TRANSFORMERS =
+const TRANSFORMERS_GPU =
   "https://esm.sh/@huggingface/transformers@4.3.2?deps=onnxruntime-web@1.31.1,onnxruntime-common@1.31.1";
+// On the CPU (phones) the older runtime: lalala's page with nano peaked ~320 MB lower in a phone-sized
+// WebKit (864 MB against 1,188 MB), and that was what took Tim's iPhone tab past its limit next to the
+// canvas (16 Nov). It runs the same float32 web graph.
+const TRANSFORMERS_CPU = "https://cdn.jsdelivr.net/npm/@huggingface/transformers@3.8.1/dist/transformers.min.js";
 const RATE = 24_000;
 const STYLE = 256;
 // Kokoro reads at most 512 ids, its two pads included.
@@ -155,7 +159,7 @@ async function load(
   if (device === "gpu-if-available") device = (await hasGpu()) ? "webgpu" : "wasm";
   await trace("worker", { device, model: name, voice: voiceFile, ...(device === "webgpu" ? await gpuDetails() : {}) });
   await trace("runtime-import");
-  const hf = (await import(/* @vite-ignore */ TRANSFORMERS)) as Transformers;
+  const hf = (await import(/* @vite-ignore */ device === "webgpu" ? TRANSFORMERS_GPU : TRANSFORMERS_CPU)) as Transformers;
   await trace("runtime-ready");
   // Its runtime takes half the cores by default: 2 on Tim's iPhone, 4.8x real time against 7.3x
   // with all 4 (15 Nov). Every core, up to 4, as the direct runtime had.
