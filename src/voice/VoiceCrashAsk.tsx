@@ -14,7 +14,9 @@ import "./voiceSecret.css";
 
 const NAMES: Partial<Record<string, string>> = {
   "kale-storyteller": "The storyteller",
+  "kale-tts-1-nano": "kale-tts-1-nano",
   "kale-tts-1-tiny": "kale-tts-1-tiny",
+  k10c: "k10c",
   "kale-kokoro": "The warm Kokoro",
 };
 const asking = () => {

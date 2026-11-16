@@ -1778,7 +1778,9 @@ type VoiceBuild =
   | "kokoro-cpu"
   | "kale-kokoro"
   | "kale-storyteller"
+  | "kale-tts-1-nano"
   | "kale-tts-1-tiny"
+  | "k10c"
   | "kale-tts-1-tiny-preview"
   | "computer";
 const STT_LABELS: Record<Exclude<SttModel, "auto">, string> = {
@@ -1792,7 +1794,9 @@ const VOICE_LABELS: Record<VoiceBuild, string> = {
   "kokoro-cpu": "Kokoro\u00a082M\u00a0·\u00a0CPU",
   "kale-kokoro": "Kokoro (Kale's voice)",
   "kale-storyteller": "Storyteller (Kale's voice)",
+  "kale-tts-1-nano": "kale-tts-1-nano",
   "kale-tts-1-tiny": "kale-tts-1-tiny",
+  k10c: "k10c (Hazel)",
   "kale-tts-1-tiny-preview": "kale-tts-1-tiny preview",
   computer: "Kokoro 82M\u00a0·\u00a0Computer",
 };
@@ -1806,7 +1810,9 @@ const VOICE_COSTS: Partial<Record<string, string>> = {
   "kokoro-cpu": "93 MB download · ~0.2 GB memory",
   "kale-kokoro": "68 MB download · ~0.2 GB memory",
   "kale-storyteller": "61 MB download · ~0.2 GB memory",
-  "kale-tts-1-tiny": "61 MB download · ~0.2 GB memory",
+  "kale-tts-1-nano": "11 MB download · ~0.3 GB memory",
+  "kale-tts-1-tiny": "62 MB download · ~0.3 GB memory",
+  k10c: "62 MB download · ~0.2 GB memory",
   "kale-tts-1-tiny-preview": "61 MB download · ~0.2 GB memory",
 };
 const MB = (bytes: number) =>
@@ -1871,7 +1877,9 @@ const LOADED_KEYS: Record<string, string> = {
   "kokoro 82m cpu": "kokoro-cpu",
   "kale kokoro": "kale-kokoro",
   "kale-storyteller": "kale-storyteller",
+  "kale-tts-1-nano": "kale-tts-1-nano",
   "kale-tts-1-tiny": "kale-tts-1-tiny",
+  k10c: "k10c",
   "kale-tts-1-tiny-preview": "kale-tts-1-tiny-preview",
 };
 const seconds = (ms: number) => `${(ms / 1000).toFixed(ms < 100 ? 2 : 1)} s`;
@@ -2129,7 +2137,7 @@ export function SpeechSection() {
       : gpu.f16
         ? "0.6b-gpu"
         : "0.6b-cpu";
-  // Automatic's voice: the storyteller on every device (settingsStore).
+  // Automatic's voice: kale-tts-1-nano on every device (settingsStore).
   const autoVoice = defaultReplyVoice() as VoiceBuild;
   // Who stands in for your computer's voice: the same Kokoro 82M here on a desktop, Automatic's on a phone.
   const voiceStandIn: VoiceBuild | null = phone
@@ -2368,6 +2376,18 @@ export function SpeechSection() {
                 meta: VOICE_COSTS["kale-kokoro"],
               },
               {
+                value: "kale-tts-1-nano",
+                label: VOICE_LABELS["kale-tts-1-nano"],
+                detail: "8 voices, smallest and fastest",
+                meta: VOICE_COSTS["kale-tts-1-nano"],
+              },
+              {
+                value: "kale-tts-1-tiny",
+                label: VOICE_LABELS["kale-tts-1-tiny"],
+                detail: "8 voices, clearest",
+                meta: VOICE_COSTS["kale-tts-1-tiny"],
+              },
+              {
                 value: "kale-storyteller",
                 label: VOICE_LABELS["kale-storyteller"],
                 detail: "cheerful, 190 words a minute",
@@ -2380,10 +2400,10 @@ export function SpeechSection() {
                 meta: VOICE_COSTS["kale-tts-1-tiny-preview"],
               },
               {
-                value: "kale-tts-1-tiny",
-                label: VOICE_LABELS["kale-tts-1-tiny"],
-                detail: "Hazel's voice, fastest",
-                meta: VOICE_COSTS["kale-tts-1-tiny"],
+                value: "k10c",
+                label: VOICE_LABELS.k10c,
+                detail: "Hazel's voice",
+                meta: VOICE_COSTS.k10c,
               },
             ],
           },

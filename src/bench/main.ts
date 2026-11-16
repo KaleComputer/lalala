@@ -1,5 +1,4 @@
-// ?bench=storyteller or ?bench=k10c on either host (src/main.tsx): one of Kale's 61 MB voices (the
-// storyteller, or kale-tts-1-tiny) through the same Transformers.js worker lalala speaks with
+// ?bench=<model> on either host (src/main.tsx): one of Kale's voices through the same Transformers.js worker lalala speaks with
 // (kaleVoice.worker), on the CPU and (not on phones, unless ?gpu) WebGPU, each in a worker that ends
 // after its run. Silent unless play is tapped.
 // The numbers go to the session log (the app) or to .lalala/bench/ on the paired computer (lalala.talk).
@@ -12,11 +11,15 @@ const RUNS = 5;
 const SITE = import.meta.env.LALALA_HOST === "site";
 const RATE = 24_000;
 
-const STORY = new URLSearchParams(location.search).get("bench") === "storyteller";
+// ?bench=nano (Automatic), tiny, storyteller or k10c (Hazel), each in its first voice.
+const BENCH_MODELS = {
+  nano: { label: "kale-tts-1-nano", model: "kale-tts-1-nano", voice: "v7" },
+  tiny: { label: "kale-tts-1-tiny", model: "kale-tts-1-tiny", voice: "v7" },
+  storyteller: { label: "storyteller", model: "kale-storyteller", voice: "storyteller" },
+  k10c: { label: "k10c (Hazel)", model: "k10c", voice: "hazel" },
+};
 const models = {
-  k10c: STORY
-    ? { label: "storyteller", model: "kale-storyteller", voice: "storyteller" }
-    : { label: "kale-tts-1-tiny", model: "kale-tts-1-tiny", voice: "hazel" },
+  k10c: BENCH_MODELS[(new URLSearchParams(location.search).get("bench") ?? "") as keyof typeof BENCH_MODELS] ?? BENCH_MODELS.nano,
 };
 // One model, loaded once in one worker, its session reused for every run: a second copy in the same
 // tab is what ended Tim's iPhone tab (15 Nov). The runtime fixes its thread count and backend when

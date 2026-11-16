@@ -14,7 +14,6 @@ const STYLE = 256;
 const MAX_IDS = 510;
 const PIECE_GAP_S = 0.06;
 const PEAK = 0.95;
-const EXPECTED = 66_100_000;
 const FRONT_END = {
   g2pModel: new URL("./matcha/g2p.bin", import.meta.url).href,
   lexicon: new URL("./matcha/lexicon.tsv", import.meta.url).href,
@@ -49,6 +48,9 @@ type Voice = {
   readonly speed: number;
   /** Swapped by a "voice" message: another voice of the same model, no second copy of it. */
   voicepack: Float32Array;
+  /** A model with all its voices in one graph takes a voice's own constants as inputs (voice_inputs.json). */
+  extra: Record<string, unknown>;
+  readonly voiceInputs: ReadonlyArray<{ readonly name: string; readonly dims: number[] }>;
   readonly g2p: G2p;
   readonly normalize: (text: string) => string;
 };
@@ -61,6 +63,8 @@ type Message = {
   voice?: string;
   threads?: number;
   speed?: number;
+  /** The model's own bytes (settingsStore's SMALL_VOICES), for the download bar. */
+  expected?: number;
 };
 
 let voice: Promise<Voice> | null = null;
@@ -71,6 +75,7 @@ async function load(
   name: string,
   voiceFile: string,
   speed: number,
+  expected: number,
   threads?: number,
 ): Promise<Voice> {
   const hf = (await import(/* @vite-ignore */ TRANSFORMERS)) as Transformers;
@@ -88,16 +93,19 @@ async function load(
     .then((cache) => cache.match(new URL(`/models/${name}/onnx/model.onnx`, self.location.origin).href))
     .then((hit) => hit !== undefined)
     .catch(() => false);
-  postMessage({ type: "load", name, expected: EXPECTED, cached });
+  postMessage({ type: "load", name, expected, cached });
   const files = new Map<string, { loaded: number; total: number }>();
   const progress = (info: { status?: string; file?: string; loaded?: number; total?: number }) => {
     if (info.status !== "progress" || !info.file || !info.total) return;
     files.set(info.file, { loaded: info.loaded ?? 0, total: info.total });
     let loaded = 0;
     for (const file of files.values()) loaded += file.loaded;
-    postMessage({ type: "progress", loaded, total: Math.max(EXPECTED, loaded) });
+    postMessage({ type: "progress", loaded, total: Math.max(expected, loaded) });
   };
-  const [model, tokenize, voicepack, g2pModel, lexicon, override, terms] = await Promise.all([
+  const voiceInputs = await fetch(`${hf.env.localModelPath}${name}/voice_inputs.json`)
+    .then((response) => (response.ok ? (response.json() as Promise<Voice["voiceInputs"]>) : []))
+    .catch(() => []);
+  const [model, tokenize, [voicepack, extra], g2pModel, lexicon, override, terms] = await Promise.all([
     hf.StyleTextToSpeech2Model.from_pretrained(name, {
       dtype: "fp32",
       device,
@@ -107,7 +115,7 @@ async function load(
       session_options: { graphOptimizationLevel: "disabled" },
     }),
     hf.AutoTokenizer.from_pretrained(name),
-    fetch(`${hf.env.localModelPath}${name}/voices/${voiceFile}.bin`).then((response) => response.arrayBuffer()),
+    voiceFiles(hf, name, voiceFile, voiceInputs),
     fetch(FRONT_END.g2pModel).then((response) => response.arrayBuffer()),
     fetch(FRONT_END.lexicon).then((response) => response.text()),
     fetch(FRONT_END.override).then((response) => response.text()),
@@ -122,7 +130,9 @@ async function load(
     name,
     speed,
     tokenize,
-    voicepack: new Float32Array(voicepack),
+    voicepack,
+    extra,
+    voiceInputs,
     g2p: new G2p(lex, new G2pModel(g2pModel)),
     normalize: spokenWith(normalizer(lex), termsReplacer(terms)),
   };
@@ -150,6 +160,34 @@ function pieces(ipa: string): string[] {
   return out;
 }
 
+/** A voice's style table and, for a model holding several voices in one graph, its own constants. */
+async function voiceFiles(
+  hf: Transformers,
+  name: string,
+  voiceFile: string,
+  voiceInputs: Voice["voiceInputs"],
+): Promise<[Float32Array, Record<string, unknown>]> {
+  const base = `/models/${name}/voices/${voiceFile}`;
+  const read = (url: string) =>
+    fetch(url).then((response) => {
+      if (!response.ok) throw new Error(`${url}: ${response.status}`);
+      return response.arrayBuffer();
+    });
+  const [pack, constants] = await Promise.all([
+    read(`${base}.bin`),
+    voiceInputs.length > 0 ? read(`${base}.extra.bin`) : Promise.resolve(new ArrayBuffer(0)),
+  ]);
+  const values = new Float32Array(constants);
+  const extra: Record<string, unknown> = {};
+  let at = 0;
+  for (const input of voiceInputs) {
+    const size = input.dims.reduce((product, dim) => product * dim, 1);
+    extra[input.name] = new hf.Tensor("float32", values.slice(at, at + size), input.dims);
+    at += size;
+  }
+  return [new Float32Array(pack), extra];
+}
+
 /** One IPA piece through the model, as kokoro-js's generate_from_ids: its tokens pick the style row. */
 async function render(ready: Voice, ipa: string): Promise<Float32Array> {
   const { input_ids } = ready.tokenize(ipa, { truncation: true });
@@ -160,6 +198,7 @@ async function render(ready: Voice, ipa: string): Promise<Float32Array> {
     input_ids,
     style: new ready.hf.Tensor("float32", ready.voicepack.slice(row * STYLE, (row + 1) * STYLE), [1, STYLE]),
     speed: new ready.hf.Tensor("float32", Float32Array.from([ready.speed]), [1]),
+    ...ready.extra,
   });
   return waveform.data;
 }
@@ -190,7 +229,14 @@ async function speak(ready: Voice, raw: string) {
 let device = "wasm";
 let threads: number | undefined;
 const start = (message: Message) => {
-  voice = load(device, message.model ?? "kale-tts-1-tiny", message.voice ?? "hazel", message.speed ?? 1, threads);
+  voice = load(
+    device,
+    message.model ?? "kale-tts-1-nano",
+    message.voice ?? "v7",
+    message.speed ?? 1,
+    message.expected ?? 0,
+    threads,
+  );
   voice.catch((error: unknown) => postMessage({ type: "failed", message: String(error) }));
 };
 
@@ -224,8 +270,7 @@ self.onmessage = (event: MessageEvent<Message>) => {
     queue = queue.then(async () => {
       try {
         const ready = await voice!;
-        const file = `${self.location.origin}/models/${ready.name}/voices/${message.voice}.bin`;
-        ready.voicepack = new Float32Array(await (await fetch(file)).arrayBuffer());
+        [ready.voicepack, ready.extra] = await voiceFiles(ready.hf, ready.name, message.voice!, ready.voiceInputs);
         postMessage({ type: "text", id: message.id, text: "" });
       } catch (error) {
         postMessage({ type: "error", id: message.id, message: String(error) });

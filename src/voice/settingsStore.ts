@@ -169,13 +169,28 @@ const write = (key: string, value: string | null) => {
 
 /** Kale's warm voice, Kokoro, by its id in the settings. */
 export const WARM_VOICE = "kale-kokoro";
-/** kale-tts-1-tiny (k10c, Hazel's voice, 61 MB). */
+/** kale-tts-1-nano (~10 MB, 8 voices in one graph, clean recipe): Automatic (Tim, 16 Nov). */
+export const NANO_VOICE = "kale-tts-1-nano";
+/** kale-tts-1-tiny (61 MB, the same 8 voices, clean recipe, no Hazel). */
 export const TINY_VOICE = "kale-tts-1-tiny";
+/** k10c (61 MB, Hazel's voice), which was called kale-tts-1-tiny until the clean build took the name. */
+export const K10C_VOICE = "k10c";
 /** The cheerful storyteller (voice 8 on the k10c recipe, 61 MB, 190 wpm): Tim's pick, 15 Nov. */
 export const STORY_VOICE = "kale-storyteller";
 /** The two-voice kale-tts-1-tiny preview (storyteller and M3; Hazel's model underneath for now). */
 export const PREVIEW_VOICE = "kale-tts-1-tiny-preview";
 export type ModelVoice = { readonly id: string; readonly name: string };
+/** kale-tts-1-tiny's and -nano's voices, in the picker's order (eight-voice-16nov's README). */
+const EIGHT_VOICES: ReadonlyArray<ModelVoice> = [
+  { id: "v7", name: "Storyteller · woman, 30s" },
+  { id: "m3", name: "M3 · man, 20s, bright host" },
+  { id: "d03", name: "British woman, 30s" },
+  { id: "d13", name: "British man, 50s" },
+  { id: "f03", name: "Woman, 20s, high and light" },
+  { id: "f06", name: "Woman, 40s, deep and confident" },
+  { id: "f13", name: "Man, 20s, upbeat" },
+  { id: "e21", name: "Man, 50s, calm storyteller" },
+];
 /**
  * Kale's small voices: their model folder (public/models, for kaleVoice.worker) and the voices it
  * holds (voices/<id>.bin, samples/<id>.mp3 for Settings' play buttons when there are several).
@@ -183,19 +198,32 @@ export type ModelVoice = { readonly id: string; readonly name: string };
 export const SMALL_VOICES: Readonly<
   Record<
     string,
-    { readonly model: string; readonly voices: ReadonlyArray<ModelVoice>; readonly speed?: number }
+    {
+      readonly model: string;
+      readonly voices: ReadonlyArray<ModelVoice>;
+      readonly speed?: number;
+      /** The model's own download: its graph and one voice (the bar's total, Settings' cost). */
+      readonly bytes: number;
+    }
   >
 > = {
   // Its package's config.json: its duration head reads ~10 % short, so 0.92.
-  [WARM_VOICE]: { model: "kale-kokoro", voices: [{ id: "warm", name: "Warm" }], speed: 0.92 },
-  [STORY_VOICE]: { model: "kale-storyteller", voices: [{ id: "storyteller", name: "Storyteller" }] },
-  [TINY_VOICE]: { model: "kale-tts-1-tiny", voices: [{ id: "hazel", name: "Hazel" }] },
+  [WARM_VOICE]: { model: "kale-kokoro", voices: [{ id: "warm", name: "Warm" }], speed: 0.92, bytes: 68_142_913 },
+  [STORY_VOICE]: {
+    model: "kale-storyteller",
+    voices: [{ id: "storyteller", name: "Storyteller" }],
+    bytes: 61_507_783,
+  },
+  [NANO_VOICE]: { model: "kale-tts-1-nano", voices: EIGHT_VOICES, bytes: 10_676_685 },
+  [TINY_VOICE]: { model: "kale-tts-1-tiny", voices: EIGHT_VOICES, bytes: 61_524_303 },
+  [K10C_VOICE]: { model: "k10c", voices: [{ id: "hazel", name: "Hazel" }], bytes: 61_507_783 },
   [PREVIEW_VOICE]: {
     model: "kale-tts-1-tiny-preview",
     voices: [
       { id: "storyteller", name: "Storyteller" },
       { id: "m3", name: "M3" },
     ],
+    bytes: 61_508_590,
   },
 };
 /** The voice a small model speaks with on this device: the one picked (synced), else its first. */
@@ -221,10 +249,10 @@ export const crashedVoice = () => read(VOICE_CRASHED_KEY);
 export const retryCrashedVoice = () => write(VOICE_CRASHED_KEY, null);
 
 /**
- * The reply voice every device starts on: the cheerful storyteller (Tim, 15 Nov: "this of course
- * goes into lalala"); kale-tts-1-tiny and the warm Kokoro are picks in Settings.
+ * The reply voice every device starts on: kale-tts-1-nano (Tim, 16 Nov); kale-tts-1-tiny, the
+ * storyteller, k10c and the warm Kokoro are picks in Settings.
  */
-export const defaultReplyVoice = (): string => STORY_VOICE;
+export const defaultReplyVoice = (): string => NANO_VOICE;
 
 /**
  * Who speaks the replies on this device: "auto" (nothing stored: defaultReplyVoice), Kale's

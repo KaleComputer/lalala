@@ -444,7 +444,8 @@ const kaleBuild = (): string => {
 /** What kaleVoice.worker loads for it: the model folder, the voice inside it, its speed. */
 const kaleModel = () => {
   const build = kaleBuild();
-  return { model: SMALL_VOICES[build]?.model, voice: modelVoice(build), speed: SMALL_VOICES[build]?.speed ?? 1 };
+  const small = SMALL_VOICES[build];
+  return { model: small?.model, voice: modelVoice(build), speed: small?.speed ?? 1, expected: small?.bytes };
 };
 const warm = modelWorker(
   "kale-kokoro",

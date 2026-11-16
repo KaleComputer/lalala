@@ -1,0 +1,24 @@
+[
+ {
+  "name": "onnx::Gemm_3611",
+  "dims": [
+   1,
+   32
+  ]
+ },
+ {
+  "name": "onnx::Expand_3717",
+  "dims": [
+   1,
+   32,
+   1
+  ]
+ },
+ {
+  "name": "onnx::Gemm_4055",
+  "dims": [
+   1,
+   16
+  ]
+ }
+]
