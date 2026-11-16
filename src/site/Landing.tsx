@@ -23,6 +23,7 @@ import {
   SpeechSection,
   OpeningSection,
   CreditsSection,
+  labsPage,
 } from "../voice/VoiceSettings";
 import "../voice/voicePage.css";
 import "./landing.css";
@@ -89,7 +90,7 @@ export default function Landing() {
   const speechLine = useSpeechSummary().line;
   const canvas = useCanvasValue();
   const look = useLook();
-  const { delegates } = useSyncedSettings();
+  const { delegates, labs } = useSyncedSettings();
   const autoStart = useAutoStartCall();
   const pages: SettingsPage[] = [
     {
@@ -146,6 +147,7 @@ export default function Landing() {
       value: canvas,
       content: <CanvasRows />,
     },
+    labsPage(labs),
     ...(hidden.length > 0
       ? [
           {

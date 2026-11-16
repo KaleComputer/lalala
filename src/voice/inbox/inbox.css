@@ -1,0 +1,196 @@
+/* The away inbox (Labs): the bar tab's unread count and the "While you were away" panel. */
+[data-lalala-presence] [data-lalala-inbox-tab] {
+  width: auto;
+  min-width: var(--lalala-input-tab-w);
+  grid-auto-flow: column;
+  gap: 4px;
+  padding-inline: 10px;
+}
+[data-lalala-inbox-count] {
+  font: 600 10px / 1 var(--lala-font-mono, ui-monospace, "SF Mono", Menlo, monospace);
+  letter-spacing: 0.02em;
+  color: var(--lalala-live, #3dff8f);
+}
+[data-lalala-presence] [data-lalala-inbox-tab][data-open] [data-lalala-inbox-count] {
+  color: inherit;
+}
+
+[data-lalala-inbox] {
+  --i-bg: var(--lala-raise-2, #121110);
+  --i-fg: var(--lala-settings-ink, rgb(245, 238, 226));
+  --i-fg-2: color-mix(in srgb, var(--i-fg) 62%, transparent);
+  --i-fg-3: color-mix(in srgb, var(--i-fg) 42%, transparent);
+  --i-border: color-mix(in srgb, var(--i-fg) 9%, transparent);
+  --i-hover: color-mix(in srgb, var(--i-fg) 7%, transparent);
+  --i-accent: var(--lala-accent, #3dff8f);
+  --i-accent-ink: var(--lala-accent-ink, #0b0f0d);
+  --i-danger: var(--lala-danger, #ff5c7a);
+  --i-sans: var(--lala-font-sans, "Geist", -apple-system, system-ui, "Helvetica Neue", sans-serif);
+  --i-mono: var(--lala-font-mono, "Geist Mono", ui-monospace, "SF Mono", Menlo, monospace);
+}
+
+/* Over the bar's right end, as tall as its list (up to most of the screen), then it scrolls. */
+[data-lalala-inbox-panel] {
+  position: fixed;
+  right: 16px;
+  bottom: 88px;
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  width: min(440px, calc(100vw - 32px));
+  max-height: min(640px, calc(100dvh - 120px));
+  margin: 0;
+  padding: 0;
+  overflow: hidden;
+  color: var(--i-fg);
+  font: 400 14px / 20px var(--i-sans);
+  background: var(--i-bg);
+  border: 1px solid var(--i-border);
+  border-radius: 14px;
+  box-shadow: 0 18px 44px -18px rgb(0 0 0 / 80%);
+  outline: 0;
+}
+[data-lalala-inbox-panel] > header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 8px 6px 16px;
+}
+[data-lalala-inbox-panel] > header > :not(button) {
+  flex: 1 1 auto;
+  margin: 0;
+  font: 500 14px / 20px var(--i-sans);
+}
+[data-lalala-inbox-panel] > header button {
+  display: grid;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  border: 0;
+  border-radius: 8px;
+  color: var(--i-fg-2);
+  background: none;
+  cursor: pointer;
+}
+[data-lalala-inbox-panel] svg {
+  width: 16px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.75;
+  stroke-linecap: round;
+}
+
+[data-lalala-inbox-tools] {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 4px 12px 10px 16px;
+  border-bottom: 1px solid var(--i-border);
+}
+[data-lalala-inbox-tools] [role="radiogroup"],
+[data-lalala-inbox-tools] > div:first-child {
+  display: inline-flex;
+  padding: 2px;
+  border: 1px solid var(--i-border);
+  border-radius: 8px;
+}
+[data-lalala-inbox-tools] > div:first-child button {
+  height: 26px;
+  padding: 0 10px;
+  border: 0;
+  border-radius: 6px;
+  color: var(--i-fg-2);
+  font: 500 12px / 1 var(--i-sans);
+  background: none;
+  cursor: pointer;
+}
+[data-lalala-inbox-tools] > div:first-child button:is([data-checked], [aria-checked="true"], [data-selected]) {
+  color: var(--i-fg);
+  background: var(--i-hover);
+}
+
+[data-lalala-inbox-action] {
+  display: inline-flex;
+  align-items: center;
+  height: 28px;
+  padding: 0 10px;
+  border: 1px solid var(--i-border);
+  border-radius: 7px;
+  color: var(--i-fg);
+  font: 500 12px / 1 var(--i-sans);
+  text-decoration: none;
+  background: none;
+  cursor: pointer;
+}
+[data-lalala-inbox-action]:disabled {
+  color: var(--i-fg-3);
+  cursor: default;
+}
+@media (hover: hover) {
+  :is([data-lalala-inbox-action], [data-lalala-inbox-panel] > header button):not(:disabled):hover {
+    background: var(--i-hover);
+  }
+}
+
+[data-lalala-inbox-list] {
+  flex: 0 1 auto;
+  min-height: 0;
+  margin: 0;
+  padding: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  list-style: none;
+}
+[data-lalala-inbox-item] {
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--i-border);
+}
+[data-lalala-inbox-item]:last-child {
+  border-bottom: 0;
+}
+[data-lalala-inbox-item][data-heard] > p {
+  color: var(--i-fg-2);
+}
+[data-lalala-inbox-meta] {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  color: var(--i-fg-3);
+  font: 500 11px / 16px var(--i-mono);
+}
+[data-lalala-inbox-meta] > span {
+  overflow: hidden;
+  color: var(--i-fg-2);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+/* Unread: a dot before the time. */
+[data-lalala-inbox-item]:not([data-heard]) [data-lalala-inbox-meta]::before {
+  content: "";
+  flex: none;
+  align-self: center;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--i-accent);
+}
+[data-lalala-inbox-outcome] {
+  color: var(--i-danger);
+  font-style: normal;
+}
+[data-lalala-inbox-item] > p {
+  margin: 4px 0 8px;
+  overflow-wrap: anywhere;
+}
+[data-lalala-inbox-actions] {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+[data-lalala-inbox-empty] {
+  margin: 0;
+  padding: 20px 16px 22px;
+  color: var(--i-fg-2);
+}

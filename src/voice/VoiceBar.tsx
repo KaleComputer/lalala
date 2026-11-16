@@ -16,6 +16,7 @@ import { type CallWaveLevels, type CallWaveSpectrum, createCallWave } from "./pr
 import { createFrame, type PresenceFrame } from "./presence/frame";
 import { CanvasTabs } from "./CanvasSwitcher";
 import { CompactingDefrag } from "./extras/CompactingDefrag";
+import { InboxTab } from "./inbox/InboxTab";
 import { useUpdateReady } from "./phoneUpdate";
 import { SecretAsks } from "./SecretAsk";
 import { TOPIC_EVENT, TOPIC_SOUND_FALLBACK_MS } from "./player";
@@ -113,9 +114,12 @@ function makeStatusTab(frameEl: HTMLElement) {
   mic.className = "lalala-mic-slot";
   const settings = document.createElement("span");
   settings.className = "lalala-settings-slot";
+  // Labs' away inbox, left of the gear (empty, and so hidden, while it is off).
+  const inbox = document.createElement("span");
+  inbox.className = "lalala-inbox-slot";
   const row = document.createElement("div");
   row.className = "lalala-tabs";
-  row.append(settings, canvas, mic, input, tab);
+  row.append(inbox, settings, canvas, mic, input, tab);
   // The row's slot: it clips the row at the frame's top edge, so revealed content rises out of it.
   const clip = document.createElement("div");
   clip.className = "lalala-tabs-clip";
@@ -185,6 +189,7 @@ export function VoiceBar(props: {
   } | null>(null);
   const [canvasHost, setCanvasHost] = useState<HTMLElement | null>(null);
   const [settingsHost, setSettingsHost] = useState<HTMLElement | null>(null);
+  const [inboxHost, setInboxHost] = useState<HTMLElement | null>(null);
   const [room, setRoom] = useState<HTMLElement | null>(null);
   // An update starts playing: UPDATE wipes over the room for a moment, the wave running on beneath it.
   // How long it shows (the update sound's length, ms); 0 when it doesn't.
@@ -312,6 +317,7 @@ export function VoiceBar(props: {
     setMicHost(root.querySelector<HTMLElement>(".lalala-mic-slot"));
     setCanvasHost(root.querySelector<HTMLElement>(".lalala-canvas-slot"));
     setSettingsHost(root.querySelector<HTMLElement>(".lalala-settings-slot"));
+    setInboxHost(root.querySelector<HTMLElement>(".lalala-inbox-slot"));
     setRoom(root.querySelector<HTMLElement>(".bar-line"));
     document.dispatchEvent(new Event("lalala:bar"));
 
@@ -503,6 +509,8 @@ export function VoiceBar(props: {
             micHost,
           )
         : null}
+      {/* Only the real bar: a preview copy (the bar states card) shows no inbox. */}
+      {inboxHost !== null && !previewed ? <InboxTab tabHost={inboxHost} /> : null}
       {settingsHost !== null ? (
         <VoiceSettings tabHost={settingsHost} pages={props.settings} />
       ) : null}

@@ -671,24 +671,25 @@ export class VoiceSession {
   /**
    * Queues one sentence of a reply (`opensReply` on its first and on one the brain marked
    * `[new topic]`, which is `switching`); empty or markdown-only text stays silent. `part` names
-   * the `[new topic]` part it belongs to, held while Tim's own turn is open (topicHold).
+   * the `[new topic]` part it belongs to, held while Tim's own turn is open (topicHold). Returns
+   * the text as the player will say it ("" when nothing will).
    */
-  speak(text: string, opensReply = false, switching = false, part?: string): void {
+  speak(text: string, opensReply = false, switching = false, part?: string): string {
     const spoken = speakableText(text);
-    if (spoken === "") return;
+    if (spoken === "") return "";
     // Replies bringing in something from outside open with a label ("Kokoro: ...", a thread title): brain.md.
     const topic = opensReply
       ? /^([^:.!?]{1,80}):\s/.exec(spoken)?.[1]?.trim().toLowerCase()
       : undefined;
     const now = performance.now();
     if (part !== undefined) {
-      if (this.cutParts.has(part)) return;
+      if (this.cutParts.has(part)) return "";
       const sentence = { text: spoken, topic, switching, part };
       const wasHeld = this.topics.count;
       if (this.topics.hold(sentence, this.topicBusy(now), now)) {
         if (this.topics.count > wasHeld)
           voiceLog("voice", "topic.held", { text: spoken, held: this.topics.count });
-        return;
+        return spoken;
       }
       this.onAir = [...this.onAir.slice(-40), sentence];
     }
@@ -697,11 +698,12 @@ export class VoiceSession {
     if (this.timHasTheFloor() || this.waiting.length > 0) {
       if (this.waiting.length === 0) voiceLog("voice", "say.waiting", { text: spoken });
       this.waiting.push({ text: spoken, topic, switching });
-      return;
+      return spoken;
     }
     if (this.inSpeech) this.dropNoiseTurn("a reply is ready");
     this.sounds?.silence();
     this.player?.speak(spoken, topic, switching);
+    return spoken;
   }
 
   /**

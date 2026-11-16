@@ -22,8 +22,18 @@ export type SyncedSettings = {
   readonly topicSound: string;
   /** The voice picked inside each model that holds more than one, by model folder (SMALL_VOICES). */
   readonly modelVoices: Readonly<Record<string, string>>;
+  /** Labs: features still settling in, each off until the user turns it on (VoiceSettings' Labs). */
+  readonly labs: Labs;
   readonly at: number;
 };
+
+export type Labs = {
+  /** Results that came in while the user wasn't in a call, kept until heard (src/voice/inbox). */
+  readonly awayInbox: boolean;
+  /** One digest after two hours away, through LALALA_DIGEST_COMMAND (the app only). */
+  readonly awayDigest: boolean;
+};
+const DEFAULT_LABS: Labs = { awayInbox: false, awayDigest: false };
 
 // The brain's model with its own defaults: options are per provider (Claude's `effort`, Codex's
 // `reasoningEffort`), and T3 refuses a delegate whose options its model doesn't have.
@@ -35,6 +45,7 @@ const DEFAULTS: SyncedSettings = {
   delegates: DEFAULT_DELEGATES,
   topicSound: DEFAULT_TOPIC_SOUND,
   modelVoices: {},
+  labs: DEFAULT_LABS,
   at: 0,
 };
 
@@ -77,6 +88,10 @@ function parseSynced(value: unknown): SyncedSettings | null {
           ),
         )
       : {},
+    labs: {
+      awayInbox: isRecord(value.labs) && value.labs.awayInbox === true,
+      awayDigest: isRecord(value.labs) && value.labs.awayDigest === true,
+    },
     at: typeof value.at === "number" ? value.at : 0,
   };
 }
@@ -103,6 +118,9 @@ function adopt(next: SyncedSettings) {
 }
 
 export const syncedSettings = (): SyncedSettings => current();
+
+export const setLab = (name: keyof Labs, on: boolean) =>
+  updateSynced({ labs: { ...current().labs, [name]: on } });
 
 export function updateSynced(patch: Partial<Omit<SyncedSettings, "at">>) {
   const next = { ...current(), ...patch, at: Math.max(Date.now(), current().at + 1) };

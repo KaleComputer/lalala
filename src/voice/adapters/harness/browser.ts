@@ -1,6 +1,15 @@
 // lalala.talk's harness: the tab itself follows the brain thread on the visitor's own T3 Code
 // (paired in the settings' Connection section) and sends turns to it, speaking the same events as vite/t3bridge.mjs.
 import type { HarnessAdapter } from "..";
+import {
+  type Inbox,
+  type InboxChange,
+  applyInboxChange,
+  captureInbox,
+  inboxTrigger,
+  mergeInbox,
+  parseInbox,
+} from "../../inbox/capture";
 import { isLocalOrigin } from "../../pairing";
 import {
   SOCKET_CLOSED,
@@ -57,6 +66,7 @@ type Item = {
   parentItemId?: string | null;
   startedAt?: string | null;
   updatedAt?: string | null;
+  runId?: string | null;
 };
 type Thread = {
   id: string;
@@ -79,9 +89,25 @@ const slim = (visibility: string, item: Item) => ({
     parentItemId: item.parentItemId ?? null,
     startedAt: item.startedAt ?? null,
     updatedAt: item.updatedAt ?? item.startedAt ?? new Date(0).toISOString(),
+    // The away inbox's (src/voice/inbox/capture.ts): which run, and what came in from outside.
+    runId: item.runId ?? null,
+    trigger: inboxTrigger(item),
   },
 });
 type Row = ReturnType<typeof slim>;
+
+// The away inbox: here in this browser, and in the brain's project so the brain (and the user's
+// other browsers) read the same one. No server keeps it: it fills from the thread while a tab is open.
+const INBOX_FILE = ".lalala/inbox.json";
+const INBOX_WRITE_MS = 2_000;
+const inboxKey = (threadId: string) => `lalala:inbox:${threadId}`;
+function readLocalInbox(threadId: string): Inbox {
+  try {
+    return parseInbox(JSON.parse(localStorage.getItem(inboxKey(threadId)) ?? "null"));
+  } catch {
+    return parseInbox(null);
+  }
+}
 
 /** The paired T3 and its brain thread, or null until the settings' Connection section has both. */
 export function browserBrain() {
@@ -103,6 +129,9 @@ export function browserHarness(): HarnessAdapter {
     claude: false,
     compactions: new Set<string>(),
     contextLine: "null",
+    titles: new Map<string, string>(),
+    environmentId: null as string | null,
+    inbox: parseInbox(null),
   };
   let socket: T3Socket | null = null;
   let started = false;
@@ -158,6 +187,8 @@ export function browserHarness(): HarnessAdapter {
   const brain = browserBrain();
   // VoiceHost matches the bridge's workspace with its config's; the thread is the whole workspace here.
   const workspaceRoot = brain ? `t3:${brain.threadId}` : null;
+  if (brain) state.inbox = readLocalInbox(brain.threadId);
+  const inboxView = () => ({ ...state.inbox, digest: false });
   const hello = () => ({
     type: "hello",
     connected: state.connected,
@@ -166,10 +197,90 @@ export function browserHarness(): HarnessAdapter {
     shell: state.thread && { ...state.thread, active: active() },
     rows: [...state.rows.values()],
     context: context(),
+    inbox: inboxView(),
   });
   const emit = (event: unknown) => {
     for (const listener of listeners) listener(event);
   };
+
+  let inboxTimer: ReturnType<typeof setTimeout> | undefined;
+  let inboxRead = false;
+  const setInbox = (next: Inbox) => {
+    if (next === state.inbox || brain === null) return;
+    state.inbox = next;
+    try {
+      localStorage.setItem(inboxKey(brain.threadId), JSON.stringify(next));
+    } catch {
+      // No storage: the project's file still has it.
+    }
+    emit({ type: "inbox", inbox: inboxView() });
+    clearTimeout(inboxTimer);
+    inboxTimer = setTimeout(() => void writeInbox(), INBOX_WRITE_MS);
+  };
+  // Read-merge-write: another browser may have written since; an item stays heard once it was.
+  async function writeInbox() {
+    if (!socket?.open) return;
+    try {
+      const link = socket;
+      const root = await rootOf(link);
+      const file = await link.request<{ contents: string; exists?: boolean }>("projects.readFile", {
+        cwd: root,
+        relativePath: INBOX_FILE,
+        allowMissing: true,
+      });
+      const there = file.exists === false ? parseInbox(null) : parseInbox(JSON.parse(file.contents));
+      const merged = mergeInbox(state.inbox, there);
+      await link.request("projects.writeFile", {
+        cwd: root,
+        relativePath: INBOX_FILE,
+        contents: JSON.stringify(merged, null, 1),
+      });
+      if (merged.items.length !== state.inbox.items.length) setInbox(merged);
+    } catch {
+      // The next change writes it again.
+    }
+  }
+  const inboxContext = {
+    titleOf: (threadId: string) => state.titles.get(threadId) ?? null,
+    linkOf: (threadId: string) =>
+      brain && state.environmentId
+        ? `${brain.session.origin}/${state.environmentId}/${encodeURIComponent(threadId)}`
+        : null,
+  };
+  // The first capture in this browser and project finds what the thread already holds: that came
+  // before the inbox, so it is heard.
+  const takeInbox = (seed = false) => {
+    const next = captureInbox(state.inbox, state.rows.values(), inboxContext);
+    setInbox(seed ? applyInboxChange(next, { heard: "all" }) : next);
+  };
+  // Once per connection: thread titles, the environment for links, and the project's copy.
+  async function readInboxContext(link: T3Socket) {
+    try {
+      const [{ threads }, config] = await Promise.all([
+        readShell(link),
+        link.request<{ environment?: { environmentId?: string } }>("server.getConfig", {}),
+      ]);
+      for (const thread of threads) state.titles.set(thread.id, thread.title);
+      state.environmentId = config.environment?.environmentId ?? null;
+      if (!inboxRead) {
+        const contents = await rootOf(link).then((cwd) =>
+          link.request<{ contents: string; exists?: boolean }>("projects.readFile", {
+            cwd,
+            relativePath: INBOX_FILE,
+            allowMissing: true,
+          }),
+        );
+        const there = contents.exists === false ? null : parseInbox(JSON.parse(contents.contents));
+        inboxRead = true;
+        if (there) setInbox(mergeInbox(state.inbox, there));
+        return takeInbox(there === null && state.inbox.items.length === 0);
+      }
+    } catch {
+      // Titles, links and the project's copy are extras: items still come in under their kind.
+    }
+    inboxRead = true;
+    takeInbox();
+  }
   const emitContext = () => {
     const line = JSON.stringify(context());
     if (line === state.contextLine) return;
@@ -260,6 +371,7 @@ export function browserHarness(): HarnessAdapter {
               state.connected = true;
               state.error = null;
               failures = 0;
+              void readInboxContext(next);
               emit(hello());
               for (const wake of waiters) wake();
               waiters.clear();
@@ -274,6 +386,13 @@ export function browserHarness(): HarnessAdapter {
                 state.rows.set(row.item.id, row);
                 while (state.rows.size > MAX_ROWS) state.rows.delete(state.rows.keys().next().value!);
                 emit({ type: "row", row });
+                // Before the project's copy is in, the first capture (and its seed) waits for it.
+                if (
+                  inboxRead &&
+                  (row.item.trigger !== null || (row.item.type === "assistant_message" && !row.item.streaming))
+                ) {
+                  takeInbox();
+                }
               } else if (type === "run.created" || type === "run.updated") {
                 const was = active();
                 state.runs.set(payload.id, slimRun(payload));
@@ -347,6 +466,10 @@ export function browserHarness(): HarnessAdapter {
     async writeFile(relativePath, contents) {
       const link = await linked();
       await link.request("projects.writeFile", { cwd: await rootOf(link), relativePath, contents });
+    },
+    async inbox(change: InboxChange | { readonly call: true }) {
+      if ("call" in change) return;
+      setInbox(applyInboxChange(state.inbox, change));
     },
     async run(command) {
       if (brain === null) throw new Error("Not paired with T3 Code yet");

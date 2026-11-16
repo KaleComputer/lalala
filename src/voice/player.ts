@@ -83,6 +83,11 @@ type QueuedSentence = {
 
 /** The bar's UPDATE label listens for this (VoiceBar); `detail` is how long it shows, in ms. */
 export const TOPIC_EVENT = "lalala:topic";
+/** Sentences whose audio played to the end (`detail`: their texts), for the away inbox's heard marks. */
+export const HEARD_EVENT = "lalala:heard";
+const reportHeard = (texts: string[]) => {
+  if (texts.length > 0) document.dispatchEvent(new CustomEvent(HEARD_EVENT, { detail: texts }));
+};
 /** The default sound's length (soft-ping, 0.63 s): UPDATE's length when no sound plays. */
 export const TOPIC_SOUND_FALLBACK_MS = 627;
 
@@ -123,6 +128,8 @@ export class SpeechPlayer {
   private endsAt = 0;
   /** The sentence being played, for the log when something cuts it off. */
   private current: string | null = null;
+  /** This run's sentences and when each stops being heard (performance time), until reported. */
+  private airing: Array<{ readonly text: string; until: number }> = [];
   /** Sentences spoken in the last few seconds, to recognise our own words coming back. */
   // Kept until 15 s after each sentence's audio ends: a long reply is scheduled well ahead of being
   // heard, so its echo comes back long after the sentence was queued (2 Nov: Tim's 120-point reply cut itself off).
@@ -386,6 +393,10 @@ export class SpeechPlayer {
     }
     const wasRunning = this.running;
     const cut = this.current;
+    // What had already played out before the stop was heard; the rest wasn't.
+    const now = performance.now();
+    reportHeard(this.airing.filter(({ text, until }) => until <= now && text !== cut).map(({ text }) => text));
+    this.airing = [];
     const unheard = [
       ...(cut === null ? [] : [cut]),
       ...this.queue.map((sentence) => sentence.text),
@@ -523,6 +534,7 @@ export class SpeechPlayer {
             sentence.started = true;
             heard = { text: sentence.text, until: performance.now() };
             this.recent.push(heard);
+            this.airing.push(heard);
             announced = true;
             this.current = sentence.text;
             voiceLog("voice", "say", {
@@ -578,6 +590,8 @@ export class SpeechPlayer {
     this.logEnd(cause === "finished" && this.failedInRun > 0 ? "error" : cause, {
       last: this.current,
     });
+    if (cause === "finished") reportHeard(this.airing.map(({ text }) => text));
+    this.airing = [];
     this.current = null;
     this.setRunning(false);
   }

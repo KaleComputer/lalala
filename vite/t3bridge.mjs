@@ -5,6 +5,15 @@ import * as NodeFS from "node:fs";
 import * as NodePath from "node:path";
 
 import { stateDir } from "./stateDir.mjs";
+import { createDigest } from "./inboxDigest.mjs";
+import {
+  EMPTY_INBOX,
+  applyInboxChange,
+  captureInbox,
+  inboxTrigger,
+  parseInbox,
+  parseInboxChange,
+} from "../src/voice/inbox/capture.ts";
 import {
   T3Socket,
   canPairLocal,
@@ -63,6 +72,9 @@ const slim = (visibility, item) => ({
     messageId: item.type === "user_message" ? (item.messageId ?? null) : null,
     startedAt: item.startedAt ?? null,
     updatedAt: item.updatedAt ?? item.startedAt ?? new Date(0).toISOString(),
+    // The away inbox's (src/voice/inbox/capture.ts): which run, and what came in from outside.
+    runId: item.runId ?? null,
+    trigger: inboxTrigger(item),
   },
 });
 
@@ -102,6 +114,23 @@ function saveSettings(next) {
   return next;
 }
 
+// The away inbox (Labs, src/voice/inbox/capture.ts), kept here so it fills while no page is open.
+const inboxFile = () => NodePath.join(stateDir(), "inbox.json");
+const readInbox = () => {
+  try {
+    return parseInbox(JSON.parse(NodeFS.readFileSync(inboxFile(), "utf8")));
+  } catch {
+    return EMPTY_INBOX;
+  }
+};
+function saveInbox(inbox) {
+  const file = inboxFile();
+  NodeFS.mkdirSync(NodePath.dirname(file), { recursive: true });
+  NodeFS.writeFileSync(`${file}.tmp`, JSON.stringify(inbox, null, 1));
+  NodeFS.renameSync(`${file}.tmp`, file);
+}
+const labsOn = (name) => readSettings()?.labs?.[name] === true;
+
 // Without LALALA_THREAD_ID, the brain thread this checkout made (or found) for the paired T3.
 const brainFile = () => NodePath.join(stateDir(), "brain.json");
 function readStoredBrain() {
@@ -138,6 +167,10 @@ export function t3BridgePlugin({ threadId: configuredThreadId, workspaceRoot }) 
     waiting: new Map(),
     // The brain's running delegates, each followed on its own socket, by thread id.
     delegates: new Map(),
+    // Every thread's title from the shell, for where an inbox item came from.
+    titles: new Map(),
+    environmentId: null,
+    inbox: readInbox(),
   };
   const listeners = new Set();
   // Pairing waits on these for the next hello, so it can answer with the outcome.
@@ -197,6 +230,7 @@ export function t3BridgePlugin({ threadId: configuredThreadId, workspaceRoot }) 
     rows: [...state.rows.values()],
     context: context(),
     asks: [...state.asks.values()],
+    inbox: inboxView(),
   });
   const broadcastContext = () => {
     const line = JSON.stringify(context());
@@ -217,11 +251,41 @@ export function t3BridgePlugin({ threadId: configuredThreadId, workspaceRoot }) 
     timer = setTimeout(connect, ms);
   };
 
+  const digest = createDigest({
+    on: () => labsOn("awayDigest"),
+    inbox: () => state.inbox,
+    sent: (at) => setInbox({ ...state.inbox, digestAt: at }),
+  });
+  const inboxView = () => ({ ...state.inbox, digest: digest.configured });
+  function setInbox(next) {
+    if (next === state.inbox) return;
+    state.inbox = next;
+    saveInbox(next);
+    broadcast({ type: "inbox", inbox: inboxView() });
+    digest.changed();
+  }
+  const inboxContext = {
+    titleOf: (threadId) => state.titles.get(threadId) ?? null,
+    linkOf: (threadId) =>
+      state.environmentId ? `${t3Origin()}/${state.environmentId}/${encodeURIComponent(threadId)}` : null,
+  };
+  // The first capture finds what the thread already holds: that came before the inbox, so it is heard.
+  let seeded = NodeFS.existsSync(inboxFile());
+  const takeInbox = () => {
+    const next = captureInbox(state.inbox, state.rows.values(), inboxContext);
+    setInbox(seeded ? next : applyInboxChange(next, { heard: "all" }));
+    seeded = true;
+  };
+  // Only rows that can change the inbox: a result, or a reply in a run a result woke.
+  const touchesInbox = (row) =>
+    row.item.trigger != null || (row.item.type === "assistant_message" && !row.item.streaming);
+
   function upsert(row) {
     state.rows.delete(row.item.id);
     state.rows.set(row.item.id, row);
     while (state.rows.size > MAX_ROWS) state.rows.delete(state.rows.keys().next().value);
     broadcast({ type: "row", row });
+    if (touchesInbox(row)) takeInbox();
   }
 
   async function connect() {
@@ -271,6 +335,7 @@ export function t3BridgePlugin({ threadId: configuredThreadId, workspaceRoot }) 
               );
               state.connected = true;
               state.error = null;
+              takeInbox();
               broadcast(hello());
             } else if (chunk.kind === "event") {
               const { type, payload } = chunk.event;
@@ -400,6 +465,7 @@ export function t3BridgePlugin({ threadId: configuredThreadId, workspaceRoot }) 
 
   // One thread's shell: its waiting secret card, if any, with the card's label read from its item.
   async function takeShell(via, thread) {
+    if (typeof thread.title === "string") state.titles.set(thread.id, thread.title);
     followDelegate(via, thread);
     const pending = thread.pendingRuntimeRequest?.id;
     const itemId = typeof pending === "string" && pending.startsWith(SECRET_ITEM) ? pending : null;
@@ -529,6 +595,7 @@ export function t3BridgePlugin({ threadId: configuredThreadId, workspaceRoot }) 
       label: config.environment?.label ?? "T3 Code",
       version: config.environment?.serverVersion ?? "?",
     };
+    state.environmentId = config.environment?.environmentId ?? null;
     return config;
   }
 
@@ -753,6 +820,7 @@ export function t3BridgePlugin({ threadId: configuredThreadId, workspaceRoot }) 
       // Vite restarts in-process when this file changes; this instance's T3 sockets would live on.
       server.httpServer?.once("close", () => {
         clearTimeout(timer);
+        digest.stop();
         generation++;
         const old = socket;
         socket = null;
@@ -837,6 +905,23 @@ export function t3BridgePlugin({ threadId: configuredThreadId, workspaceRoot }) 
         }
         if (path === `${PREFIX}/connection/disconnect` && req.method === "POST") {
           json(res, 200, disconnect());
+          return;
+        }
+        // The away inbox: the brain reads it (`curl -s 127.0.0.1:<port>/__lalala/t3/inbox`), pages mark it.
+        if (path === `${PREFIX}/inbox` && req.method === "GET") {
+          json(res, 200, inboxView());
+          return;
+        }
+        if (path === `${PREFIX}/inbox` && req.method === "POST") {
+          readBody(req)
+            .then((raw) => {
+              // Any word from a page (a call starting, a mark) means the user is here.
+              digest.callSeen();
+              const change = parseInboxChange(JSON.parse(raw || "{}"));
+              if (change) setInbox(applyInboxChange(state.inbox, change));
+              json(res, 200, inboxView());
+            })
+            .catch((error) => json(res, 400, { error: error.message }));
           return;
         }
         if (path === `${PREFIX}/settings` && req.method === "GET") {

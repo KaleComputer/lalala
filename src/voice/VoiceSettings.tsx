@@ -26,6 +26,7 @@ import { Slider, SliderControl, SliderIndicator, SliderThumb, SliderTrack, Slide
 import { Switch, SwitchThumb } from "@ui-sdk/react/switch";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@ui-sdk/react/tooltip";
 
+import { useBridge } from "../t3/bridge";
 import { useVoiceBrainContext } from "../state/voiceBrainContext";
 import { formatTokens, useSharedBrainThread } from "./brainCompaction";
 import { ConnectedRows, PairSteps } from "./ConnectFlow";
@@ -63,6 +64,8 @@ import {
   useReplyVoicePick,
   useSttModel,
   type SttModel,
+  type Labs,
+  setLab,
   useSyncedSettings,
 } from "./settingsStore";
 import { micLabel, subscribeMicLabel } from "./speech";
@@ -357,6 +360,7 @@ export const PAGE_ICONS = {
   canvas: ["M3 3h7v7H3z", "M14 3h7v7h-7z", "M14 14h7v7h-7z", "M3 14h7v7H3z"],
   cards: ["M12 2 2 7l10 5 10-5-10-5z", "m2 17 10 5 10-5", "m2 12 10 5 10-5"],
   startup: ["M12 2v10", "M18.4 6.6a9 9 0 1 1-12.77.04"],
+  labs: ["M9 3h6", "M10 3v6.5L4.6 18.4A1.75 1.75 0 0 0 6.1 21h11.8a1.75 1.75 0 0 0 1.5-2.6L14 9.5V3", "M7 15h10"],
 } as const;
 
 const PAGE_KEY = "lalala:settings-page";
@@ -713,7 +717,7 @@ function AppSettings(props: { readonly section: string; readonly sheet: SheetHoo
   const selection = known?.modelSelection;
   const brainModel =
     known && selection ? findModel(known, selection.instanceId, selection.model) : undefined;
-  const { delegates } = useSyncedSettings();
+  const { delegates, labs } = useSyncedSettings();
   const speechLine = useSpeechSummary().line;
   const canvas = useCanvasValue();
   const autoStart = useAutoStartCall();
@@ -790,6 +794,7 @@ function AppSettings(props: { readonly section: string; readonly sheet: SheetHoo
       value: canvas,
       content: <CanvasRows />,
     },
+    labsPage(labs),
   ];
 
   // A save that failed shows beside the close too, so it is seen from any page.
@@ -2519,6 +2524,53 @@ export function CanvasRows() {
         />
       </Row>
       <RemovedRows />
+    </Section>
+  );
+}
+
+/** Labs, as T3 Code has it: features still settling in, each off until the user turns it on. */
+export const labsPage = (labs: Labs): SettingsPage => {
+  const on = Object.values(labs).filter(Boolean).length;
+  return {
+    id: "labs",
+    title: "Labs",
+    icon: PAGE_ICONS.labs,
+    value: on === 0 ? "Nothing on" : `${on} on`,
+    content: <LabsSection />,
+  };
+};
+
+function LabsSection() {
+  const { labs } = useSyncedSettings();
+  const digest = useBridge((state) => state.inbox.digest === true);
+  const app = import.meta.env.LALALA_HOST !== "site";
+  return (
+    <Section title="Labs" note="Features still settling in. Each one is off until you turn it on, on every device.">
+      <Row
+        title="Away inbox"
+        description="Results your threads send while you're not in a call wait in the bar's inbox until you've heard them, and the voice goes through them when you're back."
+        field
+      >
+        <Toggle on={labs.awayInbox} label="labs: away inbox" onChange={(on) => setLab("awayInbox", on)} />
+      </Row>
+      {app ? (
+        <Row
+          title="Away digest"
+          description={
+            digest
+              ? "After about two hours away with results waiting, one summary goes out through your digest command, then at most one every two hours."
+              : "Set LALALA_DIGEST_COMMAND in lalala's .env to a command that takes a message (a Telegram or mail script), then restart lalala."
+          }
+          field
+        >
+          <Toggle
+            on={labs.awayDigest && digest}
+            label="labs: away digest"
+            disabled={!labs.awayInbox || !digest}
+            onChange={(on) => setLab("awayDigest", on)}
+          />
+        </Row>
+      ) : null}
     </Section>
   );
 }

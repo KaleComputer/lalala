@@ -48,6 +48,14 @@ import { connectPreview } from "./connectPreview";
 import { type HeldWords, heldWords, holdWords, releaseWords, useHeldCount } from "./voiceOutbox";
 import { syncVoiceTheme } from "./voiceThemeSync";
 import { setStreamerMode } from "./streamerMode";
+import {
+  ANY_HEARD_TAG,
+  forgetSpoken,
+  inboxCallStarted,
+  replyFinished,
+  reportPresent,
+  trackSpoken,
+} from "./inbox/store";
 
 // A LALALA_MODEL test run gets its own thread, so it never becomes the user's voice thread.
 const voiceThreadTitle = (config: VoiceConfig | null) =>
@@ -369,6 +377,7 @@ export function VoiceHost({
     files: ReadonlyArray<VoiceFileRef> = [],
   ) => {
     const unheard = sessionRef.current?.timSpoke(text) ?? [];
+    reportPresent();
     awaitedMessageRef.current = holdWords(text, images, files, unheard).messageId;
     if (linkIsDown()) voiceLog("user", "held", { text, held: heldWords().length });
     setNotSent(false);
@@ -579,6 +588,7 @@ export function VoiceHost({
       current.stop();
       sessionRef.current = null;
       setMuted(false);
+      forgetSpoken();
       endVoiceLogSession("mic off (tap)");
       return;
     }
@@ -618,6 +628,7 @@ export function VoiceHost({
       onMicPaused: setMicPaused,
     });
     startVoiceLogSession({ voice: replyVoice(), thread: voiceThread?.id ?? null });
+    inboxCallStarted();
     sessionRef.current = session;
     sessionStartedAtRef.current = Date.now();
     setStarting(true);
@@ -688,6 +699,8 @@ export function VoiceHost({
       let abouts = 0;
       const marked = takeCards(item.text)
         .text
+        // The away inbox's `[heard: …]` is never spoken (inbox/store.ts).
+        .replace(ANY_HEARD_TAG, " ")
         .replace(ABOUT_TOPIC_TAG, (_tag, card: string) => {
           const key = `${item.id}#${abouts++}`;
           let quiet = quietTopicsRef.current.get(key);
@@ -753,15 +766,17 @@ export function VoiceHost({
         const parts = (topicPartsRef.current.get(item.id) ?? 0) + (switching ? 1 : 0);
         topicPartsRef.current.set(item.id, parts);
         const part = parts > 0 ? `${item.id}#${parts}` : undefined;
-        session.speak(
+        const spoken = session.speak(
           sentence.replaceAll(TOPIC_MARK, "").replaceAll(QUIET_TOPIC_MARK, ""),
           opensReply,
           switching && !quiet,
           part,
         );
+        trackSpoken(item.id, spoken);
       }
       if (item.streaming) continue;
       finishedRef.current.add(item.id);
+      replyFinished(item.id, item.text);
       // A finished reply after their words that doesn't open on `[new topic]` is their answer ("..." too).
       if (askedAt !== undefined && startedAt >= askedAt && !opensTopic(text)) {
         session.answered();

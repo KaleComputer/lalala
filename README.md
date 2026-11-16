@@ -212,6 +212,21 @@ Set in `.env` (see `.env.example`).
 | `T3CODE_HOME` | `~/.t3` | Where T3 Code keeps its state |
 | `LALALA_T3_ORIGIN` | from T3 Code's runtime file | T3 Code server URL |
 | `T3CODE_CLI_PATH` | `~/.t3/bin/t3`, then `t3`, then `npx t3` | The `t3` command used for pairing |
+| `LALALA_DIGEST_COMMAND` | none | Labs' away digest: a command that gets one summary message as its argument |
+
+## Labs
+
+Settings → Labs holds features still settling in, each off until you turn it on (on every device).
+
+- **Away inbox.** Results your threads send to the brain while you're not in a call (delegated
+  tasks, messages from other threads and agent sessions, scheduled tasks) wait in the bar's inbox
+  tab until you've heard them. One counts as heard once the voice has said it in a call and it
+  played to the end. When you come back, the brain gets the unread ones with your first message
+  and goes through them. The app keeps the inbox on its server (`inbox.json` in the state folder,
+  `GET /__lalala/t3/inbox`), so it fills while no page is open; lalala.talk keeps it in the
+  browser and in `.lalala/inbox.json` in the brain's project, and fills it while a tab is open.
+- **Away digest** (the app only). With the inbox on and `LALALA_DIGEST_COMMAND` set, one summary
+  goes out after about two hours away with results waiting, then at most one every two hours.
 
 ## Privacy
 

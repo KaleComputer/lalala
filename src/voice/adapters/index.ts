@@ -1,3 +1,5 @@
+import type { InboxChange } from "../inbox/capture";
+
 /**
  * What differs between the lalala app and lalala.talk, picked once at startup: everything else
  * (canvas, cards, bar, settings, the call and its in-browser speech) is the same code. The app installs the server adapters
@@ -37,6 +39,8 @@ export type HarnessAdapter = {
   writeFile?(relativePath: string, contents: string): Promise<void>;
   /** Runs a command in the brain thread's terminal on that computer, in the project folder. */
   run?(command: string): Promise<void>;
+  /** Marks the away inbox (it arrives in the events as `inbox`); `call` says the user is here. */
+  inbox?(change: InboxChange | { readonly call: true }): Promise<void>;
 };
 
 export type Adapters = {

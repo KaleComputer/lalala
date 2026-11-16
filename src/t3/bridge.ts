@@ -2,6 +2,7 @@
 // and visible turn items, fed by the dev server's T3 bridge (vite/t3bridge.mjs) over SSE.
 import { useSyncExternalStore } from "react";
 import type { VoiceBrainContext } from "../voice/brainCompaction";
+import { EMPTY_INBOX, type Inbox } from "../voice/inbox/capture";
 import type { OrchestrationV2ProjectedTurnItem } from "./contracts";
 
 export const ENVIRONMENT_ID = "standalone";
@@ -36,6 +37,8 @@ type BridgeState = {
   readonly rows: ReadonlyArray<OrchestrationV2ProjectedTurnItem>;
   readonly context: VoiceBrainContext | null;
   readonly asks: ReadonlyArray<SecretAsk>;
+  /** The away inbox (Labs), as the harness keeps it; `digest`: the app can send its digest. */
+  readonly inbox: Inbox & { readonly digest?: boolean };
 };
 
 let state: BridgeState = {
@@ -46,6 +49,7 @@ let state: BridgeState = {
   rows: [],
   context: null,
   asks: [],
+  inbox: EMPTY_INBOX,
 };
 const listeners = new Set<() => void>();
 const set = (next: BridgeState) => {
@@ -64,6 +68,7 @@ function onEvent(event: {
   asks?: ReadonlyArray<SecretAsk>;
   value: boolean;
   context?: VoiceBrainContext | null;
+  inbox?: BridgeState["inbox"];
 }) {
   if (event.type === "hello") {
     set({
@@ -74,7 +79,10 @@ function onEvent(event: {
       rows: event.rows,
       context: event.context ?? null,
       asks: event.asks ?? [],
+      inbox: event.inbox ?? state.inbox,
     });
+  } else if (event.type === "inbox") {
+    set({ ...state, inbox: event.inbox ?? state.inbox });
   } else if (event.type === "row") {
     const rows = state.rows.filter((row) => row.item.id !== event.row.item.id);
     set({ ...state, rows: [...rows, event.row] });
