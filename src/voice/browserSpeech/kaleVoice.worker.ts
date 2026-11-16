@@ -208,6 +208,7 @@ async function loadDirect(
   expected: number,
   threads?: number,
 ): Promise<Voice> {
+  voiceFile = await voiceIn(name, voiceFile);
   loadingVoice = voiceFile;
   await trace("runtime-import", { runtime: "onnxruntime-web 1.24.1 wasm" });
   const ort = (await import(/* @vite-ignore */ ORT_DIRECT)) as DirectOrt;
@@ -304,6 +305,7 @@ async function loadOn(
   expected: number,
   threads?: number,
 ): Promise<Voice> {
+  voiceFile = await voiceIn(name, voiceFile);
   await trace("worker", { device, model: name, voice: voiceFile, ...(device === "webgpu" ? await gpuDetails() : {}) });
   await dropStaleModel(name);
   if (device === "wasm" && runtime !== "transformers") return loadDirect(name, voiceFile, speed, expected, threads);
@@ -473,6 +475,27 @@ async function ettinFor(name: string): Promise<Voice["ettin"]> {
 const idsOf = (ready: Voice, ipa: string) =>
   Array.from(ready.tokenize(ipa, { truncation: true }).input_ids.data as unknown as ArrayLike<bigint | number>, Number).slice(1, -1);
 
+/**
+ * The voice to load: the one asked for when the model's voices.json lists it, else the model's first.
+ * A voice the model doesn't have must never load: the local server answers a missing file with the
+ * app's page (status 200), and that page as a style table was a made-up voice (Tim, 16 Nov).
+ */
+const voiceLists = new Map<string, Promise<string[] | null>>();
+async function voiceIn(name: string, wanted: string): Promise<string> {
+  let list = voiceLists.get(name);
+  if (!list) {
+    list = fetch(`/models/${name}/voices.json`)
+      .then((response) => (response.ok ? response.json() : null))
+      .then((json: { voices?: { id: string }[] } | null) => json?.voices?.map((entry) => entry.id) ?? null)
+      .catch(() => null);
+    voiceLists.set(name, list);
+  }
+  const ids = await list;
+  if (!ids || ids.length === 0 || ids.includes(wanted)) return wanted;
+  postMessage({ type: "stage", stage: "voice-fallback", wanted, used: ids[0] });
+  return ids[0]!;
+}
+
 /** A voice's style table and, for a model holding several voices in one graph, its own constants. */
 async function voiceFiles(
   hf: Transformers,
@@ -483,13 +506,17 @@ async function voiceFiles(
   const base = `/models/${name}/voices/${voiceFile}`;
   const read = (url: string) =>
     fetch(url).then((response) => {
-      if (!response.ok) throw new Error(`${url}: ${response.status}`);
+      if (!response.ok || /text\/html/.test(response.headers.get("content-type") ?? ""))
+        throw new Error(`${url}: not a voice file (${response.status})`);
       return response.arrayBuffer();
     });
   const [pack, constants] = await Promise.all([
     read(`${base}.bin`),
     voiceInputs.length > 0 ? read(`${base}.extra.bin`) : Promise.resolve(new ArrayBuffer(0)),
   ]);
+  const wantedExtra = voiceInputs.reduce((sum, input) => sum + input.dims.reduce((a, b) => a * b, 1) * 4, 0);
+  if (pack.byteLength === 0 || pack.byteLength % (STYLE * 4) !== 0 || constants.byteLength !== wantedExtra)
+    throw new Error(`${base}: the voice files don't fit this model`);
   const values = new Float32Array(constants);
   const extra: Record<string, unknown> = {};
   let at = 0;
@@ -581,7 +608,7 @@ const start = (message: Message) => {
   voice = load(
     device,
     message.model ?? "kale-tts-1-nano",
-    message.voice ?? "v7",
+    message.voice ?? "",
     message.speed ?? 1,
     message.expected ?? 0,
     threads,
@@ -626,9 +653,10 @@ self.onmessage = (event: MessageEvent<Message>) => {
     queue = queue.then(async () => {
       try {
         const ready = await voice!;
+        const id = await voiceIn(ready.name, message.voice ?? "");
         [[ready.voicepack, ready.extra], ready.frontEnd] = await Promise.all([
-          voiceFiles(ready.hf, ready.name, message.voice!, ready.voiceInputs),
-          frontEndFor(ready.accents[message.voice!] ?? "en-us"),
+          voiceFiles(ready.hf, ready.name, id, ready.voiceInputs),
+          frontEndFor(ready.accents[id] ?? "en-us"),
         ]);
         postMessage({ type: "text", id: message.id, text: "" });
       } catch (error) {
