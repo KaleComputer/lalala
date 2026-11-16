@@ -229,6 +229,9 @@ export function VoiceHost({
   const compacting =
     brainContext?.compacting === true ||
     (compactSentAt !== null && (brainContext?.compactedAt ?? 0) < compactSentAt);
+  // A compaction is the thread's run too, but no reply: the call waits through it, with the bar's
+  // defrag and no thinking pulse (Tim, 16 Nov: the pulse looped through a whole /compact).
+  const replying = thinking && !compacting;
 
   // The in-browser models' download and warm-up (the bar's readout); null once ready.
   const [loading, setLoading] = useState<ReadonlyArray<VoiceBarModel> | null>(null);
@@ -660,8 +663,8 @@ export function VoiceHost({
 
   // oxlint-disable-next-line t3code/no-unreasoned-state-sync -- tells the session while the brain works, so the user needs a little more to cut in (Presence's think bar)
   useEffect(() => {
-    sessionRef.current?.setThinking(thinking);
-  }, [thinking]);
+    sessionRef.current?.setThinking(replying);
+  }, [replying]);
 
   // oxlint-disable-next-line t3code/no-unreasoned-state-sync -- puts the cards named in the brain's finished replies on the canvas, reading their files from T3
   useEffect(() => {
@@ -914,7 +917,7 @@ export function VoiceHost({
       ? "error"
       : starting || downloads !== null || paused
         ? "connecting"
-        : phase === "transcribing" || (phase === "listening" && (thinking || awaitingRun))
+        : phase === "transcribing" || (phase === "listening" && !compacting && (thinking || awaitingRun))
           ? quiet
             ? "thinking"
             : "listening"
