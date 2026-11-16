@@ -180,16 +180,16 @@ export const STORY_VOICE = "kale-storyteller";
 /** The two-voice kale-tts-1-tiny preview (storyteller and M3; Hazel's model underneath for now). */
 export const PREVIEW_VOICE = "kale-tts-1-tiny-preview";
 export type ModelVoice = { readonly id: string; readonly name: string };
-/** kale-tts-1-tiny's and -nano's voices, in the picker's order (eight-voice-16nov's README). */
+/** kale-tts-1-tiny's and -nano's voices, in the picker's order, named as in the release's voices.json. */
 const EIGHT_VOICES: ReadonlyArray<ModelVoice> = [
-  { id: "v7", name: "Storyteller · woman, 30s" },
-  { id: "m3", name: "M3 · man, 20s, bright host" },
-  { id: "d03", name: "British woman, 30s" },
-  { id: "d13", name: "British man, 50s" },
-  { id: "f03", name: "Woman, 20s, high and light" },
-  { id: "f06", name: "Woman, 40s, deep and confident" },
-  { id: "f13", name: "Man, 20s, upbeat" },
-  { id: "e21", name: "Man, 50s, calm storyteller" },
+  { id: "v7", name: "Storyteller (American woman, 30s, cheerful)" },
+  { id: "m3", name: "Host (American man, 20s, bright)" },
+  { id: "d03", name: "British woman (30s, crisp)" },
+  { id: "d13", name: "British man (50s, crisp)" },
+  { id: "f03", name: "Young woman (American, 20s, light)" },
+  { id: "f06", name: "Woman (40s, deep and confident)" },
+  { id: "f13", name: "Young man (Latino American, 20s, upbeat)" },
+  { id: "e21", name: "Storyteller man (Latino American, 50s, calm)" },
 ];
 /**
  * Kale's small voices: their model folder (public/models, for kaleVoice.worker) and the voices it

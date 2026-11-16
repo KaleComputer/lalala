@@ -14,12 +14,52 @@ const STYLE = 256;
 const MAX_IDS = 510;
 const PIECE_GAP_S = 0.06;
 const PEAK = 0.95;
-const FRONT_END = {
-  g2pModel: new URL("./matcha/g2p.bin", import.meta.url).href,
-  lexicon: new URL("./matcha/lexicon.tsv", import.meta.url).href,
-  override: new URL("./matcha/override.tsv", import.meta.url).href,
-  terms: new URL("./matcha/terms.tsv", import.meta.url).href,
+type FrontEndFiles = { g2pModel: string; lexicon: string; override: string; terms: string };
+/**
+ * Pronunciation front ends by accent tag: each voice's "accent" in its model's voices.json picks one,
+ * as in the release's JS API. British English (en-gb, the d03 and d13 voices) plugs in here when the
+ * british-16nov front end ships; until then its voices use en-us, said once in the log.
+ */
+const FRONT_ENDS: Record<string, FrontEndFiles | null> = {
+  "en-us": {
+    g2pModel: new URL("./matcha/g2p.bin", import.meta.url).href,
+    lexicon: new URL("./matcha/lexicon.tsv", import.meta.url).href,
+    override: new URL("./matcha/override.tsv", import.meta.url).href,
+    terms: new URL("./matcha/terms.tsv", import.meta.url).href,
+  },
+  "en-gb": null,
 };
+type FrontEnd = {
+  readonly accent: string;
+  readonly g2p: G2p;
+  readonly normalize: (text: string) => string;
+};
+const frontEnds = new Map<string, Promise<FrontEnd>>();
+/** The front end for a voice's accent, built once per accent and kept. */
+function frontEndFor(accent: string): Promise<FrontEnd> {
+  const used = FRONT_ENDS[accent] ? accent : "en-us";
+  if (used !== accent) postMessage({ type: "stage", stage: "frontend", accent, used });
+  let built = frontEnds.get(used);
+  if (!built) {
+    const files = FRONT_ENDS[used]!;
+    built = Promise.all([
+      fetch(files.g2pModel).then((response) => response.arrayBuffer()),
+      fetch(files.lexicon).then((response) => response.text()),
+      fetch(files.override).then((response) => response.text()),
+      fetch(files.terms).then((response) => response.text()),
+    ]).then(([g2pModel, lexicon, override, terms]) => {
+      const lex = readTable(lexicon);
+      readTable(override, lex);
+      return {
+        accent: used,
+        g2p: new G2p(lex, new G2pModel(g2pModel)),
+        normalize: spokenWith(normalizer(lex), termsReplacer(terms)),
+      };
+    });
+    frontEnds.set(used, built);
+  }
+  return built;
+}
 
 type Tensor = { readonly data: Float32Array; readonly dims: ReadonlyArray<number> };
 type Transformers = {
@@ -52,8 +92,10 @@ type Voice = {
   /** A model with all its voices in one graph takes a voice's own constants as inputs (voice_inputs.json). */
   extra: Record<string, unknown>;
   readonly voiceInputs: ReadonlyArray<{ readonly name: string; readonly dims: number[] }>;
-  readonly g2p: G2p;
-  readonly normalize: (text: string) => string;
+  /** The front end of the voice's accent; a voice switch can change it. */
+  frontEnd: FrontEnd;
+  /** Each voice's accent tag from the model's voices.json (en-us when it has none). */
+  readonly accents: Readonly<Record<string, string>>;
 };
 type Message = {
   type: string;
@@ -106,7 +148,11 @@ async function load(
   const voiceInputs = await fetch(`${hf.env.localModelPath}${name}/voice_inputs.json`)
     .then((response) => (response.ok ? (response.json() as Promise<Voice["voiceInputs"]>) : []))
     .catch(() => []);
-  const [model, tokenize, [voicepack, extra], g2pModel, lexicon, override, terms] = await Promise.all([
+  const accents = await fetch(`${hf.env.localModelPath}${name}/voices.json`)
+    .then((response) => (response.ok ? (response.json() as Promise<{ voices?: { id: string; accent?: string }[] }>) : {}))
+    .then((list) => Object.fromEntries((list.voices ?? []).map((entry) => [entry.id, entry.accent ?? "en-us"])))
+    .catch(() => ({}) as Record<string, string>);
+  const [model, tokenize, [voicepack, extra], frontEnd] = await Promise.all([
     hf.StyleTextToSpeech2Model.from_pretrained(name, {
       dtype: "fp32",
       device,
@@ -117,10 +163,7 @@ async function load(
     }),
     hf.AutoTokenizer.from_pretrained(name),
     voiceFiles(hf, name, voiceFile, voiceInputs),
-    fetch(FRONT_END.g2pModel).then((response) => response.arrayBuffer()),
-    fetch(FRONT_END.lexicon).then((response) => response.text()),
-    fetch(FRONT_END.override).then((response) => response.text()),
-    fetch(FRONT_END.terms).then((response) => response.text()),
+    frontEndFor(accents[voiceFile] ?? "en-us"),
   ]);
   const onnx = hf.env.backends.onnx as { wasm: { numThreads: number }; versions?: { web?: string } };
   postMessage({
@@ -131,8 +174,6 @@ async function load(
     ort: onnx.versions?.web ?? null,
     transformers: hf.env.version ?? null,
   });
-  const lex = readTable(lexicon);
-  readTable(override, lex);
   const ready: Voice = {
     hf,
     model,
@@ -142,8 +183,8 @@ async function load(
     voicepack,
     extra,
     voiceInputs,
-    g2p: new G2p(lex, new G2pModel(g2pModel)),
-    normalize: spokenWith(normalizer(lex), termsReplacer(terms)),
+    frontEnd,
+    accents,
   };
   await speak(ready, "Hi.");
   postMessage({ type: "ready" });
@@ -215,7 +256,7 @@ async function render(ready: Voice, ipa: string): Promise<Float32Array> {
 /** A sentence (the player sends one at a time) as 24 kHz PCM. */
 async function speak(ready: Voice, raw: string) {
   const started = performance.now();
-  const ipa = ready.g2p.phonemes(ready.normalize(raw));
+  const ipa = ready.frontEnd.g2p.phonemes(ready.frontEnd.normalize(raw));
   const g2pMs = performance.now() - started;
   const parts: Float32Array[] = [];
   for (const piece of pieces(ipa)) {
@@ -279,7 +320,10 @@ self.onmessage = (event: MessageEvent<Message>) => {
     queue = queue.then(async () => {
       try {
         const ready = await voice!;
-        [ready.voicepack, ready.extra] = await voiceFiles(ready.hf, ready.name, message.voice!, ready.voiceInputs);
+        [[ready.voicepack, ready.extra], ready.frontEnd] = await Promise.all([
+          voiceFiles(ready.hf, ready.name, message.voice!, ready.voiceInputs),
+          frontEndFor(ready.accents[message.voice!] ?? "en-us"),
+        ]);
         postMessage({ type: "text", id: message.id, text: "" });
       } catch (error) {
         postMessage({ type: "error", id: message.id, message: String(error) });

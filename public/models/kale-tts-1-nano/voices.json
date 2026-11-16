@@ -1,0 +1,45 @@
+{
+ "note": "The voices in this model, in picker order. accent picks the pronunciation front end (en-us, en-gb), as in the release's voices.json.",
+ "voices": [
+  {
+   "id": "v7",
+   "name": "Storyteller (American woman, 30s, cheerful)",
+   "accent": "en-us"
+  },
+  {
+   "id": "m3",
+   "name": "Host (American man, 20s, bright)",
+   "accent": "en-us"
+  },
+  {
+   "id": "d03",
+   "name": "British woman (30s, crisp)",
+   "accent": "en-gb"
+  },
+  {
+   "id": "d13",
+   "name": "British man (50s, crisp)",
+   "accent": "en-gb"
+  },
+  {
+   "id": "f03",
+   "name": "Young woman (American, 20s, light)",
+   "accent": "en-us"
+  },
+  {
+   "id": "f06",
+   "name": "Woman (40s, deep and confident)",
+   "accent": "en-us"
+  },
+  {
+   "id": "f13",
+   "name": "Young man (Latino American, 20s, upbeat)",
+   "accent": "en-us"
+  },
+  {
+   "id": "e21",
+   "name": "Storyteller man (Latino American, 50s, calm)",
+   "accent": "en-us"
+  }
+ ]
+}
