@@ -403,7 +403,8 @@ self.onmessage = (event: MessageEvent<Message>) => {
     enGbOn = message.enGb === true;
     threads = message.threads;
     traceId = message.trace ?? null;
-    gpuCache = message.gpuCache ?? null;
+    // lazyRelease by default: the default "bucket" cache took WebKit's GPU process to 2.4 GB (Mac, 16 Nov).
+    gpuCache = message.gpuCache ?? "lazyRelease";
     start(message);
     if (message.type === "load") return;
   }
