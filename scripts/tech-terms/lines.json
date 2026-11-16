@@ -1,0 +1,638 @@
+[
+ {
+  "text": "Open T3 Code and start a new thread.",
+  "terms": [
+   [
+    "t3code",
+    "t3coat",
+    "tthreecode",
+    "teethreecode"
+   ]
+  ]
+ },
+ {
+  "text": "The T3 Code server runs on your Mac.",
+  "terms": [
+   [
+    "t3code",
+    "tthreecode",
+    "teethreecode"
+   ]
+  ]
+ },
+ {
+  "text": "We deploy the backend to AWS.",
+  "terms": [
+   [
+    "aws"
+   ]
+  ]
+ },
+ {
+  "text": "The API returns JSON.",
+  "terms": [
+   [
+    "api"
+   ],
+   [
+    "json",
+    "jason"
+   ]
+  ]
+ },
+ {
+  "text": "Run it from the CLI.",
+  "terms": [
+   [
+    "cli"
+   ]
+  ]
+ },
+ {
+  "text": "Paste the URL into the browser.",
+  "terms": [
+   [
+    "url"
+   ]
+  ]
+ },
+ {
+  "text": "The query is plain SQL.",
+  "terms": [
+   [
+    "sql",
+    "sequel"
+   ]
+  ]
+ },
+ {
+  "text": "It runs on the GPU, not the CPU.",
+  "terms": [
+   [
+    "gpu"
+   ],
+   [
+    "cpu"
+   ]
+  ]
+ },
+ {
+  "text": "WebGPU crashed the tab on iOS.",
+  "terms": [
+   [
+    "webgpu"
+   ],
+   [
+    "ios"
+   ]
+  ]
+ },
+ {
+  "text": "This works on macOS and Windows.",
+  "terms": [
+   [
+    "macos"
+   ],
+   [
+    "windows"
+   ]
+  ]
+ },
+ {
+  "text": "Install it with npm.",
+  "terms": [
+   [
+    "npm"
+   ]
+  ]
+ },
+ {
+  "text": "Push the branch to GitHub.",
+  "terms": [
+   [
+    "github"
+   ]
+  ]
+ },
+ {
+  "text": "The site is hosted on Vercel.",
+  "terms": [
+   [
+    "vercel"
+   ]
+  ]
+ },
+ {
+  "text": "The cluster runs on Kubernetes.",
+  "terms": [
+   [
+    "kubernetes"
+   ]
+  ]
+ },
+ {
+  "text": "The data lives in PostgreSQL.",
+  "terms": [
+   [
+    "postgresql",
+    "postgres"
+   ]
+  ]
+ },
+ {
+  "text": "Sign in with OAuth.",
+  "terms": [
+   [
+    "oauth"
+   ]
+  ]
+ },
+ {
+  "text": "Name the file in kebab-case.",
+  "terms": [
+   [
+    "kebabcase"
+   ]
+  ]
+ },
+ {
+  "text": "Open src/voice/player.ts and look at line 42.",
+  "terms": [
+   [
+    "src",
+    "source"
+   ],
+   [
+    "voice"
+   ],
+   [
+    "player"
+   ],
+   [
+    "ts",
+    "typescript"
+   ],
+   [
+    "42",
+    "fortytwo"
+   ]
+  ]
+ },
+ {
+  "text": "This shipped in v1.2.3.",
+  "terms": [
+   [
+    "123",
+    "onepointtwopointthree",
+    "onetwothree"
+   ]
+  ]
+ },
+ {
+  "text": "Upgrade to version 2.0.1 today.",
+  "terms": [
+   [
+    "201",
+    "twopointzeropointone",
+    "twozeroone"
+   ]
+  ]
+ },
+ {
+  "text": "The API key goes in the .env file.",
+  "terms": [
+   [
+    "api"
+   ],
+   [
+    "env"
+   ]
+  ]
+ },
+ {
+  "text": "Check the README.md first.",
+  "terms": [
+   [
+    "readme"
+   ],
+   [
+    "md",
+    "markdown"
+   ]
+  ]
+ },
+ {
+  "text": "The hook is called useEffect.",
+  "terms": [
+   [
+    "useeffect"
+   ]
+  ]
+ },
+ {
+  "text": "It listens on localhost:3000.",
+  "terms": [
+   [
+    "localhost"
+   ],
+   [
+    "3000",
+    "threethousand"
+   ]
+  ]
+ },
+ {
+  "text": "Go to api.example.com for the docs.",
+  "terms": [
+   [
+    "apiexamplecom",
+    "apidotexampledotcom"
+   ]
+  ]
+ },
+ {
+  "text": "We use TypeScript and Node.js.",
+  "terms": [
+   [
+    "typescript"
+   ],
+   [
+    "nodejs",
+    "nodedotjs",
+    "node"
+   ]
+  ]
+ },
+ {
+  "text": "Connect over SSH and HTTPS.",
+  "terms": [
+   [
+    "ssh"
+   ],
+   [
+    "https"
+   ]
+  ]
+ },
+ {
+  "text": "The laptop has 16 GB of RAM.",
+  "terms": [
+   [
+    "16",
+    "sixteen"
+   ],
+   [
+    "gb",
+    "gigabytes",
+    "gigabyte"
+   ],
+   [
+    "ram"
+   ]
+  ]
+ },
+ {
+  "text": "The meeting is at 10:30 on Nov 15, 2026.",
+  "terms": [
+   [
+    "1030",
+    "tenthirty"
+   ],
+   [
+    "november15",
+    "november15th",
+    "nov15"
+   ],
+   [
+    "2026",
+    "twentytwentysix",
+    "twothousandtwentysix"
+   ]
+  ]
+ },
+ {
+  "text": "It costs $12.99 per month.",
+  "terms": [
+   [
+    "1299",
+    "twelveninetynine",
+    "twelvedollarsandninetyninecents",
+    "twelvedollarsninetynine"
+   ]
+  ]
+ },
+ {
+  "text": "Accuracy went up 3.5% this week.",
+  "terms": [
+   [
+    "35",
+    "threepointfive"
+   ],
+   [
+    "percent",
+    "%"
+   ]
+  ]
+ },
+ {
+  "text": "Merge PR #123 after review.",
+  "terms": [
+   [
+    "pr",
+    "pullrequest"
+   ],
+   [
+    "123",
+    "onetwentythree",
+    "onehundredtwentythree",
+    "onehundredandtwentythree"
+   ]
+  ]
+ },
+ {
+  "text": "The snake_case name is user_id.",
+  "terms": [
+   [
+    "snakecase"
+   ],
+   [
+    "userid"
+   ]
+  ]
+ },
+ {
+  "text": "Use Docker and Redis locally.",
+  "terms": [
+   [
+    "docker"
+   ],
+   [
+    "redis"
+   ]
+  ]
+ },
+ {
+  "text": "The build took 2.5 seconds on Wi-Fi.",
+  "terms": [
+   [
+    "25",
+    "twopointfive"
+   ],
+   [
+    "wifi"
+   ]
+  ]
+ },
+ {
+  "text": "Ask Claude in T3 Code to fix the CI.",
+  "terms": [
+   [
+    "claude"
+   ],
+   [
+    "t3code",
+    "tthreecode",
+    "teethreecode"
+   ],
+   [
+    "ci"
+   ]
+  ]
+ },
+ {
+  "text": "Next.js and React render the UI.",
+  "terms": [
+   [
+    "nextjs",
+    "nextdotjs",
+    "next"
+   ],
+   [
+    "react"
+   ],
+   [
+    "ui"
+   ]
+  ]
+ },
+ {
+  "text": "The PDF is 2 MB.",
+  "terms": [
+   [
+    "pdf"
+   ],
+   [
+    "2",
+    "two"
+   ],
+   [
+    "mb",
+    "megabytes",
+    "megabyte"
+   ]
+  ]
+ },
+ {
+  "text": "i deployed t3 code to aws last night.",
+  "terms": [
+   [
+    "t3code",
+    "tthreecode",
+    "teethreecode"
+   ],
+   [
+    "aws"
+   ]
+  ]
+ },
+ {
+  "text": "the api sends json back.",
+  "terms": [
+   [
+    "api"
+   ],
+   [
+    "json",
+    "jason"
+   ]
+  ]
+ },
+ {
+  "text": "We store sessions in Postgres and Redis.",
+  "terms": [
+   [
+    "postgres"
+   ],
+   [
+    "redis"
+   ]
+  ]
+ },
+ {
+  "text": "Run kubectl get pods behind nginx.",
+  "terms": [
+   [
+    "kubectl",
+    "kubecontrol",
+    "cubecontrol"
+   ],
+   [
+    "pods"
+   ],
+   [
+    "nginx",
+    "enginex"
+   ]
+  ]
+ },
+ {
+  "text": "The OpenAI API and GraphQL both time out.",
+  "terms": [
+   [
+    "openai"
+   ],
+   [
+    "api"
+   ],
+   [
+    "graphql"
+   ]
+  ]
+ },
+ {
+  "text": "Call useState inside the component.",
+  "terms": [
+   [
+    "usestate"
+   ]
+  ]
+ },
+ {
+  "text": "We serve the model with vLLM on the GPUs.",
+  "terms": [
+   [
+    "vllm"
+   ],
+   [
+    "gpus",
+    "gpu"
+   ]
+  ]
+ },
+ {
+  "text": "Two LLMs disagree about the TTS output.",
+  "terms": [
+   [
+    "llms",
+    "llm"
+   ],
+   [
+    "tts"
+   ]
+  ]
+ },
+ {
+  "text": "The VAD runs before the ASR.",
+  "terms": [
+   [
+    "vad"
+   ],
+   [
+    "asr"
+   ]
+  ]
+ },
+ {
+  "text": "Export it to ONNX and upload it to HF.",
+  "terms": [
+   [
+    "onnx",
+    "onyx",
+    "onix"
+   ],
+   [
+    "hf"
+   ]
+  ]
+ },
+ {
+  "text": "Review the two PRs for the MCP server.",
+  "terms": [
+   [
+    "prs",
+    "pr"
+   ],
+   [
+    "mcp"
+   ]
+  ]
+ },
+ {
+  "text": "The STT model hears you, the CLI starts it.",
+  "terms": [
+   [
+    "stt"
+   ],
+   [
+    "cli"
+   ]
+  ]
+ },
+ {
+  "text": "Call 555-0123 for help.",
+  "terms": [
+   [
+    "5550123",
+    "fivefivefive0123",
+    "fivefivefiveoonetwothree",
+    "fivefivefivezeroonetwothree",
+    "fivefivefiveohonetwothree"
+   ]
+  ]
+ },
+ {
+  "text": "Call useEffect after useState.",
+  "terms": [
+   [
+    "useeffect"
+   ],
+   [
+    "usestate"
+   ]
+  ]
+ },
+ {
+  "text": "The function getUserById returns null.",
+  "terms": [
+   [
+    "getuserbyid"
+   ]
+  ]
+ },
+ {
+  "text": "The 7B model beats the 70B one on Thurs.",
+  "terms": [
+   [
+    "7b",
+    "sevenb"
+   ],
+   [
+    "70b",
+    "seventyb"
+   ],
+   [
+    "thursday"
+   ]
+  ]
+ },
+ {
+  "text": "We export to ONNX first.",
+  "terms": [
+   [
+    "onnx",
+    "onyx",
+    "onix"
+   ]
+  ]
+ }
+]

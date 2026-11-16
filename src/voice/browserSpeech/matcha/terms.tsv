@@ -6,7 +6,7 @@ t3 code	T three code
 T3code	T three code
 aws	AWS
 api	API
-cli	CLI
+cli	C L I
 gpu	GPU
 url	URL
 WebGPU	web GPU
@@ -42,9 +42,32 @@ TPUs	T P U's
 PRs	P R's
 llm	LLM
 tts	TTS
-stt	STT
+stt	S T T
 vad	VAD
 asr	ASR
 mcp	MCP
 sdk	SDK
-onnx	ONNX
+onnx	onyx
+# Spaced, since run together they were misheard (STT as "SDT", CLI as "cla"); ONNX is said "onyx".
+STT	S T T
+CLI	C L I
+ONNX	onyx
+# Weekdays and model sizes (the open-release worker, 16 Nov). One file for lalala and the release.
+Mon	Monday
+Tue	Tuesday
+Tues	Tuesday
+Wed	Wednesday
+Thu	Thursday
+Thurs	Thursday
+Fri	Friday
+1B	one bee
+3B	three bee
+7B	seven bee
+8B	eight bee
+13B	thirteen bee
+14B	fourteen bee
+32B	thirty two bee
+70B	seventy bee
+405B	four hundred five bee
+# A word a camelCase name splits into ("getUserById").
+Id	ID
