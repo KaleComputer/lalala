@@ -5,7 +5,8 @@
 //      home-folder path (vite/leakGuard.mjs's rules; this repo is public on GitHub).
 //   2. The site typechecks (Vercel's build starts with it; a failure there ships nothing, silently).
 //   3. The site builds, with the leak guard on, into a temp folder (site/out stays untouched).
-//   Before 2 and 3: barge-in on recorded speech (scripts/barge-in), which broke silently too often.
+//   Before 2 and 3: barge-in on recorded speech (scripts/barge-in), which broke silently too often,
+//   and tidy's packing (scripts/tidy).
 import { execFileSync } from "node:child_process";
 import * as NodeFS from "node:fs";
 import * as NodeOS from "node:os";
@@ -44,6 +45,9 @@ console.log(`  ${files.length} files clean`);
 
 step("barge-in holds for Tim, never for noise or echo (scripts/barge-in)");
 run(process.execPath, ["--experimental-strip-types", "--no-warnings", "--test", "scripts/barge-in/check.test.mjs"]);
+
+step("tidy packs every group about square (scripts/tidy)");
+run(process.execPath, ["--experimental-strip-types", "--no-warnings", "--test", "scripts/tidy/check.test.mjs"]);
 
 if (!process.argv.includes("--files-only")) {
   step("site typechecks (as on Vercel)");

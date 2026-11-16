@@ -83,15 +83,20 @@ const orders: ((a: Item, b: Item) => number)[] = [
   (a, b) => b.w * b.h - a.w * a.h || a.id.localeCompare(b.id),
 ];
 
+type Placed<T> = { w: number; h: number; placed: { item: T; x: number; y: number }[] };
+
 /**
- * Packs `items` in whichever order and strip width needs the smallest frame of `aspect` (w / h)
- * around the result: the packed box fills that shape as fully as the sizes allow.
+ * Packs `items` in each order into strips of many widths around `ideal`, and keeps the packing
+ * `score` (w, h) rates lowest.
  */
-function packToAspect<T extends Item>(items: readonly T[], aspect: number, gap: number) {
+function packBest<T extends Item>(
+  items: readonly T[],
+  gap: number,
+  ideal: number,
+  score: (w: number, h: number) => number,
+): Placed<T> {
   const widest = Math.max(...items.map((s) => s.w));
-  const area = items.reduce((sum, s) => sum + (s.w + gap) * (s.h + gap), 0);
-  const ideal = Math.sqrt(area * aspect);
-  let best = { w: 0, h: 0, placed: [] as { item: T; x: number; y: number }[] };
+  let best: Placed<T> = { w: 0, h: 0, placed: [] };
   let bestScore = Infinity;
   for (const order of orders) {
     const sorted = items.toSorted(order);
@@ -101,15 +106,49 @@ function packToAspect<T extends Item>(items: readonly T[], aspect: number, gap: 
     for (const s of sorted) widths.add(Math.max(widest, (row += s.w + gap)));
     for (const width of [...widths].toSorted((a, b) => a - b)) {
       const packed = skyline(sorted, width, gap);
-      const score = Math.max(packed.w, packed.h * aspect) + (packed.w * packed.h) / 1e9;
-      if (score < bestScore - 0.5) {
+      const rated = score(packed.w, packed.h);
+      if (rated < bestScore - 0.5) {
         const placed = sorted.map((item, i) => ({ item, ...packed.spots[i]! }));
         best = { w: packed.w, h: packed.h, placed };
-        bestScore = score;
+        bestScore = rated;
       }
     }
   }
   return best;
+}
+
+const packedArea = (items: readonly Item[], gap: number) =>
+  items.reduce((sum, s) => sum + (s.w + gap) * (s.h + gap), 0);
+
+/**
+ * Packs `items` so the smallest frame of `aspect` (w / h) around them is as small as it can be:
+ * the packed box fills that shape as fully as the sizes allow.
+ */
+function packToAspect<T extends Item>(items: readonly T[], aspect: number, gap: number) {
+  return packBest(
+    items,
+    gap,
+    Math.sqrt(packedArea(items, gap) * aspect),
+    (w, h) => Math.max(w, h * aspect) + (w * h) / 1e9,
+  );
+}
+
+/** How far from square (either way) a group's area may get when that packs it tighter. */
+export const GROUP_SLACK = 1.2;
+
+/**
+ * Packs a group's cards so its area (cards plus AREA) is about square, within GROUP_SLACK, and as
+ * small as it can be in that range: a big group grows wide as well as tall.
+ */
+function packGroup<T extends Item>(items: readonly T[]) {
+  const slack = Math.log(GROUP_SLACK);
+  return packBest(items, CARD_GAP, Math.sqrt(packedArea(items, CARD_GAP)), (w, h) => {
+    const fw = w + AREA.pad * 2;
+    const fh = h + AREA.head + AREA.pad;
+    const off = Math.max(0, Math.abs(Math.log(fw / fh)) - slack);
+    // Out of the square range always loses to in range, whatever the size.
+    return off * 1e13 + fw * fh;
+  });
 }
 
 /** Packs `items` into a strip `width` wide (at least the widest), in whichever order is lowest. */
@@ -131,47 +170,30 @@ export function packInWidth<T extends Item>(items: readonly T[], width: number, 
 }
 
 /**
- * Where tidy puts each card, its size kept: each group packed into a block with room for its area
- * (at the size the user gave it in `sizes`, if he did), the blocks and ungrouped cards packed into one
- * rectangle of `aspect` (the mini-map's) with its top left at `origin`. Each group's area comes
- * back as `group:<name>`. Same cards, same result.
+ * Where tidy puts each card, its size kept: each group packed about square with room for its area,
+ * the groups and ungrouped cards packed into one rectangle of `aspect` (the mini-map's) with its
+ * top left at `origin`. Each group's area comes back as `group:<name>`. Same cards, same result.
  */
 export function tidyLayout(
   cards: readonly TidyCard[],
   aspect: number,
   origin: { readonly x: number; readonly y: number },
-  sizes: ReadonlyMap<string, Size> = new Map(),
 ): Record<string, Box> {
   const groups = new Map<string, TidyCard[]>();
   for (const card of cards) {
     const key = card.group === undefined ? `card:${card.id}` : `group:${card.group}`;
     groups.set(key, [...(groups.get(key) ?? []), card]);
   }
-  const packAll = (shape: number) =>
-    packToAspect(
-      [...groups].map(([id, list]) => {
-        const framed = id.startsWith("group:");
-        const set = framed ? sizes.get(id.slice("group:".length)) : undefined;
-        const block = set
-          ? packInWidth(list, set.w - AREA.pad * 2)
-          : packToAspect(list, aspect * shape, CARD_GAP);
-        const pad = framed ? { x: AREA.pad, y: AREA.head } : { x: 0, y: 0 };
-        const more = framed ? { w: AREA.pad * 2, h: AREA.head + AREA.pad } : { w: 0, h: 0 };
-        const w = Math.max(block.w + more.w, set?.w ?? 0);
-        return { id, w, h: Math.max(block.h + more.h, set?.h ?? 0), block, pad, framed };
-      }),
-      aspect,
-      GROUP_GAP,
-    );
-  // Blocks shaped like the whole rarely tile it: try each block shape, keep the tightest whole.
-  const score = (whole: { w: number; h: number }) => Math.max(whole.w, whole.h * aspect);
-  let best = packAll(1);
-  for (const shape of [0.5, 0.75, 1.25, 1.5, 2, 2.5, 3]) {
-    const whole = packAll(shape);
-    if (score(whole) < score(best) - 0.5) best = whole;
-  }
+  const blocks = [...groups].map(([id, list]) => {
+    const framed = id.startsWith("group:");
+    const block = framed ? packGroup(list) : packToAspect(list, aspect, CARD_GAP);
+    const pad = framed ? { x: AREA.pad, y: AREA.head } : { x: 0, y: 0 };
+    const more = framed ? { w: AREA.pad * 2, h: AREA.head + AREA.pad } : { w: 0, h: 0 };
+    return { id, w: block.w + more.w, h: block.h + more.h, block, pad, framed };
+  });
+  const whole = packToAspect(blocks, aspect, GROUP_GAP);
   const out: Record<string, Box> = {};
-  for (const { item: group, x: gx, y: gy } of best.placed) {
+  for (const { item: group, x: gx, y: gy } of whole.placed) {
     if (group.framed)
       out[group.id] = { x: origin.x + gx, y: origin.y + gy, w: group.w, h: group.h };
     for (const { item: card, x, y } of group.block.placed) {

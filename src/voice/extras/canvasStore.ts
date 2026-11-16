@@ -1174,7 +1174,7 @@ export function moveGroup(grab: GroupGrab, dx: number, dy: number) {
 
 /**
  * Gives a group the size (w, h) world px, its top left kept, and reflows its cards inside it; it
- * never gets narrower than its widest card or shorter than its cards. Tidy keeps that size.
+ * never gets narrower than its widest card or shorter than its cards, until the next tidy.
  */
 export function resizeGroup(grab: GroupGrab, w: number, h: number) {
   const { area } = grab;
@@ -1199,8 +1199,7 @@ export const holdGroup = (grab: GroupGrab | null) =>
 
 /**
  * Repacks the open canvas's cards, sizes kept, into one rectangle shaped like the mini-map, cards
- * of one `group` side by side in their area (at the size the user gave it), centred on the world's
- * origin. The same cards always give the same layout. The view keeps its zoom and follows the card
+ * of one `group` side by side in their area, about square, centred on the world's origin. The same cards always give the same layout. The view keeps its zoom and follows the card
  * nearest the screen's middle, so that card stays where it was on screen.
  */
 function tidyCanvas() {
@@ -1211,16 +1210,12 @@ function tidyCanvas() {
   const distance = (r: Rect) =>
     middle ? Math.hypot(r.x + r.w / 2 - middle.x, r.y + r.h / 2 - middle.y) : 0;
   const anchor = cards.toSorted((a, b) => distance(a.rect) - distance(b.rect))[0];
-  const sizes = new Map<string, { w: number; h: number }>();
-  for (const label of cardsByGroup().keys()) {
-    const own = live.cards[groupKey(label)];
-    if (own) sizes.set(label, { w: own.w, h: own.h });
-  }
+  // A group's own box (from a resize) takes the tidied size; one without stays drawn round its cards.
+  const owned = new Set([...cardsByGroup().keys()].filter((l) => live.cards[groupKey(l)]));
   const laid = tidyLayout(
     cards.map(({ id, rect, group }) => ({ id, group, w: rect.w, h: rect.h })),
     mapAspect(),
     { x: 0, y: 0 },
-    sizes,
   );
   // Centred on the world's origin: the group areas and the cards outside any group.
   const ungrouped = new Set(cards.flatMap((c) => (c.group === undefined ? [c.id] : [])));
@@ -1231,7 +1226,7 @@ function tidyCanvas() {
   const dy = -(Math.min(...edges.map((r) => r.y)) + Math.max(...edges.map((r) => r.y + r.h))) / 2;
   for (const [key, r] of Object.entries(laid)) {
     const group = key.startsWith("group:") ? key.slice("group:".length) : undefined;
-    if (group !== undefined && !sizes.has(group)) continue;
+    if (group !== undefined && !owned.has(group)) continue;
     const id = group === undefined ? key : groupKey(group);
     const rect = { ...r, x: r.x + dx, y: r.y + dy };
     if (!sameRect(rect, live.cards[id])) setCard(id, rect);
@@ -1243,8 +1238,8 @@ function tidyCanvas() {
 }
 
 /**
- * Repacks one group on the open canvas (its name, any case), as tidy would and at the size the user gave
- * it, its area's top left kept; nothing else moves. False when no such group has a card here.
+ * Repacks one group on the open canvas (its name, any case), about square as tidy would, its area's
+ * top left kept; nothing else moves. False when no such group has a card here.
  */
 function tidyGroup(name: string) {
   const plain = (s: string) =>
@@ -1266,7 +1261,6 @@ function tidyGroup(name: string) {
     cards.map(({ id, rect }) => ({ id, group: label, w: rect.w, h: rect.h })),
     mapAspect(),
     { x: 0, y: 0 },
-    own ? new Map([[label, { w: own.w, h: own.h }]]) : undefined,
   );
   const packed = laid[`group:${label}`]!;
   const dx = area.x - packed.x;
