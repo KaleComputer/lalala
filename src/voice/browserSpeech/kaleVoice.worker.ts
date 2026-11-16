@@ -128,6 +128,8 @@ type Message = {
   model?: string;
   voice?: string;
   threads?: number;
+  /** A bench run's id: log every step to the session log (WebGPU bench runs). */
+  trace?: string;
   /** Use the staged British front end for en-gb voices (a page opened with ?en-gb). */
   enGb?: boolean;
   speed?: number;
@@ -149,7 +151,10 @@ async function load(
   // "gpu-if-available" (desktops): WebGPU where the browser has an adapter, else the CPU. Phones send
   // "wasm": WebGPU ended Tim's iPhone tab (15 Nov), a kill nothing can catch.
   if (device === "gpu-if-available") device = (await hasGpu()) ? "webgpu" : "wasm";
+  await trace("worker", { device, model: name, voice: voiceFile, ...(device === "webgpu" ? await gpuDetails() : {}) });
+  await trace("runtime-import");
   const hf = (await import(/* @vite-ignore */ TRANSFORMERS)) as Transformers;
+  await trace("runtime-ready");
   // Its runtime takes half the cores by default: 2 on Tim's iPhone, 4.8x real time against 7.3x
   // with all 4 (15 Nov). Every core, up to 4, as the direct runtime had.
   hf.env.backends.onnx.wasm.numThreads =
@@ -188,6 +193,7 @@ async function load(
     .then((response) => (response.ok ? (response.json() as Promise<{ voices?: { id: string; accent?: string }[] }>) : {}))
     .then((list) => Object.fromEntries((list.voices ?? []).map((entry) => [entry.id, entry.accent ?? "en-us"])))
     .catch(() => ({}) as Record<string, string>);
+  await trace("session-create", { device });
   const [model, tokenize, [voicepack, extra], frontEnd] = await Promise.all([
     hf.StyleTextToSpeech2Model.from_pretrained(name, {
       dtype: "fp32",
@@ -204,6 +210,7 @@ async function load(
     voiceFiles(hf, name, voiceFile, voiceInputs),
     frontEndFor(accents[voiceFile] ?? "en-us"),
   ]);
+  await trace("session-created");
   const onnx = hf.env.backends.onnx as { wasm: { numThreads: number }; versions?: { web?: string } };
   postMessage({
     type: "stage",
@@ -225,7 +232,9 @@ async function load(
     frontEnd,
     accents,
   };
+  await trace("warmup");
   await speak(ready, "Hi.");
+  await trace("warmup-done");
   postMessage({ type: "ready" });
   return ready;
 }
@@ -247,6 +256,47 @@ function pieces(ipa: string): string[] {
   }
   out.push(rest.join(""));
   return out;
+}
+
+/**
+ * A WebGPU bench run (?bench=…&gpu) logs every step to the Mac's session log and waits for the server
+ * to take it before the next risky one, so a tab that iOS kills still shows where it died.
+ */
+let traceId: string | null = null;
+async function trace(step: string, data: Record<string, unknown> = {}) {
+  if (traceId === null) return;
+  const event = { t: new Date().toISOString(), who: "system", type: "bench.trace", bench: traceId, step, ...data };
+  await fetch("/__lalala/log", {
+    method: "POST",
+    headers: { "content-type": "text/plain" },
+    body: JSON.stringify([event]),
+    keepalive: true,
+  }).catch(() => {});
+}
+
+/** The adapter's identity, limits and features, for the trace. */
+async function gpuDetails() {
+  type Adapter = {
+    info?: Record<string, unknown>;
+    limits?: Record<string, number>;
+    features?: Iterable<string>;
+  };
+  const gpu = (navigator as Navigator & { gpu?: { requestAdapter(): Promise<Adapter | null> } }).gpu;
+  const adapter = await gpu?.requestAdapter().catch(() => null);
+  if (!adapter) return { adapter: false };
+  const limits = adapter.limits ?? {};
+  return {
+    adapter: true,
+    vendor: adapter.info?.vendor ?? null,
+    architecture: adapter.info?.architecture ?? null,
+    description: adapter.info?.description ?? null,
+    maxBufferSize: limits.maxBufferSize,
+    maxStorageBufferBindingSize: limits.maxStorageBufferBindingSize,
+    maxComputeWorkgroupStorageSize: limits.maxComputeWorkgroupStorageSize,
+    maxComputeInvocationsPerWorkgroup: limits.maxComputeInvocationsPerWorkgroup,
+    maxStorageBuffersPerShaderStage: limits.maxStorageBuffersPerShaderStage,
+    features: [...(adapter.features ?? [])].join(","),
+  };
 }
 
 async function hasGpu() {
@@ -288,6 +338,7 @@ async function render(ready: Voice, ipa: string): Promise<Float32Array> {
   const n = input_ids.dims.at(-1)! - 2;
   if (n <= 0) return new Float32Array(0);
   const row = Math.min(n, ready.voicepack.length / STYLE) - 1;
+  await trace("run", { ids: n });
   const { waveform } = await ready.model({
     input_ids,
     style: new ready.hf.Tensor("float32", ready.voicepack.slice(row * STYLE, (row + 1) * STYLE), [1, STYLE]),
@@ -331,7 +382,10 @@ const start = (message: Message) => {
     message.expected ?? 0,
     threads,
   );
-  voice.catch((error: unknown) => postMessage({ type: "failed", message: String(error) }));
+  voice.catch((error: unknown) => {
+    void trace("failed", { message: String(error) });
+    postMessage({ type: "failed", message: String(error) });
+  });
 };
 
 self.onmessage = (event: MessageEvent<Message>) => {
@@ -340,6 +394,7 @@ self.onmessage = (event: MessageEvent<Message>) => {
     device = message.device ?? "wasm";
     enGbOn = message.enGb === true;
     threads = message.threads;
+    traceId = message.trace ?? null;
     start(message);
     if (message.type === "load") return;
   }

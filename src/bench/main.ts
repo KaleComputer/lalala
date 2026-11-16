@@ -235,7 +235,16 @@ async function start() {
   try {
     status("Loading the model…");
     const loadStarted = performance.now();
-    voice.worker.postMessage({ type: "load", device: BACKEND, model: MODEL.model, voice: MODEL.voice, threads: THREADS });
+    // WebGPU runs log every step on the way, so a tab the browser kills still shows where it died.
+    if (BACKEND === "webgpu") await log?.("bench.trace", { step: "page", ...device, model: MODEL.model, backend: BACKEND });
+    voice.worker.postMessage({
+      type: "load",
+      device: BACKEND,
+      model: MODEL.model,
+      voice: MODEL.voice,
+      threads: THREADS,
+      ...(BACKEND === "webgpu" ? { trace: BENCH_ID } : {}),
+    });
     const error = await voice.ready;
     if (error !== null) throw new Error(error);
     const loadMs = Math.round(performance.now() - loadStarted);
