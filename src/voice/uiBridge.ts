@@ -119,11 +119,12 @@ async function undo(count: number) {
 async function run(call: Call): Promise<unknown> {
   switch (call.tool) {
     case "snapshot": {
-      const all = agent.snapshot();
       const filter = call.filter ? words(call.filter) : "";
-      const shown = filter
-        ? all.filter((component) => words(`${component.label ?? ""} ${component.row ?? ""}`).includes(filter))
-        : all;
+      // The snapshot stops at 100 controls, so a filter searches all of them first.
+      const found = filter ? await agent.query({ text: call.filter }) : null;
+      const shown = (Array.isArray(found) && found.length > 0 ? found : agent.snapshot()).filter(
+        (component) => !filter || words(`${component.label ?? ""} ${component.row ?? ""}`).includes(filter),
+      );
       // A list's rows read as all their text run together; its own item labels are what a step takes.
       return Promise.all(
         shown.map(async (component) => {
