@@ -71,3 +71,7 @@ Fri	Friday
 405B	four hundred five bee
 # A word a camelCase name splits into ("getUserById").
 Id	ID
+# Dotfiles (the open-release worker, 16 Nov: ".env" misheard on 3 of 4 model/voice pairs).
+.env	dot env
+.env.local	dot env dot local
+.env.example	dot env dot example

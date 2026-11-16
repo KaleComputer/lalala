@@ -634,5 +634,26 @@
     "onix"
    ]
   ]
+ },
+ {
+  "text": "Copy .env.example to .env.local first.",
+  "terms": [
+   [
+    "envexample",
+    "dotenvdotexample"
+   ],
+   [
+    "envlocal",
+    "dotenvdotlocal"
+   ]
+  ]
+ },
+ {
+  "text": "Never commit the .env file.",
+  "terms": [
+   [
+    "env"
+   ]
+  ]
  }
 ]
