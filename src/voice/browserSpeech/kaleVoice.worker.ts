@@ -272,7 +272,7 @@ async function loadDirect(
   return ready;
 }
 
-/** WebGPU where it loads and speaks its warm-up; any error there (caught) and the CPU takes over. */
+/** WebGPU where it loads and speaks its warm-up; any error there (caught) and the page goes to the CPU. */
 async function load(
   device: string,
   name: string,
@@ -286,10 +286,13 @@ async function load(
   try {
     return await loadOn("webgpu", name, voiceFile, speed, expected, threads);
   } catch (error) {
-    postMessage({ type: "stage", stage: "gpu-fallback", message: String(error).slice(0, 300) });
-    return loadOn("wasm", name, voiceFile, speed, expected, threads);
+    // Not here: WebGPU's runtime is already in this worker's memory (both together ran Tim's iPhone
+    // out of it, 16 Nov), so the page starts a fresh worker on the CPU.
+    throw new Error(`${GPU_FAILED} ${String(error).slice(0, 300)}`);
   }
 }
+/** A failed WebGPU load says so first, for the page to load again on the CPU. */
+const GPU_FAILED = "webgpu-failed:";
 
 async function loadOn(
   device: string,

@@ -452,7 +452,8 @@ const kaleModel = () => {
 const gpu = gpuTrial("lalala", (since) => voiceLog("system", "webgpu.crashed", { since }));
 // Phones stay on the CPU: WebGPU-first took Tim's iPhone tab down in a loop while the voice loaded
 // (16 Nov, 2493e61), before the marker could keep it off.
-const gpuTry = () => !isPhoneDevice() && gpu.allowed();
+let gpuFailedHere = false;
+const gpuTry = () => !isPhoneDevice() && !gpuFailedHere && gpu.allowed();
 export const webGpuBenched = () => gpu.benched();
 export const retryWebGpu = () => {
   gpu.reset();
@@ -473,6 +474,12 @@ const warm = modelWorker(
   {
     // Over once the first real sentence came back on WebGPU, or the model ended up on the CPU.
     message: (data) => {
+      // WebGPU failed to load (caught): this page loads again at once, in a fresh worker on the CPU.
+      if (data.type === "failed" && data.message.includes("webgpu-failed:")) {
+        gpuFailedHere = true;
+        voiceLog("system", "webgpu.failed", { message: data.message.slice(0, 300) });
+        queueMicrotask(() => warm.start());
+      }
       if (data.type === "audio") gpu.passed();
       if (data.type === "stage" && data.stage === "backend" && data.device !== "webgpu") gpu.passed();
     },
