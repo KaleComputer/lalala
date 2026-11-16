@@ -450,6 +450,9 @@ const kaleModel = () => {
 // WebGPU first on every device (Tim, 16 Nov), the CPU when it isn't there or errors (the worker
 // falls back); a try that took the tab down leaves its marker, and that device stays on the CPU.
 const gpu = gpuTrial("lalala", (since) => voiceLog("system", "webgpu.crashed", { since }));
+// Phones stay on the CPU: WebGPU-first took Tim's iPhone tab down in a loop while the voice loaded
+// (16 Nov, 2493e61), before the marker could keep it off.
+const gpuTry = () => !isPhoneDevice() && gpu.allowed();
 export const webGpuBenched = () => gpu.benched();
 export const retryWebGpu = () => {
   gpu.reset();
@@ -460,11 +463,11 @@ const warm = modelWorker(
   () => {
     liveVoice = kaleBuild();
     markLive(liveVoice);
-    if (gpu.allowed()) gpu.begin();
+    if (gpuTry()) gpu.begin();
     return new Worker(new URL("./kaleVoice.worker.ts", import.meta.url), { type: "module" });
   },
   () => ({
-    device: gpu.allowed() ? "gpu-if-available" : "wasm",
+    device: gpuTry() ? "gpu-if-available" : "wasm",
     ...kaleModel(),
   }),
   {
