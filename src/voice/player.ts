@@ -20,6 +20,7 @@ import { voiceErrorText } from "./voiceErrors";
 import {
   BUILT_IN_TOPIC_SOUND,
   isKaleVoice,
+  modelVoice,
   replyVoice,
   subscribeSettings,
   syncedSettings,
@@ -167,7 +168,23 @@ export class SpeechPlayer {
     this.stopFollowingSettings = subscribeSettings(() => {
       this.loadTopicSound();
       this.prepareVoice();
+      this.switchVoice();
     });
+  }
+
+  private heardVoice = `${replyVoice()} ${modelVoice(replyVoice()) ?? ""}`;
+  /**
+   * Another model or voice picked while a reply plays: what is still to come is spoken again in the
+   * new one, from the sentence playing now (Tim, 16 Nov: hear the switch at once, a short gap is fine).
+   */
+  private switchVoice(): void {
+    const now = `${replyVoice()} ${modelVoice(replyVoice()) ?? ""}`;
+    if (now === this.heardVoice) return;
+    this.heardVoice = now;
+    if (!this.running && this.queue.length === 0) return;
+    const rest = this.stop("voice switch");
+    voiceLog("voice", "playback.voice-switch", { voice: now, sentences: rest.length });
+    for (const text of rest) this.speak(text);
   }
 
   /** The reply voice loads with the call, so the first reply does not wait for it; the other is freed. */
