@@ -155,7 +155,7 @@ type DirectSession = {
 };
 type DirectOrt = {
   env: { wasm: { wasmPaths: string; numThreads: number }; versions?: { web?: string } };
-  InferenceSession: { create(model: Uint8Array, options: object): Promise<DirectSession> };
+  InferenceSession: { create(model: Uint8Array | string, options: object): Promise<DirectSession> };
   Tensor: new (type: string, data: BigInt64Array | Float32Array, dims: number[]) => Tensor;
 };
 const DIRECT_CACHE = "lalala-kale-voices";
@@ -177,12 +177,12 @@ async function dropStaleModel(name: string): Promise<void> {
   }
 }
 
-/** The model file from this browser's cache, else the network (then cached), its bytes reported as they come. */
-async function modelBytes(url: string, expected: number, name: string): Promise<ArrayBuffer> {
+/** The model file from this browser's cache, else the network (then cached), its download reported as it comes. */
+async function modelBlob(url: string, expected: number, name: string): Promise<Blob> {
   const cache = await caches.open(DIRECT_CACHE).catch(() => null);
   const hit = await cache?.match(url);
   postMessage({ type: "load", name, expected, cached: hit !== undefined, voice: loadingVoice });
-  if (hit) return hit.arrayBuffer();
+  if (hit) return hit.blob();
   const response = await fetch(url);
   if (!response.ok || response.body === null) throw new Error(`download ${response.status} ${url}`);
   const reader = response.body.getReader();
@@ -196,8 +196,9 @@ async function modelBytes(url: string, expected: number, name: string): Promise<
     postMessage({ type: "progress", loaded, total: Math.max(expected, loaded) });
   }
   const blob = new Blob(parts);
+  parts.length = 0;
   await cache?.put(url, new Response(blob)).catch(() => {});
-  return blob.arrayBuffer();
+  return blob;
 }
 
 let loadingVoice = "";
@@ -230,17 +231,20 @@ async function loadDirect(
   ]);
   const accents = Object.fromEntries((voicesJson.voices ?? []).map((entry) => [entry.id, entry.accent ?? "en-us"]));
   const shim = { Tensor: ort.Tensor, env: { localModelPath: "/models/" } } as unknown as Transformers;
-  const [bytes, [voicepack, extra], frontEnd] = await Promise.all([
-    modelBytes(new URL(`${base}onnx/model_web.onnx`, self.location.origin).href, expected, name),
+  const [modelFile, [voicepack, extra], frontEnd] = await Promise.all([
+    modelBlob(new URL(`${base}onnx/model_web.onnx`, self.location.origin).href, expected, name),
     voiceFiles(shim, name, voiceFile, voiceInputs),
     frontEndFor(accents[voiceFile] ?? "en-us"),
   ]);
   await trace("session-create", { device: "wasm" });
   // Unoptimized, as yesterday: the optimizer's 32-bit copies of the 16-bit text side cost a phone memory.
-  const session = await ort.InferenceSession.create(new Uint8Array(bytes), {
+  // By URL, not bytes: onnxruntime starts its wasm backend before it reads the model. With the 75 MB
+  // tiny already read into this worker, that start ran out of memory on Tim's iPhone (16 Nov).
+  const modelUrl = URL.createObjectURL(modelFile);
+  const session = await ort.InferenceSession.create(modelUrl, {
     executionProviders: ["wasm"],
     graphOptimizationLevel: "disabled",
-  });
+  }).finally(() => URL.revokeObjectURL(modelUrl));
   await trace("session-created");
   postMessage({
     type: "stage",
