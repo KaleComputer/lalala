@@ -17,6 +17,7 @@ import { soundGain } from "./extras/soundVolume";
 import { withPronunciations } from "./pronunciations";
 import { voiceLog } from "./voiceLog";
 import { voiceErrorText } from "./voiceErrors";
+import { narrowbandCall } from "./callRoute";
 import {
   BUILT_IN_TOPIC_SOUND,
   isKaleVoice,
@@ -712,13 +713,30 @@ export class SpeechPlayer {
   private async toOutputRate(audio: Float32Array): Promise<Float32Array<ArrayBuffer>> {
     const rate = this.context.sampleRate;
     const samples = Float32Array.from(audio);
-    if (rate === TTS_SAMPLE_RATE || samples.length === 0) return samples;
+    const narrow = narrowbandCall();
+    if ((rate === TTS_SAMPLE_RATE && !narrow) || samples.length === 0) return samples;
     const offline = new OfflineAudioContext(1, Math.ceil((samples.length / TTS_SAMPLE_RATE) * rate), rate);
     const buffer = offline.createBuffer(1, samples.length, TTS_SAMPLE_RATE);
     buffer.copyToChannel(samples, 0);
     const source = offline.createBufferSource();
     source.buffer = buffer;
-    source.connect(offline.destination);
+    let into: AudioNode = offline.destination;
+    // A Bluetooth call route (16 kHz codec): a little less of the harsh 2-4 kHz band and nothing the
+    // codec would only fold back as hiss above ~7 kHz.
+    if (narrow) {
+      const presence = offline.createBiquadFilter();
+      presence.type = "peaking";
+      presence.frequency.value = 3_000;
+      presence.Q.value = 0.9;
+      presence.gain.value = -4;
+      const top = offline.createBiquadFilter();
+      top.type = "lowpass";
+      top.frequency.value = Math.min(7_000, rate * 0.44);
+      top.Q.value = 0.6;
+      presence.connect(top).connect(offline.destination);
+      into = presence;
+    }
+    source.connect(into);
     source.start(0);
     return (await offline.startRendering()).getChannelData(0) as Float32Array<ArrayBuffer>;
   }

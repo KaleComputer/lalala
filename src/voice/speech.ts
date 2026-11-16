@@ -19,6 +19,7 @@ import {
 import { heldReply, TopicHold, type TopicSentence, unheardLines } from "./topicHold";
 import { VoiceComb } from "./voiceComb";
 import { micDeviceId } from "./settingsStore";
+import { setCallMicRate } from "./callRoute";
 import { voiceErrorText } from "./voiceErrors";
 import { voiceLog } from "./voiceLog";
 import { VoiceSounds } from "./voiceSounds";
@@ -597,6 +598,7 @@ export class VoiceSession {
     this.sounds = new VoiceSounds(context);
     const track = this.stream.getAudioTracks()[0];
     setActiveMicLabel(track?.label || null);
+    setCallMicRate(track?.getSettings?.().sampleRate ?? context.sampleRate);
     voiceLog("system", "mic.open", {
       context: context.state,
       rate: context.sampleRate,

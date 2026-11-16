@@ -1,3 +1,4 @@
+import { callMicRate, narrowbandCall } from "./callRoute";
 import {
   type CSSProperties,
   type KeyboardEvent as ReactKeyboardEvent,
@@ -1681,8 +1682,8 @@ export function SoundSection() {
               <>
                 <br />
                 Now: {liveMic}
-                {/hands-free|bluetooth|airpods|headset|hörger|hoerger/i.test(liveMic)
-                  ? " (a Bluetooth headset mic: it can cut your turns short; your Mac's own mic hears you better)"
+                {narrowbandCall()
+                  ? ` (Bluetooth call audio, ${Math.round((callMicRate() ?? 0) / 1000)} kHz: voices sound thin and can cut your turns short. This device's own mic here can keep the headset in full quality.)`
                   : ""}
               </>
             ) : null}
