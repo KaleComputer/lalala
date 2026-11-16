@@ -68,20 +68,21 @@ const MAX_SEGMENT_MS = 6_000;
 // Under this much speech a lone word is a noise the recogniser named ("you", "the").
 const MIN_LONE_WORD_MS = 500;
 /**
- * How long after the gate closes (its own HOLD_MS of quiet, ~0.7 s, already past) Tim's turn ends,
- * by how his words so far end: a finished sentence ends soon, a pause after "and" or "um" waits.
+ * How long after the gate closes (its own HOLD_MS of quiet, ~0.7 s, already past) Tim's turn ends, by
+ * the recogniser's own punctuation (a model signal, no word lists: Tim, 13 Nov): a sentence it ended
+ * ends soon; words it left open, or trailing off ("…", ","), wait for his long pauses.
  */
 // A turn ends only after real silence, however long Tim talks (2 Nov: "never end my turn while I'm
 // still speaking"): the gate's ~0.7 s hold, then this long with the mic near the room's floor and no
-// new words. ~1.8 s after a finished sentence, ~2.3 s mid-sentence, ~3 s after "um" or "and".
+// new words.
 const END_AFTER_SENTENCE_MS = 1_100;
-const END_OPEN_MS = 1_600;
-const END_HESITATION_MS = 2_300;
+const END_OPEN_MS = 2_300;
 // With the voice detector, quiet is its silence: it starts ~0.15 s after his last word, where the gate
-// closes 0.7 s after it. Tim's own pauses inside a turn (10-13 Nov logs, 3,236 of them) run 0.85 s at
-// the 10th percentile, 1.1 s median, 1.55 s at the 75th, and Parakeet ends every partial with a full
-// stop: so the waits keep about the old tolerance for silence and only lose the gate's slack.
-const VAD_END = { sentence: 1_500, open: 1_800, hesitation: 2_400 } as const;
+// closes 0.7 s after it. Tim's pauses inside a turn (16 Nov, 201 of them, gate close to reopen, the
+// gate's 0.7 s hold on top): 0.44 s median, 0.79 s at the 75th percentile, 1.58 s at the 90th, 2.22 s
+// at the 95th. An open sentence waits past his 95th (~2.8 s of detector quiet); a finished one ends
+// sooner (16 Nov: 1.8 s ended him mid-sentence, "…now that we have").
+const VAD_END = { sentence: 1_500, open: 2_600 } as const;
 // Quiet means within this many dB of the room's floor: his soft trailing words are not.
 const QUIET_OVER_FLOOR_DB = 8;
 // Loud is Tim only with a voice in it (Presence's harmonic comb, voiceComb.ts) this recently: steps,
@@ -108,10 +109,6 @@ const MAX_REOPENS = 3;
 const REVIVE_EVERY_MS = 1_000;
 // A tap this soon after the mic came back was the tap that brought it back, not a hang-up.
 const REVIVE_TAP_MS = 1_000;
-const HESITATION =
-  /(?:,|\b(?:um+|uh+|er+|erm|and|but|so|or|because|cause|like|the|a|an|to|of|for|with|that|which|if|when|then|i|my|your|our|their|is|are|was|were|we|you|it|have|has|had|do|does|did|can|could|will|would|should|must|might|be|been|not|also|just|about|in|on|at|from|by|as|than|this|these|those|some|any|what|how|why|where|who)\s*)$/i;
-// Parakeet writes "Um." and "and." with a full stop; they are still a voice going on.
-const FILLER = /\b(?:um+|uh+|er+|erm|and|but|so|or|because)[.!?]+$/i;
 // Backchannels never cut a reply off (ElevenLabs' interruption ignore terms, which Presence uses).
 const BACKCHANNEL = new Set([
   "ok",
@@ -198,15 +195,11 @@ function endpointWait(
   vad: boolean,
 ): { readonly ms: number; readonly rule: string } {
   const text = asciiPunctuation(partial).trim();
-  const end = vad
-    ? VAD_END
-    : { sentence: END_AFTER_SENTENCE_MS, open: END_OPEN_MS, hesitation: END_HESITATION_MS };
+  const end = vad ? VAD_END : { sentence: END_AFTER_SENTENCE_MS, open: END_OPEN_MS };
   if (text === "") return { ms: end.open, rule: "no-words-yet" };
-  // A trailing "…" is a voice trailing off, not a finished sentence; "Um." and "and." are not either.
-  if (HESITATION.test(text) || FILLER.test(text) || /(?:\.\.\.|…)$/.test(text)) {
-    return { ms: end.hesitation, rule: "hesitation" };
-  }
-  if (/[.!?…]["')\]]*$/.test(text)) return { ms: end.sentence, rule: "sentence" };
+  // The recogniser's marks: "…" or "," is a voice trailing off; ".", "!" or "?" a sentence it ended.
+  if (/(?:\.\.\.|…|,)["')\]]*$/.test(text)) return { ms: end.open, rule: "trailing" };
+  if (/[.!?]["')\]]*$/.test(text)) return { ms: end.sentence, rule: "sentence" };
   return { ms: end.open, rule: "open" };
 }
 
