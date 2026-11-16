@@ -238,15 +238,6 @@ export const setModelVoice = (model: string, voice: string) =>
 /** Kale's own voices, all in kaleVoice.worker, one model at a time. */
 export const isKaleVoice = (voice: string) => voice in SMALL_VOICES;
 
-/**
- * The Kale voice a page died with (browser.ts). Nothing switches on its own (Tim, 15 Nov: "we show
- * that something is wrong, and ask what we should do"): that voice waits, and the bar asks
- * (VoiceCrashAsk.tsx) until a pick answers it.
- */
-export const VOICE_CRASHED_KEY = "lalala:voice-crashed";
-export const crashedVoice = () => read(VOICE_CRASHED_KEY);
-/** "Try it again": the ask goes and the voice loads. */
-export const retryCrashedVoice = () => write(VOICE_CRASHED_KEY, null);
 
 /**
  * The reply voice every device starts on: kale-tts-1-nano (Tim, 16 Nov); kale-tts-1-tiny, the
@@ -269,9 +260,7 @@ export const replyVoicePick = (): string => {
   if (stored === "llama-kokoro") return WARM_VOICE;
   return stored;
 };
-/** Any pick answers the crash ask too. */
 export const setReplyVoice = (voice: string) => {
-  write(VOICE_CRASHED_KEY, null);
   write(REPLY_VOICE_KEY, voice === "auto" ? null : voice);
 };
 /** The voice that speaks now, with "auto" resolved for this device. */

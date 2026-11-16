@@ -6,8 +6,6 @@
 import type { VoiceBarModel } from "../VoiceBar";
 import {
   SMALL_VOICES,
-  VOICE_CRASHED_KEY,
-  crashedVoice,
   modelVoice,
   autoRetrySeconds,
   defaultReplyVoice,
@@ -63,7 +61,7 @@ for (const name of ["parakeet", "kokoro", "kale-kokoro", "llama-kokoro"]) {
 }
 // kale-tts-1-tiny took Tim's iPhone tab down on WebGPU (15 Nov), loading and right after it was
 // ready: a kill no script can catch. A page that ends with a Kale voice in memory and no pagehide
-// leaves this mark; the next load holds that voice and asks what to do (settingsStore's crashedVoice).
+// leaves this mark; the next load logs it and loads the same voice again (Tim, 16 Nov: no notice, no switch).
 // The mark names its page, which holds a Web Lock for its life: another open lalala tab's mark is
 // no crash, since the browser frees a page's locks only when the page is gone.
 const VOICE_LIVE = "lalala:voice-live";
@@ -88,12 +86,8 @@ const crashChecked: Promise<void> =
         .then(({ held }) => {
           const [voice, page] = died!.split(" ");
           if (held?.some((lock) => lock.name === pageLock(page ?? ""))) return;
-          storage((store) => {
-            store.removeItem(VOICE_LIVE);
-            store.setItem(VOICE_CRASHED_KEY, voice!);
-          });
-          voiceLog("system", "speech.died", { model: voice, asks: true });
-          document.dispatchEvent(new Event("lalala:settings"));
+          storage((store) => store.removeItem(VOICE_LIVE));
+          voiceLog("system", "speech.died", { model: voice });
         })
         .catch(() => {});
 let crashKnown = died === null;
@@ -470,7 +464,6 @@ let voiceBuild = kokoroBuild();
 let voicePick = replyVoice();
 let warmBuild = kaleBuild();
 let warmVoice = modelVoice(kaleBuild());
-let crashAsk = crashedVoice();
 let retryEvery = autoRetrySeconds();
 document.addEventListener("lalala:settings", () => {
   trackWhere();
@@ -486,10 +479,6 @@ document.addEventListener("lalala:settings", () => {
     ears.releaseWhenIdle();
     if (earsModel === "computer") void refreshComputerSpeech();
     else if (speechPrewarmed) startEars();
-  }
-  if (crashedVoice() !== crashAsk) {
-    crashAsk = crashedVoice();
-    if (!crashAsk && speechPrewarmed) prewarmVoice();
   }
   // Another voice inside the same model: the running worker swaps its voice file, since a second
   // copy of the model in a tab is what iOS ends it for (15 Nov).
@@ -748,8 +737,6 @@ export const startWarmVoice = () => {
     void crashChecked.then(startWarmVoice);
     return;
   }
-  // It took the tab down last time: nothing loads until the bar's ask is answered.
-  if (crashedVoice() === kaleBuild()) return;
   if (wantsComputer.voice() && voiceStandIn() === "kokoro") return;
   warm.start();
 };

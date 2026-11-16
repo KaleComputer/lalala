@@ -13,10 +13,7 @@ import { termsReplacer } from "./terms";
 // graphs (release-draft make_web_graph.py): this runtime has no float->double Cast.
 const TRANSFORMERS_GPU =
   "https://esm.sh/@huggingface/transformers@4.3.2?deps=onnxruntime-web@1.31.1,onnxruntime-common@1.31.1";
-// On the CPU (phones) the older runtime: lalala's page with nano peaked ~320 MB lower in a phone-sized
-// WebKit (864 MB against 1,188 MB), and that was what took Tim's iPhone tab past its limit next to the
-// canvas (16 Nov). It runs the same float32 web graph.
-const TRANSFORMERS_CPU = "https://cdn.jsdelivr.net/npm/@huggingface/transformers@3.8.1/dist/transformers.min.js";
+
 const RATE = 24_000;
 const STYLE = 256;
 // Kokoro reads at most 512 ids, its two pads included.
@@ -146,6 +143,114 @@ type Message = {
 let voice: Promise<Voice> | null = null;
 let queue: Promise<unknown> = Promise.resolve();
 
+
+// Phones (and any CPU run): yesterday's working setup, onnxruntime-web's plain wasm build imported
+// directly, no Transformers.js. Transformers.js always loads onnxruntime's WebGPU-capable build, and
+// with it lalala's page went past Tim's iPhone limit next to the canvas (16 Nov; 3.8.1 and 4.3.2 both).
+const ORT_DIRECT = "https://cdn.jsdelivr.net/npm/onnxruntime-web@1.24.1/dist/ort.wasm.min.mjs";
+type DirectSession = {
+  run(feeds: Record<string, unknown>): Promise<Record<string, Tensor>>;
+  release(): Promise<void>;
+};
+type DirectOrt = {
+  env: { wasm: { wasmPaths: string; numThreads: number }; versions?: { web?: string } };
+  InferenceSession: { create(model: Uint8Array, options: object): Promise<DirectSession> };
+  Tensor: new (type: string, data: BigInt64Array | Float32Array, dims: number[]) => Tensor;
+};
+const DIRECT_CACHE = "lalala-kale-voices";
+
+/** The model file from this browser's cache, else the network (then cached), its bytes reported as they come. */
+async function modelBytes(url: string, expected: number, name: string): Promise<ArrayBuffer> {
+  const cache = await caches.open(DIRECT_CACHE).catch(() => null);
+  const hit = await cache?.match(url);
+  postMessage({ type: "load", name, expected, cached: hit !== undefined });
+  if (hit) return hit.arrayBuffer();
+  const response = await fetch(url);
+  if (!response.ok || response.body === null) throw new Error(`download ${response.status} ${url}`);
+  const reader = response.body.getReader();
+  const parts: Uint8Array<ArrayBuffer>[] = [];
+  let loaded = 0;
+  for (;;) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    parts.push(value);
+    loaded += value.byteLength;
+    postMessage({ type: "progress", loaded, total: Math.max(expected, loaded) });
+  }
+  const blob = new Blob(parts);
+  await cache?.put(url, new Response(blob)).catch(() => {});
+  return blob.arrayBuffer();
+}
+
+async function loadDirect(
+  name: string,
+  voiceFile: string,
+  speed: number,
+  expected: number,
+  threads?: number,
+): Promise<Voice> {
+  await trace("runtime-import", { runtime: "onnxruntime-web 1.24.1 wasm" });
+  const ort = (await import(/* @vite-ignore */ ORT_DIRECT)) as DirectOrt;
+  ort.env.wasm.wasmPaths = ORT_DIRECT.slice(0, ORT_DIRECT.lastIndexOf("/") + 1);
+  ort.env.wasm.numThreads =
+    threads ?? (self.crossOriginIsolated ? Math.min(4, navigator.hardwareConcurrency || 4) : 1);
+  await trace("runtime-ready");
+  // Transformers.js's copies (desktops keep theirs) only fill a phone's storage.
+  void caches.delete("transformers-cache").catch(() => {});
+  const base = `/models/${name}/`;
+  const json = <T>(file: string, fallback: T) =>
+    fetch(base + file)
+      .then((response) => (response.ok ? (response.json() as Promise<T>) : fallback))
+      .catch(() => fallback);
+  const [voiceInputs, voicesJson, tokenizer] = await Promise.all([
+    json<Voice["voiceInputs"]>("voice_inputs.json", []),
+    json<{ voices?: { id: string; accent?: string }[] }>("voices.json", {}),
+    json<{ model: { vocab: Record<string, number> } }>("tokenizer.json", { model: { vocab: {} } }),
+  ]);
+  const accents = Object.fromEntries((voicesJson.voices ?? []).map((entry) => [entry.id, entry.accent ?? "en-us"]));
+  const shim = { Tensor: ort.Tensor, env: { localModelPath: "/models/" } } as unknown as Transformers;
+  const [bytes, [voicepack, extra], frontEnd] = await Promise.all([
+    modelBytes(new URL(`${base}onnx/model_web.onnx`, self.location.origin).href, expected, name),
+    voiceFiles(shim, name, voiceFile, voiceInputs),
+    frontEndFor(accents[voiceFile] ?? "en-us"),
+  ]);
+  await trace("session-create", { device: "wasm" });
+  // Unoptimized, as yesterday: the optimizer's 32-bit copies of the 16-bit text side cost a phone memory.
+  const session = await ort.InferenceSession.create(new Uint8Array(bytes), {
+    executionProviders: ["wasm"],
+    graphOptimizationLevel: "disabled",
+  });
+  await trace("session-created");
+  postMessage({
+    type: "stage",
+    stage: "backend",
+    device: "wasm",
+    threads: ort.env.wasm.numThreads,
+    ort: ort.env.versions?.web ?? "1.24.1",
+    transformers: null,
+  });
+  const vocab = tokenizer.model.vocab;
+  const tokenize = (ipa: string) => {
+    const ids = [0];
+    for (const ch of ipa) {
+      const id = vocab[ch];
+      if (id !== undefined && id !== 0) ids.push(id);
+    }
+    ids.push(0);
+    return { input_ids: new ort.Tensor("int64", BigInt64Array.from(ids.map(BigInt)), [1, ids.length]) };
+  };
+  const model = Object.assign(
+    async (inputs: object) => (await session.run(inputs as Record<string, unknown>)) as { waveform: Tensor },
+    { dispose: () => session.release() },
+  );
+  const ready: Voice = { hf: shim, model, name, speed, tokenize, voicepack, extra, voiceInputs, frontEnd, accents };
+  await trace("warmup");
+  await speak(ready, "Hi.");
+  await trace("warmup-done");
+  postMessage({ type: "ready" });
+  return ready;
+}
+
 async function load(
   device: string,
   name: string,
@@ -158,8 +263,9 @@ async function load(
   // "wasm": WebGPU ended Tim's iPhone tab (15 Nov), a kill nothing can catch.
   if (device === "gpu-if-available") device = (await hasGpu()) ? "webgpu" : "wasm";
   await trace("worker", { device, model: name, voice: voiceFile, ...(device === "webgpu" ? await gpuDetails() : {}) });
+  if (device === "wasm") return loadDirect(name, voiceFile, speed, expected, threads);
   await trace("runtime-import");
-  const hf = (await import(/* @vite-ignore */ device === "webgpu" ? TRANSFORMERS_GPU : TRANSFORMERS_CPU)) as Transformers;
+  const hf = (await import(/* @vite-ignore */ TRANSFORMERS_GPU)) as Transformers;
   await trace("runtime-ready");
   // Its runtime takes half the cores by default: 2 on Tim's iPhone, 4.8x real time against 7.3x
   // with all 4 (15 Nov). Every core, up to 4, as the direct runtime had.

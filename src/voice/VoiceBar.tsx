@@ -18,7 +18,6 @@ import { CanvasTabs } from "./CanvasSwitcher";
 import { CompactingDefrag } from "./extras/CompactingDefrag";
 import { useUpdateReady } from "./phoneUpdate";
 import { SecretAsks } from "./SecretAsk";
-import { VoiceCrashAsk } from "./VoiceCrashAsk";
 import { TOPIC_EVENT, TOPIC_SOUND_FALLBACK_MS } from "./player";
 import { type VoiceFileUpload, VoiceInput, type VoiceInputSubmit } from "./VoiceInput";
 import {
@@ -483,10 +482,7 @@ export function VoiceBar(props: {
       ) : null}
       {/* Only the real bar: a preview copy (the bar states card) would show and answer it too. */}
       {inputHosts !== null && !previewed ? (
-        <>
-          <SecretAsks host={inputHosts.panel} bar={inputHosts.bar} />
-          <VoiceCrashAsk host={inputHosts.panel} />
-        </>
+        <SecretAsks host={inputHosts.panel} bar={inputHosts.bar} />
       ) : null}
       {micHost !== null && props.onMute
         ? createPortal(
