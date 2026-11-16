@@ -5,6 +5,7 @@
 // Transformers.js reports load and run errors; only the words come from Kale's own front end
 // (matcha/kaleTts.js, as the warm voice). Credits: NOTICE.md.
 import { G2p, G2pModel, normalizer, readTable } from "./matcha/kaleTts.js";
+import { BritishG2p, britishNormalizer } from "./matcha/enGb.js";
 import { termsReplacer } from "./terms";
 
 const TRANSFORMERS = "https://cdn.jsdelivr.net/npm/@huggingface/transformers@3.8.1/dist/transformers.min.js";
@@ -14,11 +15,17 @@ const STYLE = 256;
 const MAX_IDS = 510;
 const PIECE_GAP_S = 0.06;
 const PEAK = 0.95;
-type FrontEndFiles = { g2pModel: string; lexicon: string; override: string; terms: string };
+type FrontEndFiles = {
+  g2pModel: string;
+  lexicon: string;
+  override: string;
+  terms: string;
+  /** British G2p and dates (matcha/enGb.js) on top of the files. */
+  british?: boolean;
+};
 /**
  * Pronunciation front ends by accent tag: each voice's "accent" in its model's voices.json picks one,
- * as in the release's JS API. British English (en-gb, the d03 and d13 voices) plugs in here when the
- * british-16nov front end ships; until then its voices use en-us, said once in the log.
+ * as in the release's JS API. A missing one falls back to en-us, said once in the log.
  */
 const FRONT_ENDS: Record<string, FrontEndFiles | null> = {
   "en-us": {
@@ -27,8 +34,20 @@ const FRONT_ENDS: Record<string, FrontEndFiles | null> = {
     override: new URL("./matcha/override.tsv", import.meta.url).href,
     terms: new URL("./matcha/terms.tsv", import.meta.url).href,
   },
-  "en-gb": null,
+  // British English (british-16nov: CMUdict-made list through Kale's us -> gb rules, Britfone 3.0.1).
+  // Staged, not on: today's models learned US ids only, so d03 and d13 switch together with the GB
+  // fine-tuned weights. Until then only a page opened with ?en-gb uses it (enGbOn).
+  "en-gb": {
+    g2pModel: new URL("./matcha/en-gb/g2p.bin", import.meta.url).href,
+    lexicon: new URL("./matcha/en-gb/lexicon.tsv", import.meta.url).href,
+    override: new URL("./matcha/en-gb/override.tsv", import.meta.url).href,
+    terms: new URL("./matcha/en-gb/terms.tsv", import.meta.url).href,
+    british: true,
+  },
 };
+/** The British front end is staged behind this; the load message's enGb turns it on for a page. */
+let enGbOn = false;
+const frontEndReady = (accent: string) => (accent === "en-gb" ? enGbOn : FRONT_ENDS[accent] != null);
 type FrontEnd = {
   readonly accent: string;
   readonly g2p: G2p;
@@ -37,7 +56,7 @@ type FrontEnd = {
 const frontEnds = new Map<string, Promise<FrontEnd>>();
 /** The front end for a voice's accent, built once per accent and kept. */
 function frontEndFor(accent: string): Promise<FrontEnd> {
-  const used = FRONT_ENDS[accent] ? accent : "en-us";
+  const used = frontEndReady(accent) ? accent : "en-us";
   if (used !== accent) postMessage({ type: "stage", stage: "frontend", accent, used });
   let built = frontEnds.get(used);
   if (!built) {
@@ -52,8 +71,8 @@ function frontEndFor(accent: string): Promise<FrontEnd> {
       readTable(override, lex);
       return {
         accent: used,
-        g2p: new G2p(lex, new G2pModel(g2pModel)),
-        normalize: spokenWith(normalizer(lex), termsReplacer(terms)),
+        g2p: files.british ? new BritishG2p(lex, new G2pModel(g2pModel)) : new G2p(lex, new G2pModel(g2pModel)),
+        normalize: spokenWith(files.british ? britishNormalizer(lex) : normalizer(lex), termsReplacer(terms)),
       };
     });
     frontEnds.set(used, built);
@@ -105,6 +124,8 @@ type Message = {
   model?: string;
   voice?: string;
   threads?: number;
+  /** Use the staged British front end for en-gb voices (a page opened with ?en-gb). */
+  enGb?: boolean;
   speed?: number;
   /** The model's own bytes (settingsStore's SMALL_VOICES), for the download bar. */
   expected?: number;
@@ -294,6 +315,7 @@ self.onmessage = (event: MessageEvent<Message>) => {
   const message = event.data;
   if (voice === null) {
     device = message.device ?? "wasm";
+    enGbOn = message.enGb === true;
     threads = message.threads;
     start(message);
     if (message.type === "load") return;
