@@ -7,6 +7,8 @@
 export const UNREACHABLE_TEXT = "Lost the connection to lalala. Reconnecting…";
 /** The link is down (voiceLink): the user's words wait in the outbox until it is back. */
 export const OFFLINE_TEXT = "Offline. Holding your words until the connection is back.";
+/** The brain's provider is retrying its request (T3's provider retry item): no reply is coming yet. */
+export const BRAIN_RETRY_TEXT = "Claude isn't answering. Trying again…";
 /** The outbox gave up on the user's words while lalala answered; a tap sends them again. */
 export const NOT_SENT_TEXT = "Your words weren't sent.";
 /** How long a plain request to lalala may go unanswered: a phone between networks queues it forever. */

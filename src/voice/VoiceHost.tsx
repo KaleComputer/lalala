@@ -37,6 +37,7 @@ import { endVoiceLogSession, startVoiceLogSession, voiceLog } from "./voiceLog";
 import {
   isGatewayStatus,
   NOT_SENT_TEXT,
+  BRAIN_RETRY_TEXT,
   OFFLINE_TEXT,
   REQUEST_TIMEOUT_MS,
   UNREACHABLE_TEXT,
@@ -232,6 +233,9 @@ export function VoiceHost({
   // A compaction is the thread's run too, but no reply: the call waits through it, with the bar's
   // defrag and no thinking pulse (Tim, 16 Nov: the pulse looped through a whole /compact).
   const replying = thinking && !compacting;
+  // The provider failing and retrying its request (16 Nov: eight retries, 105 s of a looping pulse
+  // in Tim's demo): the bar says so instead of thinking.
+  const brainRetrying = thinking && items.some(({ item }) => item.retrying === true);
 
   // The in-browser models' download and warm-up (the bar's readout); null once ready.
   const [loading, setLoading] = useState<ReadonlyArray<VoiceBarModel> | null>(null);
@@ -903,7 +907,9 @@ export function VoiceHost({
   // Offline says why everything else fails; then words that weren't sent (a tap sends them), then the rest.
   const problem = linkDown
     ? OFFLINE_TEXT
-    : notSent && heldCount > 0
+    : brainRetrying && phase !== "off"
+      ? BRAIN_RETRY_TEXT
+      : notSent && heldCount > 0
       ? NOT_SENT_TEXT
       : error;
   const live = phase !== "off" || starting;

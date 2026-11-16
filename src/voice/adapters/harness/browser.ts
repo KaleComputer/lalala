@@ -67,6 +67,8 @@ type Item = {
   startedAt?: string | null;
   updatedAt?: string | null;
   runId?: string | null;
+  status?: string;
+  retry?: unknown;
 };
 type Thread = {
   id: string;
@@ -92,6 +94,7 @@ const slim = (visibility: string, item: Item) => ({
     // The away inbox's (src/voice/inbox/capture.ts): which run, and what came in from outside.
     runId: item.runId ?? null,
     trigger: inboxTrigger(item),
+    retrying: item.type === "error" && item.status === "running" && item.retry != null,
   },
 });
 type Row = ReturnType<typeof slim>;

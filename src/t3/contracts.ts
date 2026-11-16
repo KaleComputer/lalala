@@ -17,5 +17,7 @@ export type OrchestrationV2ProjectedTurnItem = {
     readonly messageId?: string | null;
     readonly startedAt: string | null;
     readonly updatedAt: string;
+    /** T3's provider retry ("error" items): running while the provider tries its request again. */
+    readonly retrying?: boolean;
   };
 };
