@@ -128,6 +128,8 @@ type Message = {
   model?: string;
   voice?: string;
   threads?: number;
+  /** onnxruntime's WebGPU storage-buffer cache mode, when not its default. */
+  gpuCache?: string;
   /** A bench run's id: log every step to the session log (WebGPU bench runs). */
   trace?: string;
   /** Use the staged British front end for en-gb voices (a page opened with ?en-gb). */
@@ -205,6 +207,11 @@ async function load(
       // As the bench run that held on Tim's iPhone (15 Nov) and the warm voice: the optimizer's 32-bit
       // copies of the 16-bit text side cost a phone ~150 MB (WebKit) for ~5 % speed.
       ...(device === "wasm" ? { session_options: { graphOptimizationLevel: "disabled" } } : {}),
+      // WebGPU's buffer cache: onnxruntime keeps freed buffers by size ("bucket"), and every new
+      // sentence length adds sizes. gpuCache picks another mode (disabled, lazyRelease, simple).
+      ...(device === "webgpu" && gpuCache
+        ? { session_options: { executionProviders: [{ name: "webgpu", storageBufferCacheMode: gpuCache }] } }
+        : {}),
     }),
     hf.AutoTokenizer.from_pretrained(name),
     voiceFiles(hf, name, voiceFile, voiceInputs),
@@ -263,6 +270,7 @@ function pieces(ipa: string): string[] {
  * to take it before the next risky one, so a tab that iOS kills still shows where it died.
  */
 let traceId: string | null = null;
+let gpuCache: string | null = null;
 async function trace(step: string, data: Record<string, unknown> = {}) {
   if (traceId === null) return;
   const event = { t: new Date().toISOString(), who: "system", type: "bench.trace", bench: traceId, step, ...data };
@@ -395,6 +403,7 @@ self.onmessage = (event: MessageEvent<Message>) => {
     enGbOn = message.enGb === true;
     threads = message.threads;
     traceId = message.trace ?? null;
+    gpuCache = message.gpuCache ?? null;
     start(message);
     if (message.type === "load") return;
   }

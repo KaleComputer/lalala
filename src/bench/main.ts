@@ -13,7 +13,43 @@ type Line = { readonly id: string; readonly bucket: string; readonly text: strin
 const LINES: ReadonlyArray<Line> = LINE_SET.lines;
 const BUCKETS = ["short", "medium", "long", "paragraph"] as const;
 const QUERY = new URLSearchParams(location.search);
-const RUNS = Math.max(1, Math.min(10, Number(QUERY.get("runs")) || 3));
+/**
+ * ?bench=suite: Tim's one link. nano and tiny, each on the CPU and on WebGPU, one step per page load
+ * (the page moves itself on), so a tab never holds two models. A step that ends the tab is seen on the
+ * next load (still "running" in this browser's storage), reported, and skipped; errors are caught.
+ */
+const SUITE = QUERY.get("bench") === "suite";
+const SUITE_STEPS = [
+  { bench: "nano", backend: "wasm" },
+  { bench: "nano", backend: "webgpu" },
+  { bench: "tiny", backend: "wasm" },
+  { bench: "tiny", backend: "webgpu" },
+] as const;
+const STEP = Math.min(SUITE_STEPS.length - 1, Math.max(0, Number(QUERY.get("step")) || 0));
+const SUITE_KEY = "lalala:bench-suite";
+type SuiteResult = {
+  readonly step: number;
+  status: "running" | "done" | "failed" | "crashed";
+  firstP50?: number | null;
+  xrtP50?: number | null;
+  loadMs?: number;
+  message?: string;
+};
+const suiteState = (): SuiteResult[] => {
+  try {
+    return JSON.parse(localStorage.getItem(SUITE_KEY) ?? "[]") as SuiteResult[];
+  } catch {
+    return [];
+  }
+};
+const saveSuite = (results: SuiteResult[]) => {
+  try {
+    localStorage.setItem(SUITE_KEY, JSON.stringify(results));
+  } catch {
+    // No storage: the suite still runs, without crash memory.
+  }
+};
+const RUNS = Math.max(1, Math.min(10, Number(QUERY.get("runs")) || (SUITE ? 1 : 3)));
 const WARMUP = ["Hi there.", "The build is green, and the tests pass."];
 const SITE = import.meta.env.LALALA_HOST === "site";
 const RATE = 24_000;
@@ -25,9 +61,17 @@ const BENCH_MODELS = {
   storyteller: { label: "storyteller", model: "kale-storyteller", voice: "storyteller" },
   k10c: { label: "k10c (Hazel)", model: "k10c", voice: "hazel" },
 };
-const MODEL =
-  BENCH_MODELS[(QUERY.get("bench") ?? "") as keyof typeof BENCH_MODELS] ?? BENCH_MODELS.nano;
-const BACKEND: "wasm" | "webgpu" = QUERY.has("gpu") ? "webgpu" : "wasm";
+const MODEL = SUITE
+  ? BENCH_MODELS[SUITE_STEPS[STEP].bench]
+  : (BENCH_MODELS[(QUERY.get("bench") ?? "") as keyof typeof BENCH_MODELS] ?? BENCH_MODELS.nano);
+const BACKEND: "wasm" | "webgpu" = SUITE
+  ? SUITE_STEPS[STEP].backend
+  : QUERY.has("gpu")
+    ? "webgpu"
+    : "wasm";
+// WebGPU's default buffer cache kept every sentence length's buffers: WebKit's GPU process reached
+// 2.4 GB on the Mac for nano (563 MB with lazyRelease, same speed). ?cache= picks another mode.
+const GPU_CACHE = QUERY.get("cache") ?? "lazyRelease";
 const THREADS = Number(QUERY.get("threads")) || Math.min(4, navigator.hardwareConcurrency || 4);
 const BENCH_ID = `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 6)}`;
 
@@ -102,7 +146,7 @@ document.head.append(style);
 (window as Window & { __lalalaBootDone?: () => void }).__lalalaBootDone?.();
 const root = document.getElementById("root")!;
 root.innerHTML = `<main>
-  <h1>${MODEL.label} speed on this device</h1>
+  <h1>${SUITE ? `Speed suite · step ${STEP + 1} of ${SUITE_STEPS.length}: ` : ""}${MODEL.label} speed on this device</h1>
   <p>${BACKEND === "webgpu" ? "WebGPU" : `CPU, ${THREADS} threads`}. Loads the model once, warms up, then speaks ${LINES.length} lines (short replies to paragraphs) ${RUNS} times, sentence by sentence as lalala does. Nothing plays unless you tap play. A few minutes; keep this page in front.</p>
   <button id="run">Run</button>
   <div id="status"></div>
@@ -136,7 +180,9 @@ async function deviceInfo() {
         .join(", ")
     : null;
   return {
-    device: QUERY.get("device"),
+    device: QUERY.get("device") && BACKEND === "webgpu" && !QUERY.get("device")!.includes("webgpu")
+      ? `${QUERY.get("device")}-webgpu`
+      : QUERY.get("device"),
     ua: navigator.userAgent,
     hintModel: (hints?.model as string) || null,
     hintPlatform: hints ? `${hints.platform} ${hints.platformVersion}` : null,
@@ -243,7 +289,7 @@ async function start() {
       model: MODEL.model,
       voice: MODEL.voice,
       threads: THREADS,
-      ...(BACKEND === "webgpu" ? { trace: BENCH_ID } : {}),
+      ...(BACKEND === "webgpu" ? { trace: BENCH_ID, gpuCache: GPU_CACHE } : {}),
     });
     const error = await voice.ready;
     if (error !== null) throw new Error(error);
@@ -306,6 +352,7 @@ async function start() {
     log?.("bench.done", { ...summary, all: undefined, ...flat("all", summary.all), ...Object.assign({}, ...BUCKETS.map((bucket) => flat(bucket, summary[bucket]))) });
     showSummary(summary, device, voice.info);
     status("Done.");
+    suiteStepEnded({ status: "done", firstP50: summary.all.firstP50, xrtP50: summary.all.xrtP50, loadMs });
     const report = { at: new Date().toISOString(), device, runtime: voice.info, summary, lines: results };
     $("saved").textContent = await save(report).catch((cause: unknown) => `Couldn't save: ${String(cause)}`);
     const copy = $("copy") as HTMLButtonElement;
@@ -315,6 +362,7 @@ async function start() {
   } catch (error) {
     status(`Didn't finish: ${String(error)}`);
     log?.("bench.failed", { ...base, message: String(error) });
+    suiteStepEnded({ status: "failed", message: String(error).slice(0, 200) });
   } finally {
     voice.worker.terminate();
   }
@@ -380,5 +428,74 @@ async function save(report: Record<string, unknown>) {
   return "Saved to your computer (.lalala/bench).";
 }
 
-$("run").onclick = () => void start();
-if (QUERY.has("auto")) void start();
+/** The suite's step is over: note it, then the next step in a fresh page, or the table at the end. */
+function suiteStepEnded(result: Omit<SuiteResult, "step">) {
+  if (!SUITE) return;
+  const results = suiteState().filter((entry) => entry.step !== STEP);
+  results.push({ step: STEP, ...result });
+  saveSuite(results);
+  nextSuiteStep(results);
+}
+function nextSuiteStep(results: SuiteResult[]) {
+  if (STEP + 1 < SUITE_STEPS.length) {
+    const next = new URL(location.href);
+    next.searchParams.set("step", String(STEP + 1));
+    next.searchParams.set("auto", "");
+    window.setTimeout(() => location.replace(next), 1500);
+    return;
+  }
+  showSuite(results);
+}
+function showSuite(results: SuiteResult[]) {
+  log?.("bench.suite", Object.fromEntries(results.flatMap((entry) => {
+    const name = `${SUITE_STEPS[entry.step]?.bench}_${SUITE_STEPS[entry.step]?.backend}`;
+    return [[`${name}_status`, entry.status], [`${name}_xrt`, entry.xrtP50 ?? null], [`${name}_first`, entry.firstP50 ?? null], [`${name}_message`, entry.message ?? null]];
+  })));
+  const table = results
+    .toSorted((a, b) => a.step - b.step)
+    .map((entry) => {
+      const step = SUITE_STEPS[entry.step]!;
+      const what = `${BENCH_MODELS[step.bench].label} · ${step.backend === "webgpu" ? "WebGPU" : "CPU"}`;
+      const result =
+        entry.status === "done"
+          ? `${entry.xrtP50}× real time, first audio ${((entry.firstP50 ?? 0) / 1000).toFixed(2)} s`
+          : entry.status === "crashed"
+            ? "the tab died here (the Mac log has the last step)"
+            : `error: ${entry.message}`;
+      return `<tr><td>${what}</td><td colspan="2">${result}</td></tr>`;
+    })
+    .join("");
+  $("rows").innerHTML = table;
+  $("status").textContent = "Suite done.";
+}
+
+$("run").onclick = () => {
+  if (SUITE) {
+    saveSuite([]);
+    const first = new URL(location.href);
+    first.searchParams.set("step", "0");
+    first.searchParams.set("auto", "");
+    location.replace(first);
+    return;
+  }
+  void start();
+};
+if (SUITE && QUERY.has("auto")) {
+  const results = suiteState();
+  const mine = results.find((entry) => entry.step === STEP);
+  if (mine?.status === "running") {
+    // This step ended the tab last time: say so and go on.
+    mine.status = "crashed";
+    saveSuite(results);
+    void logger().then((write) => {
+      write?.("bench.crashed", { suiteStep: STEP, model: MODEL.model, backend: BACKEND });
+      nextSuiteStep(results);
+    });
+  } else if (mine) {
+    nextSuiteStep(results);
+  } else {
+    results.push({ step: STEP, status: "running" });
+    saveSuite(results);
+    void start();
+  }
+} else if (QUERY.has("auto")) void start();
