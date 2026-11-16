@@ -1,0 +1,65 @@
+{
+ "note": "The voices in this model, in picker order. accent picks the pronunciation front end (en-us, en-gb), as in the release's voices.json.",
+ "voices": [
+  {
+   "id": "s057b",
+   "name": "Kenzie",
+   "description": "esports hype woman",
+   "accent": "en-us"
+  },
+  {
+   "id": "f06",
+   "name": "Simone",
+   "description": "deep and confident woman",
+   "accent": "en-us"
+  },
+  {
+   "id": "d03",
+   "name": "Amy",
+   "description": "british woman, crisp news-style",
+   "accent": "en-gb"
+  },
+  {
+   "id": "w165",
+   "name": "Frankie",
+   "description": "hard-boiled detective's partner",
+   "accent": "en-us"
+  },
+  {
+   "id": "w602",
+   "name": "Darlene",
+   "description": "rough low-voiced old trucker woman",
+   "accent": "en-us"
+  },
+  {
+   "id": "m3",
+   "name": "Owen",
+   "description": "bright young host",
+   "accent": "en-us"
+  },
+  {
+   "id": "t071",
+   "name": "Toby",
+   "description": "mischievous prankster",
+   "accent": "en-us"
+  },
+  {
+   "id": "d13",
+   "name": "Jack",
+   "description": "british man, crisp news-style",
+   "accent": "en-gb"
+  },
+  {
+   "id": "x328",
+   "name": "Earl",
+   "description": "African American jazz granddad",
+   "accent": "en-us"
+  },
+  {
+   "id": "h013f",
+   "name": "Magnus",
+   "description": "deep dramatic trailer narrator",
+   "accent": "en-us"
+  }
+ ]
+}

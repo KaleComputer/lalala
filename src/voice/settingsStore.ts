@@ -191,6 +191,9 @@ export const WARM_VOICE = "kale-kokoro";
 export const NANO_VOICE = "kale-tts-1-nano";
 /** kale-tts-1-tiny (61 MB, the same 8 voices, clean recipe, no Hazel). */
 export const TINY_VOICE = "kale-tts-1-tiny";
+/** The 10-voice kale-tts-1-nano and -tiny (release10, 16 Nov), with the voices' public names. */
+export const NANO10_VOICE = "kale-tts-1-nano-10";
+export const TINY10_VOICE = "kale-tts-1-tiny-10";
 /** k10c (61 MB, Hazel's voice), which was called kale-tts-1-tiny until the clean build took the name. */
 export const K10C_VOICE = "k10c";
 /** The cheerful storyteller (voice 8 on the k10c recipe, 61 MB, 190 wpm): Tim's pick, 15 Nov. */
@@ -208,6 +211,19 @@ const EIGHT_VOICES: ReadonlyArray<ModelVoice> = [
   { id: "f06", name: "Woman (40s, deep and confident)" },
   { id: "f13", name: "Young man (Latino American, 20s, upbeat)" },
   { id: "e21", name: "Storyteller man (Latino American, 50s, calm)" },
+];
+/** The 10-voice build's voices, in the release's order and names (voices10.json, Tim's ok, 16 Nov). */
+const TEN_VOICES: ReadonlyArray<ModelVoice> = [
+  { id: "s057b", name: "Kenzie · esports hype woman" },
+  { id: "f06", name: "Simone · deep and confident woman" },
+  { id: "d03", name: "Amy · British woman, crisp news-style" },
+  { id: "w165", name: "Frankie · hard-boiled detective's partner" },
+  { id: "w602", name: "Darlene · rough low-voiced old trucker woman" },
+  { id: "m3", name: "Owen · bright young host" },
+  { id: "t071", name: "Toby · mischievous prankster" },
+  { id: "d13", name: "Jack · British man, crisp news-style" },
+  { id: "x328", name: "Earl · African American jazz granddad" },
+  { id: "h013f", name: "Magnus · deep dramatic trailer narrator" },
 ];
 /**
  * Kale's small voices: their model folder (public/models, for kaleVoice.worker) and the voices it
@@ -234,6 +250,8 @@ export const SMALL_VOICES: Readonly<
   },
   [NANO_VOICE]: { model: "kale-tts-1-nano", voices: EIGHT_VOICES, bytes: 10_676_685 },
   [TINY_VOICE]: { model: "kale-tts-1-tiny", voices: EIGHT_VOICES, bytes: 61_524_303 },
+  [NANO10_VOICE]: { model: "kale-tts-1-nano-10", voices: TEN_VOICES, bytes: 10_676_672 },
+  [TINY10_VOICE]: { model: "kale-tts-1-tiny-10", voices: TEN_VOICES, bytes: 61_524_035 },
   [K10C_VOICE]: { model: "k10c", voices: [{ id: "hazel", name: "Hazel" }], bytes: 61_507_783 },
   [PREVIEW_VOICE]: {
     model: "kale-tts-1-tiny-preview",
