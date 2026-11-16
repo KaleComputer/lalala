@@ -76,3 +76,15 @@ Id	ID
 .env	dot en vee
 .env.local	dot env dot local
 .env.example	dot env dot example
+# Tim, 16 Nov: MLX and SGLang were said wrong, and "the beta lead is" read "lead" as the metal.
+MLX	M L X
+mlx	M L X
+mlx-audio	M L X audio
+MLX-audio	M L X audio
+SGLang	S G lang
+sglang	S G lang
+beta lead	beta leed
+team lead	team leed
+tech lead	tech leed
+release lead	release leed
+voice lead	voice leed
