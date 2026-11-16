@@ -65,6 +65,7 @@ import {
   type SttModel,
   useSyncedSettings,
 } from "./settingsStore";
+import { micLabel, subscribeMicLabel } from "./speech";
 import { replyVoicePlugins, subscribeReplyVoices } from "./replyVoices";
 import {
   browserFaster,
@@ -1617,6 +1618,7 @@ export function SoundSection() {
   }, []);
 
   const named = (mics ?? []).filter((device) => device.deviceId !== "" && device.label !== "");
+  const liveMic = useSyncExternalStore(subscribeMicLabel, micLabel, () => null);
   return (
     <Section title="Sounds and microphone" named>
       <PickRow
@@ -1664,9 +1666,20 @@ export function SoundSection() {
       <PickRow
         title="Microphone"
         description={
-          named.length === 0 && mics !== null
-            ? "Start a call once to let the page name this device's microphones."
-            : "Used from the next call."
+          <>
+            {named.length === 0 && mics !== null
+              ? "Start a call once to let the page name this device's microphones."
+              : "Used from the next call."}
+            {liveMic ? (
+              <>
+                <br />
+                Now: {liveMic}
+                {/hands-free|bluetooth|airpods|headset|hörger|hoerger/i.test(liveMic)
+                  ? " (a Bluetooth headset mic: it can cut your turns short; your Mac's own mic hears you better)"
+                  : ""}
+              </>
+            ) : null}
+          </>
         }
         // Not "Microphone": the bar's "Mute microphone" holds that word.
         label="Call microphone"

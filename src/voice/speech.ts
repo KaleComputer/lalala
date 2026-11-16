@@ -109,7 +109,7 @@ const REVIVE_EVERY_MS = 1_000;
 // A tap this soon after the mic came back was the tap that brought it back, not a hang-up.
 const REVIVE_TAP_MS = 1_000;
 const HESITATION =
-  /(?:,|\b(?:um+|uh+|er+|erm|and|but|so|or|because|cause|like|the|a|an|to|of|for|with|that|which|if|when|then|i|my|your|is|are|was|were|we|you|it)\s*)$/i;
+  /(?:,|\b(?:um+|uh+|er+|erm|and|but|so|or|because|cause|like|the|a|an|to|of|for|with|that|which|if|when|then|i|my|your|our|their|is|are|was|were|we|you|it|have|has|had|do|does|did|can|could|will|would|should|must|might|be|been|not|also|just|about|in|on|at|from|by|as|than|this|these|those|some|any|what|how|why|where|who)\s*)$/i;
 // Parakeet writes "Um." and "and." with a full stop; they are still a voice going on.
 const FILLER = /\b(?:um+|uh+|er+|erm|and|but|so|or|because)[.!?]+$/i;
 // Backchannels never cut a reply off (ElevenLabs' interruption ignore terms, which Presence uses).
@@ -175,6 +175,19 @@ function asciiPunctuation(text: string): string {
     .replace(/？/g, "? ")
     .replace(/！/g, "! ")
     .replace(/\s+/g, " ");
+}
+
+/** The name of the microphone the call has open (Settings shows it), or null before the first call. */
+let activeMicLabel: string | null = null;
+export const micLabel = () => activeMicLabel;
+export const subscribeMicLabel = (listener: () => void) => {
+  document.addEventListener("lalala:mic-label", listener);
+  return () => document.removeEventListener("lalala:mic-label", listener);
+};
+function setActiveMicLabel(label: string | null) {
+  if (label === activeMicLabel) return;
+  activeMicLabel = label;
+  document.dispatchEvent(new Event("lalala:mic-label"));
 }
 
 /** How long to wait after the gate closed before Tim's turn ends, from his words so far. */
@@ -589,10 +602,13 @@ export class VoiceSession {
     this.capture = capture;
     this.player = new SpeechPlayer(context, () => this.updatePhase(), this.events.onError);
     this.sounds = new VoiceSounds(context);
+    const track = this.stream.getAudioTracks()[0];
+    setActiveMicLabel(track?.label || null);
     voiceLog("system", "mic.open", {
       context: context.state,
       rate: context.sampleRate,
-      settings: this.stream.getAudioTracks()[0]?.getSettings?.() ?? null,
+      label: track?.label ?? null,
+      settings: track?.getSettings?.() ?? null,
     });
     // iOS: opening the microphone switches the audio session and can leave the context suspended.
     if ((context.state as string) !== "running") void context.resume().catch(() => {});
@@ -998,7 +1014,12 @@ export class VoiceSession {
       20 * Math.log10(level + 1e-9) >= this.floorDb + QUIET_OVER_FLOOR_DB;
     // The voice detector, once running, says when he is quiet: a loud room no longer holds a turn open.
     const vadTurn = this.stt.speechOnly;
-    const heard = vadTurn ? this.stt.voiceWithin(VAD_VOICE_MS) : loud && this.voiceLike;
+    // Quiet takes both witnesses: the detector's silence and a mic near the room's floor. A narrowband
+    // Bluetooth headset mic (16 kHz hands-free) makes the detector miss Tim's softer words, and his
+    // turns ended mid-sentence while he talked (16 Nov, "…can you make sure that now that we have").
+    const heard = vadTurn
+      ? this.stt.voiceWithin(VAD_VOICE_MS) || (loud && this.voiceLike && this.combProven)
+      : loud && this.voiceLike;
     if (heard && this.turnVoiced) this.heardTim(now);
     const carried =
       !vadTurn && this.turnVoiced && this.gateHasTim && now - this.timHeardAt < GATE_CARRY_MS;
