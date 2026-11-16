@@ -159,12 +159,28 @@ type DirectOrt = {
   Tensor: new (type: string, data: BigInt64Array | Float32Array, dims: number[]) => Tensor;
 };
 const DIRECT_CACHE = "lalala-kale-voices";
+/** One Identity node (onnx opset 13): only there to start onnxruntime's backend. */
+const STARTER_MODEL = "CAg6NwoQCgF4EgF5IghJZGVudGl0eRIBdFoPCgF4EgoKCAgBEgQKAggBYg8KAXkSCgoICAESBAoCCAFCBAoAEA0=";
 // New weights behind the same file name (16 Nov: bundle-gb16, then the release 10-voice nano and the
 // Ettin tiny): a browser's copy from before is dropped once, from both caches, so it never runs old
 // weights on new voice files.
 const MODEL_REVISION = "r10-ettin";
 /** A model whose graph changed again after that, by its own revision. */
-const MODEL_REVISIONS: Record<string, string> = { "kale-tts-1-tiny-10-classic": "end-clamp" };
+const MODEL_REVISIONS: Record<string, string> = {
+  "kale-tts-1-tiny-10-classic": "end-clamp",
+  "kale-tts-1-tiny-10": "ettin-d-fixed",
+};
+
+/**
+ * A model over GitHub's 100 MB file limit ships in parts (onnx/model_web.parts.json lists them); it
+ * is joined into one file here, cached as the whole.
+ */
+async function modelParts(name: string): Promise<string[] | null> {
+  return fetch(`/models/${name}/onnx/model_web.parts.json`)
+    .then((response) => (response.ok ? response.json() : null))
+    .then((list: unknown) => (Array.isArray(list) && list.every((part) => typeof part === "string") ? list : null))
+    .catch(() => null);
+}
 async function dropStaleModel(name: string): Promise<void> {
   const marker = new URL(`/models/${name}/.revision`, self.location.origin).href;
   const graph = new URL(`/models/${name}/onnx/model_web.onnx`, self.location.origin).href;
@@ -181,27 +197,40 @@ async function dropStaleModel(name: string): Promise<void> {
 }
 
 /** The model file from this browser's cache, else the network (then cached), its download reported as it comes. */
-async function modelBlob(url: string, expected: number, name: string): Promise<Blob> {
+async function modelBytes(url: string, expected: number, name: string): Promise<Uint8Array> {
   const cache = await caches.open(DIRECT_CACHE).catch(() => null);
   const hit = await cache?.match(url);
   postMessage({ type: "load", name, expected, cached: hit !== undefined, voice: loadingVoice });
-  if (hit) return hit.blob();
-  const response = await fetch(url);
-  if (!response.ok || response.body === null) throw new Error(`download ${response.status} ${url}`);
-  const reader = response.body.getReader();
-  const parts: Uint8Array<ArrayBuffer>[] = [];
+  if (hit) return new Uint8Array(await hit.arrayBuffer());
+  const files = (await modelParts(name))?.map((part) => new URL(part, url).href) ?? [url];
+  // The whole model in one buffer: WebKit fails to read back a Blob of a model this size
+  // ("Too much data buffered…", NotReadableError).
+  const sizes = await Promise.all(
+    files.map((file) =>
+      fetch(file, { method: "HEAD" }).then((response) => Number(response.headers.get("content-length")) || 0),
+    ),
+  );
+  const total = sizes.every((size) => size > 0) ? sizes.reduce((sum, size) => sum + size, 0) : 0;
+  const chunks: Uint8Array<ArrayBuffer>[] = [];
+  const whole = total > 0 ? new Uint8Array(total) : null;
   let loaded = 0;
-  for (;;) {
-    const { done, value } = await reader.read();
-    if (done) break;
-    parts.push(value);
-    loaded += value.byteLength;
-    postMessage({ type: "progress", loaded, total: Math.max(expected, loaded) });
+  for (const file of files) {
+    const response = await fetch(file);
+    if (!response.ok || response.body === null) throw new Error(`download ${response.status} ${file}`);
+    const reader = response.body.getReader();
+    for (;;) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      if (whole && loaded + value.byteLength <= total) whole.set(value, loaded);
+      else chunks.push(value);
+      loaded += value.byteLength;
+      postMessage({ type: "progress", loaded, total: Math.max(expected, loaded) });
+    }
   }
-  const blob = new Blob(parts);
-  parts.length = 0;
-  await cache?.put(url, new Response(blob)).catch(() => {});
-  return blob;
+  const bytes = whole && loaded === total ? whole : new Uint8Array(await new Blob(chunks).arrayBuffer());
+  chunks.length = 0;
+  await cache?.put(url, new Response(bytes)).catch(() => {});
+  return bytes;
 }
 
 let loadingVoice = "";
@@ -234,20 +263,22 @@ async function loadDirect(
   ]);
   const accents = Object.fromEntries((voicesJson.voices ?? []).map((entry) => [entry.id, entry.accent ?? "en-us"]));
   const shim = { Tensor: ort.Tensor, env: { localModelPath: "/models/" } } as unknown as Transformers;
+  // onnxruntime's wasm backend starts before the model is read: with the 75 MB tiny already in this
+  // worker, that start ran out of memory on Tim's iPhone (16 Nov). A 65-byte Identity model starts it.
+  await (await ort.InferenceSession.create(Uint8Array.from(atob(STARTER_MODEL), (c) => c.charCodeAt(0)), {
+    executionProviders: ["wasm"],
+  })).release();
   const [modelFile, [voicepack, extra], frontEnd] = await Promise.all([
-    modelBlob(new URL(`${base}onnx/model_web.onnx`, self.location.origin).href, expected, name),
+    modelBytes(new URL(`${base}onnx/model_web.onnx`, self.location.origin).href, expected, name),
     voiceFiles(shim, name, voiceFile, voiceInputs),
     frontEndFor(accents[voiceFile] ?? "en-us"),
   ]);
   await trace("session-create", { device: "wasm" });
   // Unoptimized, as yesterday: the optimizer's 32-bit copies of the 16-bit text side cost a phone memory.
-  // By URL, not bytes: onnxruntime starts its wasm backend before it reads the model. With the 75 MB
-  // tiny already read into this worker, that start ran out of memory on Tim's iPhone (16 Nov).
-  const modelUrl = URL.createObjectURL(modelFile);
-  const session = await ort.InferenceSession.create(modelUrl, {
+  const session = await ort.InferenceSession.create(modelFile, {
     executionProviders: ["wasm"],
     graphOptimizationLevel: "disabled",
-  }).finally(() => URL.revokeObjectURL(modelUrl));
+  });
   await trace("session-created");
   postMessage({
     type: "stage",
@@ -291,7 +322,9 @@ async function load(
   expected: number,
   threads?: number,
 ): Promise<Voice> {
-  if (device === "gpu-if-available") device = (await webGpuWorks()) ? "webgpu" : "wasm";
+  // A model in parts loads only through onnxruntime-web directly (Transformers.js wants one file).
+  if (device === "gpu-if-available")
+    device = (await modelParts(name)) === null && (await webGpuWorks()) ? "webgpu" : "wasm";
   if (device !== "webgpu") return loadOn(device, name, voiceFile, speed, expected, threads);
   try {
     return await loadOn("webgpu", name, voiceFile, speed, expected, threads);
