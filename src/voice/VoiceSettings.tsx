@@ -2317,13 +2317,13 @@ export function SpeechSection() {
               {
                 value: "kale-tts-1-nano",
                 label: VOICE_LABELS["kale-tts-1-nano"],
-                detail: "8 voices, smallest and fastest",
+                detail: "8 voices, with the storyteller",
                 meta: VOICE_COSTS["kale-tts-1-nano"],
               },
               {
                 value: "kale-tts-1-tiny",
                 label: VOICE_LABELS["kale-tts-1-tiny"],
-                detail: "8 voices, clearest",
+                detail: "8 voices, with the storyteller, clearest",
                 meta: VOICE_COSTS["kale-tts-1-tiny"],
               },
               {

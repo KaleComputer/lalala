@@ -187,11 +187,11 @@ const write = (key: string, value: string | null) => {
 
 /** Kale's warm voice, Kokoro, by its id in the settings. */
 export const WARM_VOICE = "kale-kokoro";
-/** kale-tts-1-nano (~10 MB, 8 voices in one graph, clean recipe): Automatic (Tim, 16 Nov). */
+/** The 8-voice kale-tts-1-nano (~10 MB, one graph, clean recipe), with the storyteller (v7). */
 export const NANO_VOICE = "kale-tts-1-nano";
 /** kale-tts-1-tiny (61 MB, the same 8 voices, clean recipe, no Hazel). */
 export const TINY_VOICE = "kale-tts-1-tiny";
-/** The 10-voice kale-tts-1-nano and -tiny (release10, 16 Nov), with the voices' public names. */
+/** The 10-voice kale-tts-1-nano and -tiny (release10, 16 Nov), with the voices' public names; nano is Automatic. */
 export const NANO10_VOICE = "kale-tts-1-nano-10";
 export const TINY10_VOICE = "kale-tts-1-tiny-10";
 /** k10c (61 MB, Hazel's voice), which was called kale-tts-1-tiny until the clean build took the name. */
@@ -276,10 +276,10 @@ export const isKaleVoice = (voice: string) => voice in SMALL_VOICES;
 
 
 /**
- * The reply voice every device starts on: kale-tts-1-nano (Tim, 16 Nov); kale-tts-1-tiny, the
- * storyteller, k10c and the warm Kokoro are picks in Settings.
+ * The reply voice every device starts on: the 10-voice kale-tts-1-nano (Tim, 16 Nov: "I want to
+ * have the new model"); the 8-voice builds, the storyteller, k10c and the warm Kokoro are picks.
  */
-export const defaultReplyVoice = (): string => NANO_VOICE;
+export const defaultReplyVoice = (): string => NANO10_VOICE;
 
 /**
  * Who speaks the replies on this device: "auto" (nothing stored: defaultReplyVoice), Kale's
