@@ -23,11 +23,25 @@ function normalizer(lex) {
   return (text) => spokenText(text.replace(/\bDr\.(?=\s*$)/, "Doctor"), rules, spell);
 }
 
+/** The comma that closes a list ("speed, melody, clear words, and how it sounds") is dropped: read aloud it sounds like a
+ *  break in the list. Decided by structure only: the comma sits right before "and"/"or", and the same clause (back to the
+ *  last ; : or the sentence start) already has an earlier comma with only short items (1-2 words) between the commas.
+ *  A lone clause comma ("we finished the work, and then we went home") has no earlier comma and stays. */
+function dropListComma(s) {
+  return s.replace(/,(\s+(?:and|or)\s)/gi, (m, tail, at) => {
+    const clause = s.slice(0, at).split(/[;:]/).pop();
+    const parts = clause.split(",");
+    if (parts.length < 2) return m;
+    const items = parts.slice(1).map((p) => p.trim().split(/\s+/).filter(Boolean).length);
+    return items.every((n) => n >= 1 && n <= 2) ? tail : m;
+  });
+}
+
 /** Sentences, each one model call (as the app and the bench render). */
 function sentences(text, normalize) {
   const out = [];
   for (const part of normalize(text).split(/(?<=[.!?…])\s+|\n+/)) {
-    const s = part.trim();
+    const s = dropListComma(part.trim());
     if (s) out.push(s);
   }
   return out;
