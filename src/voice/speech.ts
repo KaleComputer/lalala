@@ -1228,6 +1228,20 @@ export class VoiceSession {
       .catch((error: unknown) => {
         const message = error instanceof Error ? error.message : String(error);
         voiceLog("system", "error", { where: "stt", message });
+        // The final transcript failed (the computer's speech service gone, this phone's recogniser
+        // out of memory), but the live partials heard the words: send those, never drop them
+        // (17 Nov: four minutes of Tim's words were lost this way).
+        if (hasRealWords(partial)) {
+          voiceLog("user", "transcript.from-partial", { partial, because: message.slice(0, 200) });
+          const spoken = this.player?.recentlySpoken() ?? [];
+          this.deliver(startedDuringReply ? stripEcho(partial, spoken) : partial, spoken, {
+            speechMs,
+            partials,
+            startedAt,
+            duringReply: startedDuringReply,
+          });
+          return;
+        }
         this.events.onError(voiceErrorText(error));
       })
       .finally(() => {
