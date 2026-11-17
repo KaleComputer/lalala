@@ -168,7 +168,8 @@ const MODEL_REVISION = "r10-ettin";
 /** A model whose graph changed again after that, by its own revision. */
 const MODEL_REVISIONS: Record<string, string> = {
   "kale-tts-1-tiny-10-classic": "end-clamp",
-  "kale-tts-1-tiny-10": "ettin-q-vc",
+  "kale-tts-1-tiny-10": "release-magnus",
+  "kale-tts-1-nano-10": "release-magnus",
 };
 
 /**
