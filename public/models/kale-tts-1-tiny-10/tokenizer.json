@@ -1,124 +1,124 @@
 {
-  "version": "1.0",
-  "truncation": null,
-  "padding": null,
-  "added_tokens": [
-    {
-      "id": 0,
-      "content": "$",
-      "single_word": false,
-      "lstrip": false,
-      "rstrip": false,
-      "normalized": false,
-      "special": true
-    }
-  ],
-  "normalizer": {
-    "type": "Replace",
-    "pattern": {
-      "Regex": "[^$;:,.!? abdefhijklmnopstuvwzɑɐæɔðəɚɛɜɡɪŋθɹɾʃʊʌʒʔˈˌː̩ᵻɒ]"
-    },
-    "content": ""
-  },
-  "pre_tokenizer": {
-    "type": "Split",
-    "pattern": {
-      "Regex": ""
-    },
-    "behavior": "Isolated",
-    "invert": false
-  },
-  "post_processor": {
-    "type": "TemplateProcessing",
-    "single": [
-      {
-        "SpecialToken": {
-          "id": "$",
-          "type_id": 0
-        }
-      },
-      {
-        "Sequence": {
-          "id": "A",
-          "type_id": 0
-        }
-      },
-      {
-        "SpecialToken": {
-          "id": "$",
-          "type_id": 0
-        }
-      }
-    ],
-    "special_tokens": {
-      "$": {
-        "id": "$",
-        "ids": [
-          0
-        ],
-        "tokens": [
-          "$"
-        ]
-      }
-    }
-  },
-  "decoder": null,
-  "model": {
-    "vocab": {
-      "$": 0,
-      ";": 1,
-      ":": 2,
-      ",": 3,
-      ".": 4,
-      "!": 5,
-      "?": 6,
-      " ": 16,
-      "a": 43,
-      "b": 44,
-      "d": 46,
-      "e": 47,
-      "f": 48,
-      "h": 50,
-      "i": 51,
-      "j": 52,
-      "k": 53,
-      "l": 54,
-      "m": 55,
-      "n": 56,
-      "o": 57,
-      "p": 58,
-      "s": 61,
-      "t": 62,
-      "u": 63,
-      "v": 64,
-      "w": 65,
-      "z": 68,
-      "ɑ": 69,
-      "ɐ": 70,
-      "æ": 72,
-      "ɔ": 76,
-      "ð": 81,
-      "ə": 83,
-      "ɚ": 85,
-      "ɛ": 86,
-      "ɜ": 87,
-      "ɡ": 92,
-      "ɪ": 102,
-      "ŋ": 112,
-      "θ": 119,
-      "ɹ": 123,
-      "ɾ": 125,
-      "ʃ": 131,
-      "ʊ": 135,
-      "ʌ": 138,
-      "ʒ": 147,
-      "ʔ": 148,
-      "ˈ": 156,
-      "ˌ": 157,
-      "ː": 158,
-      "̩": 7,
-      "ᵻ": 177,
-      "ɒ": 71
-    }
+ "version": "1.0",
+ "truncation": null,
+ "padding": null,
+ "added_tokens": [
+  {
+   "id": 0,
+   "content": "$",
+   "single_word": false,
+   "lstrip": false,
+   "rstrip": false,
+   "normalized": false,
+   "special": true
   }
+ ],
+ "normalizer": {
+  "type": "Replace",
+  "pattern": {
+   "Regex": "[^$;:,.!? abdefhijklmnopstuvwzɑɒɐæɔðəɚɛɜɡɪŋθɹɾʃʊʌʒʔˈˌː̩ᵻ]"
+  },
+  "content": ""
+ },
+ "pre_tokenizer": {
+  "type": "Split",
+  "pattern": {
+   "Regex": ""
+  },
+  "behavior": "Isolated",
+  "invert": false
+ },
+ "post_processor": {
+  "type": "TemplateProcessing",
+  "single": [
+   {
+    "SpecialToken": {
+     "id": "$",
+     "type_id": 0
+    }
+   },
+   {
+    "Sequence": {
+     "id": "A",
+     "type_id": 0
+    }
+   },
+   {
+    "SpecialToken": {
+     "id": "$",
+     "type_id": 0
+    }
+   }
+  ],
+  "special_tokens": {
+   "$": {
+    "id": "$",
+    "ids": [
+     0
+    ],
+    "tokens": [
+     "$"
+    ]
+   }
+  }
+ },
+ "decoder": null,
+ "model": {
+  "vocab": {
+   "$": 0,
+   ";": 1,
+   ":": 2,
+   ",": 3,
+   ".": 4,
+   "!": 5,
+   "?": 6,
+   " ": 16,
+   "a": 43,
+   "b": 44,
+   "d": 46,
+   "e": 47,
+   "f": 48,
+   "h": 50,
+   "i": 51,
+   "j": 52,
+   "k": 53,
+   "l": 54,
+   "m": 55,
+   "n": 56,
+   "o": 57,
+   "p": 58,
+   "s": 61,
+   "t": 62,
+   "u": 63,
+   "v": 64,
+   "w": 65,
+   "z": 68,
+   "ɑ": 69,
+   "ɐ": 70,
+   "æ": 72,
+   "ɔ": 76,
+   "ð": 81,
+   "ə": 83,
+   "ɚ": 85,
+   "ɛ": 86,
+   "ɜ": 87,
+   "ɡ": 92,
+   "ɪ": 102,
+   "ŋ": 112,
+   "θ": 119,
+   "ɹ": 123,
+   "ɾ": 125,
+   "ʃ": 131,
+   "ʊ": 135,
+   "ʌ": 138,
+   "ʒ": 147,
+   "ʔ": 148,
+   "ˈ": 156,
+   "ˌ": 157,
+   "ː": 158,
+   "̩": 7,
+   "ᵻ": 177,
+   "ɒ": 71
+  }
+ }
 }

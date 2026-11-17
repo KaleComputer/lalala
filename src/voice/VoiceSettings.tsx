@@ -1718,7 +1718,9 @@ type VoiceBuild =
   | "kale-tts-1-nano-10"
   | "kale-tts-1-tiny-10"
   | "kale-tts-1-tiny-10-classic"
-  | "kale-tts-1-tiny-10-i8"
+  | "kale-tts-1-tiny-10-fp16"
+  | "kale-tts-1-nano-10-i8"
+  | "kale-tts-1-nano-10-fp16"
   | "k10c"
   | "kale-tts-1-tiny-preview"
   | "computer";
@@ -1738,7 +1740,9 @@ const VOICE_LABELS: Record<VoiceBuild, string> = {
   "kale-tts-1-nano-10": "kale-tts-1-nano\u00a0·\u00a010 voices",
   "kale-tts-1-tiny-10": "kale-tts-1-tiny\u00a0·\u00a010 voices\u00a0·\u00a0new encoder",
   "kale-tts-1-tiny-10-classic": "kale-tts-1-tiny\u00a0·\u00a010 voices",
-  "kale-tts-1-tiny-10-i8": "kale-tts-1-tiny\u00a0·\u00a010 voices\u00a0·\u00a0new encoder\u00a0·\u00a0int8",
+  "kale-tts-1-tiny-10-fp16": "kale-tts-1-tiny\u00a0·\u00a010 voices\u00a0·\u00a0new encoder\u00a0·\u00a0fp16",
+  "kale-tts-1-nano-10-i8": "kale-tts-1-nano\u00a0·\u00a010 voices\u00a0·\u00a0int8",
+  "kale-tts-1-nano-10-fp16": "kale-tts-1-nano\u00a0·\u00a010 voices\u00a0·\u00a0fp16",
   k10c: "k10c (Hazel)",
   "kale-tts-1-tiny-preview": "kale-tts-1-tiny preview",
   computer: "Kokoro 82M\u00a0·\u00a0Computer",
@@ -1758,7 +1762,9 @@ const VOICE_COSTS: Partial<Record<string, string>> = {
   "kale-tts-1-nano-10": "11 MB download · ~0.3 GB memory",
   "kale-tts-1-tiny-10": "77 MB download · ~0.6 GB memory",
   "kale-tts-1-tiny-10-classic": "62 MB download · ~0.3 GB memory",
-  "kale-tts-1-tiny-10-i8": "79 MB download · ~0.6 GB memory",
+  "kale-tts-1-tiny-10-fp16": "99 MB download · ~0.7 GB memory",
+  "kale-tts-1-nano-10-i8": "13 MB download · ~0.3 GB memory",
+  "kale-tts-1-nano-10-fp16": "18 MB download · ~0.3 GB memory",
   k10c: "62 MB download · ~0.2 GB memory",
   "kale-tts-1-tiny-preview": "61 MB download · ~0.2 GB memory",
 };
@@ -1829,7 +1835,9 @@ const LOADED_KEYS: Record<string, string> = {
   "kale-tts-1-nano-10": "kale-tts-1-nano-10",
   "kale-tts-1-tiny-10": "kale-tts-1-tiny-10",
   "kale-tts-1-tiny-10-classic": "kale-tts-1-tiny-10-classic",
-  "kale-tts-1-tiny-10-i8": "kale-tts-1-tiny-10-i8",
+  "kale-tts-1-tiny-10-fp16": "kale-tts-1-tiny-10-fp16",
+  "kale-tts-1-nano-10-i8": "kale-tts-1-nano-10-i8",
+  "kale-tts-1-nano-10-fp16": "kale-tts-1-nano-10-fp16",
   k10c: "k10c",
   "kale-tts-1-tiny-preview": "kale-tts-1-tiny-preview",
 };
@@ -2350,10 +2358,22 @@ export function SpeechSection() {
                 meta: VOICE_COSTS["kale-tts-1-tiny-10-classic"],
               },
               {
-                value: "kale-tts-1-tiny-10-i8",
-                label: VOICE_LABELS["kale-tts-1-tiny-10-i8"],
-                detail: "the same with more 8-bit numbers, to compare speed (the bench: ?bench=suite)",
-                meta: VOICE_COSTS["kale-tts-1-tiny-10-i8"],
+                value: "kale-tts-1-tiny-10-fp16",
+                label: VOICE_LABELS["kale-tts-1-tiny-10-fp16"],
+                detail: "the same in 16-bit numbers, to compare speed (the bench: ?bench=suite)",
+                meta: VOICE_COSTS["kale-tts-1-tiny-10-fp16"],
+              },
+              {
+                value: "kale-tts-1-nano-10-i8",
+                label: VOICE_LABELS["kale-tts-1-nano-10-i8"],
+                detail: "the nano with more 8-bit numbers, to compare speed",
+                meta: VOICE_COSTS["kale-tts-1-nano-10-i8"],
+              },
+              {
+                value: "kale-tts-1-nano-10-fp16",
+                label: VOICE_LABELS["kale-tts-1-nano-10-fp16"],
+                detail: "the nano in 16-bit numbers, to compare speed",
+                meta: VOICE_COSTS["kale-tts-1-nano-10-fp16"],
               },
               {
                 value: "kale-tts-1-tiny-10",

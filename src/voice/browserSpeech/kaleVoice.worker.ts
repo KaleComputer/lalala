@@ -135,6 +135,8 @@ type Message = {
   /** A bench run's id: log every step to the session log (WebGPU bench runs). */
   trace?: string;
   speed?: number;
+  /** The model's graph doesn't run on WebGPU: load it on the CPU. */
+  cpuOnly?: boolean;
   /** On the CPU: "transformers" runs it through Transformers.js instead of onnxruntime-web directly (the bench). */
   runtime?: string;
   /** The model's own bytes (settingsStore's SMALL_VOICES), for the download bar. */
@@ -168,8 +170,8 @@ const MODEL_REVISION = "r10-ettin";
 /** A model whose graph changed again after that, by its own revision. */
 const MODEL_REVISIONS: Record<string, string> = {
   "kale-tts-1-tiny-10-classic": "end-clamp",
-  "kale-tts-1-tiny-10": "release-magnus",
-  "kale-tts-1-nano-10": "release-magnus",
+  "kale-tts-1-tiny-10": "release-1151",
+  "kale-tts-1-nano-10": "release-1151",
 };
 
 /**
@@ -647,7 +649,8 @@ let threads: number | undefined;
 let runtime: string | undefined;
 const start = (message: Message) => {
   voice = load(
-    device,
+    // A model whose graph doesn't run on WebGPU loads on the CPU, also when swapped in here.
+    message.cpuOnly ? "wasm" : device,
     message.model ?? "kale-tts-1-nano",
     message.voice ?? "",
     message.speed ?? 1,

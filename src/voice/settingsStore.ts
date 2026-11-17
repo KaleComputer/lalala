@@ -196,8 +196,10 @@ export const NANO10_VOICE = "kale-tts-1-nano-10";
 export const TINY10_VOICE = "kale-tts-1-tiny-10";
 /** The same 10-voice tiny with the text encoder from before Ettin (375ccba), to hear them side by side. */
 export const TINY10_CLASSIC_VOICE = "kale-tts-1-tiny-10-classic";
-/** The release tiny with selective int8 (faster on some devices), to compare with it (Tim, 17 Nov). */
-export const TINY10_I8_VOICE = "kale-tts-1-tiny-10-i8";
+/** Precision variants of the release tiny and nano, to compare speed by ear and in ?bench=suite (17 Nov). */
+export const TINY10_FP16_VOICE = "kale-tts-1-tiny-10-fp16";
+export const NANO10_I8_VOICE = "kale-tts-1-nano-10-i8";
+export const NANO10_FP16_VOICE = "kale-tts-1-nano-10-fp16";
 /** k10c (61 MB, Hazel's voice), which was called kale-tts-1-tiny until the clean build took the name. */
 export const K10C_VOICE = "k10c";
 /** The cheerful storyteller (voice 8 on the k10c recipe, 61 MB, 190 wpm): Tim's pick, 15 Nov. */
@@ -242,6 +244,8 @@ export const SMALL_VOICES: Readonly<
       readonly speed?: number;
       /** The model's own download: its graph and one voice (the bar's total, Settings' cost). */
       readonly bytes: number;
+      /** Runs on the CPU everywhere: its graph doesn't run on Chrome's WebGPU (the 17 Nov release set). */
+      readonly cpuOnly?: boolean;
     }
   >
 > = {
@@ -254,12 +258,14 @@ export const SMALL_VOICES: Readonly<
   },
   [NANO_VOICE]: { model: "kale-tts-1-nano", voices: EIGHT_VOICES, bytes: 10_676_685 },
   [TINY_VOICE]: { model: "kale-tts-1-tiny", voices: EIGHT_VOICES, bytes: 61_524_303 },
-  [NANO10_VOICE]: { model: "kale-tts-1-nano-10", voices: TEN_VOICES, bytes: 13_048_533 },
+  [NANO10_VOICE]: { model: "kale-tts-1-nano-10", voices: TEN_VOICES, bytes: 13_048_699, cpuOnly: true },
   // The Ettin text side, the release tiny (per-voice end clamp; the first Ettin export garbled sound and timing); its
   // tokenizer (2.1 MB) loads with it.
-  [TINY10_VOICE]: { model: "kale-tts-1-tiny-10", voices: TEN_VOICES, bytes: 76_551_428 },
+  [TINY10_VOICE]: { model: "kale-tts-1-tiny-10", voices: TEN_VOICES, bytes: 76_551_596, cpuOnly: true },
   [TINY10_CLASSIC_VOICE]: { model: "kale-tts-1-tiny-10-classic", voices: TEN_VOICES, bytes: 61_524_035 },
-  [TINY10_I8_VOICE]: { model: "kale-tts-1-tiny-10-i8", voices: TEN_VOICES, bytes: 78_714_234 },
+  [TINY10_FP16_VOICE]: { model: "kale-tts-1-tiny-10-fp16", voices: TEN_VOICES, bytes: 99_147_021, cpuOnly: true },
+  [NANO10_I8_VOICE]: { model: "kale-tts-1-nano-10-i8", voices: TEN_VOICES, bytes: 12_624_993, cpuOnly: true },
+  [NANO10_FP16_VOICE]: { model: "kale-tts-1-nano-10-fp16", voices: TEN_VOICES, bytes: 18_267_360, cpuOnly: true },
   [K10C_VOICE]: { model: "k10c", voices: [{ id: "hazel", name: "Hazel" }], bytes: 61_507_783 },
   [PREVIEW_VOICE]: {
     model: "kale-tts-1-tiny-preview",
@@ -308,6 +314,8 @@ export const replyVoicePick = (): string => {
   if (stored === "llama-kokoro") return WARM_VOICE;
   // Variant C of the Ettin tiny (16 Nov) gave way to the fixed export under the Ettin tiny's own name.
   if (stored === "kale-tts-1-tiny-10-fp") return "kale-tts-1-tiny-10";
+  // The first int8 tiny (17 Nov) didn't pass the precision set's check; its pick moves to the tiny.
+  if (stored === "kale-tts-1-tiny-10-i8") return "kale-tts-1-tiny-10";
   return stored;
 };
 export const setReplyVoice = (voice: string) => {

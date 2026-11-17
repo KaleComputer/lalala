@@ -457,7 +457,13 @@ const kaleBuild = (): string => {
 const kaleModel = () => {
   const build = kaleBuild();
   const small = SMALL_VOICES[build];
-  return { model: small?.model, voice: modelVoice(build), speed: small?.speed ?? 1, expected: small?.bytes };
+  return {
+    model: small?.model,
+    voice: modelVoice(build),
+    speed: small?.speed ?? 1,
+    expected: small?.bytes,
+    cpuOnly: small?.cpuOnly === true,
+  };
 };
 // WebGPU first on every device (Tim, 16 Nov), the CPU when it isn't there or errors (the worker
 // falls back); a try that took the tab down leaves its marker, and that device stays on the CPU.
@@ -478,12 +484,12 @@ const warm = modelWorker(
   () => {
     liveVoice = kaleBuild();
     markLive(liveVoice);
-    if (gpuTry()) gpu.begin();
+    if (gpuTry() && !kaleModel().cpuOnly) gpu.begin();
     return new Worker(new URL("./kaleVoice.worker.ts", import.meta.url), { type: "module" });
   },
   () => ({
-    device: gpuTry() ? "gpu-if-available" : "wasm",
     ...kaleModel(),
+    device: gpuTry() && !kaleModel().cpuOnly ? "gpu-if-available" : "wasm",
     ...(memoryTight ? { threads: 1 } : {}),
   }),
   {

@@ -1,0 +1,52 @@
+[
+ {
+  "name": "voice_prosody",
+  "dims": [
+   1,
+   32
+  ]
+ },
+ {
+  "name": "voice_prosody_col",
+  "dims": [
+   1,
+   32,
+   1
+  ]
+ },
+ {
+  "name": "voice_sound",
+  "dims": [
+   1,
+   16
+  ]
+ },
+ {
+  "name": "voice_pitch_floor",
+  "dims": [
+   1,
+   1
+  ]
+ },
+ {
+  "name": "voice_clamp_tail",
+  "dims": [
+   1,
+   1
+  ]
+ },
+ {
+  "name": "voice_clamp_thr",
+  "dims": [
+   1,
+   1
+  ]
+ },
+ {
+  "name": "voice_unvoice_hz",
+  "dims": [
+   1,
+   1
+  ]
+ }
+]
