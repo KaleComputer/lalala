@@ -172,6 +172,7 @@ const MODEL_REVISIONS: Record<string, string> = {
   "kale-tts-1-tiny-10-classic": "end-clamp",
   "kale-tts-1-tiny-10": "release-1151",
   "kale-tts-1-nano-10": "release-1151",
+  "kale-tts-1-tiny-10-i8": "release-1151",
 };
 
 /**

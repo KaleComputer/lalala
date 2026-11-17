@@ -16,7 +16,7 @@ const BUCKETS = ["short", "medium", "long", "paragraph"] as const;
 const QUERY = new URLSearchParams(location.search);
 /**
  * ?bench=suite: Tim's one link (17 Nov): the release tiny and nano against their precision variants
- * that passed (tiny fp16; nano int8 and fp16), all on the CPU through onnxruntime-web directly: these
+ * that passed (tiny int8 and fp16; nano int8 and fp16), all on the CPU through onnxruntime-web directly: these
  * graphs don't run on Chrome's WebGPU, and phones stay on the CPU. One model per page load (the page
  * moves itself on), so the tab unloads one before the next. A step that ends the tab is seen on the
  * next load (still "running" in this browser's storage), reported, and skipped; errors are caught.
@@ -24,6 +24,7 @@ const QUERY = new URLSearchParams(location.search);
 const SUITE = QUERY.get("bench") === "suite";
 const SUITE_STEPS = [
   { bench: "tiny10", backend: "wasm", runtime: "direct" },
+  { bench: "tiny10i8", backend: "wasm", runtime: "direct" },
   { bench: "tiny10fp16", backend: "wasm", runtime: "direct" },
   { bench: "nano10", backend: "wasm", runtime: "direct" },
   { bench: "nano10i8", backend: "wasm", runtime: "direct" },
@@ -75,6 +76,7 @@ const BENCH_MODELS = {
   nano10: { label: "kale-tts-1-nano · 10 voices", model: "kale-tts-1-nano-10", voice: "s057b" },
   tiny10: { label: "kale-tts-1-tiny · 10 voices (Ettin)", model: "kale-tts-1-tiny-10", voice: "s057b" },
   tiny10fp16: { label: "kale-tts-1-tiny · 10 voices (Ettin) · fp16", model: "kale-tts-1-tiny-10-fp16", voice: "s057b" },
+  tiny10i8: { label: "kale-tts-1-tiny · 10 voices (Ettin) · int8", model: "kale-tts-1-tiny-10-i8", voice: "s057b" },
   nano10i8: { label: "kale-tts-1-nano · 10 voices · int8", model: "kale-tts-1-nano-10-i8", voice: "s057b" },
   nano10fp16: { label: "kale-tts-1-nano · 10 voices · fp16", model: "kale-tts-1-nano-10-fp16", voice: "s057b" },
   storyteller: { label: "storyteller", model: "kale-storyteller", voice: "storyteller" },
