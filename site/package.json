@@ -7,8 +7,8 @@
     "build": "npm run typecheck && cd .. && npm ci --include=dev --no-audit --no-fund && npx vite build --mode site"
   },
   "dependencies": {
-    "@ui-sdk/core": "^0.1.0-beta.3",
-    "@ui-sdk/react": "^0.1.0-beta.3",
+    "@ui-sdk/core": "^0.1.0-beta.7",
+    "@ui-sdk/react": "^0.1.0-beta.7",
     "class-variance-authority": "^0.7.1",
     "heic-to": "^1.6.7",
     "tailwind-merge": "^3.7.0"
