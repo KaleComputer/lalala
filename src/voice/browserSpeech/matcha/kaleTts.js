@@ -20,7 +20,7 @@ function normalizer(lex) {
     return upper.length <= 5 && !(upper.length >= 3 && lex.has(letters.toLowerCase())) ? upper : [...upper].join(" ");
   };
   // The sentence splitter cuts after "Dr.", leaving it last, where dizione cannot tell it from "drive".
-  return (text) => spokenText(text.replace(/\bDr\.(?=\s*$)/, "Doctor"), rules, spell);
+  return (text) => spokenText(sizeSuffixes(text).replace(/\bDr\.(?=\s*$)/, "Doctor"), rules, spell);
 }
 
 /** The comma that closes a list ("speed, melody, clear words, and how it sounds") is dropped: read aloud it sounds like a
@@ -35,6 +35,14 @@ function dropListComma(s) {
     const items = parts.slice(1).map((p) => p.trim().split(/\s+/).filter(Boolean).length);
     return items.every((n) => n >= 1 && n <= 2) ? tail : m;
   });
+}
+
+/** Size suffixes on numbers, as in model sizes: an uppercase M, B or K right after the digits is a word ("Kokoro-82M" ->
+ *  "Kokoro-82 million", "7.5M" -> "7.5 million", "3B" -> "3 billion", "5K" -> "5 thousand"). Structure only: digits, then
+ *  the one uppercase letter, then no letter or digit (so "MB", "GB", "KB" stay units and lowercase "5m" / "3km" are untouched). */
+function sizeSuffixes(text) {
+  const word = { M: "million", B: "billion", K: "thousand" };
+  return text.replace(/(?<![\p{L}\p{N}.])(\d+(?:\.\d+)?)([MBK])(?![\p{L}\p{N}])/gu, (m, n, s) => `${n} ${word[s]}`);
 }
 
 /** Sentences, each one model call (as the app and the bench render). */

@@ -60,15 +60,6 @@ Wed	Wednesday
 Thu	Thursday
 Thurs	Thursday
 Fri	Friday
-1B	one bee
-3B	three bee
-7B	seven bee
-8B	eight bee
-13B	thirteen bee
-14B	fourteen bee
-32B	thirty two bee
-70B	seventy bee
-405B	four hundred five bee
 # A word a camelCase name splits into ("getUserById").
 Id	ID
 # Dotfiles (the open-release worker, 16 Nov). ".env" alone as "dot en vee": "dot env" was heard ".end" (M3,
