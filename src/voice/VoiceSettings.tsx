@@ -1741,8 +1741,8 @@ const VOICE_LABELS: Record<VoiceBuild, string> = {
   "kale-tts-1-nano-10": "kale-tts-1-nano\u00a0·\u00a0latest",
   "kale-tts-1-tiny-10": "kale-tts-1-tiny\u00a0·\u00a0latest",
   "kale-tts-1-tiny-10-classic": "kale-tts-1-tiny\u00a0·\u00a010 voices\u00a0·\u00a0old encoder",
-  "kale-tts-1-tiny-10-fp16": "kale-tts-1-tiny\u00a0·\u00a0latest\u00a0·\u00a0fp16",
-  "kale-tts-1-tiny-10-i8": "kale-tts-1-tiny\u00a0·\u00a0latest\u00a0·\u00a0int8",
+  "kale-tts-1-tiny-10-fp16": "kale-tts-1-tiny\u00a0·\u00a011:51\u00a0·\u00a0fp16",
+  "kale-tts-1-tiny-10-i8": "kale-tts-1-tiny\u00a0·\u00a011:51\u00a0·\u00a0int8",
   "kale-tts-1-nano-10-i8": "kale-tts-1-nano\u00a0·\u00a0latest\u00a0·\u00a0int8",
   "kale-tts-1-nano-10-fp16": "kale-tts-1-nano\u00a0·\u00a0latest\u00a0·\u00a0fp16",
   k10c: "k10c (Hazel)",
@@ -1762,7 +1762,7 @@ const VOICE_COSTS: Partial<Record<string, string>> = {
   "kale-tts-1-nano": "11 MB download · ~0.3 GB memory",
   "kale-tts-1-tiny": "62 MB download · ~0.3 GB memory",
   "kale-tts-1-nano-10": "13 MB download · ~0.3 GB memory",
-  "kale-tts-1-tiny-10": "77 MB download · ~0.6 GB memory",
+  "kale-tts-1-tiny-10": "83 MB download · ~0.6 GB memory",
   "kale-tts-1-tiny-10-classic": "62 MB download · ~0.3 GB memory",
   "kale-tts-1-tiny-10-fp16": "99 MB download · ~0.7 GB memory",
   "kale-tts-1-tiny-10-i8": "77 MB download · ~0.6 GB memory",
@@ -2321,7 +2321,7 @@ export function SpeechSection() {
               {
                 value: "kale-tts-1-tiny-10",
                 label: VOICE_LABELS["kale-tts-1-tiny-10"],
-                detail: "17 Nov 11:51 release, 10 voices, deep voices fixed, clearest",
+                detail: "17 Nov 19:02 release (melody retrain), 10 voices, clearest",
                 meta: VOICE_COSTS["kale-tts-1-tiny-10"],
               },
               {
@@ -2338,13 +2338,13 @@ export function SpeechSection() {
               {
                 value: "kale-tts-1-tiny-10-i8",
                 label: VOICE_LABELS["kale-tts-1-tiny-10-i8"],
-                detail: "the latest tiny with more 8-bit numbers",
+                detail: "the 11:51 tiny with more 8-bit numbers",
                 meta: VOICE_COSTS["kale-tts-1-tiny-10-i8"],
               },
               {
                 value: "kale-tts-1-tiny-10-fp16",
                 label: VOICE_LABELS["kale-tts-1-tiny-10-fp16"],
-                detail: "the latest tiny in 16-bit numbers (?bench=suite compares them)",
+                detail: "the 11:51 tiny in 16-bit numbers (?bench=suite compares them)",
                 meta: VOICE_COSTS["kale-tts-1-tiny-10-fp16"],
               },
               {
