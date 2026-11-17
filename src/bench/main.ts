@@ -7,6 +7,7 @@
 // ?gpu are their own page loads. ?runs=3 (default), ?device=mac-chrome names the device for the
 // results; ?auto starts without a tap. Silent unless play is tapped. Every line goes to the session
 // log (the app) as it ends; scripts/bench-collect.mjs makes the per-device JSON from it.
+import { isPhoneDevice } from "../voice/settingsStore";
 import LINE_SET from "./lines.json";
 
 type Line = { readonly id: string; readonly bucket: string; readonly text: string };
@@ -14,18 +15,17 @@ const LINES: ReadonlyArray<Line> = LINE_SET.lines;
 const BUCKETS = ["short", "medium", "long", "paragraph"] as const;
 const QUERY = new URLSearchParams(location.search);
 /**
- * ?bench=suite: Tim's one link (16 Nov). The 10-voice nano, then the 10-voice tiny (Ettin text side),
- * each through onnxruntime-web directly and through Transformers.js, all on the CPU (WebGPU ended his
- * iPhone tab). One step per page load (the page moves itself on), so the tab unloads one model before
+ * ?bench=suite: Tim's one link (17 Nov): each model against its selective-int8 twin, tiny then
+ * nano, the way lalala runs them here (WebGPU where a desktop has it, the CPU on phones, which
+ * WebGPU ended). One model per page load (the page moves itself on), so the tab unloads one before
  * the next. A step that ends the tab is seen on the next load (still "running" in this browser's
  * storage), reported, and skipped; errors are caught.
  */
 const SUITE = QUERY.get("bench") === "suite";
 const SUITE_STEPS = [
-  { bench: "nano10", backend: "wasm", runtime: "direct" },
-  { bench: "nano10", backend: "wasm", runtime: "transformers" },
-  { bench: "tiny10", backend: "wasm", runtime: "direct" },
-  { bench: "tiny10", backend: "wasm", runtime: "transformers" },
+  { bench: "tiny10", backend: "auto", runtime: "direct" },
+  { bench: "tiny10i8", backend: "auto", runtime: "direct" },
+  { bench: "nano10", backend: "auto", runtime: "direct" },
 ] as const;
 const STEP = Math.min(SUITE_STEPS.length - 1, Math.max(0, Number(QUERY.get("step")) || 0));
 /** On the CPU: onnxruntime-web's plain wasm build directly (lalala's phone path), or Transformers.js. */
@@ -43,6 +43,8 @@ type SuiteResult = {
   xrtP50?: number | null;
   loadMs?: number;
   peakMB?: number | null;
+  /** The backend the model ran on: "webgpu" or "wasm". */
+  device?: string;
   message?: string;
 };
 const suiteState = (): SuiteResult[] => {
@@ -70,13 +72,14 @@ const BENCH_MODELS = {
   tiny: { label: "kale-tts-1-tiny", model: "kale-tts-1-tiny", voice: "v7" },
   nano10: { label: "kale-tts-1-nano · 10 voices", model: "kale-tts-1-nano-10", voice: "s057b" },
   tiny10: { label: "kale-tts-1-tiny · 10 voices (Ettin)", model: "kale-tts-1-tiny-10", voice: "s057b" },
+  tiny10i8: { label: "kale-tts-1-tiny · 10 voices (Ettin) · int8", model: "kale-tts-1-tiny-10-i8", voice: "s057b" },
   storyteller: { label: "storyteller", model: "kale-storyteller", voice: "storyteller" },
   k10c: { label: "k10c (Hazel)", model: "k10c", voice: "hazel" },
 };
 const MODEL = SUITE
   ? BENCH_MODELS[SUITE_STEPS[STEP].bench]
   : (BENCH_MODELS[(QUERY.get("bench") ?? "") as keyof typeof BENCH_MODELS] ?? BENCH_MODELS.nano);
-const BACKEND: "wasm" | "webgpu" = SUITE
+const BACKEND: "wasm" | "webgpu" | "auto" = SUITE
   ? SUITE_STEPS[STEP].backend
   : QUERY.has("gpu")
     ? "webgpu"
@@ -159,7 +162,7 @@ document.head.append(style);
 const root = document.getElementById("root")!;
 root.innerHTML = `<main>
   <h1>${SUITE ? `Speed suite · step ${STEP + 1} of ${SUITE_STEPS.length}: ` : ""}${MODEL.label} speed on this device</h1>
-  <p>${BACKEND === "webgpu" ? "WebGPU" : `CPU, ${THREADS} threads, ${runtimeName(RUNTIME)}`}. Loads the model once, warms up, then speaks ${LINES.length} lines (short replies to paragraphs) ${RUNS} times, sentence by sentence as lalala does. Nothing plays unless you tap play. A few minutes; keep this page in front.</p>
+  <p>${BACKEND === "auto" ? "WebGPU where this device has it, else the CPU, as lalala runs it" : BACKEND === "webgpu" ? "WebGPU" : `CPU, ${THREADS} threads, ${runtimeName(RUNTIME)}`}. Loads the model once, warms up, then speaks ${LINES.length} lines (short replies to paragraphs) ${RUNS} times, sentence by sentence as lalala does. Nothing plays unless you tap play. A few minutes; keep this page in front.</p>
   <button id="run">Run</button>
   <div id="status"></div>
   <table><thead><tr><th>lines</th><th>first audio p50 · p90 · min</th><th>× real time p50 · p90 · min</th></tr></thead><tbody id="rows"></tbody></table>
@@ -247,6 +250,7 @@ function voiceWorker() {
     if (data.type === "load") info.cached = data.cached;
     else if (data.type === "stage" && data.stage === "backend") {
       info.threads = data.threads;
+      info.device = data.device;
       info.ort = data.ort;
       info.transformers = data.transformers;
     } else if (data.type === "ready") settle(null);
@@ -298,7 +302,7 @@ async function start() {
     if (BACKEND === "webgpu") await log?.("bench.trace", { step: "page", ...device, model: MODEL.model, backend: BACKEND });
     voice.worker.postMessage({
       type: "load",
-      device: BACKEND,
+      device: BACKEND === "auto" ? (isPhoneDevice() ? "wasm" : "gpu-if-available") : BACKEND,
       model: MODEL.model,
       voice: MODEL.voice,
       threads: THREADS,
@@ -372,6 +376,7 @@ async function start() {
       xrtP50: summary.all.xrtP50,
       loadMs,
       peakMB: peak.bytes === null ? null : Math.round(peak.bytes / 1e6),
+      device: typeof voice.info.device === "string" ? voice.info.device : undefined,
     });
     const report = { at: new Date().toISOString(), device, runtime: voice.info, summary, lines: results };
     $("saved").textContent = await save(report).catch((cause: unknown) => `Couldn't save: ${String(cause)}`);
@@ -469,13 +474,14 @@ function nextSuiteStep(results: SuiteResult[]) {
 function showSuite(results: SuiteResult[]) {
   log?.("bench.suite", Object.fromEntries(results.flatMap((entry) => {
     const name = `${SUITE_STEPS[entry.step]?.bench}_${SUITE_STEPS[entry.step]?.runtime}`;
-    return [[`${name}_status`, entry.status], [`${name}_xrt`, entry.xrtP50 ?? null], [`${name}_first`, entry.firstP50 ?? null], [`${name}_loadMs`, entry.loadMs ?? null], [`${name}_peakMB`, entry.peakMB ?? null], [`${name}_message`, entry.message ?? null]];
+    return [[`${name}_status`, entry.status], [`${name}_xrt`, entry.xrtP50 ?? null], [`${name}_first`, entry.firstP50 ?? null], [`${name}_loadMs`, entry.loadMs ?? null], [`${name}_peakMB`, entry.peakMB ?? null], [`${name}_device`, entry.device ?? null], [`${name}_message`, entry.message ?? null]];
   })));
   const table = results
     .toSorted((a, b) => a.step - b.step)
     .map((entry) => {
       const step = SUITE_STEPS[entry.step]!;
-      const what = `${BENCH_MODELS[step.bench].label} · ${runtimeName(step.runtime)}`;
+      const on = entry.device === "webgpu" ? "WebGPU" : entry.device === "wasm" ? "CPU" : runtimeName(step.runtime);
+      const what = `${BENCH_MODELS[step.bench].label} · ${on}`;
       const memoryText = entry.peakMB == null ? "" : `, ${entry.peakMB} MB`;
       const result =
         entry.status === "done"
