@@ -6,14 +6,15 @@
 //   BritishG2p        G2p whose homograph readings (dizione's, written in en-us) and letter-by-letter fallback come out
 //                      British too (everything else already is, from the files).
 //   britishNormalizer  kaleTts's normalizer with day-first numeric dates (3/4/2026 = the third of April) and dates said
-//                      "the sixteenth of November". Everything else (numbers, money, units, codes) is the shared rule set.
+//                      "the sixteenth of November". Everything else (numbers, sizes like 45.7M, money, units, codes) is the shared
+//                      rule set: it calls kaleTts's normalizer(lex, BritishNormalizer), so both accents run the same steps.
 //   toBritish          the en-us -> en-gb sound rules (non-rhotic r, əʊ, ɒ, BATH ɑː, yod, t for the flap, -ary / -ile),
 //                      used by the build for every word and here for the two cases above.
 // Usage (worker / release loader): lex = readTable(lexicon.gb) + readTable(override.gb); g2p = new BritishG2p(lex, new
 // G2pModel(g2p.gb.bin)); normalize = britishNormalizer(lex) (+ terms). The output IPA uses kokoro's table plus ɒ (id 71).
 /* eslint-disable */
-import { G2p, dottedNames } from "./kaleTts.js";
-import { Normalizer, spokenText } from "../dizione/spoken.js";
+import { G2p, normalizer } from "./kaleTts.js";
+import { Normalizer } from "../dizione/spoken.js";
 
 // ------------------------------------------------------------------------------------------------ IPA units
 const UNITS = ["aɪə", "aʊə", "eɪ", "aɪ", "aʊ", "ɔɪ", "oʊ", "əʊ", "ɪə", "ɛə", "ʊə", "ɑː", "ɔː", "ɜː", "iː", "uː", "oː", "tʃ", "dʒ",
@@ -182,12 +183,7 @@ class BritishNormalizer extends Normalizer {
   shortDate(match) { this.dayFirst = true; return super.shortDate(match); }
 }
 
-/** kaleTts.js's normalizer(lex), British dates */
+/** kaleTts.js's normalizer(lex) with British dates: the same wrapper (size suffixes, "Dr.", dotted names), only the date rules differ */
 export function britishNormalizer(lex) {
-  const rules = new BritishNormalizer((word) => lex.has(word));
-  const spell = (letters) => {
-    const upper = letters.toUpperCase();
-    return upper.length <= 5 && !(upper.length >= 3 && lex.has(letters.toLowerCase())) ? upper : [...upper].join(" ");
-  };
-  return (text) => dottedNames(spokenText(text.replace(/\bDr\.(?=\s*$)/, "Doctor"), rules, spell));
+  return normalizer(lex, BritishNormalizer);
 }

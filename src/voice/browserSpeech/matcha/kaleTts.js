@@ -12,9 +12,11 @@ import { covers, pronounce } from "../dizione/homographs.js";
 /**
  * Numbers, money, dates, times, units, codes and abbreviations as words (dizione's rules). `lex` decides
  * which letter runs are words; letters to name come out in capitals ("A M", "T three"), which the G2p spells.
+ * `Rules` is dizione's Normalizer or a subclass of it (enGb.js passes its British dates); every other step here (size suffixes,
+ * "Dr." at the end, dotted names) is the same for en-us and en-gb, so both accents read "45.7M", "1.1x" or "4.8 s" alike.
  */
-function normalizer(lex) {
-  const rules = new Normalizer((word) => lex.has(word));
+function normalizer(lex, Rules = Normalizer) {
+  const rules = new Rules((word) => lex.has(word));
   const spell = (letters) => {
     const upper = letters.toUpperCase();
     return upper.length <= 5 && !(upper.length >= 3 && lex.has(letters.toLowerCase())) ? upper : [...upper].join(" ");
@@ -52,12 +54,16 @@ function dropListComma(s) {
   });
 }
 
-/** Size suffixes on numbers, as in model sizes: an uppercase M, B or K right after the digits is a word ("Kokoro-82M" ->
- *  "Kokoro-82 million", "7.5M" -> "7.5 million", "3B" -> "3 billion", "5K" -> "5 thousand"). Structure only: digits, then
- *  the one uppercase letter, then no letter or digit (so "MB", "GB", "KB" stay units and lowercase "5m" / "3km" are untouched). */
+/** Size suffixes on numbers, as in model sizes: an uppercase M, B or K (or a lowercase k) right after the digits is a word
+ *  ("Kokoro-82M" -> "Kokoro-82 million", "7.5M" -> "7.5 million", "3B" -> "3 billion", "5K" / "3k" -> "5 thousand" / "3 thousand").
+ *  Structure only: digits, then the one letter, then no letter or digit (so "MB", "GB", "KB" stay units and "5m" / "3km" are
+ *  untouched). Also, after a number: "x" or "×" right after the digits is "times" ("1.1x" -> "1.1 times"; "4x4" and "0x1F" stay),
+ *  and a lone "s" is seconds when it can't be a plural: after a space ("4.8 s") or right after a decimal ("4.8s"); "1990s" stays. */
 function sizeSuffixes(text) {
-  const word = { M: "million", B: "billion", K: "thousand" };
-  return text.replace(/(?<![\p{L}\p{N}.])(\d+(?:\.\d+)?)([MBK])(?![\p{L}\p{N}])/gu, (m, n, s) => `${n} ${word[s]}`);
+  const word = { M: "million", B: "billion", K: "thousand", k: "thousand" };
+  return text.replace(/(?<![\p{L}\p{N}.])(\d+(?:\.\d+)?)([MBKk])(?![\p{L}\p{N}])/gu, (m, n, s) => `${n} ${word[s]}`)
+    .replace(/(?<![\p{L}\p{N}.])(\d+(?:\.\d+)?)[x×](?![\p{L}\p{N}])/gu, (m, n) => `${n} times`)
+    .replace(/(?<![\p{L}\p{N}.])(\d+(?: s|\.\d+ ?s))(?![\p{L}\p{N}'’])/gu, (m, n) => `${n.replace(/ ?s$/, "")} sec`);
 }
 
 /** Sentences, each one model call (as the app and the bench render). */
