@@ -106,12 +106,12 @@ Two checks keep a push from going wrong:
    (`orchestration:read`, `orchestration:operate`), exchanges it for a session and stores it in
    `.lalala/session.json` (mode 0600, gitignored). Nothing secret is printed. The session renews
    itself a week before it expires. You can see and revoke it in T3 Code under Settings →
-   Connections, listed as "lalala".
+   Sharing & access, listed as "lalala".
 
    The settings (gear in the bar) show the connection too: state, server, session and a Test
-   button, plus pairing by a T3 pairing link (made in T3 Code under Settings → Connections) or with
-   this machine's T3 Code, and Disconnect. A link pairing does not renew itself; pair again before
-   it ends.
+   button, plus pairing by a T3 pairing link (made in T3 Code under Settings → Sharing & access)
+   or with this machine's T3 Code, and Disconnect. A link pairing does not renew itself; pair
+   again before it ends.
 
 4. **The brain thread**
 

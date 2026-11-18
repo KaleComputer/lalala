@@ -8,9 +8,16 @@ if (NodeFS.existsSync(envFile)) process.loadEnvFile(envFile);
 const { keepSessionFresh, pair } = await import("./vite/t3client.mjs");
 
 if (process.argv[2] === "pair") {
-  const result = await pair();
-  console.log(`paired (${result.scope}), session valid until ${result.expiresAt}`);
-  process.exit(0);
+  try {
+    const result = await pair();
+    console.log(`paired (${result.scope}), session valid until ${result.expiresAt}`);
+    process.exit(0);
+  } catch (error) {
+    // A failed `t3 pair` says why on its own output; show that line, not a stack.
+    const said = `${error.stdout ?? ""}\n${error.stderr ?? ""}`.match(/^.*(Error|error).*$/m)?.[0];
+    console.error(`pairing failed: ${(said ?? error.message).replace(/^\[[^\]]*\]\s*(ERROR \(#\d+\):\s*)?/, "").trim()}`);
+    process.exit(1);
+  }
 }
 
 const port = Number(process.env.LALALA_PORT || 5780);
