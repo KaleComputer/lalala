@@ -209,6 +209,30 @@ function gruCell(g, x, hPrev, size) {
   return out;
 }
 
+// Context rules ahead of dizione's picker for homographs it got wrong (Tim, 18 Nov: "the lead" came out as the metal).
+// "lead" is the person or the verb (liːd) unless the words around it name the metal: lead pipe(s), lead paint,
+// lead poisoning, lead-free, lead-based, lead-acid, red / white lead, made of lead. "read" before a habit
+// ("I read every day", "we read daily") is the present, unless the sentence says it's the past.
+const LEAD_METAL_NEXT = new Set(["pipe", "pipes", "piping", "paint", "paints", "poisoning", "poison", "free", "based", "acid", "oxide", "ore", "solder"]);
+const LEAD_METAL_PREV = new Set(["red", "white"]);
+const LEAD_MADE = new Set(["made", "built", "cast", "lined", "pipes", "weights"]);
+const READ_HABIT = new Set(["daily", "often", "nightly", "regularly"]);
+const PERIODS = new Set(["day", "night", "morning", "evening", "week", "weekend"]);
+const PAST = new Set(["yesterday", "ago", "last", "had", "has", "have", "was", "were", "already"]);
+function senseRule(low, words, i) {
+  const at = (k) => (k >= 0 && k < words.length ? words[k] : "");
+  if (low === "lead") {
+    const metal = LEAD_METAL_NEXT.has(at(i + 1)) || LEAD_METAL_PREV.has(at(i - 1)) ||
+      ((at(i - 1) === "of" || at(i - 1) === "from") && LEAD_MADE.has(at(i - 2)));
+    return metal ? "lˈɛd" : "lˈiːd";
+  }
+  if (low === "read") {
+    const habit = READ_HABIT.has(at(i + 1)) || ((at(i + 1) === "every" || at(i + 1) === "each") && PERIODS.has(at(i + 2)));
+    if (habit && !words.some((x) => PAST.has(x))) return "ɹˈiːd";
+  }
+  return null;
+}
+
 class G2p {
   constructor(lex, model) { this.lex = lex; this.model = model || null; this.learnt = new Map(); }
 
@@ -241,7 +265,10 @@ class G2p {
    */
   homograph(token, tokens, index) {
     const w = norm(token), low = w.toLowerCase();
-    if (!covers(low) || (w.length > 1 && w === w.toUpperCase())) return null;
+    if (w.length > 1 && w === w.toUpperCase()) return null;
+    const ruled = senseRule(low, tokens.map((t) => norm(t).toLowerCase()), index);
+    if (ruled !== null) return ruled;
+    if (!covers(low)) return null;
     const { sense, senses, plural } = pronounce(low, tokens.map(norm), index);
     const own = this.lex.get(plural ? low.slice(0, -1) : low);
     let ipa = sense;
