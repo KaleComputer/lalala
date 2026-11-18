@@ -2272,7 +2272,7 @@ export function SpeechSection() {
             ],
           },
           {
-            label: "Kale's voices",
+            label: "In this browser · Kale's voices",
             options: [
               {
                 value: "kale-tts-1-tiny-10",
@@ -2289,7 +2289,7 @@ export function SpeechSection() {
             ],
           },
           {
-            label: "Kokoro 82M",
+            label: "In this browser · Kokoro 82M",
             options: [
               {
                 value: "kokoro-gpu",
