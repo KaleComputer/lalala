@@ -42,6 +42,16 @@ const live = (path: string) => {
   );
 };
 
+/**
+ * Whether Vite's client reloads this page for a full reload: an .html path (a brain card written
+ * into the served folder) only when it is this page's own.
+ */
+export function reloadsPage(path: string | undefined): boolean {
+  if (!path?.endsWith(".html")) return true;
+  const page = decodeURI(location.pathname);
+  return page === path || path === "/index.html" || `${page}index.html` === path;
+}
+
 // Dev: a hot update outside extras/ remounts the voice host and a dev server restart reloads the
 // page, either one ends the call. During a call extras and CSS still apply; the rest is held for
 // one reload once the call is off (Vite awaits these listeners before it applies anything).
@@ -73,7 +83,7 @@ if (import.meta.hot) {
     payload.updates.splice(0, payload.updates.length, ...now);
   });
   import.meta.hot.on("vite:beforeFullReload", (payload) => {
-    if (!callActive()) return;
+    if (!callActive() || !reloadsPage(payload.path)) return;
     hold(payload.path ?? "full reload");
     // The client reloads for an .html path only when it is this page's.
     payload.path = "/__lalala-held.html";

@@ -1,5 +1,6 @@
 // The bar's UPDATE chip: callGuard holds a hot update that would reload the page until the call
 // ends; the chip shows it is waiting, and tapping it reloads now.
+import { reloadsPage } from "./voice/callGuard";
 import { markUpdateReady } from "./voice/phoneUpdate";
 
 const LIVE = ["/src/voice/extras/", "/src/voice/extrasImages.ts", "/src/voice/voiceThemeSync.ts"];
@@ -15,7 +16,7 @@ if (import.meta.hot) {
   import.meta.hot.on("vite:beforeUpdate", (payload) => {
     if (callActive() && payload.updates.some((update) => !live(update.path))) markUpdateReady();
   });
-  import.meta.hot.on("vite:beforeFullReload", () => {
-    if (callActive()) markUpdateReady();
+  import.meta.hot.on("vite:beforeFullReload", (payload) => {
+    if (callActive() && reloadsPage(payload.path)) markUpdateReady();
   });
 }
