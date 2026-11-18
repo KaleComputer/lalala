@@ -185,40 +185,10 @@ const write = (key: string, value: string | null) => {
   document.dispatchEvent(new Event(EVENT));
 };
 
-/** Kale's warm voice, Kokoro, by its id in the settings. */
-export const WARM_VOICE = "kale-kokoro";
-/** The 8-voice kale-tts-1-nano (~10 MB, one graph, clean recipe), with the storyteller (v7). */
-export const NANO_VOICE = "kale-tts-1-nano";
-/** kale-tts-1-tiny (61 MB, the same 8 voices, clean recipe, no Hazel). */
-export const TINY_VOICE = "kale-tts-1-tiny";
-/** The 10-voice kale-tts-1-nano and -tiny (release10, 16 Nov), with the voices' public names; nano is Automatic. */
+/** The 10-voice kale-tts-1-nano and -tiny (release10), with the voices' public names; nano is Automatic. */
 export const NANO10_VOICE = "kale-tts-1-nano-10";
 export const TINY10_VOICE = "kale-tts-1-tiny-10";
-/** The same 10-voice tiny with the text encoder from before Ettin (375ccba), to hear them side by side. */
-export const TINY10_CLASSIC_VOICE = "kale-tts-1-tiny-10-classic";
-/** Precision variants of the release tiny and nano, to compare speed by ear and in ?bench=suite (17 Nov). */
-export const TINY10_FP16_VOICE = "kale-tts-1-tiny-10-fp16";
-export const TINY10_I8_VOICE = "kale-tts-1-tiny-10-i8";
-export const NANO10_I8_VOICE = "kale-tts-1-nano-10-i8";
-export const NANO10_FP16_VOICE = "kale-tts-1-nano-10-fp16";
-/** k10c (61 MB, Hazel's voice), which was called kale-tts-1-tiny until the clean build took the name. */
-export const K10C_VOICE = "k10c";
-/** The cheerful storyteller (voice 8 on the k10c recipe, 61 MB, 190 wpm): Tim's pick, 15 Nov. */
-export const STORY_VOICE = "kale-storyteller";
-/** The two-voice kale-tts-1-tiny preview (storyteller and M3; Hazel's model underneath for now). */
-export const PREVIEW_VOICE = "kale-tts-1-tiny-preview";
 export type ModelVoice = { readonly id: string; readonly name: string };
-/** kale-tts-1-tiny's and -nano's voices, in the picker's order, named as in the release's voices.json. */
-const EIGHT_VOICES: ReadonlyArray<ModelVoice> = [
-  { id: "v7", name: "Storyteller" },
-  { id: "m3", name: "Host" },
-  { id: "d03", name: "British woman" },
-  { id: "d13", name: "British man" },
-  { id: "f03", name: "Young woman" },
-  { id: "f06", name: "Woman" },
-  { id: "f13", name: "Young man" },
-  { id: "e21", name: "Storyteller man" },
-];
 /** The 10-voice build's voices, in the release's order, by name only (Tim, 16 Nov: no descriptions). */
 const TEN_VOICES: ReadonlyArray<ModelVoice> = [
   { id: "s057b", name: "Kenzie" },
@@ -250,33 +220,10 @@ export const SMALL_VOICES: Readonly<
     }
   >
 > = {
-  // Its package's config.json: its duration head reads ~10 % short, so 0.92.
-  [WARM_VOICE]: { model: "kale-kokoro", voices: [{ id: "warm", name: "Warm" }], speed: 0.92, bytes: 68_142_913 },
-  [STORY_VOICE]: {
-    model: "kale-storyteller",
-    voices: [{ id: "storyteller", name: "Storyteller" }],
-    bytes: 61_507_783,
-  },
-  [NANO_VOICE]: { model: "kale-tts-1-nano", voices: EIGHT_VOICES, bytes: 10_676_685 },
-  [TINY_VOICE]: { model: "kale-tts-1-tiny", voices: EIGHT_VOICES, bytes: 61_524_303 },
   [NANO10_VOICE]: { model: "kale-tts-1-nano-10", voices: TEN_VOICES, bytes: 15_289_714, cpuOnly: true },
   // The Ettin text side, the release tiny (per-voice end clamp; the first Ettin export garbled sound and timing); its
   // tokenizer (2.1 MB) loads with it.
   [TINY10_VOICE]: { model: "kale-tts-1-tiny-10", voices: TEN_VOICES, bytes: 82_558_140, cpuOnly: true },
-  [TINY10_CLASSIC_VOICE]: { model: "kale-tts-1-tiny-10-classic", voices: TEN_VOICES, bytes: 61_524_035 },
-  [TINY10_FP16_VOICE]: { model: "kale-tts-1-tiny-10-fp16", voices: TEN_VOICES, bytes: 99_147_021, cpuOnly: true },
-  [TINY10_I8_VOICE]: { model: "kale-tts-1-tiny-10-i8", voices: TEN_VOICES, bytes: 76_691_870, cpuOnly: true },
-  [NANO10_I8_VOICE]: { model: "kale-tts-1-nano-10-i8", voices: TEN_VOICES, bytes: 12_624_993, cpuOnly: true },
-  [NANO10_FP16_VOICE]: { model: "kale-tts-1-nano-10-fp16", voices: TEN_VOICES, bytes: 18_267_360, cpuOnly: true },
-  [K10C_VOICE]: { model: "k10c", voices: [{ id: "hazel", name: "Hazel" }], bytes: 61_507_783 },
-  [PREVIEW_VOICE]: {
-    model: "kale-tts-1-tiny-preview",
-    voices: [
-      { id: "storyteller", name: "Storyteller" },
-      { id: "m3", name: "M3" },
-    ],
-    bytes: 61_508_590,
-  },
 };
 /**
  * The voice a small model speaks with: the one picked for that model (synced; Settings or the brain),
@@ -295,27 +242,43 @@ export const setModelVoice = (model: string, voice: string) =>
 export const isKaleVoice = (voice: string) => voice in SMALL_VOICES;
 
 
-/**
- * The reply voice every device starts on: the 10-voice kale-tts-1-nano (Tim, 16 Nov: "I want to
- * have the new model"); the 8-voice builds, the storyteller, k10c and the warm Kokoro are picks.
- */
+/** The reply voice every device starts on: the 10-voice kale-tts-1-nano (Tim, 16 Nov: "I want to have the new model"). */
 export const defaultReplyVoice = (): string => NANO10_VOICE;
 
 /**
- * Who speaks the replies on this device: "auto" (nothing stored: defaultReplyVoice), Kale's
- * "kale-storyteller", "kale-kokoro" or "kale-tts-1-tiny", "kokoro-gpu", "kokoro-cpu" (Kokoro 82M), "computer" (Kokoro on the computer running
- * T3, opt-in), or a voice the user's cards registered (replyVoices.ts) by its id.
+ * Builds the picker no longer offers (18 Nov: only the current kale-tts-1 pair, Kokoro 82M and the
+ * computer stay): a tiny build moves to the current tiny, everything else to Automatic. Their files stay
+ * in public/models for ?bench.
+ */
+const RETIRED_TINY = new Set([
+  "kale-tts-1-tiny",
+  "kale-tts-1-tiny-10-classic",
+  "kale-tts-1-tiny-10-fp16",
+  "kale-tts-1-tiny-10-i8",
+  "kale-tts-1-tiny-10-fp",
+  "kale-tts-1-tiny-preview",
+]);
+const RETIRED = new Set([
+  "kokoro",
+  "matcha",
+  "llama-kokoro",
+  "kale-kokoro",
+  "kale-storyteller",
+  "kale-tts-1-nano",
+  "kale-tts-1-nano-10-i8",
+  "kale-tts-1-nano-10-fp16",
+  "k10c",
+]);
+
+/**
+ * Who speaks the replies on this device: "auto" (nothing stored: defaultReplyVoice), kale-tts-1-tiny or
+ * -nano, "kokoro-gpu", "kokoro-cpu" (Kokoro 82M), "computer" (Kokoro on the computer running T3, opt-in),
+ * or a voice the user's cards registered (replyVoices.ts) by its id.
  */
 export const replyVoicePick = (): string => {
   const stored = read(REPLY_VOICE_KEY) ?? "auto";
-  // Before 15 Nov "kokoro" let the device pick Kokoro's build, as Automatic did on a desktop then;
-  // "matcha" was Matcha, now gone (Tim, 15 Nov): both are Automatic's voice now. "llama-kokoro" was
-  // this voice's id on 15 Nov.
-  if (stored === "kokoro") return phone() ? "kokoro-cpu" : "auto";
-  if (stored === "matcha") return "auto";
-  if (stored === "llama-kokoro") return WARM_VOICE;
-  // Variant C of the Ettin tiny (16 Nov) gave way to the fixed export under the Ettin tiny's own name.
-  if (stored === "kale-tts-1-tiny-10-fp") return "kale-tts-1-tiny-10";
+  if (RETIRED_TINY.has(stored)) return TINY10_VOICE;
+  if (RETIRED.has(stored)) return "auto";
   return stored;
 };
 export const setReplyVoice = (voice: string) => {

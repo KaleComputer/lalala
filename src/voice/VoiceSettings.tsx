@@ -49,7 +49,6 @@ import {
   setModelVoice,
   defaultReplyVoice,
   replyVoice,
-  WARM_VOICE,
   isPhoneDevice,
   setAutoRetrySeconds,
   setAutoStartCall,
@@ -1711,19 +1710,8 @@ type BrowserEars = Exclude<SttModel, "auto" | "computer">;
 type VoiceBuild =
   | "kokoro-gpu"
   | "kokoro-cpu"
-  | "kale-kokoro"
-  | "kale-storyteller"
-  | "kale-tts-1-nano"
-  | "kale-tts-1-tiny"
   | "kale-tts-1-nano-10"
   | "kale-tts-1-tiny-10"
-  | "kale-tts-1-tiny-10-classic"
-  | "kale-tts-1-tiny-10-fp16"
-  | "kale-tts-1-tiny-10-i8"
-  | "kale-tts-1-nano-10-i8"
-  | "kale-tts-1-nano-10-fp16"
-  | "k10c"
-  | "kale-tts-1-tiny-preview"
   | "computer";
 const STT_LABELS: Record<Exclude<SttModel, "auto">, string> = {
   "0.6b-gpu": "Parakeet 0.6B\u00a0·\u00a0GPU",
@@ -1734,19 +1722,8 @@ const STT_LABELS: Record<Exclude<SttModel, "auto">, string> = {
 const VOICE_LABELS: Record<VoiceBuild, string> = {
   "kokoro-gpu": "Kokoro\u00a082M\u00a0·\u00a0GPU",
   "kokoro-cpu": "Kokoro\u00a082M\u00a0·\u00a0CPU",
-  "kale-kokoro": "Kokoro (Kale's voice)",
-  "kale-storyteller": "Storyteller (Kale's voice)",
-  "kale-tts-1-nano": "kale-tts-1-nano\u00a0·\u00a08 voices",
-  "kale-tts-1-tiny": "kale-tts-1-tiny\u00a0·\u00a08 voices",
-  "kale-tts-1-nano-10": "kale-tts-1-nano\u00a0·\u00a0latest",
-  "kale-tts-1-tiny-10": "kale-tts-1-tiny\u00a0·\u00a0latest",
-  "kale-tts-1-tiny-10-classic": "kale-tts-1-tiny\u00a0·\u00a010 voices\u00a0·\u00a0old encoder",
-  "kale-tts-1-tiny-10-fp16": "kale-tts-1-tiny\u00a0·\u00a011:51\u00a0·\u00a0fp16",
-  "kale-tts-1-tiny-10-i8": "kale-tts-1-tiny\u00a0·\u00a011:51\u00a0·\u00a0int8",
-  "kale-tts-1-nano-10-i8": "kale-tts-1-nano\u00a0·\u00a016\u00a0Nov\u00a0·\u00a0int8",
-  "kale-tts-1-nano-10-fp16": "kale-tts-1-nano\u00a0·\u00a016\u00a0Nov\u00a0·\u00a0fp16",
-  k10c: "k10c (Hazel)",
-  "kale-tts-1-tiny-preview": "kale-tts-1-tiny preview",
+  "kale-tts-1-nano-10": "kale-tts-1-nano",
+  "kale-tts-1-tiny-10": "kale-tts-1-tiny",
   computer: "Kokoro 82M\u00a0·\u00a0Computer",
 };
 const STT_COSTS: Partial<Record<string, string>> = {
@@ -1757,19 +1734,8 @@ const STT_COSTS: Partial<Record<string, string>> = {
 const VOICE_COSTS: Partial<Record<string, string>> = {
   "kokoro-gpu": "327 MB download · ~0.4 GB memory",
   "kokoro-cpu": "93 MB download · ~0.2 GB memory",
-  "kale-kokoro": "68 MB download · ~0.2 GB memory",
-  "kale-storyteller": "61 MB download · ~0.2 GB memory",
-  "kale-tts-1-nano": "11 MB download · ~0.3 GB memory",
-  "kale-tts-1-tiny": "62 MB download · ~0.3 GB memory",
   "kale-tts-1-nano-10": "15 MB download · ~0.3 GB memory",
   "kale-tts-1-tiny-10": "83 MB download · ~0.6 GB memory",
-  "kale-tts-1-tiny-10-classic": "62 MB download · ~0.3 GB memory",
-  "kale-tts-1-tiny-10-fp16": "99 MB download · ~0.7 GB memory",
-  "kale-tts-1-tiny-10-i8": "77 MB download · ~0.6 GB memory",
-  "kale-tts-1-nano-10-i8": "13 MB download · ~0.3 GB memory",
-  "kale-tts-1-nano-10-fp16": "18 MB download · ~0.3 GB memory",
-  k10c: "62 MB download · ~0.2 GB memory",
-  "kale-tts-1-tiny-preview": "61 MB download · ~0.2 GB memory",
 };
 const MB = (bytes: number) =>
   bytes >= 1e9 ? `${(bytes / 1e9).toFixed(2)}\u00a0GB` : `${Math.round(bytes / 1e6)}\u00a0MB`;
@@ -1819,7 +1785,8 @@ const LOADED_NAMES: Record<string, string> = {
   "parakeet 110m": "Parakeet 110M",
   "kokoro 82m gpu": "Kokoro 82M\u00a0·\u00a0GPU",
   "kokoro 82m cpu": "Kokoro 82M\u00a0·\u00a0CPU",
-  "kale kokoro": "Kokoro (Kale's voice)",
+  "kale-tts-1-nano-10": "kale-tts-1-nano",
+  "kale-tts-1-tiny-10": "kale-tts-1-tiny",
   "parakeet 0.6b mlx": "Parakeet 0.6B",
   "kokoro 82m mlx": "Kokoro 82M",
 };
@@ -1831,19 +1798,8 @@ const LOADED_KEYS: Record<string, string> = {
   "parakeet 110m": "110m",
   "kokoro 82m gpu": "kokoro-gpu",
   "kokoro 82m cpu": "kokoro-cpu",
-  "kale kokoro": "kale-kokoro",
-  "kale-storyteller": "kale-storyteller",
-  "kale-tts-1-nano": "kale-tts-1-nano",
-  "kale-tts-1-tiny": "kale-tts-1-tiny",
   "kale-tts-1-nano-10": "kale-tts-1-nano-10",
   "kale-tts-1-tiny-10": "kale-tts-1-tiny-10",
-  "kale-tts-1-tiny-10-classic": "kale-tts-1-tiny-10-classic",
-  "kale-tts-1-tiny-10-fp16": "kale-tts-1-tiny-10-fp16",
-  "kale-tts-1-tiny-10-i8": "kale-tts-1-tiny-10-i8",
-  "kale-tts-1-nano-10-i8": "kale-tts-1-nano-10-i8",
-  "kale-tts-1-nano-10-fp16": "kale-tts-1-nano-10-fp16",
-  k10c: "k10c",
-  "kale-tts-1-tiny-preview": "kale-tts-1-tiny-preview",
 };
 const seconds = (ms: number) => `${(ms / 1000).toFixed(ms < 100 ? 2 : 1)} s`;
 /** How fast your computer did a task, as measured from this device, once it has. */
@@ -2316,53 +2272,24 @@ export function SpeechSection() {
             ],
           },
           {
-            label: "Latest · kale-tts-1, 17 Nov",
+            label: "Kale's voices",
             options: [
               {
                 value: "kale-tts-1-tiny-10",
                 label: VOICE_LABELS["kale-tts-1-tiny-10"],
-                detail: "17 Nov 19:02 release (melody retrain), 10 voices, clearest",
+                detail: "10 voices, clearest",
                 meta: VOICE_COSTS["kale-tts-1-tiny-10"],
               },
               {
                 value: "kale-tts-1-nano-10",
                 label: VOICE_LABELS["kale-tts-1-nano-10"],
-                detail: "18 Nov release (distilled from kale-tts-1-base), 10 voices, smallest and fastest",
+                detail: "10 voices, smallest and fastest",
                 meta: VOICE_COSTS["kale-tts-1-nano-10"],
               },
             ],
           },
           {
-            label: "Speed comparisons",
-            options: [
-              {
-                value: "kale-tts-1-tiny-10-i8",
-                label: VOICE_LABELS["kale-tts-1-tiny-10-i8"],
-                detail: "the 11:51 tiny with more 8-bit numbers",
-                meta: VOICE_COSTS["kale-tts-1-tiny-10-i8"],
-              },
-              {
-                value: "kale-tts-1-tiny-10-fp16",
-                label: VOICE_LABELS["kale-tts-1-tiny-10-fp16"],
-                detail: "the 11:51 tiny in 16-bit numbers (?bench=suite compares them)",
-                meta: VOICE_COSTS["kale-tts-1-tiny-10-fp16"],
-              },
-              {
-                value: "kale-tts-1-nano-10-i8",
-                label: VOICE_LABELS["kale-tts-1-nano-10-i8"],
-                detail: "the 16 Nov nano with more 8-bit numbers",
-                meta: VOICE_COSTS["kale-tts-1-nano-10-i8"],
-              },
-              {
-                value: "kale-tts-1-nano-10-fp16",
-                label: VOICE_LABELS["kale-tts-1-nano-10-fp16"],
-                detail: "the 16 Nov nano in 16-bit numbers",
-                meta: VOICE_COSTS["kale-tts-1-nano-10-fp16"],
-              },
-            ],
-          },
-          {
-            label: "Older and other voices",
+            label: "Kokoro 82M",
             options: [
               {
                 value: "kokoro-gpu",
@@ -2376,48 +2303,6 @@ export function SpeechSection() {
                 label: VOICE_LABELS["kokoro-cpu"],
                 detail: phone ? "natural, about 2× a sentence to render" : "natural, slower",
                 meta: VOICE_COSTS["kokoro-cpu"],
-              },
-              {
-                value: "kale-kokoro",
-                label: VOICE_LABELS["kale-kokoro"],
-                detail: "warm, fast",
-                meta: VOICE_COSTS["kale-kokoro"],
-              },
-              {
-                value: "kale-tts-1-nano",
-                label: VOICE_LABELS["kale-tts-1-nano"],
-                detail: "8 voices, with the storyteller",
-                meta: VOICE_COSTS["kale-tts-1-nano"],
-              },
-              {
-                value: "kale-tts-1-tiny",
-                label: VOICE_LABELS["kale-tts-1-tiny"],
-                detail: "8 voices, with the storyteller, clearest",
-                meta: VOICE_COSTS["kale-tts-1-tiny"],
-              },
-              {
-                value: "kale-tts-1-tiny-10-classic",
-                label: VOICE_LABELS["kale-tts-1-tiny-10-classic"],
-                detail: "the 10 named voices, the text encoder from before",
-                meta: VOICE_COSTS["kale-tts-1-tiny-10-classic"],
-              },
-              {
-                value: "kale-storyteller",
-                label: VOICE_LABELS["kale-storyteller"],
-                detail: "cheerful, 190 words a minute",
-                meta: VOICE_COSTS["kale-storyteller"],
-              },
-              {
-                value: "kale-tts-1-tiny-preview",
-                label: VOICE_LABELS["kale-tts-1-tiny-preview"],
-                detail: "two voices: storyteller, M3",
-                meta: VOICE_COSTS["kale-tts-1-tiny-preview"],
-              },
-              {
-                value: "k10c",
-                label: VOICE_LABELS.k10c,
-                detail: "Hazel's voice",
-                meta: VOICE_COSTS.k10c,
               },
             ],
           },
