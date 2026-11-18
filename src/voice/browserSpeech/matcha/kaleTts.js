@@ -20,7 +20,22 @@ function normalizer(lex) {
     return upper.length <= 5 && !(upper.length >= 3 && lex.has(letters.toLowerCase())) ? upper : [...upper].join(" ");
   };
   // The sentence splitter cuts after "Dr.", leaving it last, where dizione cannot tell it from "drive".
-  return (text) => spokenText(sizeSuffixes(text).replace(/\bDr\.(?=\s*$)/, "Doctor"), rules, spell);
+  return (text) => dottedNames(spokenText(sizeSuffixes(text).replace(/\bDr\.(?=\s*$)/, "Doctor"), rules, spell));
+}
+
+/**
+ * A dot inside a name, with no space after it, is said "dot" (lalala.talk, kale.computer, api.staging.kale.computer): read as a full
+ * stop it cut the name in two with a pause (18 Nov). Only between a letter or digit and a lower-case letter, so version numbers and
+ * decimals (v1.0.275, 3.5) stay as dizione says them, "end.Next" stays a sentence end, and one-letter runs (e.g., i.e., U.S.) are left
+ * alone. Runs after dizione, which already says the names it knows (hf.co, index.ts, README.md).
+ */
+const DOTTED = /(?<![\p{L}\p{N}.])((?:[\p{L}\p{N}][\p{L}\p{N}_-]*\.)+[\p{Ll}][\p{L}\p{N}_-]*)/gu;
+function dottedNames(text) {
+  return text.replace(DOTTED, (name) => {
+    const parts = name.split(".");
+    if (parts.every((x) => x.length === 1)) return name;   // e.g, i.e, U.S
+    return parts.join(" dot ");
+  });
 }
 
 /** The comma that closes a list ("speed, melody, clear words, and how it sounds") is dropped: read aloud it sounds like a
@@ -530,4 +545,4 @@ function wav(pcm, sampleRate = 22050) {
   return new Uint8Array(buf);
 }
 
-export { Voice, G2p, G2pModel, normalizer, readTable, readTokens, toIds, istft, sentences, fold, wav };
+export { Voice, G2p, G2pModel, normalizer, dottedNames, readTable, readTokens, toIds, istft, sentences, fold, wav };

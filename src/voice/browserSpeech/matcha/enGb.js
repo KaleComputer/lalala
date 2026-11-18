@@ -12,7 +12,7 @@
 // Usage (worker / release loader): lex = readTable(lexicon.gb) + readTable(override.gb); g2p = new BritishG2p(lex, new
 // G2pModel(g2p.gb.bin)); normalize = britishNormalizer(lex) (+ terms). The output IPA uses kokoro's table plus ɒ (id 71).
 /* eslint-disable */
-import { G2p } from "./kaleTts.js";
+import { G2p, dottedNames } from "./kaleTts.js";
 import { Normalizer, spokenText } from "../dizione/spoken.js";
 
 // ------------------------------------------------------------------------------------------------ IPA units
@@ -189,5 +189,5 @@ export function britishNormalizer(lex) {
     const upper = letters.toUpperCase();
     return upper.length <= 5 && !(upper.length >= 3 && lex.has(letters.toLowerCase())) ? upper : [...upper].join(" ");
   };
-  return (text) => spokenText(text.replace(/\bDr\.(?=\s*$)/, "Doctor"), rules, spell);
+  return (text) => dottedNames(spokenText(text.replace(/\bDr\.(?=\s*$)/, "Doctor"), rules, spell));
 }
