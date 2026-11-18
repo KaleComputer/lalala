@@ -189,7 +189,8 @@ function page(html: string, look: CSSStyleDeclaration, streamer: boolean, hidden
     `<!doctype html><meta charset="utf-8"><meta http-equiv="Content-Security-Policy" content="${CSP}">` +
     `<style>:root{color-scheme:${look.colorScheme || "normal"};color:${look.color} !important;` +
     `font-family:${look.fontFamily} !important;background:transparent !important;` +
-    `font-size:${look.fontSize};line-height:1.4}body{margin:0}</style>` +
+    `font-size:${look.fontSize};line-height:1.4;scrollbar-width:thin;` +
+    `scrollbar-color:color-mix(in srgb,${look.color} 35%,transparent) transparent}body{margin:0}</style>` +
     `<script>${BRIDGE}</script>` +
     (crossOriginIsolated ? isolated(html, location.origin) : html) +
     (streamer ? redaction(look.getPropertyValue("--lala-ink").trim() || "#888", hidden) : "")
