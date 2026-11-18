@@ -88,3 +88,212 @@ onnxruntime-web	onyx runtime web
 onnxruntime	onyx runtime
 # Tim, 16 Nov: CLI still sounded wrong. "C L I" ended on an unstressed "I"; "eye" carries the stress.
 CLIs	C L eyes
+# Tech terms, 18 Nov ("GGUF" was said as "just"): software, ML/AI and robotics, case-aware (only these exact forms, so
+# rag, slam, pid stay words). Spelled letters are spaced: joined runs blurred. Checked by Whisper on nano and tiny.
+TTS	T T S
+ASR	ay S R
+LLM	L L M
+SLM	S L M
+SLMs	S L M's
+VLM	V L M
+VLMs	V L M's
+GGUF	G G U F
+gguf	G G U F
+GGML	G G M L
+ggml	G G M L
+GPTQ	G P T Q
+AWQ	ay W Q
+CUDA	kooda
+cuda	kooda
+cuDNN	kooda D N N
+NCCL	nickel
+ROCm	rock M
+TensorRT	tensor R T
+TensorRT-LLM	tensor R T L L M
+OpenVINO	open veeno
+CoreML	core M L
+DirectML	direct M L
+MLC	M L C
+GPU	G P U
+TPU	T P U
+NPU	N P U
+CPU	C P U
+LPU	L P U
+API	ay P eye
+APIs	ay P eyes
+SDK	S D K
+SDKs	S D K's
+JSONL	jay son L
+jsonl	jay son L
+YAML	yammel
+yaml	yammel
+TOML	tommel
+toml	tommel
+SQL	S Q L
+NoSQL	no S Q L
+CSV	C S V
+XML	X M L
+HTML	H T M L
+CSS	C S S
+QLoRA	Q lora
+PEFT	peft
+MoE	M O E
+RLHF	R L H F
+RLAIF	R L ay eye F
+DPO	D P O
+PPO	P P O
+GRPO	G R P O
+SFT	S F T
+KV cache	K V cache
+KV	K V
+TFLOPS	teraflops
+int8	int eight
+INT8	int eight
+int4	int four
+INT4	int four
+fp16	F P sixteen
+FP16	F P sixteen
+fp32	F P thirty two
+FP32	F P thirty two
+fp8	F P eight
+FP8	F P eight
+bf16	B F sixteen
+BF16	B F sixteen
+WASM	wazzum
+wasm	wazzum
+WASI	wazzy
+WebNN	web N N
+WebRTC	web R T C
+PyTorch	pie torch
+pytorch	pie torch
+NumPy	num pie
+numpy	num pie
+SciPy	sigh pie
+scipy	sigh pie
+scikit-learn	sigh kit learn
+JAX	jacks
+XLA	X L ay
+safetensors	safe tensors
+MLflow	M L flow
+wandb	W and B
+SentencePiece	sentence piece
+BPE	B P E
+AI	ay eye
+ML	M L
+NLP	N L P
+CNN	C N N
+RNN	R N N
+LSTM	L S T M
+GRU	G R U
+MLP	M L P
+VAE	V ay E
+VQ-VAE	V Q V ay E
+RVQ	R V Q
+GELU	jell oo
+AdamW	adam W
+SGD	S G D
+GPT	G P T
+ChatGPT	chat G P T
+ResNet	rez net
+GQA	G Q ay
+MQA	M Q ay
+MMLU	M M L U
+GSM8K	G S M eight K
+SWE-bench	swee bench
+STFT	S T F T
+FFT	F F T
+MFCC	M F C C
+CER	C E R
+MOS	M O S
+SNR	S N R
+RTF	R T F
+VAD	V ay D
+MCP	M C P
+A2A	ay two ay
+SNAC	snack
+StyleTTS	style T T S
+StyleTTS2	style T T S two
+XTTS	X T T S
+F5-TTS	F five T T S
+VITS	vits
+espeak	E speak
+Groq	grock
+xAI	X ay eye
+LlamaIndex	llama index
+llama.cpp	llama C P P
+whisper.cpp	whisper C P P
+ollama	oh llama
+Ollama	oh llama
+FAISS	face
+pgvector	P G vector
+HNSW	H N S W
+SSH	S S H
+HTTP	H T T P
+HTTPS	H T T P S
+TCP	T C P
+UDP	U D P
+DNS	D N S
+TLS	T L S
+SSL	S S L
+CDN	C D N
+VPN	V P N
+VM	V M
+VMs	V M's
+CI/CD	C eye C D
+CI	C eye
+gRPC	G R P C
+JWT	J W T
+UUID	U U eye D
+GUID	goo id
+SaaS	sass
+npm	N P M
+pnpm	P N P M
+ESM	E S M
+macOS	mac O S
+iOS	eye O S
+iPadOS	eye pad O S
+Ubuntu	oo boon too
+Xcode	X code
+VS Code	V S code
+tmux	tee mux
+zsh	Z shell
+MongoDB	mongo D B
+GCP	G C P
+EC2	E C two
+k8s	K eights
+WireGuard	wire guard
+systemd	system D
+SoC	S O C
+NVMe	N V M E
+SSD	S S D
+VRAM	V ram
+HBM	H B M
+aarch64	ay arch sixty four
+RISC-V	risk five
+kHz	kilohertz
+GHz	gigahertz
+ROS	ross
+ROS 2	ross two
+IMU	eye M U
+PID	P eye D
+URDF	U R D F
+MPC	M P C
+EKF	E K F
+IK	eye K
+DoF	D O F
+DOF	D O F
+6-DoF	six D O F
+6DoF	six D O F
+RGB	R G B
+RGB-D	R G B D
+LeRobot	le robot
+MoveIt	move it
+OpenCV	open C V
+ESP32	E S P thirty two
+STM32	S T M thirty two
+UART	you art
+I2C	eye squared C
+SPI	S P eye
+GPIO	G P eye O
+PWM	P W M
+sim2real	sim to real
