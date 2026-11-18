@@ -297,3 +297,24 @@ SPI	S P eye
 GPIO	G P eye O
 PWM	P W M
 sim2real	sim to real
+# .cpp project names, 18 Nov: "<name> C P P", no "dot" (as people say llama.cpp); other .cpp files keep "dot C P P".
+Llama.cpp	llama C P P
+LLAMA.CPP	llama C P P
+llama-cpp	llama C P P
+llama-cpp-python	llama C P P python
+llama cpp	llama C P P
+Whisper.cpp	whisper C P P
+whisper-cpp	whisper C P P
+audio.cpp	audio C P P
+ggml.cpp	G G M L C P P
+stable-diffusion.cpp	stable diffusion C P P
+bark.cpp	bark C P P
+gemma.cpp	jemma C P P
+encodec.cpp	en codec C P P
+clip.cpp	clip C P P
+chatglm.cpp	chat G L M C P P
+qwen.cpp	kwen C P P
+rwkv.cpp	R W K V C P P
+bert.cpp	burt C P P
+vits.cpp	vits C P P
+tts.cpp	T T S C P P
