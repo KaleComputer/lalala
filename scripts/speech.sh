@@ -32,7 +32,8 @@ case "${1:-}" in
     ;;
   start)
     if answers; then exit 0; fi
-    nohup "$0" >>"$LOG_FILE" 2>&1 </dev/null &
+    # Through bash: lalala.talk writes this file through T3 Code, which leaves it not executable.
+    nohup bash "$0" >>"$LOG_FILE" 2>&1 </dev/null &
     echo $! >"$PID_FILE"
     echo "Local speech starting on 127.0.0.1:$PORT (log $LOG_FILE)."
     exit 0

@@ -84,9 +84,9 @@ function readBody(req: Connect.IncomingMessage, limit: number): Promise<Buffer> 
   });
 }
 
-async function fetchSpeech(path: string, init: RequestInit = {}): Promise<Response> {
+async function fetchSpeech(path: string, init: RequestInit = {}, waitMs = 20_000): Promise<Response> {
   try {
-    const timeout = AbortSignal.timeout(20_000);
+    const timeout = AbortSignal.timeout(waitMs);
     const signal = init.signal ? AbortSignal.any([init.signal, timeout]) : timeout;
     return await fetch(`${SPEECH}${path}`, { ...init, signal });
   } catch (error) {
@@ -179,11 +179,16 @@ export function lalalaPlugin(): Plugin {
     if (route === "/local/stt" && req.method === "POST") {
       readBody(req, MAX_AUDIO_BYTES)
         .then(async (audio) => {
-          const response = await fetchSpeech("/stt", {
-            method: "POST",
-            headers: { "content-type": req.headers["content-type"] ?? "audio/wav" },
-            body: new Uint8Array(audio),
-          });
+          // A second per second of 16 kHz audio on top: a minutes-long turn is chunked and takes longer.
+          const response = await fetchSpeech(
+            "/stt",
+            {
+              method: "POST",
+              headers: { "content-type": req.headers["content-type"] ?? "audio/wav" },
+              body: new Uint8Array(audio),
+            },
+            20_000 + Math.round(audio.length / 32),
+          );
           const body = (await response.json()) as { text?: unknown; error?: unknown };
           if (!response.ok) throw new Error(`speech-to-text: ${String(body.error ?? response.status)}`);
           sendJson(res, 200, { text: typeof body.text === "string" ? body.text.trim() : "" });

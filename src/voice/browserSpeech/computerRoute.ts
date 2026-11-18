@@ -48,9 +48,8 @@ const appRoute: ComputerRoute = {
     }
   },
   async stt(wav) {
-    const body = (await (await appPost("/stt", { headers: { "content-type": "audio/wav" }, body: wav })).json()) as {
-      text?: unknown;
-    };
+    const response = await appPost("/stt", { headers: { "content-type": "audio/wav" }, body: wav }, sttWaitMs(wav));
+    const body = (await response.json()) as { text?: unknown };
     return typeof body.text === "string" ? body.text : "";
   },
   async tts(text) {
@@ -62,9 +61,12 @@ const appRoute: ComputerRoute = {
   },
 };
 
-async function appPost(path: string, init: RequestInit): Promise<Response> {
+// A long turn from a phone is megabytes to upload: a fixed 15 s cut off every turn over ~30 s (17 Nov).
+const sttWaitMs = (wav: Blob) => 15_000 + Math.round(wav.size / 32);
+
+async function appPost(path: string, init: RequestInit, waitMs = 15_000): Promise<Response> {
   // A phone between networks drops the odd request ("Load failed"): one retry keeps the words.
-  const send = () => fetch(`/__lalala/local${path}`, { method: "POST", signal: AbortSignal.timeout(15_000), ...init });
+  const send = () => fetch(`/__lalala/local${path}`, { method: "POST", signal: AbortSignal.timeout(waitMs), ...init });
   const response = await send().catch(
     () => new Promise<void>((resolve) => setTimeout(resolve, 800)).then(send),
   );
@@ -111,7 +113,7 @@ function base64(bytes: Uint8Array) {
 }
 
 /** One request to the bridge and its answer, read back as soon as it is there. */
-async function ask(request: Record<string, unknown>): Promise<Record<string, unknown>> {
+async function ask(request: Record<string, unknown>, waitMs = ANSWER_MS): Promise<Record<string, unknown>> {
   const files = harness();
   if (!files?.writeFile || !files.readFile) throw new Error("Not paired with T3 Code yet");
   const id = `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
@@ -125,7 +127,7 @@ async function ask(request: Record<string, unknown>): Promise<Record<string, unk
   if (Date.now() / 1000 - at > FRESH_S || parsed?.state === "off") {
     throw new Error(DIDNT_ANSWER);
   }
-  const until = Date.now() + ANSWER_MS;
+  const until = Date.now() + waitMs;
   // Each look is a round trip through T3: the first one when an answer is likely there, then sparser.
   for (let wait = 100; Date.now() < until; wait = Math.min(wait * 1.3, 300)) {
     await new Promise((resolve) => setTimeout(resolve, wait));
@@ -204,7 +206,7 @@ const t3Route: ComputerRoute = {
     return { state: "starting", reason: null };
   },
   async stt(wav) {
-    const answer = await ask({ task: "stt", wav: base64(new Uint8Array(await wav.arrayBuffer())) });
+    const answer = await ask({ task: "stt", wav: base64(new Uint8Array(await wav.arrayBuffer())) }, ANSWER_MS + sttWaitMs(wav) - 15_000);
     return typeof answer.text === "string" ? answer.text : "";
   },
   async tts(text) {
