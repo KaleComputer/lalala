@@ -17,6 +17,7 @@ import { soundGain } from "./extras/soundVolume";
 import { withPronunciations } from "./pronunciations";
 import { voiceLog } from "./voiceLog";
 import { voiceErrorText } from "./voiceErrors";
+import { registerMeter } from "./memoryTrail";
 import { narrowbandCall } from "./callRoute";
 import {
   BUILT_IN_TOPIC_SOUND,
@@ -143,6 +144,22 @@ export class SpeechPlayer {
   private topicSoundName: string | null = null;
   private readonly stopFollowingSettings: () => void;
   private preparedVoice: string | null = null;
+  private readonly stopMetering: () => void;
+
+  /** The reply audio this call holds: queued PCM, and scheduled pieces (their PCM and AudioBuffer). */
+  private audioMemory() {
+    let bytes = 0;
+    for (const sentence of this.queue) for (const chunk of sentence.chunks) bytes += chunk.byteLength;
+    for (const piece of this.pieces) bytes += piece.samples.byteLength * 2;
+    for (const piece of this.held ?? []) bytes += piece.samples.byteLength;
+    return {
+      MB: Math.round(bytes / 1e5) / 10,
+      sentences: this.queue.length,
+      pieces: this.pieces.size,
+      context: this.context.state,
+      rate: this.context.sampleRate,
+    };
+  }
 
   constructor(
     private readonly context: AudioContext,
@@ -163,6 +180,7 @@ export class SpeechPlayer {
     this.wave.connect(mute).connect(context.destination);
     this.frame = new Float32Array(this.output.fftSize);
     context.addEventListener("statechange", this.onContextState);
+    this.stopMetering = registerMeter("audio", () => this.audioMemory());
     this.loadTopicSound();
     this.prepareVoice();
     // The topic sound and reply voice picked in the settings apply in the call already running.
@@ -242,6 +260,7 @@ export class SpeechPlayer {
   /** Stops watching the context (the call ended). */
   dispose(): void {
     this.stopFollowingSettings();
+    this.stopMetering();
     // A card's voice frees its memory; the built-in voices stay loaded for the next call.
     if (this.preparedVoice !== null) replyVoicePlugin(this.preparedVoice)?.unload();
     this.context.removeEventListener("statechange", this.onContextState);

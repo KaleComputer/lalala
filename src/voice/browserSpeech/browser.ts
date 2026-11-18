@@ -18,7 +18,8 @@ import {
 } from "../settingsStore";
 import { voiceLog } from "../voiceLog";
 import { gpuTrial } from "./gpuTrial";
-import type { LoadMessage } from "./readout";
+import type { LoadMessage, WorkerMeter } from "./readout";
+import { memoryMoment, registerMeter } from "../memoryTrail";
 import { type ComputerSpeech, computerRoute } from "./computerRoute";
 
 type Reply =
@@ -175,6 +176,8 @@ function modelWorker(
     { resolve: (reply: Reply) => void; reject: (error: Error) => void }
   >();
   let nextId = 1;
+  let device: string | null = null;
+  let meter: WorkerMeter | null = null;
 
   const arm = () => {
     ready = new Promise<void>((resolve, reject) => {
@@ -250,8 +253,11 @@ function modelWorker(
     queued = false;
     loadingNow.delete(key);
     markLoading(key, false);
+    if (worker !== null) voiceLog("system", "speech.released", { model: key, ...(meter ?? {}) });
     worker?.terminate();
     worker = null;
+    meter = null;
+    device = null;
     download = null;
     isReady = false;
     failed = false;
@@ -308,6 +314,11 @@ function modelWorker(
     const spawned = spawn();
     worker = spawned;
     spawned.onmessage = ({ data }: MessageEvent<LoadMessage | Reply>) => {
+      if (data.type === "meter") {
+        meter = data;
+        memoryMoment(data.growingMB ? `${key}.wasm-grow` : null);
+        return;
+      }
       watch.message?.(data);
       if (data.type === "load") {
         download = { name: data.name, loaded: 0, total: data.expected, cached: data.cached };
@@ -324,6 +335,7 @@ function modelWorker(
         const { type: _type, ...detail } = data;
         if (detail.stage === "storage-fallback" && typeof detail.to === "string")
           storageCeiling = detail.to;
+        if (detail.stage === "backend" && typeof detail.device === "string") device = detail.device;
         voiceLog("system", "speech.stage", {
           model: key,
           ...detail,
@@ -393,6 +405,13 @@ function modelWorker(
         error: failed ? failure : null,
         retryAt,
       };
+    },
+    /** What this model holds now, for the memory trail; null while nothing is loaded. */
+    memory() {
+      if (worker === null && !queued) return null;
+      const { phase, name, total } = this.status();
+      const { wasmMB, gpuMB, growingMB } = meter ?? {};
+      return { model: key, name, phase, device, fileMB: Math.round(total / 1e6), wasmMB, gpuMB, growingMB };
     },
     started: () => worker !== null || queued,
     ready: () => isReady,
@@ -829,6 +848,7 @@ export async function transcribe(pcm: Float32Array<ArrayBuffer>): Promise<string
  * said ready (15 Nov), and a call without it heard no barge-in. A failed load is logged and retried.
  */
 let vadWorker: Worker | null = null;
+let vadMeter: WorkerMeter | null = null;
 let vadReady = false;
 let vadFailures = 0;
 let vadListener: ((probability: number) => void) | null = null;
@@ -854,17 +874,23 @@ function startVad() {
     voiceLog("system", "speech.failed", { model: "vad", message, retries: vadFailures });
     worker.terminate();
     vadWorker = null;
+    vadMeter = null;
     vadReady = false;
     vadFailures += 1;
     if (vadFailures <= VAD_RETRIES) window.setTimeout(startVad, 2_000 * vadFailures);
   };
-  worker.onmessage = ({ data }: MessageEvent<{ type: string; p?: number; message?: string }>) => {
-    if (data.type === "p") vadListener?.(data.p ?? 0);
+  worker.onmessage = ({
+    data,
+  }: MessageEvent<{ type: string; p?: number; message?: string } | WorkerMeter>) => {
+    if (data.type === "meter") {
+      vadMeter = data as WorkerMeter;
+      memoryMoment(null);
+    } else if (data.type === "p") vadListener?.((data as { p?: number }).p ?? 0);
     else if (data.type === "ready") {
       vadSettled?.();
       vadReady = true;
       voiceLog("system", "speech.ready", { model: "vad", ms: Math.round(performance.now() - startedAt) });
-    } else if (data.type === "failed") failed(data.message ?? "");
+    } else if (data.type === "failed") failed((data as { message?: string }).message ?? "");
   };
   worker.onerror = (event) => failed(event.message || "worker error");
   worker.postMessage({ type: "load" });
@@ -1043,3 +1069,12 @@ export async function checkGpu(): Promise<{ f16: boolean; any: boolean }> {
   const adapter = gpu ? await gpu.requestAdapter().catch(() => null) : null;
   return { f16: adapter?.features?.has("shader-f16") === true, any: adapter !== null };
 }
+
+// What each speech model holds, in every memory snapshot (memoryTrail): its file, and the WASM
+// memory and WebGPU buffers its worker counted (wasmMeter).
+registerMeter("models", () => {
+  const models: unknown[] = [ears.memory(), voice.memory(), warm.memory()].filter(Boolean);
+  if (vadWorker !== null)
+    models.push({ model: "vad", phase: vadReady ? "ready" : "loading", wasmMB: vadMeter?.wasmMB });
+  return models;
+});

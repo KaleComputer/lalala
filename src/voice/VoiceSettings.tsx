@@ -93,6 +93,7 @@ import {
 import { viaT3 } from "./browserSpeech/computerRoute";
 import { useLook } from "./extras/look";
 import { VersionLabel } from "./VersionLabel";
+import { lastTabKill, memoryNow } from "./memoryTrail";
 import { ThemeGallery } from "./extras/ThemeGallery";
 import { setSoundVolume, soundOutput, useSoundVolume, withSoundVolume } from "./extras/soundVolume";
 import { REQUEST_TIMEOUT_MS } from "./voiceErrors";
@@ -604,6 +605,7 @@ function SettingsSheet(props: {
           })}
         </ul>
         <VersionLabel />
+        {import.meta.hot ? <MemoryLine /> : null}
       </nav>
       {/* Every page stays mounted, so a check or a failed save survives a look at another page. */}
       <div ref={bodyRef} data-lalala-settings-body="">
@@ -2596,4 +2598,32 @@ function RemovedRows() {
       </Button>
     </Row>
   ));
+}
+
+const KILL_TIME = new Intl.DateTimeFormat("en-GB", {
+  day: "numeric",
+  month: "short",
+  hour: "2-digit",
+  minute: "2-digit",
+  second: "2-digit",
+});
+/**
+ * Dev server only (import.meta.hot), under the build stamp: what this page holds by its own count as Settings opened, and
+ * the last time this browser lost a lalala tab without a pagehide (the session log has the rest).
+ */
+function MemoryLine() {
+  const [now] = useState(memoryNow);
+  const [kill] = useState(lastTabKill);
+  const models = (now.models as Array<{ model: string; wasmMB?: number; fileMB?: number }> | undefined) ?? [];
+  return (
+    <p data-lalala-memory-line="">
+      ~{now.estMB} MB
+      {models.length > 0
+        ? ` (${models.map((m) => `${m.model} ${m.wasmMB ?? m.fileMB ?? "?"}`).join(", ")})`
+        : ""}
+      {kill
+        ? ` · last tab.killed ${KILL_TIME.format(new Date(kill.at))}${kill.hidden ? " (hidden)" : ""}, ~${kill.estMB ?? "?"} MB after ${kill.last ?? "?"}`
+        : " · no tab.killed yet"}
+    </p>
+  );
 }

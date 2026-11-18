@@ -327,8 +327,17 @@
   color: var(--s-fg-2);
   background: none;
 }
-[data-rail] [data-lalala-settings-nav] [data-lalala-version] {
+[data-rail] [data-lalala-settings-nav] [data-lalala-version],
+[data-rail] [data-lalala-settings-nav] [data-lalala-memory-line] {
   display: none;
+}
+/* Dev only: the page's memory by its own count and the last tab kill (memoryTrail). */
+[data-lalala-settings-nav] [data-lalala-memory-line] {
+  margin: 0;
+  padding: 0 10px 4px;
+  color: var(--s-fg-3);
+  font: 400 10px / 1.4 var(--s-sans);
+  font-variant-numeric: tabular-nums;
 }
 /* Small print at a page's end (Credits): no box, quieter than a description. */
 [data-lalala-settings-fine] {

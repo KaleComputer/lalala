@@ -1,5 +1,6 @@
 // Silero VAD v5 on ONNX (WASM): speech probability for each 32 ms of the mic, so breath, noise and
 // steps never count as Tim. Its own worker: Parakeet's runs can take a while and must not delay it.
+import "./wasmMeter";
 const ORT = "https://cdn.jsdelivr.net/npm/onnxruntime-web@1.24.1/dist/ort.wasm.min.mjs";
 const ORT_DIST = "https://cdn.jsdelivr.net/npm/onnxruntime-web@1.24.1/dist/";
 const MODEL = "https://cdn.jsdelivr.net/npm/@ricky0123/vad-web@0.0.29/dist/silero_vad_v5.onnx";

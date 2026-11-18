@@ -8,6 +8,13 @@ import { REQUEST_TIMEOUT_MS } from "./voiceErrors";
 export type VoiceLogWho = "user" | "voice" | "brain" | "system";
 
 const page = Math.random().toString(36).slice(2, 10);
+/** This page's id in the log: every event carries it. */
+export const logPage = page;
+let heard: ((type: string) => void) | null = null;
+/** One listener hears each event's type as it is logged (the memory trail's last actions). */
+export const hearVoiceLog = (listener: (type: string) => void) => {
+  heard = listener;
+};
 const FLUSH_MS = 250;
 const MAX_BATCH = 20;
 const MAX_QUEUE = 2_000;
@@ -79,11 +86,12 @@ function serialise(event: Record<string, unknown>): string {
 
 export function voiceLog(who: VoiceLogWho, type: string, data: Record<string, unknown> = {}): void {
   // No server keeps a log behind the browser storage adapter (lalala.talk).
-  if (globalThis.__lalalaAdapters?.storage.shared === false) return;
+  if (globalThis.__lalalaAdapters?.storage.shared === false) return void heard?.(type);
   try {
     queue.push(serialise({ t: new Date().toISOString(), page, session, who, type, ...data }));
     if (queue.length > MAX_QUEUE) queue = queue.slice(-MAX_QUEUE);
     if (failures === 0) schedule(FLUSH_MS);
+    heard?.(type);
   } catch {
     // Logging never breaks a call.
   }

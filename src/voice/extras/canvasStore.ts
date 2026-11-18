@@ -427,6 +427,26 @@ export function screenLoading(): { readonly waiting: number; readonly onScreen: 
 /** Whether a drawn card has its own layer (and a scrolling body) or is painted flat. */
 export const isLayered = (id: string) => !measured() || layered.has(id);
 
+/**
+ * The cards' share of memory, for the memory trail: how many are mounted, drawn and layered, and
+ * the layers' size at full device sharpness (4 bytes a pixel, whatever the zoom: WebKit's way).
+ */
+export function canvasMemory() {
+  const pixels = devicePixelRatio * devicePixelRatio * 4;
+  let layerBytes = 0;
+  for (const id of layered) {
+    const rect = live.cards[id];
+    if (rect) layerBytes += rect.w * rect.h * pixels;
+  }
+  return {
+    mounted: mounted.size,
+    drawn: drawn.size,
+    layered: layered.size,
+    layerMB: Math.round(layerBytes / 1e6),
+    zoom: Math.round(live.camera.z * 100) / 100,
+  };
+}
+
 let selected: string | null = null;
 /** The card or group (its groupKey) a tap picked: only its resize corner shows and works. */
 export const getSelected = () => selected;

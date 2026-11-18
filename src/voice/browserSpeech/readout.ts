@@ -9,7 +9,16 @@ export type LoadMessage =
   | { readonly type: "progress"; readonly loaded: number; readonly total: number }
   | { readonly type: "stage"; readonly stage: string; readonly [detail: string]: unknown }
   | { readonly type: "ready" }
-  | { readonly type: "failed"; readonly message: string };
+  | { readonly type: "failed"; readonly message: string }
+  | WorkerMeter;
+
+/** A worker's own memory, from wasmMeter whenever it moved. */
+export type WorkerMeter = {
+  readonly type: "meter";
+  readonly wasmMB: number;
+  readonly gpuMB: number;
+  readonly growingMB?: number;
+};
 
 /** Sums per-file progress events into one model's bytes. */
 export function trackFiles(onBytes: (loaded: number, total: number) => void) {

@@ -4,6 +4,7 @@
 // from the model folders lalala serves (public/models/<model>, which load the same way from any host).
 // Transformers.js reports load and run errors; only the words come from Kale's own front end
 // (matcha/kaleTts.js, as the warm voice). Credits: NOTICE.md.
+import "./wasmMeter";
 import { G2p, G2pModel, normalizer, readTable } from "./matcha/kaleTts.js";
 import { BritishG2p, britishNormalizer } from "./matcha/enGb.js";
 import { EttinTokenizer, ettinInputs, wordIndex } from "./matcha/ettin.js";

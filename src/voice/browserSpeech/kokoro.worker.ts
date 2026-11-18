@@ -1,5 +1,6 @@
 // Kokoro 82M on ONNX (kokoro-js), the reply voice, rendered off the page's thread. The libraries come
 // from the CDN: the page ships no copy of them.
+import "./wasmMeter";
 import { Normalizer, spokenText } from "./dizione/spoken.js";
 import { trackFiles } from "./readout";
 import { forgetDownloads, resumableFetch } from "./resumableFetch";

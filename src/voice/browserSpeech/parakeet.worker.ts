@@ -3,6 +3,7 @@
 // 1.8 GB at once; Tim's iPhone, 14 Nov, three times); or NVIDIA's 110M on the CPU (settings). Files go to
 // IndexedDB in pieces and the encoder's weights reach the runtime as external data read from disk a
 // slice at a time: buffered whole, the 1.25 GB file ended a phone's tab (13 Nov).
+import "./wasmMeter";
 import { externalGraph } from "./onnxExternal";
 import { trackFiles } from "./readout";
 import { downloadFile, dropAllDownloads, isDownloaded, keepDownloads } from "./resumableFetch";
