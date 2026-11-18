@@ -53,8 +53,42 @@ const briefVersion = () => {
 
 const storageKey = (threadId: ThreadId) => `lalala:brief:${threadId}`;
 
-export function withBrief(text: string): string {
-  return `${brief()}\n---\n\nThe user says: ${text}`;
+const BRIEF_LABEL = "lalala voice rules";
+/** T3 drops a terminal record over this (composerContext.ts), and the rules with it. */
+const TERMINAL_TEXT_MAX = 64_000;
+const briefId = () => `lalala-brief-${briefVersion()}`;
+
+/**
+ * The rules ride as a context record (a folded chip in T3's chat; the provider gets the full
+ * text after the user's words), so their message shows only what they said. T3 carries free text
+ * only in a terminal record, hence the kind.
+ */
+export function withBrief(text: string): {
+  text: string;
+  context?: { version: 1; records: ReadonlyArray<Record<string, unknown>> };
+} {
+  const rules = brief();
+  if (rules.length > TERMINAL_TEXT_MAX) return { text: `${rules}\n---\n\nThe user says: ${text}` };
+  const contextId = briefId();
+  return {
+    text: `[${BRIEF_LABEL}](t3-context://v1/terminal/${contextId})\n\n${text}`,
+    context: {
+      version: 1,
+      records: [
+        {
+          version: 1,
+          contextId,
+          label: BRIEF_LABEL,
+          kind: "terminal",
+          terminalId: "lalala",
+          terminalLabel: BRIEF_LABEL,
+          lineStart: 1,
+          lineEnd: rules.split("\n").length,
+          text: rules,
+        },
+      ],
+    },
+  };
 }
 
 /**
@@ -87,6 +121,14 @@ export function needsBrief(
   } catch {
     briefed = null;
   }
+  // Another device may have sent these rules already: the thread says so for every device.
+  const id = briefId();
+  let inThread = false;
+  for (const { item } of items) {
+    if (item.type === "compaction") inThread = false;
+    else if (item.briefId === id) inThread = true;
+  }
+  if (inThread) return false;
   if (briefed?.version !== briefVersion() || typeof briefed.at !== "number") return true;
   const since = briefed.at;
   if (compactedAt !== null && compactedAt > since) return true;

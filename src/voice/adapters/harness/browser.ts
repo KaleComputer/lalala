@@ -69,6 +69,7 @@ type Item = {
   runId?: string | null;
   status?: string;
   retry?: unknown;
+  context?: { records?: { contextId?: string }[] };
 };
 type Thread = {
   id: string;
@@ -89,6 +90,11 @@ const slim = (visibility: string, item: Item) => ({
     text: item.type === "assistant_message" ? (item.text ?? "") : "",
     streaming: item.streaming === true,
     parentItemId: item.parentItemId ?? null,
+    briefId:
+      item.type === "user_message"
+        ? (item.context?.records?.find((record) => record.contextId?.startsWith("lalala-brief-"))
+            ?.contextId ?? null)
+        : null,
     startedAt: item.startedAt ?? null,
     updatedAt: item.updatedAt ?? item.startedAt ?? new Date(0).toISOString(),
     // The away inbox's (src/voice/inbox/capture.ts): which run, and what came in from outside.
@@ -508,6 +514,7 @@ export function browserHarness(): HarnessAdapter {
         message: {
           messageId: string;
           text: string;
+          context?: unknown;
           attachments?: { dataUrl?: string }[];
           idleCompaction?: string;
         };
@@ -538,6 +545,7 @@ export function browserHarness(): HarnessAdapter {
           threadId,
           messageId: message.messageId,
           text: message.text,
+          ...(message.context === undefined ? {} : { context: message.context }),
           attachments,
           ...(message.idleCompaction === undefined ? {} : { idleCompaction: message.idleCompaction }),
           deliveryIntent: "auto",

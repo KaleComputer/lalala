@@ -57,6 +57,13 @@ const slimRun = (run) => ({
   userMessageId: run.userMessageId,
   completedAt: run.completedAt ?? null,
 });
+// The context id of the brain's rules on a user message (src/voice/brief.ts), so every device
+// sees they went once.
+const briefIdOf = (item) =>
+  item.type === "user_message"
+    ? (item.context?.records?.find((record) => record.contextId?.startsWith("lalala-brief-"))
+        ?.contextId ?? null)
+    : null;
 const PROJECT_NAME = "lalala";
 const BRAIN_TITLE = "brain";
 // The page only reads these fields (VoiceHost, brief.ts); everything else stays on the server.
@@ -70,6 +77,7 @@ const slim = (visibility, item) => ({
     parentItemId: item.parentItemId ?? null,
     // The user's message by its id: replies that start after it answer it (topicHold).
     messageId: item.type === "user_message" ? (item.messageId ?? null) : null,
+    briefId: briefIdOf(item),
     startedAt: item.startedAt ?? null,
     updatedAt: item.updatedAt ?? item.startedAt ?? new Date(0).toISOString(),
     // The away inbox's (src/voice/inbox/capture.ts): which run, and what came in from outside.
@@ -700,6 +708,7 @@ export function t3BridgePlugin({ threadId: configuredThreadId, workspaceRoot }) 
       threadId,
       messageId: message.messageId,
       text: message.text,
+      ...(message.context === undefined ? {} : { context: message.context }),
       attachments,
       ...(message.idleCompaction === undefined ? {} : { idleCompaction: message.idleCompaction }),
       deliveryIntent: "auto",

@@ -492,7 +492,7 @@ export function VoiceHost({
       const briefed =
         existingThreadId === null || needsBrief(threadId, items, brainContext?.compactedAt ?? null);
       const tagged = withCanvas(text, unheard);
-      const turnText = briefed ? withBrief(tagged) : tagged;
+      const turnMessage = briefed ? withBrief(tagged) : { text: tagged };
       // A send queued on a dead connection never fails on its own; it counts as failed after this.
       let timer = 0;
       const timedOut = new Promise<"timeout">((resolve) => {
@@ -508,7 +508,7 @@ export function VoiceHost({
               input: {
                 commandId,
                 threadId,
-                message: { ...message, text: turnText },
+                message: { ...message, ...turnMessage },
                 runtimeMode: voiceThread?.runtimeMode ?? "full-access",
                 interactionMode: voiceThread?.interactionMode ?? "default",
                 createdAt,
@@ -519,7 +519,7 @@ export function VoiceHost({
               input: {
                 commandId,
                 threadId,
-                message: { ...message, text: turnText },
+                message: { ...message, ...turnMessage },
                 modelSelection,
                 runtimeMode: "full-access",
                 interactionMode: "default",

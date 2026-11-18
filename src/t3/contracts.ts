@@ -19,5 +19,7 @@ export type OrchestrationV2ProjectedTurnItem = {
     readonly updatedAt: string;
     /** T3's provider retry ("error" items): running while the provider tries its request again. */
     readonly retrying?: boolean;
+    /** A user message carrying the brain's rules: their context id (brief.ts). */
+    readonly briefId?: string | null;
   };
 };
