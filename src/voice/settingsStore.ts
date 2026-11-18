@@ -259,7 +259,7 @@ export const SMALL_VOICES: Readonly<
   },
   [NANO_VOICE]: { model: "kale-tts-1-nano", voices: EIGHT_VOICES, bytes: 10_676_685 },
   [TINY_VOICE]: { model: "kale-tts-1-tiny", voices: EIGHT_VOICES, bytes: 61_524_303 },
-  [NANO10_VOICE]: { model: "kale-tts-1-nano-10", voices: TEN_VOICES, bytes: 13_048_699, cpuOnly: true },
+  [NANO10_VOICE]: { model: "kale-tts-1-nano-10", voices: TEN_VOICES, bytes: 15_289_714, cpuOnly: true },
   // The Ettin text side, the release tiny (per-voice end clamp; the first Ettin export garbled sound and timing); its
   // tokenizer (2.1 MB) loads with it.
   [TINY10_VOICE]: { model: "kale-tts-1-tiny-10", voices: TEN_VOICES, bytes: 82_558_140, cpuOnly: true },

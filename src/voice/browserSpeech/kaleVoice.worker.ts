@@ -119,6 +119,9 @@ type Voice = {
   frontEnd: FrontEnd;
   /** Each voice's accent tag from the model's voices.json (en-us when it has none). */
   readonly accents: Readonly<Record<string, string>>;
+  /** A model trained on Kokoro's own phoneme symbols (its voices.json says "phonemes": "kokoro-native"): ids come from
+   *  knIPA over its tokenizer's vocabulary, not from the tokenizer (whose normalizer drops those symbols). */
+  readonly kn: { readonly vocab: Readonly<Record<string, number>> } | null;
   /** The Ettin text side (the 10-voice kale-tts-1-tiny): its tokenizer, and the last sentence as context. */
   readonly ettin: { readonly tok: EttinTokenizer; prev: string } | null;
 };
@@ -171,7 +174,7 @@ const MODEL_REVISION = "r10-ettin";
 const MODEL_REVISIONS: Record<string, string> = {
   "kale-tts-1-tiny-10-classic": "end-clamp",
   "kale-tts-1-tiny-10": "release-1902",
-  "kale-tts-1-nano-10": "release-1151",
+  "kale-tts-1-nano-10": "release-nano-base",
   "kale-tts-1-tiny-10-i8": "release-1151",
 };
 
@@ -262,7 +265,7 @@ async function loadDirect(
       .catch(() => fallback);
   const [voiceInputs, voicesJson, tokenizer] = await Promise.all([
     json<Voice["voiceInputs"]>("voice_inputs.json", []),
-    json<{ voices?: { id: string; accent?: string }[] }>("voices.json", {}),
+    json<{ voices?: { id: string; accent?: string }[]; phonemes?: string }>("voices.json", {}),
     json<{ model: { vocab: Record<string, number> } }>("tokenizer.json", { model: { vocab: {} } }),
   ]);
   const accents = Object.fromEntries((voicesJson.voices ?? []).map((entry) => [entry.id, entry.accent ?? "en-us"]));
@@ -308,6 +311,7 @@ async function loadDirect(
   );
   const ready: Voice = {
     ...{ hf: shim, model, name, speed, tokenize, voicepack, extra, voiceInputs, frontEnd, accents },
+    kn: voicesJson.phonemes === "kokoro-native" ? { vocab: tokenizer.model.vocab } : null,
     ettin: await ettinFor(name),
   };
   await trace("warmup");
@@ -390,10 +394,15 @@ async function loadOn(
   const voiceInputs = await fetch(`${hf.env.localModelPath}${name}/voice_inputs.json`)
     .then((response) => (response.ok ? (response.json() as Promise<Voice["voiceInputs"]>) : []))
     .catch(() => []);
-  const accents = await fetch(`${hf.env.localModelPath}${name}/voices.json`)
-    .then((response) => (response.ok ? (response.json() as Promise<{ voices?: { id: string; accent?: string }[] }>) : {}))
-    .then((list) => Object.fromEntries((list.voices ?? []).map((entry) => [entry.id, entry.accent ?? "en-us"])))
-    .catch(() => ({}) as Record<string, string>);
+  const voicesList = await fetch(`${hf.env.localModelPath}${name}/voices.json`)
+    .then((response) => (response.ok ? (response.json() as Promise<{ voices?: { id: string; accent?: string }[]; phonemes?: string }>) : {}))
+    .catch(() => ({}) as { voices?: { id: string; accent?: string }[]; phonemes?: string });
+  const accents = Object.fromEntries((voicesList.voices ?? []).map((entry) => [entry.id, entry.accent ?? "en-us"]));
+  const knVocab = voicesList.phonemes === "kokoro-native"
+    ? await fetch(`${hf.env.localModelPath}${name}/tokenizer.json`)
+        .then((response) => response.json() as Promise<{ model: { vocab: Record<string, number> } }>)
+        .then((t) => t.model.vocab)
+    : null;
   await trace("session-create", { device });
   const [model, tokenize, [voicepack, extra], frontEnd] = await Promise.all([
     hf.StyleTextToSpeech2Model.from_pretrained(name, {
@@ -438,6 +447,7 @@ async function loadOn(
     voiceInputs,
     frontEnd,
     accents,
+    kn: knVocab ? { vocab: knVocab } : null,
   };
   await trace("warmup");
   await speak(ready, "Hi.");
@@ -516,8 +526,52 @@ async function ettinFor(name: string): Promise<Voice["ettin"]> {
 }
 
 /** A sentence's sound ids, without the pads. */
+/**
+ * Kokoro-native phoneme ids, exactly as the kale-tts-1 release runtime (release-draft/js/kale-tts.mjs knIPA): en-us: eɪ A, aɪ I,
+ * aʊ W, oʊ O, ɔɪ Y, tʃ ʧ, dʒ ʤ, no ː, ɚ əɹ, ɝ ɜɹ, ɾ T; en-gb: the same pairs with əʊ Q, length marks kept, no rhotic / flap rules;
+ * both: ə + l/n/m at a word end after a consonant -> ᵊ.
+ */
+const KN_PAIRS: Record<string, string> = { "eɪ": "A", "aɪ": "I", "aʊ": "W", "ɔɪ": "Y", "tʃ": "ʧ", "dʒ": "ʤ" };
+const KN_VOW = new Set([..."aeiouɑɐɒæəɘɚɛɜɝɞɪɨʊʉʌɔøœɤɯʏyAIWOYᵊᵻ"]);
+const KN_END = new Set([..." .,!?;:"]);
+function knIPA(chars: string[], gb: boolean): string[] {
+  const pairs: Record<string, string> = { ...KN_PAIRS, ...(gb ? { "əʊ": "Q" } : { "oʊ": "O" }) };
+  const out: string[] = [];
+  for (let i = 0; i < chars.length; ) {
+    const two = chars[i] + (chars[i + 1] ?? "");
+    if (pairs[two]) {
+      out.push(pairs[two]);
+      i += 2;
+      continue;
+    }
+    const c = chars[i++];
+    if (gb) {
+      out.push(c);
+      continue;
+    }
+    if (c === "ː") continue;
+    if (c === "ɚ") out.push("ə", "ɹ");
+    else if (c === "ɝ") out.push("ɜ", "ɹ");
+    else if (c === "ɾ") out.push("T");
+    else out.push(c);
+  }
+  for (let k = 1; k < out.length - 1; k++)
+    if (out[k] === "ə" && "lnm".includes(out[k + 1]) && (k + 2 === out.length || KN_END.has(out[k + 2])) && !KN_VOW.has(out[k - 1]) &&
+        !"ˈˌ".includes(out[k - 1]) && !/\s/.test(out[k - 1])) out[k] = "ᵊ";
+  return out;
+}
+
+/** The model's input ids for some IPA, with the pads: through the tokenizer, or Kokoro-native for a kn model. */
+function tokenIds(ready: Voice, ipa: string): Tensor {
+  if (!ready.kn) return ready.tokenize(ipa, { truncation: true }).input_ids;
+  const vocab = ready.kn.vocab;
+  const syms = knIPA([...ipa].filter((c) => vocab[c] !== undefined), ready.frontEnd.accent === "en-gb");
+  const ids = [0, ...syms.map((c) => vocab[c]).filter((x): x is number => x !== undefined && x !== 0), 0];
+  return new ready.hf.Tensor("int64", BigInt64Array.from(ids.map(BigInt)), [1, ids.length]) as Tensor;
+}
+
 const idsOf = (ready: Voice, ipa: string) =>
-  Array.from(ready.tokenize(ipa, { truncation: true }).input_ids.data as unknown as ArrayLike<bigint | number>, Number).slice(1, -1);
+  Array.from(tokenIds(ready, ipa).data as unknown as ArrayLike<bigint | number>, Number).slice(1, -1);
 
 /**
  * The voice to load: the one asked for when the model's voices.json lists it, else the model's first.
@@ -575,7 +629,7 @@ async function voiceFiles(
 /** One IPA piece through the model, as kokoro-js's generate_from_ids: its tokens pick the style row. */
 type EttinFeeds = { readonly e: ReturnType<typeof ettinInputs>; readonly widx: number[] };
 async function render(ready: Voice, ipa: string, words: EttinFeeds | null = null): Promise<Float32Array> {
-  const { input_ids } = ready.tokenize(ipa, { truncation: true });
+  const input_ids = tokenIds(ready, ipa);
   const n = input_ids.dims.at(-1)! - 2;
   if (n <= 0) return new Float32Array(0);
   const row = Math.min(n, ready.voicepack.length / STYLE) - 1;
