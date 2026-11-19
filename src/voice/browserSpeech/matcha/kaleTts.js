@@ -254,6 +254,18 @@ function senseRule(low, words, i) {
   return null;
 }
 
+/**
+ * Two or more one-letter capitals in a row ("G P U", "L L M's", the text rules' "A M") are one spelled name, as "GPU" is: read
+ * as separate words, every letter got a full stress and a pause after it (Tim, 19 Nov).
+ */
+function letterRun(tokens, start) {
+  let letters = "", i = start;
+  while (i < tokens.length && /^[A-Z]$/.test(tokens[i])) letters += tokens[i++];
+  const plural = i < tokens.length && /^[A-Z]['’]s$/.test(tokens[i]);
+  if (plural) letters += tokens[i++][0];
+  return letters.length >= 2 ? { letters, plural, end: i } : null;
+}
+
 class G2p {
   constructor(lex, model) { this.lex = lex; this.model = model || null; this.learnt = new Map(); }
 
@@ -266,6 +278,13 @@ class G2p {
       const mark = PUNCT[tok];
       if (mark !== undefined) { if (out.length) out[out.length - 1] += mark; continue; }
       if (skip) { skip = false; continue; }
+      const run = letterRun(tokens, i);
+      if (run !== null) {
+        const ipa = this.spell(run.letters);
+        out.push(run.plural ? ipa + pluralSuffix(ipa) : ipa);
+        i = run.end - 1;
+        continue;
+      }
       const nx = tokens[i + 1];
       const next = nx !== undefined && !(nx in PUNCT) ? nx : null;
       if (next !== null) {
@@ -317,7 +336,7 @@ class G2p {
 
   lookup(low, original) {
     const lex = this.lex;
-    if (lex.has(low)) return lex.get(low);
+    if (lex.has(low)) return this.letters(low, lex.get(low));
     if (original === null) return null;
     for (const [cands, suffix] of this.stems(low)) {
       for (const stem of cands) { const base = lex.get(stem); if (base) return base + suffix(base); }
@@ -377,11 +396,19 @@ class G2p {
     return out;
   }
 
+  /** A listed reading that is only the word's letter names (CMUdict's "cpu", "pr", "url") is spelled as "GPU" is. */
+  letters(low, ipa) {
+    if (low.length < 2 || low.length > 5 || low === "ok" || !/^[a-z]+$/.test(low)) return ipa;   // "ok" is said as one word
+    const names = [...low].map((c) => (c === "a" ? "eɪ" : bare(this.lex.get(c) ?? ""))).join("");
+    return bare(ipa) === names ? this.spell(low) : ipa;
+  }
+
   spell(word) {
-    // The letter A is "ay"; the word list's "a" is the article ("uh"), which made VAD "vee-uh-dee".
-    const parts = [...word].map((ch) => { const c = ch.toLowerCase(); return c === "a" ? "ˈeɪ" : this.lex.get(c) ?? LETTER_SOUND[c] ?? ""; }).filter((p) => p);
+    // The letter A is "ay"; the word list's "a" is the article ("uh"), which made VAD "vee-uh-dee". Its "i" is the unstressed pronoun.
+    const parts = [...word].map((ch) => { const c = ch.toLowerCase(); return c === "a" ? "ˈeɪ" : c === "i" ? "ˈaɪ" : this.lex.get(c) ?? LETTER_SOUND[c] ?? ""; }).filter((p) => p);
     if (!parts.length) return "";
-    return parts.slice(0, -1).map(secondary).join("") + parts[parts.length - 1];
+    // Letters stay apart (joined, the small voices blur "CPU" into "C-Q"), only the last one stressed, so they run on as one name.
+    return [...parts.slice(0, -1).map(secondary), parts[parts.length - 1]].join(" ");
   }
 
   chunks(w) {

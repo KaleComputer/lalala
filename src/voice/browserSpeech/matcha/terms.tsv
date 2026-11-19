@@ -6,7 +6,7 @@ t3 code	T three code
 T3code	T three code
 aws	AWS
 api	API
-cli	C L eye
+cli	C L I
 gpu	GPU
 url	URL
 WebGPU	web GPU
@@ -50,7 +50,7 @@ sdk	SDK
 onnx	onyx
 # Spaced, since run together they were misheard (STT as "SDT", CLI as "cla"); ONNX is said "onyx".
 STT	S T T
-CLI	C L eye
+CLI	C L I
 ONNX	onyx
 # Weekdays and model sizes (the open-release worker, 16 Nov). One file for lalala and the release.
 Mon	Monday
@@ -87,11 +87,11 @@ kokoro-js	kokoro J S
 onnxruntime-web	onyx runtime web
 onnxruntime	onyx runtime
 # Tim, 16 Nov: CLI still sounded wrong. "C L I" ended on an unstressed "I"; "eye" carries the stress.
-CLIs	C L eyes
+CLIs	C L I's
 # Tech terms, 18 Nov ("GGUF" was said as "just"): software, ML/AI and robotics, case-aware (only these exact forms, so
 # rag, slam, pid stay words). Spelled letters are spaced: joined runs blurred. Checked by Whisper on nano and tiny.
 TTS	T T S
-ASR	ay S R
+ASR	A S R
 LLM	L L M
 SLM	S L M
 SLMs	S L M's
@@ -102,14 +102,14 @@ gguf	G G U F
 GGML	G G M L
 ggml	G G M L
 GPTQ	G P T Q
-AWQ	ay W Q
+AWQ	A W Q
 CUDA	kooda
 cuda	kooda
 cuDNN	kooda D N N
 NCCL	nickel
 ROCm	rock M
 TensorRT	tensor R T
-TensorRT-LLM	tensor R T L L M
+TensorRT-LLM	tensor RT LLM
 OpenVINO	open veeno
 CoreML	core M L
 DirectML	direct M L
@@ -119,8 +119,8 @@ TPU	T P U
 NPU	N P U
 CPU	C P U
 LPU	L P U
-API	ay P eye
-APIs	ay P eyes
+API	A P I
+APIs	A P I's
 SDK	S D K
 SDKs	S D K's
 JSONL	jay son L
@@ -139,7 +139,7 @@ QLoRA	Q lora
 PEFT	peft
 MoE	M O E
 RLHF	R L H F
-RLAIF	R L ay eye F
+RLAIF	R L A I F
 DPO	D P O
 PPO	P P O
 GRPO	G R P O
@@ -172,13 +172,13 @@ SciPy	sigh pie
 scipy	sigh pie
 scikit-learn	sigh kit learn
 JAX	jacks
-XLA	X L ay
+XLA	X L A
 safetensors	safe tensors
 MLflow	M L flow
 wandb	W and B
 SentencePiece	sentence piece
 BPE	B P E
-AI	ay eye
+AI	A I
 ML	M L
 NLP	N L P
 CNN	C N N
@@ -186,8 +186,8 @@ RNN	R N N
 LSTM	L S T M
 GRU	G R U
 MLP	M L P
-VAE	V ay E
-VQ-VAE	V Q V ay E
+VAE	V A E
+VQ-VAE	VQ VAE
 RVQ	R V Q
 GELU	jell oo
 AdamW	adam W
@@ -195,8 +195,8 @@ SGD	S G D
 GPT	G P T
 ChatGPT	chat G P T
 ResNet	rez net
-GQA	G Q ay
-MQA	M Q ay
+GQA	G Q A
+MQA	M Q A
 MMLU	M M L U
 GSM8K	G S M eight K
 SWE-bench	swee bench
@@ -207,7 +207,7 @@ CER	C E R
 MOS	M O S
 SNR	S N R
 RTF	R T F
-VAD	V ay D
+VAD	V A D
 MCP	M C P
 A2A	ay two ay
 SNAC	snack
@@ -218,7 +218,7 @@ F5-TTS	F five T T S
 VITS	vits
 espeak	E speak
 Groq	grock
-xAI	X ay eye
+xAI	X A I
 LlamaIndex	llama index
 llama.cpp	llama C P P
 whisper.cpp	whisper C P P
@@ -239,18 +239,18 @@ CDN	C D N
 VPN	V P N
 VM	V M
 VMs	V M's
-CI/CD	C eye C D
-CI	C eye
+CI/CD	C I C D
+CI	C I
 gRPC	G R P C
 JWT	J W T
-UUID	U U eye D
+UUID	U U I D
 GUID	goo id
 SaaS	sass
 npm	N P M
 pnpm	P N P M
 ESM	E S M
 macOS	mac O S
-iOS	eye O S
+iOS	I O S
 iPadOS	eye pad O S
 Ubuntu	oo boon too
 Xcode	X code
@@ -274,12 +274,12 @@ kHz	kilohertz
 GHz	gigahertz
 ROS	ross
 ROS 2	ross two
-IMU	eye M U
-PID	P eye D
+IMU	I M U
+PID	P I D
 URDF	U R D F
 MPC	M P C
 EKF	E K F
-IK	eye K
+IK	I K
 DoF	D O F
 DOF	D O F
 6-DoF	six D O F
@@ -293,8 +293,8 @@ ESP32	E S P thirty two
 STM32	S T M thirty two
 UART	you art
 I2C	eye squared C
-SPI	S P eye
-GPIO	G P eye O
+SPI	S P I
+GPIO	G P I O
 PWM	P W M
 sim2real	sim to real
 # .cpp project names, 18 Nov: "<name> C P P", no "dot" (as people say llama.cpp); other .cpp files keep "dot C P P".
@@ -306,15 +306,16 @@ llama cpp	llama C P P
 Whisper.cpp	whisper C P P
 whisper-cpp	whisper C P P
 audio.cpp	audio C P P
-ggml.cpp	G G M L C P P
+ggml.cpp	GGML C P P
 stable-diffusion.cpp	stable diffusion C P P
 bark.cpp	bark C P P
 gemma.cpp	jemma C P P
 encodec.cpp	en codec C P P
 clip.cpp	clip C P P
-chatglm.cpp	chat G L M C P P
+chatglm.cpp	chat GLM C P P
 qwen.cpp	kwen C P P
-rwkv.cpp	R W K V C P P
+rwkv.cpp	RWKV C P P
 bert.cpp	burt C P P
 vits.cpp	vits C P P
-tts.cpp	T T S C P P
+tts.cpp	TTS C P P
+ai	A I

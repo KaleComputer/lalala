@@ -16,6 +16,7 @@ export function speakableText(text: string): string {
 }
 
 const LONG_FRAGMENT = 220;
+const oneWord = (sentence: string) => (sentence.match(/[\p{L}\p{N}]+(?:['’][\p{L}]+)*/gu) ?? []).length === 1;
 
 /**
  * Splits the not-yet-spoken tail of a reply into sentences ready to speak. While the reply is
@@ -37,16 +38,25 @@ export function takeSentences(
 
   const sentences: string[] = [];
   let consumed = 0;
+  // A one-word sentence ("Four.", "Monday.") rides with the next one: the small voices garble a word said
+  // alone, swallowing its end and adding a tail ("Four." -> "Forwarding", Tim, 19 Nov), and say it right
+  // in "Four. Thursday.". It waits for that next sentence, unless it is the reply's last.
+  let start = 0;
   const boundary = /[.!?…]+["')\]]*(?=\s)|\n{2,}/g;
   let match: RegExpExecArray | null;
   while ((match = boundary.exec(safe)) !== null) {
     const end = match.index + match[0].length;
-    sentences.push(safe.slice(consumed, end));
-    consumed = end;
+    const next = safe.slice(end);
+    if (oneWord(safe.slice(start, end)) && !/^\s*[\u2063\u2064]/.test(next)) continue;
+    sentences.push(safe.slice(start, end));
+    consumed = start = end;
   }
   const rest = safe.slice(consumed);
   if (final && fences % 2 === 0) {
-    if (rest.trim() !== "") sentences.push(rest);
+    // A reply's last word said alone ("... Fine.") rides with the sentence before it when that one is still here.
+    if (oneWord(rest) && sentences.length > 0 && !/^\s*[\u2063\u2064]/.test(rest))
+      sentences[sentences.length - 1] += rest;
+    else if (rest.trim() !== "") sentences.push(rest);
     consumed = tail.length;
   } else if (rest.length > LONG_FRAGMENT) {
     // A run-on with no sentence end: speak up to its last comma or space.
