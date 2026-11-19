@@ -1,4 +1,4 @@
-import { AREA, GROUP_GAP, areaAround, packInWidth, tidyLayout } from "./tidyPack";
+import { AREA, GROUP_GAP, areaAround, packInWidth, spotInGroup, tidyLayout } from "./tidyPack";
 
 /**
  * The canvas's camera and card boxes, kept outside React: gestures write here, and the surface,
@@ -158,10 +158,8 @@ type Placing = {
   readonly taken: readonly Rect[];
   /** What it goes beside (the main cluster of these, else of `taken`), `gap` away. */
   readonly near: readonly Rect[];
-  /** Other groups' areas: `around` the new box stays `clear` of them. */
+  /** Groups' areas: the new box stays `clear` of them. */
   readonly avoid?: readonly Rect[];
-  /** What the new box adds to its group's area; itself when it has no group. */
-  readonly around?: (rect: Rect) => Rect;
   readonly gap?: number;
   readonly clear?: number;
   /** the user's view: a spot in it wins, nearest its middle. */
@@ -180,12 +178,12 @@ type Placing = {
  * everything, at left.
  */
 function place(want: Rect, opts: Placing): Rect {
-  const { taken, near, avoid = [], around = (r: Rect) => r, gap = GAP, clear = GAP } = opts;
+  const { taken, near, avoid = [], gap = GAP, clear = GAP } = opts;
   const { focus, prefer, exact = false, aspect = 4 / 3 } = opts;
   // Half a px of slack: saved boxes have fractional edges from drags.
   const free = (rect: Rect) =>
     taken.every((other) => apart(rect, other) >= gap - 0.5) &&
-    avoid.every((area) => apart(around(rect), area) >= clear - 0.5);
+    avoid.every((area) => apart(rect, area) >= clear - 0.5);
   if (prefer !== undefined && exact && free(prefer)) return prefer;
   if (taken.length === 0 && avoid.length === 0) return prefer ?? want;
   const anchors = near.length > 0 ? near : [...taken, ...avoid];
@@ -229,7 +227,7 @@ function place(want: Rect, opts: Placing): Rect {
     x: boundsOf(cluster).x,
     y: Math.max(...[...taken, ...avoid].map((r) => r.y + r.h)),
   };
-  return { ...below, y: below.y + clear + (below.y - around(below).y) };
+  return { ...below, y: below.y + clear };
 }
 
 type Live = {
@@ -1346,16 +1344,18 @@ const onCanvas = (key: string, canvas: string) =>
 /**
  * Every saved box of a card in code on the open canvas, on the surface here or not: another tab or
  * device may show cards this one hasn't mounted, and a new card must not land on them either.
- * Boxes of cards no longer in code stay in the shared layout unseen; they don't push new cards away.
+ * Boxes of cards no longer in code, or whose code puts them on another canvas (Main keeps the plain-id
+ * boxes of cards since moved), stay in the shared layout unseen; they don't push new cards away.
  */
-const canvasBoxes = (except: string) =>
-  Object.entries(live.cards).flatMap(([key, rect]) =>
-    key !== except &&
-    onCanvas(key, live.canvas) &&
-    (mounted.has(key) || cardsInCode.has(cardOf(key)))
-      ? [rect]
-      : [],
-  );
+const canvasBoxes = (except: string) => {
+  const list = listOf(live.canvases);
+  return Object.entries(live.cards).flatMap(([key, rect]) => {
+    if (key === except || !onCanvas(key, live.canvas)) return [];
+    const card = cardsInCode.get(cardOf(key));
+    const here = mounted.has(key) || (card && homeOf(card.canvas, list) === live.canvas);
+    return here ? [rect] : [];
+  });
+};
 /** What the user is looking at, in world px; unknown before the surface is measured. */
 const viewport = (): Rect | undefined => {
   const { camera } = live;
@@ -1412,13 +1412,17 @@ function placeNew() {
   for (const [id, { rect: fallback, exact: pinned }] of waiting) {
     if (live.cards[id] !== undefined) continue;
     const taken = canvasBoxes(id);
-    // A card of a group lands among its group's cards, its area clear of the other groups'.
+    // A card of a group lands beside its group's cards (a group new here was placed above).
     const group = groupOf(id);
-    const exact = pinned && group === undefined;
-    const siblings = surfaceCards().filter((c) => c.id !== id && c.group === group);
-    const own = group !== undefined && siblings.length > 0;
-    const avoid = groupAreas().flatMap((area) => (area.label === group ? [] : [area.rect]));
-    const view = own ? undefined : viewport();
+    const area = groupAreas().find((a) => a.label === group);
+    if (area) {
+      const siblings = surfaceCards().filter((c) => c.id !== id && c.group === group);
+      const others = groupAreas().flatMap((a) => (a.label === group ? [] : [a.rect]));
+      setCard(id, spotInGroup(fallback, siblings.map((c) => c.rect), area.rect, taken, others));
+      newlyPlaced.add(id);
+      continue;
+    }
+    const view = viewport();
     // A new canvas's first card lands where the user is looking.
     const start =
       live.canvas !== MAIN && taken.length === 0 && view
@@ -1428,12 +1432,11 @@ function placeNew() {
       id,
       place(start, {
         taken,
-        near: own ? siblings.map((c) => c.rect) : blocks(),
-        avoid,
-        ...(group !== undefined && { around: (r: Rect) => areaAround([r]) }),
+        near: blocks(),
+        avoid: groupAreas().map((a) => a.rect),
         focus: view,
-        prefer: exact ? fallback : own ? undefined : start,
-        exact,
+        prefer: pinned ? fallback : start,
+        exact: pinned,
         aspect: mapAspect(),
       }),
     );

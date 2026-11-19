@@ -5,7 +5,14 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 
-import { AREA, CARD_GAP, GROUP_GAP, tidyLayout } from "../../src/voice/extras/tidyPack.ts";
+import {
+  AREA,
+  CARD_GAP,
+  GROUP_GAP,
+  areaAround,
+  spotInGroup,
+  tidyLayout,
+} from "../../src/voice/extras/tidyPack.ts";
 
 // The Voice group's card sizes that day, rounded.
 const VOICE = [
@@ -76,4 +83,49 @@ test("the whole canvas comes out near the mini-map's shape", () => {
   const h = Math.max(...boxes.map((r) => r.y + r.h)) - Math.min(...boxes.map((r) => r.y));
   const off = Math.max(w / h / MAP, MAP / (w / h));
   assert.ok(off <= 1.6, `the canvas is ${Math.round(w)}×${Math.round(h)}`);
+});
+
+// A card added to a group on a tidied canvas: on 19 Nov one added to "kale-tts-1, release" (these
+// two cards) landed far off at the bottom left, as new cards in a group did. Placing kept a new
+// card's own area 16 px clear of other groups', which tidy leaves only 240 px away, so a group with
+// neighbours all round and no room inside had no spot beside it, and the card went below them all.
+const ring = Array.from({ length: 9 }, (_, g) =>
+  [[1100, 1800], [1300, 1600]].map(([w, h], i) => ({ id: `g${g}-${i}`, group: `G${g}`, w, h })),
+).flat();
+const tidied = tidyLayout(ring, MAP, { x: 0, y: 0 });
+const ringAreas = [...new Set(ring.map((c) => c.group))].map((name) => ({ name, ...tidied[`group:${name}`] }));
+// The group with the most neighbours close by: boxed in on every side it can be.
+const crowded = ringAreas.toSorted(
+  (a, b) =>
+    ringAreas.filter((o) => !apart(b, o, GROUP_GAP + 1)).length -
+    ringAreas.filter((o) => !apart(a, o, GROUP_GAP + 1)).length,
+)[0];
+
+const joins = (name, want) => {
+  const mine = ring.filter((c) => c.group === name).map((c) => tidied[c.id]);
+  const taken = ring.map((c) => tidied[c.id]);
+  const others = ringAreas.filter((a) => a.name !== name);
+  return { mine, taken, spot: spotInGroup(want, mine, tidied[`group:${name}`], taken, others) };
+};
+
+test("a new card in a group lands beside its group's cards, CARD_GAP from each", () => {
+  // Fits between this group's cards and its neighbours' (336 px), not with its own area clear.
+  const { mine, taken, spot } = joins(crowded.name, { w: 280, h: 900 });
+  assert.equal(spot.w, 280);
+  assert.equal(spot.h, 900);
+  const beside = mine.some((c) => {
+    const gapX = Math.max(c.x - (spot.x + spot.w), spot.x - (c.x + c.w));
+    const gapY = Math.max(c.y - (spot.y + spot.h), spot.y - (c.y + c.h));
+    return (Math.abs(gapX - CARD_GAP) < 0.5 && gapY < 0) || (Math.abs(gapY - CARD_GAP) < 0.5 && gapX < 0);
+  });
+  assert.ok(beside, `landed at ${Math.round(spot.x)},${Math.round(spot.y)}`);
+  for (const t of taken) assert.ok(apart(spot, t, CARD_GAP), "it overlaps a card");
+});
+
+test("a new card that fits in its group's area takes that room and grows nothing", () => {
+  const { spot } = joins(crowded.name, { w: 600, h: 150 });
+  const area = tidied[`group:${crowded.name}`];
+  const grown = areaAround([spot]);
+  assert.ok(grown.x >= area.x - 0.5 && grown.y >= area.y - 0.5, "it grew the area");
+  assert.ok(grown.x + grown.w <= area.x + area.w + 0.5 && grown.y + grown.h <= area.y + area.h + 0.5, "it grew the area");
 });

@@ -207,3 +207,88 @@ export function tidyLayout(
   }
   return out;
 }
+
+/** The empty space between two boxes along whichever axis they're furthest apart. */
+const apart = (a: Box, b: Box) =>
+  Math.max(0, b.x - (a.x + a.w), a.x - (b.x + b.w), b.y - (a.y + a.h), a.y - (b.y + b.h));
+const union = (a: Box, b: Box): Box => {
+  const x = Math.min(a.x, b.x);
+  const y = Math.min(a.y, b.y);
+  return { x, y, w: Math.max(a.x + a.w, b.x + b.w) - x, h: Math.max(a.y + a.h, b.y + b.h) - y };
+};
+/** Side by side or stacked, CARD_GAP apart, sharing some of that edge. */
+const beside = (a: Box, b: Box) => {
+  const near = (gap: number) => Math.abs(gap - CARD_GAP) < 0.5;
+  const across = Math.min(a.y + a.h, b.y + b.h) - Math.max(a.y, b.y);
+  const along = Math.min(a.x + a.w, b.x + b.w) - Math.max(a.x, b.x);
+  return (
+    (across > 0 && (near(b.x - (a.x + a.w)) || near(a.x - (b.x + b.w)))) ||
+    (along > 0 && (near(b.y - (a.y + a.h)) || near(a.y - (b.y + b.h))))
+  );
+};
+
+/**
+ * Where a new card of `want`'s size joins its group: CARD_GAP beside one of the group's `cards`,
+ * CARD_GAP clear of every `taken` box, inside the group's `area` when it fits, else growing it the
+ * way tidy shapes a group (about square, then smallest). A spot whose grown area keeps GROUP_GAP
+ * from the other groups' areas (`others`) beats one that doesn't; touching one comes last. With
+ * nothing free beside its cards it takes the free spot nearest them, beside whatever is there.
+ */
+export function spotInGroup(
+  want: Size,
+  cards: readonly Box[],
+  area: Box,
+  taken: readonly Box[],
+  others: readonly Box[],
+): Box {
+  const { w, h } = want;
+  const middle = {
+    x: (Math.min(...cards.map((c) => c.x)) + Math.max(...cards.map((c) => c.x + c.w))) / 2,
+    y: (Math.min(...cards.map((c) => c.y)) + Math.max(...cards.map((c) => c.y + c.h))) / 2,
+  };
+  const slack = Math.log(GROUP_SLACK);
+  const search = (from: readonly Box[], rate: (spot: Box) => number[]) => {
+    const xs = new Set<number>();
+    const ys = new Set<number>();
+    for (const c of from) {
+      for (const x of [c.x, c.x + c.w - w, c.x + c.w + CARD_GAP, c.x - w - CARD_GAP]) xs.add(x);
+      for (const y of [c.y, c.y + c.h - h, c.y + c.h + CARD_GAP, c.y - h - CARD_GAP]) ys.add(y);
+    }
+    let best: Box | undefined;
+    let bestScore = [Infinity];
+    for (const x of xs) {
+      for (const y of ys) {
+        const spot = { x, y, w, h };
+        // Half a px of slack: saved boxes have fractional edges from drags.
+        if (!from.some((c) => beside(spot, c))) continue;
+        if (taken.some((t) => apart(spot, t) < CARD_GAP - 0.5)) continue;
+        const score = rate(spot);
+        const i = score.findIndex((v, k) => !(Math.abs(v - (bestScore[k] ?? Infinity)) <= 0.5));
+        if (i >= 0 && score[i]! < (bestScore[i] ?? Infinity)) {
+          best = spot;
+          bestScore = score;
+        }
+      }
+    }
+    return best;
+  };
+  const distance = (spot: Box) =>
+    Math.hypot(spot.x + w / 2 - middle.x, spot.y + h / 2 - middle.y);
+  const clash = (spot: Box) => {
+    const grown = union(area, areaAround([spot]));
+    const room = Math.min(Infinity, ...others.map((o) => apart(grown, o)));
+    return { grown, tier: room >= GROUP_GAP - 0.5 ? 0 : room > 0 ? 1 : 2 };
+  };
+  return (
+    search(cards, (spot) => {
+      const { grown, tier } = clash(spot);
+      const off = Math.max(0, Math.abs(Math.log(grown.w / grown.h)) - slack);
+      return [tier, off * 1e13 + grown.w * grown.h, distance(spot)];
+    }) ??
+    search([...cards, ...taken], (spot) => [clash(spot).tier, distance(spot)]) ?? {
+      ...want,
+      x: Math.max(...[...cards, ...taken].map((c) => c.x + c.w)) + CARD_GAP,
+      y: Math.min(...cards.map((c) => c.y)),
+    }
+  );
+}
