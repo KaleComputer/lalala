@@ -210,9 +210,9 @@ async function dropStaleModel(name: string): Promise<void> {
  */
 const HUB_GRAPHS: Readonly<Record<string, string>> = {
   "kale-tts-1-nano-10":
-    "https://huggingface.co/KaleComputer/kale-tts-1-nano/resolve/ee603eeb14558179fa989b51a6321b0524ee0064/model.onnx",
+    "https://huggingface.co/KaleComputer/kale-tts-1-nano/resolve/b6ce1887268c3667994fc3b0b2c82887c069915c/kale-tts-1-nano.onnx",
   "kale-tts-1-tiny-10":
-    "https://huggingface.co/KaleComputer/kale-tts-1-tiny/resolve/f21d6eb58a97c52a3083e04d20b658e38d76a071/model.onnx",
+    "https://huggingface.co/KaleComputer/kale-tts-1-tiny/resolve/69011009e3380f1cc8fe990cbb55b799bde8455a/kale-tts-1-tiny.onnx",
 };
 
 /** The model file from this browser's cache, else the network (then cached), its download reported as it comes. */
