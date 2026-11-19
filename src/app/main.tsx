@@ -3,7 +3,6 @@
 import "../storageMigration";
 import "@fontsource-variable/inter";
 import "../index.css";
-import "../updateChip";
 import "../voice/callGuard";
 // Before the first render, so the brain's bridge registers every control as it mounts.
 import "../voice/uiBridge";

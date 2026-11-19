@@ -1,6 +1,6 @@
 import { useSyncExternalStore } from "react";
 
-// An update is waiting for the call to end (updateChip.ts); the bar shows a chip to apply it now.
+// An update is waiting for the call to end (callGuard.ts); the bar shows a chip to apply it now.
 let ready = false;
 const listeners = new Set<() => void>();
 

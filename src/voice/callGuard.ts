@@ -1,5 +1,7 @@
 import { speechLoading } from "./browserSpeech/browser";
 import { keepHmrAcrossDisconnects } from "./hmrReconnect";
+import { appliesLive } from "./liveUpdate";
+import { markUpdateReady } from "./phoneUpdate";
 import { voiceLog } from "./voiceLog";
 
 /**
@@ -26,27 +28,17 @@ export function voiceIdle(): boolean {
   return !callActive() && !typing;
 }
 
-// Modules that apply their own hot update without remounting the voice host.
-const LIVE = ["/src/voice/extras/", "/src/voice/extrasImages.ts", "/src/voice/voiceThemeSync.ts"];
 declare global {
   /** Where the app serves the user's cards folder (vite/cards.mjs); they hot-update like extras/. */
   var __lalalaCardsUrl: string | undefined;
 }
-const live = (path: string) => {
-  const file = path.split("?")[0] ?? path;
-  const cards = globalThis.__lalalaCardsUrl;
-  return (
-    file.endsWith(".css") ||
-    LIVE.some((prefix) => file.startsWith(prefix)) ||
-    (cards !== undefined && file.startsWith(cards))
-  );
-};
+const live = (path: string) => appliesLive(path, globalThis.__lalalaCardsUrl);
 
 /**
  * Whether Vite's client reloads this page for a full reload: an .html path (a brain card written
  * into the served folder) only when it is this page's own.
  */
-export function reloadsPage(path: string | undefined): boolean {
+function reloadsPage(path: string | undefined): boolean {
   if (!path?.endsWith(".html")) return true;
   const page = decodeURI(location.pathname);
   return page === path || path === "/index.html" || `${page}index.html` === path;
@@ -70,6 +62,8 @@ if (import.meta.hot) {
     if (held) return;
     held = true;
     voiceLog("system", "update.held", { what });
+    // The bar's update chip: tapping it reloads now instead of after the call.
+    markUpdateReady();
     void whenIdle().then(() => {
       voiceLog("system", "reload", { why: "held dev update, voice off" });
       window.location.reload();
