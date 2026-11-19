@@ -3,7 +3,10 @@
   position: absolute;
   z-index: 0;
   inset: 0;
+  /* clip, not just hidden: a card focusing something off screen scrolled a hidden surface, which
+     slid the group areas off with it while culling hid the groups that should show (19 Nov). */
   overflow: hidden;
+  overflow: clip;
   touch-action: none;
   overscroll-behavior: none;
   -webkit-tap-highlight-color: transparent;
