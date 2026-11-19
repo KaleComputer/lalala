@@ -124,6 +124,11 @@ type VoiceConfig = {
  * words go to that thread as turns, its finished replies are spoken back, and the thread (a normal
  * agent with T3's tools) acts on the instance or edits this UI. Ctrl+Option+V toggles the mic.
  */
+declare global {
+  /** The bar's typed send, for cards (extras/ may not import the host): true once the words are held. */
+  var __lalalaSendTyped: ((text: string) => Promise<boolean>) | undefined;
+}
+
 export function VoiceHost({
   bar,
   autoStart = false,
@@ -905,6 +910,22 @@ export function VoiceHost({
     };
   }, []);
 
+  // Sending out of a call starts one (the user, 8 Nov), so the reply is spoken and the talk goes on.
+  const submitTyped = useEffectEvent(
+    async (text: string, images?: ReadonlyArray<File>, files?: ReadonlyArray<VoiceFileRef>) => {
+      if (!sessionRef.current?.active) await toggle();
+      return send(text, images, files);
+    },
+  );
+  // oxlint-disable-next-line t3code/no-unreasoned-state-sync -- hands extras/ (cards, which may not import the host) the bar's typed send
+  useEffect(() => {
+    if (harness) return;
+    globalThis.__lalalaSendTyped = (text) => submitTyped(text);
+    return () => {
+      globalThis.__lalalaSendTyped = undefined;
+    };
+  }, [harness]);
+
   if (config === null) return null;
 
   // Offline says why everything else fails; then words that weren't sent (a tap sends them), then the rest.
@@ -964,11 +985,7 @@ export function VoiceHost({
       }}
       analysis={() => sessionRef.current?.analysis() ?? null}
       stoppedAt={stoppedAt}
-      // Sending out of a call starts one (the user, 8 Nov), so the reply is spoken and the talk goes on.
-      onSubmit={async (text, images, files) => {
-        if (!sessionRef.current?.active) await toggle();
-        return send(text, images, files);
-      }}
+      onSubmit={submitTyped}
       upload={
         environmentId === null || harness
           ? undefined
