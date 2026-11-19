@@ -14,6 +14,7 @@ import {
   isPhoneDevice,
   replyVoice,
   replyVoicePick,
+  speechModelName,
   sttModel,
 } from "../settingsStore";
 import { voiceLog } from "../voiceLog";
@@ -421,7 +422,8 @@ function modelWorker(
     /** Its download row; null until a download from the network is known (cached files only load). */
     model(): VoiceBarModel | null {
       if (download === null || download.cached) return null;
-      const { name, loaded, total } = download;
+      const { loaded, total } = download;
+      const name = speechModelName(download.name);
       if (isReady || loaded >= total) {
         const size = loaded > 0 ? loaded : total;
         return { name, loaded: size, total: size, done: isReady };

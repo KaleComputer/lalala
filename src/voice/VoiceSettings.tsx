@@ -66,6 +66,7 @@ import {
   type SttModel,
   type Labs,
   setLab,
+  speechModelName,
   useSyncedSettings,
 } from "./settingsStore";
 import { micLabel, subscribeMicLabel } from "./speech";
@@ -1780,19 +1781,7 @@ const COMPUTER_LIVE = {
   absent: "",
 } as const;
 
-/** The workers' own names for what they load, as Settings call them. */
-const LOADED_NAMES: Record<string, string> = {
-  "parakeet 0.6b gpu": "Parakeet 0.6B\u00a0·\u00a0GPU",
-  "parakeet 0.6b": "Parakeet 0.6B\u00a0·\u00a0CPU",
-  "parakeet 110m": "Parakeet 110M",
-  "kokoro 82m gpu": "Kokoro 82M\u00a0·\u00a0GPU",
-  "kokoro 82m cpu": "Kokoro 82M\u00a0·\u00a0CPU",
-  "kale-tts-1-nano-10": "kale-tts-1-nano",
-  "kale-tts-1-tiny-10": "kale-tts-1-tiny",
-  "parakeet 0.6b mlx": "Parakeet 0.6B",
-  "kokoro 82m mlx": "Kokoro 82M",
-};
-const loadedName = (name: string) => LOADED_NAMES[name] ?? name;
+const loadedName = speechModelName;
 /** The workers' names for the browser builds, as the cost tables key them. */
 const LOADED_KEYS: Record<string, string> = {
   "parakeet 0.6b gpu": "0.6b-gpu",

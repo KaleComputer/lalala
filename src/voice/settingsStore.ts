@@ -242,6 +242,23 @@ export const setModelVoice = (model: string, voice: string) =>
 export const isKaleVoice = (voice: string) => voice in SMALL_VOICES;
 
 
+/**
+ * What the speech workers call what they load, as people read it: the 10-voice builds' folders keep
+ * their "-10" (browsers already hold them under that path), the name is just kale-tts-1-nano and -tiny.
+ */
+const SPEECH_MODEL_NAMES: Readonly<Record<string, string>> = {
+  "parakeet 0.6b gpu": "Parakeet 0.6B\u00a0·\u00a0GPU",
+  "parakeet 0.6b": "Parakeet 0.6B\u00a0·\u00a0CPU",
+  "parakeet 110m": "Parakeet 110M",
+  "kokoro 82m gpu": "Kokoro 82M\u00a0·\u00a0GPU",
+  "kokoro 82m cpu": "Kokoro 82M\u00a0·\u00a0CPU",
+  [NANO10_VOICE]: "kale-tts-1-nano",
+  [TINY10_VOICE]: "kale-tts-1-tiny",
+  "parakeet 0.6b mlx": "Parakeet 0.6B",
+  "kokoro 82m mlx": "Kokoro 82M",
+};
+export const speechModelName = (name: string): string => SPEECH_MODEL_NAMES[name] ?? name;
+
 /** The reply voice every device starts on: the 10-voice kale-tts-1-nano (Tim, 16 Nov: "I want to have the new model"). */
 export const defaultReplyVoice = (): string => NANO10_VOICE;
 

@@ -1,7 +1,7 @@
 // Kale's small voices (61 MB each: Kokoro's text side with Kale's own small decoder): the storyteller
 // (Automatic) and kale-tts-1-tiny (Hazel's voice), one per worker, named by the load message. They run
 // through Transformers.js the way kokoro-js runs Kokoro (StyleTextToSpeech2Model and its tokenizer),
-// from the model folders lalala serves (public/models/<model>, which load the same way from any host).
+// from the model folders lalala serves (public/models/<model>; the release graphs from Hugging Face).
 // Transformers.js reports load and run errors; only the words come from Kale's own front end
 // (matcha/kaleTts.js, as the warm voice). Credits: NOTICE.md.
 import "./wasmMeter";
@@ -204,13 +204,33 @@ async function dropStaleModel(name: string): Promise<void> {
   }
 }
 
+/**
+ * The release graphs as published on Hugging Face, pinned to a commit: byte for byte lalala's
+ * public/models copies, which stay the cache key so a browser that has one never downloads it again.
+ */
+const HUB_GRAPHS: Readonly<Record<string, string>> = {
+  "kale-tts-1-nano-10":
+    "https://huggingface.co/KaleComputer/kale-tts-1-nano/resolve/ee603eeb14558179fa989b51a6321b0524ee0064/model.onnx",
+  "kale-tts-1-tiny-10":
+    "https://huggingface.co/KaleComputer/kale-tts-1-tiny/resolve/f21d6eb58a97c52a3083e04d20b658e38d76a071/model.onnx",
+};
+
 /** The model file from this browser's cache, else the network (then cached), its download reported as it comes. */
 async function modelBytes(url: string, expected: number, name: string): Promise<Uint8Array> {
   const cache = await caches.open(DIRECT_CACHE).catch(() => null);
   const hit = await cache?.match(url);
   postMessage({ type: "load", name, expected, cached: hit !== undefined, voice: loadingVoice });
   if (hit) return new Uint8Array(await hit.arrayBuffer());
-  const files = (await modelParts(name))?.map((part) => new URL(part, url).href) ?? [url];
+  const local = async () =>
+    download((await modelParts(name))?.map((part) => new URL(part, url).href) ?? [url], expected);
+  const hub = HUB_GRAPHS[name];
+  // Hugging Face down or blocked: lalala's own copy.
+  const bytes = hub ? await download([hub], expected).catch(local) : await local();
+  await cache?.put(url, new Response(bytes)).catch(() => {});
+  return bytes;
+}
+
+async function download(files: string[], expected: number): Promise<Uint8Array> {
   // The whole model in one buffer: WebKit fails to read back a Blob of a model this size
   // ("Too much data buffered…", NotReadableError).
   const sizes = await Promise.all(
@@ -237,7 +257,6 @@ async function modelBytes(url: string, expected: number, name: string): Promise<
   }
   const bytes = whole && loaded === total ? whole : new Uint8Array(await new Blob(chunks).arrayBuffer());
   chunks.length = 0;
-  await cache?.put(url, new Response(bytes)).catch(() => {});
   return bytes;
 }
 
