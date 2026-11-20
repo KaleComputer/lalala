@@ -19,6 +19,9 @@ type Loaded = { readonly id: string; readonly module: ExtrasModule };
 // Dev imports the source, so Vite's HMR updates it. Not a literal: the phone's main build must not
 // bundle extras/, or every extras edit would rebuild and reload the whole app.
 const DEV_ENTRY = "/src/voice/extras/AppExtras.tsx";
+// lalala's own canvas without the user's cards, for when those don't load (a card importing a file
+// lalala removed once left the boot screen up forever, 20 Nov).
+const DEV_FALLBACK = "/src/voice/extras/VoiceExtras.tsx";
 const BUILD = "/lalala-extras/build.json";
 const POLL_MS = 2_000;
 
@@ -150,9 +153,19 @@ export function VoiceExtrasSlot() {
   useEffect(() => {
     if (!import.meta.env.DEV) return followPublishedExtras(setLoaded);
     let cancelled = false;
-    void importExtras(DEV_ENTRY).then((module) => {
-      if (!cancelled) setLoaded({ id: "dev", module });
-    });
+    void importExtras(DEV_ENTRY)
+      .catch((cause: unknown) => {
+        voiceLog("system", "error", { where: "cards", message: String(cause) });
+        return importExtras(DEV_FALLBACK);
+      })
+      .then((module) => {
+        if (!cancelled) setLoaded({ id: "dev", module });
+      })
+      .catch((cause: unknown) => {
+        voiceLog("system", "error", { where: "extras", message: String(cause) });
+        // Nothing to show: the boot screen's own failure path (retry, tap to retry) takes over.
+        window.dispatchEvent(new ErrorEvent("error", { message: String(cause) }));
+      });
     return () => {
       cancelled = true;
     };
