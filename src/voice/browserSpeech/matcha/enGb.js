@@ -172,6 +172,7 @@ export class BritishG2p extends G2p {
     const r = super.homograph(token, tokens, index);
     return r === null ? r : toBritish(r, token.toLowerCase());
   }
+  hyphenPrefix(pfx) { const r = super.hyphenPrefix(pfx); return r === null ? r : toBritish(r, pfx); }
   chunks(w) { return toBritish(super.chunks(w), w); }
   fallback(low) { const r = super.fallback(low); return r == null ? r : toBritish(r, low); }   // en-gb g2p.bin is British already (no-op)
 }

@@ -23,7 +23,7 @@ function normalizer(lex, Rules = Normalizer) {
     return upper.length <= 5 && !(upper.length >= 3 && lex.has(letters.toLowerCase())) ? upper : [...upper].join(" ");
   };
   // The sentence splitter cuts after "Dr.", leaving it last, where dizione cannot tell it from "drive".
-  return (text) => dottedNames(spokenText(relativePaths(sizeSuffixes(text)).replace(/\bDr\.(?=\s*$)/, "Doctor"), rules, spell));
+  return (text) => dottedNames(spokenText(weekdayAbbrevs(mathMultiply(relativePaths(sizeSuffixes(text)))).replace(/\bDr\.(?=\s*$)/, "Doctor"), rules, spell));
 }
 
 /**
@@ -76,6 +76,32 @@ function sizeSuffixes(text) {
     .replace(/(?<![\p{L}\p{N}.])(\d+(?: s|\.\d+ ?s))(?![\p{L}\p{N}'’])/gu, (m, n) => `${n.replace(/ ?s$/, "")} sec`);
 }
 
+/** Kids' math multiplication ("What is 3x4?", "3 x 4 = 12", "Solve 6x7") -> "times", while keeping "a 4x4 truck" and "0x1F". */
+const MATH_BEFORE = /(?:what(?:'s|’s| is)|solve|calculate|compute|multiply|find|does|equals|[+\-=÷(])\s*$/i;
+function mathMultiply(text) {
+  return text.replace(/(?<![\p{L}\p{N}.])(\d+(?:\.\d+)?)\s?[xX]\s?(\d+(?:\.\d+)?)(?![\p{L}\p{N}])/gu, (m, a, b, at, whole) => {
+    const before = whole.slice(Math.max(0, at - 24), at);
+    const after = whole.slice(at + m.length, at + m.length + 12);
+    if (MATH_BEFORE.test(before) || /^\s*(?:=|\?|equals\b|is\b)/i.test(after)) return `${a} times ${b}`;
+    return m;
+  });
+}
+
+/** Calendar "Sat" / "Sun" next to another weekday, after "on"/"every", or before a date/time ("The Sun is hot" and "Sat on a mat" stay). */
+const DAY_BEFORE = /\b(?:Mon|Tue|Tues|Wed|Thu|Thur|Thurs|Fri|Sat|Monday|Tuesday|Wednesday|Thursday|Friday|Saturday|on|every|next|last|this)\b(?:,|\s+and|\s+or|\s+to|\s*&|\s*[-–])?\s*$/i;
+const DAY_AFTER = /^(?:\s*,\s*(?:Sun|Mon|Tue|Tues|Wed|Thu|Thur|Thurs|Fri|Sat|Sunday|Monday)\b|\s+(?:and|or|to|&)\s+(?:Sun|Mon|Tue|Tues|Wed|Thu|Thur|Thurs|Fri|Sat|Sunday|Monday)\b|\s+(?:at\s+\d|\d{1,2}(?::\d{2}|st|nd|rd|th)?\b|Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Sept|Oct|Nov|Dec)\b)/i;
+function weekdayAbbrevs(text) {
+  return text.replace(/\b(Sat|Sun)(\.?)(?!['’A-Za-z])/g, (m, day, dot, at, whole) => {
+    const before = whole.slice(Math.max(0, at - 28), at);
+    const after = whole.slice(at + m.length, at + m.length + 28);
+    if (DAY_BEFORE.test(before) || DAY_AFTER.test(after)) {
+      const full = day === "Sat" ? "Saturday" : "Sunday";
+      return dot && (!after.trim() || /^\s+[A-Z]/.test(after)) ? `${full}.` : full;
+    }
+    return m;
+  });
+}
+
 const oneWord = (s) => (s.match(/[\p{L}\p{N}]+(?:['’][\p{L}]+)*/gu) ?? []).length === 1;
 
 /**
@@ -98,7 +124,8 @@ function sentences(text, normalize) {
 }
 
 // ------------------------------------------------------------------------------------------------ words -> IPA
-const TOKEN = /[A-Za-z]+(?:['’][A-Za-z]+)*|[.,!?;:…—–]/g;
+const HYPHEN_PREFIX = { re: "ɹˌiː", de: "dˌiː", co: "kˌoʊ", pre: "pɹˌiː", non: "nˌɑːn", sub: "sˌʌb", un: "ˌʌn", semi: "sˌɛmi", anti: "ˌænti", multi: "mˌʌlti", e: "ˈiː", t: "tˈiː", x: "ˈɛks" };
+const TOKEN = /(?:re|de|co|pre|non|sub|un|semi|anti|multi|e|t|x)-[A-Za-z]+(?:['’][A-Za-z]+)*|[A-Za-z]+(?:['’][A-Za-z]+)*|[.,!?;:…—–]/gi;
 const PUNCT = { ".": ".", ",": ",", "!": "!", "?": "?", ";": ";", ":": ":", "…": "…", "—": ",", "–": "," };
 const VOWELS = new Set("aeiouɑɐɒæɔəɘɚɛɜɝɞɨɪʊʌɤøœɶɯɵʉʏᵻ");
 const SIBILANT = ["s", "z", "ʃ", "ʒ", "tʃ", "dʒ"];
@@ -261,6 +288,8 @@ const LEAD_MADE = new Set(["made", "built", "cast", "lined", "pipes", "weights"]
 const READ_HABIT = new Set(["daily", "often", "nightly", "regularly"]);
 const PERIODS = new Set(["day", "night", "morning", "evening", "week", "weekend"]);
 const PAST = new Set(["yesterday", "ago", "last", "had", "has", "have", "was", "were", "already"]);
+const MINUTE_ADJ_NEXT = new Set(["detail", "details", "amount", "amounts", "trace", "traces", "fraction", "fractions", "particle", "particles", "difference", "differences", "change", "changes", "quantity", "quantities", "scale", "crack", "cracks", "speck", "specks", "organism", "organisms", "creature", "creatures", "piece", "pieces", "part", "parts", "drop", "drops", "grain", "grains", "insect", "insects"]);
+const MINUTE_TIME_PREV = new Set(["one", "per", "every", "each", "last", "next", "first", "final", "half", "quarter", "single", "another", "this", "that"]);
 function senseRule(low, words, i) {
   const at = (k) => (k >= 0 && k < words.length ? words[k] : "");
   if (low === "lead") {
@@ -271,6 +300,9 @@ function senseRule(low, words, i) {
   if (low === "read") {
     const habit = READ_HABIT.has(at(i + 1)) || ((at(i + 1) === "every" || at(i + 1) === "each") && PERIODS.has(at(i + 2)));
     if (habit && !words.some((x) => PAST.has(x))) return "ɹˈiːd";
+  }
+  if (low === "minute" && MINUTE_ADJ_NEXT.has(at(i + 1)) && !MINUTE_TIME_PREV.has(at(i - 1))) {
+    return "maɪnˈuːt";
   }
   return null;
 }
@@ -314,11 +346,19 @@ class G2p {
       }
       const reading = this.homograph(tok, tokens, i);
       if (reading !== null) { out.push(reading); continue; }
+      const dash = tok.indexOf("-");
+      if (dash > 0) {
+        const pfx = tok.slice(0, dash).toLowerCase(), stem = tok.slice(dash + 1);
+        const pIpa = this.hyphenPrefix(pfx), sIpa = this.word(stem, next);
+        if (pIpa && sIpa) { out.push(pIpa + (pIpa.includes("ˈ") ? secondary(sIpa) : sIpa)); continue; }
+      }
       const ipa = this.word(tok, next);
       if (ipa) out.push(ipa);
     }
     return out.join(" ");
   }
+
+  hyphenPrefix(pfx) { return HYPHEN_PREFIX[pfx] ?? null; }
 
   /**
    * A homograph as its sentence means it ("read" past or present). The word list's own pronunciation stays
