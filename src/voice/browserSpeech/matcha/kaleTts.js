@@ -125,7 +125,7 @@ function sentences(text, normalize) {
 
 // ------------------------------------------------------------------------------------------------ words -> IPA
 const HYPHEN_PREFIX = { re: "ɹˌiː", de: "dˌiː", co: "kˌoʊ", pre: "pɹˌiː", non: "nˌɑːn", sub: "sˌʌb", un: "ˌʌn", semi: "sˌɛmi", anti: "ˌænti", multi: "mˌʌlti", e: "ˈiː", t: "tˈiː", x: "ˈɛks" };
-const TOKEN = /(?:re|de|co|pre|non|sub|un|semi|anti|multi|e|t|x)-[A-Za-z]+(?:['’][A-Za-z]+)*|lead-(?:free|based)|[A-Za-z]+(?:['’][A-Za-z]+)*|[.,!?;:…—–]/gi;
+const TOKEN = /(?:re|de|co|pre|non|sub|un|semi|anti|multi|e|t|x)-[A-Za-z]+(?:['’][A-Za-z]+)*|lead-(?:free|based)|[A-Za-z]+-minute(?![A-Za-z])|[A-Za-z]+(?:['’][A-Za-z]+)*|[.,!?;:…—–]/gi;
 const PUNCT = { ".": ".", ",": ",", "!": "!", "?": "?", ";": ";", ":": ":", "…": "…", "—": ",", "–": "," };
 const VOWELS = new Set("aeiouɑɐɒæɔəɘɚɛɜɝɞɨɪʊʌɤøœɶɯɵʉʏᵻ");
 const SIBILANT = ["s", "z", "ʃ", "ʒ", "tʃ", "dʒ"];
@@ -353,6 +353,12 @@ class G2p {
           out.push("lˈɛd");
           const sIpa = this.word(stem, next);
           if (sIpa) out.push(sIpa);
+          continue;
+        }
+        if (stem.toLowerCase() === "minute" && !(pfx in HYPHEN_PREFIX)) {
+          const lIpa = this.word(tok.slice(0, dash), "minute");
+          if (lIpa) out.push(lIpa);
+          out.push("mˈɪnɪt");
           continue;
         }
         const pIpa = this.hyphenPrefix(pfx), sIpa = this.word(stem, next);
