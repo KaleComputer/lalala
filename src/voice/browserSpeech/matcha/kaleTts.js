@@ -289,7 +289,7 @@ const READ_HABIT = new Set(["daily", "often", "nightly", "regularly"]);
 const PERIODS = new Set(["day", "night", "morning", "evening", "week", "weekend"]);
 const PAST = new Set(["yesterday", "ago", "last", "had", "has", "have", "was", "were", "already"]);
 const MINUTE_ADJ_NEXT = new Set(["detail", "details", "amount", "amounts", "trace", "traces", "fraction", "fractions", "particle", "particles", "difference", "differences", "change", "changes", "quantity", "quantities", "scale", "crack", "cracks", "speck", "specks", "organism", "organisms", "creature", "creatures", "piece", "pieces", "part", "parts", "drop", "drops", "grain", "grains", "insect", "insects"]);
-const MINUTE_TIME_PREV = new Set(["zero", "one", "two", "three", "four", "five", "six", "seven", "eight", "nine", "ten", "eleven", "twelve", "thirteen", "fourteen", "fifteen", "sixteen", "seventeen", "eighteen", "nineteen", "twenty", "thirty", "forty", "fifty", "sixty", "seventy", "eighty", "ninety", "hundred", "thousand", "million", "per", "every", "each", "last", "next", "first", "second", "third", "final", "half", "quarter", "single", "another", "this", "that", "few", "couple", "several", "many"]);
+const MINUTE_TIME_PREV = new Set(["zero", "one", "two", "three", "four", "five", "six", "seven", "eight", "nine", "ten", "eleven", "twelve", "thirteen", "fourteen", "fifteen", "sixteen", "seventeen", "eighteen", "nineteen", "twenty", "thirty", "forty", "fifty", "sixty", "seventy", "eighty", "ninety", "hundred", "thousand", "million", "per", "every", "each", "last", "next", "first", "second", "third", "final", "half", "quarter", "single", "another", "this", "that"]);
 function senseRule(low, words, i) {
   const at = (k) => (k >= 0 && k < words.length ? words[k] : "");
   if (low === "lead") {
