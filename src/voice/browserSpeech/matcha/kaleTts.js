@@ -7,6 +7,7 @@
 /* eslint-disable */
 import { Normalizer, spokenText } from "../dizione/spoken.js";
 import { covers, pronounce } from "../dizione/homographs.js";
+import { ENDINGS } from "../dizione/tables.js";
 
 // ------------------------------------------------------------------------------------------------ text -> words
 /**
@@ -22,7 +23,7 @@ function normalizer(lex, Rules = Normalizer) {
     return upper.length <= 5 && !(upper.length >= 3 && lex.has(letters.toLowerCase())) ? upper : [...upper].join(" ");
   };
   // The sentence splitter cuts after "Dr.", leaving it last, where dizione cannot tell it from "drive".
-  return (text) => dottedNames(spokenText(sizeSuffixes(text).replace(/\bDr\.(?=\s*$)/, "Doctor"), rules, spell));
+  return (text) => dottedNames(spokenText(relativePaths(sizeSuffixes(text)).replace(/\bDr\.(?=\s*$)/, "Doctor"), rules, spell));
 }
 
 /**
@@ -36,8 +37,17 @@ function dottedNames(text) {
   return text.replace(DOTTED, (name) => {
     const parts = name.split(".");
     if (parts.every((x) => x.length === 1)) return name;   // e.g, i.e, U.S
+    // A file ending dizione spells ("redeploy.sh" -> "dot S H"), not the word ("sh" is "shh").
+    const end = parts.length - 1;
+    if (ENDINGS[parts[end].toLowerCase()] === "letters") parts[end] = parts[end].toUpperCase();
     return parts.join(" dot ");
   });
+}
+
+/** "./" and "../" in front of a path are said ("dot slash redeploy dot S H"); dizione's path rule starts at a word, so it cut "./" off
+ *  into the word before it ("and./redeploy"). */
+function relativePaths(text) {
+  return text.replace(/(?<![\p{L}\p{N}_./])(\.\.?)\/(?=[\p{L}\p{N}_~-])/gu, (m, dots) => (dots === ".." ? " dot dot slash " : " dot slash "));
 }
 
 /** The comma that closes a list ("speed, melody, clear words, and how it sounds") is dropped: read aloud it sounds like a
@@ -66,13 +76,24 @@ function sizeSuffixes(text) {
     .replace(/(?<![\p{L}\p{N}.])(\d+(?: s|\.\d+ ?s))(?![\p{L}\p{N}'’])/gu, (m, n) => `${n.replace(/ ?s$/, "")} sec`);
 }
 
-/** Sentences, each one model call (as the app and the bench render). */
+const oneWord = (s) => (s.match(/[\p{L}\p{N}]+(?:['’][\p{L}]+)*/gu) ?? []).length === 1;
+
+/**
+ * Sentences, each one model call (as the app and the bench render). A one-word sentence ("Four.", "Monday.") rides with the
+ * next one: the small voices garble a word said alone, swallowing its end and adding a tail ("Four." -> "Forwarding", "Five." ->
+ * "5-0"), and say it right in "Four. Thursday." (19 Nov). The text's last word said alone rides with the sentence before it.
+ */
 function sentences(text, normalize) {
   const out = [];
+  let carry = "";
   for (const part of normalize(text).split(/(?<=[.!?…])\s+|\n+/)) {
     const s = dropListComma(part.trim());
-    if (s) out.push(s);
+    if (!s) continue;
+    const joined = carry ? `${carry} ${s}` : s;
+    if (oneWord(joined)) { carry = joined; continue; }
+    out.push(joined); carry = "";
   }
+  if (carry) { if (out.length) out[out.length - 1] += ` ${carry}`; else out.push(carry); }
   return out;
 }
 

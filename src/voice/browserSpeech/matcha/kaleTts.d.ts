@@ -36,4 +36,4 @@ export class G2p {
 }
 export function readTable(text: string, into?: Map<string, string>): Map<string, string>;
 /** Numbers, money, dates and the like as words (dizione's rules), letter runs decided by the word list. */
-export function normalizer(lex: Map<string, string>): (text: string) => string;
+export function normalizer(lex: Map<string, string>, Rules?: new (isWord: (word: string) => boolean) => unknown): (text: string) => string;

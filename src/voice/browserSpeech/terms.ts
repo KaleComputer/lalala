@@ -26,8 +26,9 @@ export function termsReplacer(table: string): (text: string) => string {
 /**
  * camelCase code names as their words ("getUserById" -> "get User By Id"): a word starting in lower
  * case with capitals inside reads as one garbled word otherwise. Only that form, after the
- * dictionary, so listed names (useEffect, WebGPU, iOS) keep their own reading.
+ * dictionary, so listed names (useEffect, WebGPU, iOS) keep their own reading. Not inside a path or file
+ * name ("src/speechText.ts"): the text rules say those whole, camelCase included.
  */
-const CAMEL = /(?<![\p{L}\p{N}_])[a-z]+(?:[A-Z][a-z0-9]*)+(?![\p{L}\p{N}_])/gu;
+const CAMEL = /(?<![\p{L}\p{N}_./])[a-z]+(?:[A-Z][a-z0-9]*)+(?![\p{L}\p{N}_/]|\.\p{L})/gu;
 const splitCamelCase = (text: string) =>
   text.replace(CAMEL, (word) => word.replace(/(?<=[a-z0-9])(?=[A-Z])/g, " "));

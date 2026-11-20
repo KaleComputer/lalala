@@ -6,10 +6,8 @@ export function speakableText(text: string): string {
     .replace(/!?\[([^\]]*)\]\([^)]*\)/g, "$1")
     .replace(/^\s{0,3}(#{1,6}|[-*+]|\d+\.)\s+/gm, "")
     .replace(/[*_~>|]/g, "")
-    // A ".js" name is said without its dot (Tim, 17 Nov: "Transformers J S", "Node J S").
-    .replace(/(?<=[\p{L}\d])\.js\b/giu, " JS")
-    // A dot inside a name (lalala.talk, app.t3.codes) is said, not paused on; "e.g." and "3.5" stay.
-    .replace(/(?<=[\p{L}\d]{2})\.(?=\p{L}[\p{L}\d])/gu, " dot ")
+    // Dots in names stay for the voice's front end, which says them ("lalala dot talk", "redeploy dot S H",
+    // "Node J S"); turned into " dot " here, a file ending lost its spelling ("dot sh" read as "shh").
     .replace(/\s+/g, " ")
     .trim();
   return /\p{L}/u.test(spoken) ? spoken.slice(0, 700) : "";
