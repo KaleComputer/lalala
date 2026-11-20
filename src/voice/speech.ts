@@ -110,6 +110,11 @@ const MAX_REOPENS = 3;
 const REVIVE_EVERY_MS = 1_000;
 // A tap this soon after the mic came back was the tap that brought it back, not a hang-up.
 const REVIVE_TAP_MS = 1_000;
+// iOS after a phone call: the context says "running" but its clock stands still, so the mic, the
+// wave and every sound are dead (20 Nov). A visible running context still for this long is stuck.
+const CLOCK_STUCK_MS = 2_000;
+// Suspend-and-resume kicks per stuck spell before only a tap (revive) tries again.
+const MAX_CLOCK_KICKS = 3;
 // Backchannels never cut a reply off (ElevenLabs' interruption ignore terms, which Presence uses).
 const BACKCHANNEL = new Set([
   "ok",
@@ -263,6 +268,10 @@ export class VoiceSession {
   private micBackAt = 0;
   private pausedVisibleAt = 0;
   private reviveTimer: number | null = null;
+  private clockTimer: number | null = null;
+  private clockSeen = { time: -1, at: 0 };
+  private clockStuck = false;
+  private clockKicks = 0;
   private reopening = false;
   private reopens = 0;
   private player: SpeechPlayer | null = null;
@@ -423,7 +432,7 @@ export class VoiceSession {
     const ended = tracks.some((track) => track.readyState === "ended");
     const silenced = tracks.some((track) => track.muted);
     const contextState = context.state as string;
-    const paused = ended || silenced || contextState !== "running";
+    const paused = ended || silenced || contextState !== "running" || this.clockStuck;
     const visible = document.visibilityState === "visible";
     if (paused !== this.micPaused) {
       this.micPaused = paused;
@@ -431,6 +440,7 @@ export class VoiceSession {
         ended,
         muted: silenced,
         context: contextState,
+        stuck: this.clockStuck,
         visibility: document.visibilityState,
       });
       if (paused) this.endHeardTurn();
@@ -464,13 +474,54 @@ export class VoiceSession {
   revive(): void {
     const context = this.context;
     if (context === null || this.muted) return;
-    voiceLog("voice", "mic.revive", { context: context.state });
-    void context.resume().catch(() => {});
+    voiceLog("voice", "mic.revive", { context: context.state, stuck: this.clockStuck });
+    if (this.clockStuck) this.kickContext();
+    else void context.resume().catch(() => {});
     const deaf = (this.stream?.getAudioTracks() ?? []).some(
       (track) => track.muted || track.readyState === "ended",
     );
     if (deaf && !this.reopening) void this.reopenMic();
     else this.checkMic();
+  }
+
+  /** Once a second in a call: a visible "running" context whose clock stands still is stuck, and kicked. */
+  private readonly watchClock = (): void => {
+    const context = this.context;
+    if (context === null) return;
+    const now = performance.now();
+    const time = context.currentTime;
+    const running = (context.state as string) === "running";
+    if (running && document.visibilityState === "visible" && time === this.clockSeen.time) {
+      if (now - this.clockSeen.at < CLOCK_STUCK_MS) return;
+      this.clockSeen.at = now;
+      if (!this.clockStuck) {
+        this.clockStuck = true;
+        voiceLog("voice", "audio.context.stuck", { clock: Math.round(time * 1000) / 1000 });
+        this.checkMic();
+      }
+      if (this.clockKicks < MAX_CLOCK_KICKS) {
+        this.clockKicks += 1;
+        this.kickContext();
+      }
+      return;
+    }
+    if (running && time !== this.clockSeen.time && this.clockStuck) {
+      this.clockStuck = false;
+      this.clockKicks = 0;
+      voiceLog("voice", "audio.context.unstuck", { clock: Math.round(time * 1000) / 1000 });
+      this.checkMic();
+    }
+    this.clockSeen = { time, at: now };
+  };
+
+  /** A stuck context's render thread only starts again from a full suspend and resume. */
+  private kickContext(): void {
+    const context = this.context;
+    if (context === null) return;
+    void context
+      .suspend()
+      .then(() => context.resume())
+      .catch(() => {});
   }
 
   /** Asks for the microphone again and puts it where the old one was in the graph. */
@@ -614,6 +665,7 @@ export class VoiceSession {
     window.addEventListener("pageshow", this.checkMic);
     // A touch anywhere is the surest way to get a stalled iOS context running again.
     document.addEventListener("touchend", this.onTouch, { passive: true });
+    this.clockTimer = window.setInterval(this.watchClock, 1_000);
     this.updatePhase();
     this.sounds.connected();
     this.checkMic();
@@ -621,9 +673,10 @@ export class VoiceSession {
 
   private readonly onTouch = (): void => {
     const context = this.context;
-    if (context !== null && (context.state as string) !== "running") {
-      voiceLog("voice", "audio.context.touch", { state: context.state });
-      void context.resume().catch(() => {});
+    if (context !== null && ((context.state as string) !== "running" || this.clockStuck)) {
+      voiceLog("voice", "audio.context.touch", { state: context.state, stuck: this.clockStuck });
+      if (this.clockStuck) this.kickContext();
+      else void context.resume().catch(() => {});
     }
     this.checkMic();
   };
@@ -644,6 +697,11 @@ export class VoiceSession {
     window.removeEventListener("pageshow", this.checkMic);
     if (this.reviveTimer !== null) window.clearTimeout(this.reviveTimer);
     this.reviveTimer = null;
+    if (this.clockTimer !== null) window.clearInterval(this.clockTimer);
+    this.clockTimer = null;
+    this.clockStuck = false;
+    this.clockKicks = 0;
+    this.clockSeen = { time: -1, at: 0 };
     if (this.micPaused) this.events.onMicPaused?.(false);
     this.micPaused = false;
     this.stt.close();

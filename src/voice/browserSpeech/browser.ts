@@ -164,6 +164,8 @@ function modelWorker(
     ended?: () => void;
     /** A smaller model to suggest when this one doesn't fit in memory (never switched to on its own). */
     smaller?: () => string | null;
+    /** Whether anything still needs this model; once not, a failed load stops trying and leaves the bar. */
+    wanted?: () => boolean;
   } = {},
 ) {
   let worker: Worker | null = null;
@@ -214,6 +216,9 @@ function modelWorker(
    */
   const scheduleRetry = () => {
     cancelRetry();
+    // The computer took the task back meanwhile: a failed stand-in retrying for nobody kept the bar on
+    // "connecting", so no thinking pulse played for the rest of the call (20 Nov, after a phone call).
+    if (failed && watch.wanted?.() === false) return release();
     const noRoom = NO_ROOM.test(failure ?? "");
     const every = noRoom ? NO_ROOM_RETRY_S : autoRetrySeconds();
     // Retrying can't give a browser WebGPU.
@@ -223,11 +228,12 @@ function modelWorker(
     retryTimer = window.setTimeout(() => {
       retryTimer = 0;
       retryAt = 0;
-      if (failed) start();
+      if (failed) retryNow();
     }, every * 1000);
   };
+  const retryNow = () => (watch.wanted?.() === false ? release() : start());
   const retryOnFocus = () => {
-    if (failed && NO_ROOM.test(failure ?? "")) start();
+    if (failed && NO_ROOM.test(failure ?? "")) retryNow();
   };
   const fail = (cause: string) => {
     watch.ended?.();
@@ -436,6 +442,7 @@ function modelWorker(
       // A model swapped out while this waited for it to load: wait for its replacement instead.
       await ready.catch((error: unknown) => {
         if (!(error instanceof Error) || error.message !== "closed") throw error;
+        if (watch.wanted?.() === false) throw error;
         start();
         return ready;
       });
@@ -459,6 +466,7 @@ const ears = modelWorker(
     model: sttModel() === "computer" || wantsComputer.stt() ? "110m" : sttModel(),
     ceiling: storageCeiling,
   }),
+  { wanted: () => !earsOff && !onComputer.stt() },
 );
 const kokoroBuild = () => {
   const picked = replyVoice();
@@ -843,7 +851,12 @@ export async function transcribe(pcm: Float32Array<ArrayBuffer>): Promise<Heard>
     }
   }
   const browserAt = performance.now();
-  const reply = await ears.ask({ type: "transcribe", pcm }, [pcm.buffer]);
+  // The computer came back while the stand-in loaded: it was freed, and the computer hears this one.
+  const reply = await ears.ask({ type: "transcribe", pcm }, [pcm.buffer]).catch((error: unknown) => {
+    if (error instanceof Error && error.message === "closed" && onComputer.stt()) return null;
+    throw error;
+  });
+  if (reply === null) return transcribe(pcm);
   if (ears.ready()) record("stt", "browser", performance.now() - browserAt, audioMs);
   return reply.type === "text" ? { text: reply.text, words: reply.words ?? null } : { text: "", words: null };
 }
