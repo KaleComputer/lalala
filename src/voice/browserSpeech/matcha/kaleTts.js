@@ -88,8 +88,8 @@ function mathMultiply(text) {
 }
 
 /** Calendar "Sat" / "Sun" next to another weekday, after "on"/"every", or before a date/time ("The Sun is hot" and "Sat on a mat" stay). */
-const DAY_BEFORE = /\b(?:Mon|Tue|Tues|Wed|Thu|Thur|Thurs|Fri|Sat|Monday|Tuesday|Wednesday|Thursday|Friday|Saturday|on|every|next|last|this)\b(?:,|\s+and|\s+or|\s+to|\s*&|\s*[-–])?\s*$/i;
-const DAY_AFTER = /^(?:\s*,\s*(?:Sun|Mon|Tue|Tues|Wed|Thu|Thur|Thurs|Fri|Sat|Sunday|Monday)\b|\s+(?:and|or|to|&)\s+(?:Sun|Mon|Tue|Tues|Wed|Thu|Thur|Thurs|Fri|Sat|Sunday|Monday)\b|\s+(?:at\s+\d|\d{1,2}(?::\d{2}|st|nd|rd|th)?\b|Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Sept|Oct|Nov|Dec)\b)/i;
+const DAY_BEFORE = /\b(?:Mon(?:day)?|Tue(?:s(?:day)?)?|Wed(?:nesday)?|Thu(?:r(?:s(?:day)?)?)?|Fri(?:day)?|Sat(?:urday)?|Sun(?:day)?|on|every|next|last|this)\b(?:,|\s+and|\s+or|\s+to|\s*&|\s*[-–])?\s*$/i;
+const DAY_AFTER = /^(?:\s*,\s*(?:Mon(?:day)?|Tue(?:s(?:day)?)?|Wed(?:nesday)?|Thu(?:r(?:s(?:day)?)?)?|Fri(?:day)?|Sat(?:urday)?|Sun(?:day)?)\b|\s+(?:and|or|to|&)\s+(?:Mon(?:day)?|Tue(?:s(?:day)?)?|Wed(?:nesday)?|Thu(?:r(?:s(?:day)?)?)?|Fri(?:day)?|Sat(?:urday)?|Sun(?:day)?)\b|\s+(?:at\s+\d|\d{1,2}(?::\d{2}|st|nd|rd|th)?\b|Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Sept|Oct|Nov|Dec)\b)/i;
 function weekdayAbbrevs(text) {
   return text.replace(/\b(Sat|Sun)(\.?)(?!['’A-Za-z])/g, (m, day, dot, at, whole) => {
     const before = whole.slice(Math.max(0, at - 28), at);
@@ -125,7 +125,7 @@ function sentences(text, normalize) {
 
 // ------------------------------------------------------------------------------------------------ words -> IPA
 const HYPHEN_PREFIX = { re: "ɹˌiː", de: "dˌiː", co: "kˌoʊ", pre: "pɹˌiː", non: "nˌɑːn", sub: "sˌʌb", un: "ˌʌn", semi: "sˌɛmi", anti: "ˌænti", multi: "mˌʌlti", e: "ˈiː", t: "tˈiː", x: "ˈɛks" };
-const TOKEN = /(?:re|de|co|pre|non|sub|un|semi|anti|multi|e|t|x)-[A-Za-z]+(?:['’][A-Za-z]+)*|[A-Za-z]+(?:['’][A-Za-z]+)*|[.,!?;:…—–]/gi;
+const TOKEN = /(?:re|de|co|pre|non|sub|un|semi|anti|multi|e|t|x)-[A-Za-z]+(?:['’][A-Za-z]+)*|lead-(?:free|based)|[A-Za-z]+(?:['’][A-Za-z]+)*|[.,!?;:…—–]/gi;
 const PUNCT = { ".": ".", ",": ",", "!": "!", "?": "?", ";": ";", ":": ":", "…": "…", "—": ",", "–": "," };
 const VOWELS = new Set("aeiouɑɐɒæɔəɘɚɛɜɝɞɨɪʊʌɤøœɶɯɵʉʏᵻ");
 const SIBILANT = ["s", "z", "ʃ", "ʒ", "tʃ", "dʒ"];
@@ -282,14 +282,14 @@ function gruCell(g, x, hPrev, size) {
 // "lead" is the person or the verb (liːd) unless the words around it name the metal: lead pipe(s), lead paint,
 // lead poisoning, lead-free, lead-based, lead-acid, red / white lead, made of lead. "read" before a habit
 // ("I read every day", "we read daily") is the present, unless the sentence says it's the past.
-const LEAD_METAL_NEXT = new Set(["pipe", "pipes", "piping", "paint", "paints", "poisoning", "poison", "free", "based", "acid", "oxide", "ore", "solder"]);
+const LEAD_METAL_NEXT = new Set(["pipe", "pipes", "piping", "paint", "paints", "poisoning", "poison", "acid", "oxide", "ore", "solder"]);
 const LEAD_METAL_PREV = new Set(["red", "white"]);
 const LEAD_MADE = new Set(["made", "built", "cast", "lined", "pipes", "weights"]);
 const READ_HABIT = new Set(["daily", "often", "nightly", "regularly"]);
 const PERIODS = new Set(["day", "night", "morning", "evening", "week", "weekend"]);
 const PAST = new Set(["yesterday", "ago", "last", "had", "has", "have", "was", "were", "already"]);
 const MINUTE_ADJ_NEXT = new Set(["detail", "details", "amount", "amounts", "trace", "traces", "fraction", "fractions", "particle", "particles", "difference", "differences", "change", "changes", "quantity", "quantities", "scale", "crack", "cracks", "speck", "specks", "organism", "organisms", "creature", "creatures", "piece", "pieces", "part", "parts", "drop", "drops", "grain", "grains", "insect", "insects"]);
-const MINUTE_TIME_PREV = new Set(["one", "per", "every", "each", "last", "next", "first", "final", "half", "quarter", "single", "another", "this", "that"]);
+const MINUTE_TIME_PREV = new Set(["zero", "one", "two", "three", "four", "five", "six", "seven", "eight", "nine", "ten", "eleven", "twelve", "thirteen", "fourteen", "fifteen", "sixteen", "seventeen", "eighteen", "nineteen", "twenty", "thirty", "forty", "fifty", "sixty", "seventy", "eighty", "ninety", "hundred", "thousand", "million", "per", "every", "each", "last", "next", "first", "second", "third", "final", "half", "quarter", "single", "another", "this", "that", "few", "couple", "several", "many"]);
 function senseRule(low, words, i) {
   const at = (k) => (k >= 0 && k < words.length ? words[k] : "");
   if (low === "lead") {
@@ -349,6 +349,12 @@ class G2p {
       const dash = tok.indexOf("-");
       if (dash > 0) {
         const pfx = tok.slice(0, dash).toLowerCase(), stem = tok.slice(dash + 1);
+        if (pfx === "lead" && (stem.toLowerCase() === "free" || stem.toLowerCase() === "based")) {
+          out.push("lˈɛd");
+          const sIpa = this.word(stem, next);
+          if (sIpa) out.push(sIpa);
+          continue;
+        }
         const pIpa = this.hyphenPrefix(pfx), sIpa = this.word(stem, next);
         if (pIpa && sIpa) { out.push(pIpa + (pIpa.includes("ˈ") ? secondary(sIpa) : sIpa)); continue; }
       }
