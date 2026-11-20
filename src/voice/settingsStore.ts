@@ -250,12 +250,9 @@ const SPEECH_MODEL_NAMES: Readonly<Record<string, string>> = {
   "parakeet 0.6b gpu": "Parakeet 0.6B\u00a0·\u00a0GPU",
   "parakeet 0.6b": "Parakeet 0.6B\u00a0·\u00a0CPU",
   "parakeet 110m": "Parakeet 110M",
-  "kokoro 82m gpu": "Kokoro 82M\u00a0·\u00a0GPU",
-  "kokoro 82m cpu": "Kokoro 82M\u00a0·\u00a0CPU",
   [NANO10_VOICE]: "kale-tts-1-nano",
   [TINY10_VOICE]: "kale-tts-1-tiny",
   "parakeet 0.6b mlx": "Parakeet 0.6B",
-  "kokoro 82m mlx": "Kokoro 82M",
 };
 export const speechModelName = (name: string): string => SPEECH_MODEL_NAMES[name] ?? name;
 
@@ -263,9 +260,9 @@ export const speechModelName = (name: string): string => SPEECH_MODEL_NAMES[name
 export const defaultReplyVoice = (): string => NANO10_VOICE;
 
 /**
- * Builds the picker no longer offers (18 Nov: only the current kale-tts-1 pair, Kokoro 82M and the
- * computer stay): a tiny build moves to the current tiny, everything else to Automatic. Their files stay
- * in public/models for ?bench.
+ * Builds the picker no longer offers (20 Nov: only kale-tts-1 stays; Kokoro 82M, here or on the
+ * computer, is gone): a tiny build moves to the current tiny, everything else to Automatic (the nano).
+ * Their files stay in public/models for ?bench.
  */
 const RETIRED_TINY = new Set([
   "kale-tts-1-tiny",
@@ -277,6 +274,9 @@ const RETIRED_TINY = new Set([
 ]);
 const RETIRED = new Set([
   "kokoro",
+  "kokoro-gpu",
+  "kokoro-cpu",
+  "computer",
   "matcha",
   "llama-kokoro",
   "kale-kokoro",
@@ -289,8 +289,7 @@ const RETIRED = new Set([
 
 /**
  * Who speaks the replies on this device: "auto" (nothing stored: defaultReplyVoice), kale-tts-1-tiny or
- * -nano, "kokoro-gpu", "kokoro-cpu" (Kokoro 82M), "computer" (Kokoro on the computer running T3, opt-in),
- * or a voice the user's cards registered (replyVoices.ts) by its id.
+ * -nano, or a voice the user's cards registered (replyVoices.ts) by its id.
  */
 export const replyVoicePick = (): string => {
   const stored = read(REPLY_VOICE_KEY) ?? "auto";

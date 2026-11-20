@@ -4,17 +4,9 @@
  * iOS can interrupt the context mid-reply, so it is resumed, cut pieces replay, and every end is
  * logged with its cause.
  */
-import {
-  kokoroSpeak,
-  releaseKokoro,
-  releaseWarmVoice,
-  startKokoro,
-  startWarmVoice,
-  warmSpeak,
-} from "./browserSpeech/browser";
+import { releaseWarmVoice, startWarmVoice, warmSpeak } from "./browserSpeech/browser";
 import { replyVoicePlugin } from "./replyVoices";
 import { soundGain } from "./extras/soundVolume";
-import { withPronunciations } from "./pronunciations";
 import { voiceLog } from "./voiceLog";
 import { voiceErrorText } from "./voiceErrors";
 import { registerMeter } from "./memoryTrail";
@@ -213,18 +205,13 @@ export class SpeechPlayer {
     const previous = this.preparedVoice === null ? null : replyVoicePlugin(this.preparedVoice);
     this.preparedVoice = voice;
     previous?.unload();
-    if (isKaleVoice(voice)) {
-      releaseKokoro();
+    // A card's voice that is gone (another device, lalala.talk) falls back to Kale's voice.
+    const plugin = isKaleVoice(voice) ? null : replyVoicePlugin(voice);
+    if (plugin === null) {
       startWarmVoice();
       return;
     }
     releaseWarmVoice();
-    const plugin = replyVoicePlugin(voice);
-    if (plugin === null) {
-      startKokoro();
-      return;
-    }
-    releaseKokoro();
     plugin.load().then(
       (load) => voiceLog("voice", "reply-voice.load", { voice, ...load }),
       (error: unknown) => {
@@ -493,46 +480,30 @@ export class SpeechPlayer {
     try {
       const voice = replyVoice();
       const plugin = isKaleVoice(voice) ? null : replyVoicePlugin(voice);
-      if (isKaleVoice(voice) || plugin !== null) {
-        // Kale's voice renders in its worker, a plugin voice in this tab, a whole sentence at a time;
-        // both play in Kokoro's chunks.
-        const renderStart = performance.now();
-        const rendered =
-          plugin === null
-            ? await warmSpeak(sentence.text)
-            : await plugin.speak(sentence.text, signal);
-        if (signal.aborted) return;
-        const { samples } = rendered;
-        const output = await this.toOutputRate(samples);
-        if (signal.aborted) return;
-        const timing = {
-          renderMs: performance.now() - renderStart,
-          audioMs: (samples.length / TTS_SAMPLE_RATE) * 1000,
-          ...rendered.timing,
-        };
-        voiceLog("voice", "reply-voice.sentence", {
-          voice,
-          ...Object.fromEntries(
-            Object.entries(timing).map(([key, value]) => [
-              key,
-              typeof value === "number" ? Math.round(value) : value,
-            ]),
-          ),
-        });
-        this.chunk(sentence, output);
-        notify();
-        return;
-      }
-      // Kokoro in this tab, a whole sentence at a time, with misaki's markup for listed words.
+      // Kale's voice renders in its worker, a plugin voice in this tab, a whole sentence at a time.
       const renderStart = performance.now();
-      const samples = await kokoroSpeak(withPronunciations(sentence.text));
+      const rendered =
+        plugin === null
+          ? await warmSpeak(sentence.text)
+          : await plugin.speak(sentence.text, signal);
       if (signal.aborted) return;
-      voiceLog("voice", "kokoro.sentence", {
-        renderMs: Math.round(performance.now() - renderStart),
-        audioMs: Math.round((samples.length / TTS_SAMPLE_RATE) * 1000),
-      });
+      const { samples } = rendered;
       const output = await this.toOutputRate(samples);
       if (signal.aborted) return;
+      const timing = {
+        renderMs: performance.now() - renderStart,
+        audioMs: (samples.length / TTS_SAMPLE_RATE) * 1000,
+        ...rendered.timing,
+      };
+      voiceLog("voice", "reply-voice.sentence", {
+        voice,
+        ...Object.fromEntries(
+          Object.entries(timing).map(([key, value]) => [
+            key,
+            typeof value === "number" ? Math.round(value) : value,
+          ]),
+        ),
+      });
       this.chunk(sentence, output);
       notify();
     } catch (error) {

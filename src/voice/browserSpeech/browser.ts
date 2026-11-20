@@ -1,5 +1,4 @@
-// Speech in this browser, on both hosts: Parakeet
-// listens, Kale's warm voice Kale's Kokoro (Automatic, every device) or Kokoro 82M speaks, each on ONNX
+// Speech in this browser, on both hosts: Parakeet listens, Kale's own kale-tts-1 speaks, each on ONNX
 // in its own worker.
 // They start loading when the page opens and stay loaded for the page's life, across calls and tab
 // hides: setting a model up takes seconds on a phone (Tim, 14 Nov: "always a cold start").
@@ -17,6 +16,7 @@ import {
   speechModelName,
   sttModel,
 } from "../settingsStore";
+import { replyVoicePlugin } from "../replyVoices";
 import { voiceLog } from "../voiceLog";
 import { gpuTrial } from "./gpuTrial";
 import type { LoadMessage, WorkerMeter } from "./readout";
@@ -136,7 +136,7 @@ export const subscribeSpeechState = (listener: () => void) => {
 };
 export type ModelStatus = {
   readonly phase: "idle" | "downloading" | "loading" | "ready" | "failed";
-  /** What the worker said it loads ("parakeet 110m", "kokoro 82m gpu"…), once it has. */
+  /** What the worker said it loads ("parakeet 110m", "kale-tts-1-nano-10"…), once it has. */
   readonly name: string | null;
   readonly loaded: number;
   readonly total: number;
@@ -149,7 +149,7 @@ export type ModelStatus = {
 // a retry starts there instead of filling the storage again.
 let storageCeiling: string | null = null;
 
-// One model loads at a time, in the order asked (Parakeet with the call, then Kokoro): Kokoro
+// One model loads at a time, in the order asked (Parakeet with the call, then the voice): a voice
 // loading into WebGPU while Parakeet downloaded ended Tim's iPhone tab (14 Nov, three times).
 let modelTurn: Promise<unknown> = Promise.resolve();
 
@@ -468,18 +468,8 @@ const ears = modelWorker(
   }),
   { wanted: () => !earsOff && !onComputer.stt() },
 );
-const kokoroBuild = () => {
-  const picked = replyVoice();
-  return picked === "kokoro-gpu" ? "gpu" : picked === "kokoro-cpu" ? "cpu" : "auto";
-};
-const voice = modelWorker(
-  "kokoro",
-  () => new Worker(new URL("./kokoro.worker.ts", import.meta.url), { type: "module" }),
-  () => ({ build: kokoroBuild() }),
-);
-// Kale's own voices, one at a time in one worker: the warm Kokoro (Automatic, and the phone's
-// stand-in for your computer), or kale-tts-1-tiny when picked. Matcha is gone (Tim, 15 Nov).
-/** The Kale voice to load: the one picked, or Automatic's while standing in for your computer. */
+// Kale's own voices, one at a time in one worker: kale-tts-1-nano (Automatic) or -tiny when picked.
+/** The Kale voice to load: the one picked, or Automatic's for a card voice that is gone. */
 const kaleBuild = (): string => {
   const picked = replyVoice();
   return isKaleVoice(picked) ? picked : defaultReplyVoice();
@@ -546,7 +536,6 @@ const warm = modelWorker(
 // A device that switches a model, or sends a task to the computer, frees the old one once its
 // current utterance or sentence is done; the new one loads right away when the page has.
 let earsModel = sttModel();
-let voiceBuild = kokoroBuild();
 let voicePick = replyVoice();
 let warmBuild = kaleBuild();
 let warmVoice = modelVoice(kaleBuild());
@@ -555,7 +544,7 @@ document.addEventListener("lalala:settings", () => {
   trackWhere();
   if (autoRetrySeconds() !== retryEvery) {
     retryEvery = autoRetrySeconds();
-    for (const model of [ears, voice, warm]) model.scheduleRetry();
+    for (const model of [ears, warm]) model.scheduleRetry();
     // A computer that isn't answering is asked again at the new interval (or not at all when off).
     scheduleComputer();
     notify();
@@ -572,8 +561,7 @@ document.addEventListener("lalala:settings", () => {
     warmVoice = modelVoice(kaleBuild());
     if (warm.started()) void warm.ask({ type: "voice", voice: warmVoice }).catch(() => {});
   }
-  if (kokoroBuild() !== voiceBuild || replyVoice() !== voicePick) {
-    if (kokoroBuild() !== voiceBuild) voice.releaseWhenIdle();
+  if (replyVoice() !== voicePick) {
     // Another Kale model: the same worker frees the old one's session and loads the new one into the
     // memory it leaves, so a tab never holds two copies (a second copy is what iOS ends it for).
     if (kaleBuild() !== warmBuild && warm.started()) {
@@ -583,10 +571,8 @@ document.addEventListener("lalala:settings", () => {
     }
     warmBuild = kaleBuild();
     warmVoice = modelVoice(kaleBuild());
-    voiceBuild = kokoroBuild();
     voicePick = replyVoice();
-    if (voicePick === "computer") void refreshComputerSpeech();
-    else if (speechPrewarmed) prewarmVoice();
+    if (speechPrewarmed) prewarmVoice();
   }
 });
 
@@ -608,12 +594,11 @@ const earsOff = only === "voice";
 const voiceOff = only === "stt";
 if (only) voiceLog("system", "speech.only", { only });
 
-// The computer running T3 (its speech service, through this app's server): picked per task in Settings.
-// While it isn't ready, this browser stands in with its lightest models (Parakeet 110M, Kale's Kokoro on
-// a phone), kept loaded; the computer is asked again (never from a page with no route to it, like
-// lalala.talk). Automatic tries the computer for hearing too, never gives up on it (backing off up to
-// 5 min, again on every page open), uses this browser meanwhile, and keeps whichever path its own
-// timings say is faster here. Automatic's voice is Kale's Kokoro, which only runs here.
+// The computer running T3 (its speech service, through this app's server) can hear, picked in Settings.
+// While it isn't ready, this browser stands in with Parakeet 110M, kept loaded; the computer is asked
+// again (never from a page with no route to it, like lalala.talk). Automatic tries the computer too,
+// never gives up on it (backing off up to 5 min, again on every page open), uses this browser
+// meanwhile, and keeps whichever path its own timings say is faster here. The voice only runs here.
 const COMPUTER_LOADING_MS = 3_000;
 const COMPUTER_BACKOFF_MAX_S = 300;
 let computerState: ComputerSpeech | "checking" = "checking";
@@ -662,28 +647,17 @@ export const browserFaster = (task: Task) => {
   return browser !== undefined && computer !== undefined && browser < computer * 0.8;
 };
 const automatic = { stt: () => sttModel() === "auto", voice: () => replyVoicePick() === "auto" };
-/**
- * Who stands in for your computer's voice (picked by hand): the same Kokoro voice in this browser on a
- * desktop, so a reply never changes voice with where it runs; Kale's Kokoro on a phone (Kokoro 82M there
- * ended tabs).
- */
-const voiceStandIn = (): "kokoro" | "warm" => (isPhoneDevice() ? "warm" : "kokoro");
-/** A task the computer should do, picked by hand or by Automatic. */
+/** Hearing the computer should do, picked by hand or by Automatic; replies are always spoken here. */
 const wantsComputer = {
   stt: () =>
     sttModel() === "computer" || (automatic.stt() && computerState !== "absent" && !browserFaster("stt")),
-  // Automatic's voice is Kale's Kokoro, which only runs here: it never moves to your computer's Kokoro.
-  voice: () => replyVoice() === "computer",
 };
 const onComputer = {
   stt: () => wantsComputer.stt() && !standingIn(),
-  voice: () => wantsComputer.voice() && !standingIn(),
 };
 /** Automatic or the computer is still getting the computer ready; this browser does the task meanwhile. */
 export const tryingComputer = (task: Task) =>
-  (task === "stt" ? wantsComputer.stt() : wantsComputer.voice()) &&
-  computerState !== "ready" &&
-  computerState !== "absent";
+  task === "stt" && wantsComputer.stt() && computerState !== "ready" && computerState !== "absent";
 /** The computer's state, as this page last saw it; Settings show it. */
 export const computerSpeechState = () => computerState;
 
@@ -693,20 +667,13 @@ function fitModels() {
     if (standingIn()) startEars();
     else if (computerAnswered.stt) ears.releaseWhenIdle();
   }
-  if (wantsComputer.voice()) {
-    if (standingIn()) voiceStandIn() === "kokoro" ? voice.start() : startWarmVoice();
-    else if (computerAnswered.voice) {
-      voice.releaseWhenIdle();
-      warm.releaseWhenIdle();
-    }
-  }
 }
 let computerSince = Date.now();
 /** When the computer's speech service went into its current state (Settings count up from it). */
 export const computerSpeechSince = () => computerSince;
 
 // Where each task runs now, and since when: Automatic's switches show in Settings, not only in logs.
-const whereNow = (task: Task): Where => ((task === "stt" ? onComputer.stt() : onComputer.voice()) ? "computer" : "browser");
+const whereNow = (task: Task): Where => (task === "stt" && onComputer.stt() ? "computer" : "browser");
 const runsAt: Record<Task, { where: Where; since: number | null }> = {
   stt: { where: "browser", since: null },
   voice: { where: "browser", since: null },
@@ -761,7 +728,7 @@ function setComputer(state: ComputerSpeech) {
  * starts the service if it isn't running (`force`: Try again, even right after a failed start).
  */
 export async function refreshComputerSpeech(force = false) {
-  const wanted = sttModel() === "computer" || replyVoice() === "computer" || automatic.stt();
+  const wanted = sttModel() === "computer" || automatic.stt();
   setComputer(await checkComputerSpeech(force ? "force" : wanted ? "auto" : undefined));
 }
 let speechPrewarmed = false;
@@ -805,31 +772,16 @@ export const startEars = () => {
   ears.start();
 };
 export const releaseEars = () => ears.releaseWhenIdle();
-/** Kokoro loads with the call while it is the reply voice; another reply voice frees it. */
-export const startKokoro = () => {
-  if (voiceOff) return;
-  // Wanted on your computer: wait for its first answer, then fitModels loads the stand-in if needed.
-  if (wantsComputer.voice()) {
-    if (standingIn() && computerState !== "checking" && voiceStandIn() === "kokoro") voice.start();
-    return;
-  }
-  if (replyVoice().startsWith("kokoro")) voice.start();
-};
-export const releaseKokoro = () => voice.releaseWhenIdle();
-/** The same for Kale's warm voice, Kale's Kokoro. */
+/** Kale's voice loads with the call while it is the reply voice; a card's voice frees it. */
 export const startWarmVoice = () => {
-  if (voiceOff || onComputer.voice()) return;
+  if (voiceOff) return;
   if (!crashKnown) {
     void crashChecked.then(startWarmVoice);
     return;
   }
-  if (wantsComputer.voice() && voiceStandIn() === "kokoro") return;
   warm.start();
 };
-export const releaseWarmVoice = () => {
-  // Standing in for the computer, Kale's Kokoro speaks: the call's player can't free it then.
-  if (!(wantsComputer.voice() && standingIn() && voiceStandIn() === "warm")) warm.releaseWhenIdle();
-};
+export const releaseWarmVoice = () => warm.releaseWhenIdle();
 
 /**
  * 16 kHz PCM, transcribed by Parakeet (the buffer moves to its worker), with its word times when
@@ -933,52 +885,13 @@ export function openVad(onProbability: (probability: number) => void) {
   };
 }
 
-/** One sentence from the computer's Kokoro, as 24 kHz PCM; null when the computer didn't answer. */
-async function computerSpeak(text: string): Promise<Float32Array<ArrayBuffer> | null> {
-  const startedAt = performance.now();
-  try {
-    // 16-bit little-endian 24 kHz PCM.
-    const bytes = await computerRoute().tts(text);
-    const view = new DataView(bytes, 0, bytes.byteLength - (bytes.byteLength % 2));
-    const samples = new Float32Array(view.byteLength / 2);
-    for (let i = 0; i < samples.length; i += 1) samples[i] = view.getInt16(i * 2, true) / 0x8000;
-    record("voice", "computer", performance.now() - startedAt, (samples.length / 24_000) * 1000);
-    computerWorked("voice");
-    return samples;
-  } catch (error) {
-    voiceLog("system", "speech.computer-down", { task: "voice", message: String(error) });
-    setComputer("down");
-    return null;
-  }
-}
-
-/** One sentence as 24 kHz PCM from Kokoro; it reads misaki's `[word](/phonemes/)` markup. */
-export async function kokoroSpeak(text: string): Promise<Float32Array<ArrayBuffer>> {
-  if (voiceOff) return new Float32Array(0);
-  // The computer's Kokoro, and Kale's Kokoro standing in for it, read plain text: the markup keeps the word.
-  const plain = () => text.replace(/\[([^\]]+)\]\(\/[^)]*\/\)/g, "$1");
-  if (onComputer.voice()) {
-    const samples = await computerSpeak(plain());
-    if (samples !== null) return samples;
-  }
-  // Standing in for the computer on a phone, Kale's Kokoro speaks; on a desktop the same Kokoro, here.
-  if (wantsComputer.voice() && voiceStandIn() === "warm") return (await warmSpeak(plain())).samples;
-  const browserAt = performance.now();
-  const reply = await voice.ask({ type: "speak", text });
-  if (reply.type !== "audio") throw new Error("Kokoro returned no audio");
-  record("voice", "browser", performance.now() - browserAt, (reply.samples.length / 24_000) * 1000);
-  return reply.samples;
-}
-
-/** One sentence as 24 kHz PCM from Kale's warm voice, Kale's Kokoro, and how long it took. */
+/** One sentence as 24 kHz PCM from Kale's voice, and how long it took. */
 export async function warmSpeak(
   text: string,
 ): Promise<{ samples: Float32Array<ArrayBuffer>; timing: Record<string, number> }> {
   if (voiceOff) return { samples: new Float32Array(0), timing: {} };
-  // Kale's Kokoro reads plain text: misaki's markup keeps the word.
-  const plain = text.replace(/\[([^\]]+)\]\(\/[^)]*\/\)/g, "$1");
   const browserAt = performance.now();
-  const reply = await warm.ask({ type: "speak", text: plain });
+  const reply = await warm.ask({ type: "speak", text });
   if (reply.type === "audio")
     record("voice", "browser", performance.now() - browserAt, (reply.samples.length / 24_000) * 1000);
   if (reply.type !== "audio") throw new Error("The voice returned no audio");
@@ -989,21 +902,18 @@ export async function warmSpeak(
  * Starts the speech models as the page opens, one after the other (Parakeet, then the reply voice),
  * so a call finds them ready. A voice the user's cards registered loads with the call instead.
  */
-/** Automatic sends this task to your computer when it can (its voice is Kale's Kokoro, here). */
+/** Automatic sends this task to your computer when it can (the voice only runs here). */
 export const automaticTriesComputer = (task: Task) => task === "stt";
 export function prewarm() {
   speechPrewarmed = true;
   startVad();
   startEars();
   prewarmVoice();
-  if (sttModel() === "computer" || replyVoice() === "computer" || automatic.stt())
-    void refreshComputerSpeech();
+  if (sttModel() === "computer" || automatic.stt()) void refreshComputerSpeech();
 }
-/** The reply voice's browser model; with the computer picked, fitModels decides once it has answered. */
+/** The reply voice's browser model; a card's voice loads with the call instead. */
 function prewarmVoice() {
-  const picked = replyVoice();
-  if (isKaleVoice(picked)) startWarmVoice();
-  else if (picked.startsWith("kokoro")) startKokoro();
+  if (isKaleVoice(replyVoice())) startWarmVoice();
 }
 
 /** What actually runs a task on this device right now, for Settings and the settings tab's readout. */
@@ -1017,12 +927,7 @@ export function activeSpeech(task: "stt" | "voice"): ActiveSpeech {
       ? { where: "computer", name: "parakeet 0.6b mlx" }
       : { where: "browser", status: ears.status() };
   const picked = replyVoice();
-  if (onComputer.voice()) return { where: "computer", name: "kokoro 82m mlx" };
-  // Standing in for your computer: Kale's Kokoro on a phone, the same Kokoro here on a desktop.
-  if (wantsComputer.voice())
-    return { where: "browser", status: (voiceStandIn() === "warm" ? warm : voice).status() };
-  if (isKaleVoice(picked)) return { where: "browser", status: warm.status() };
-  if (picked.startsWith("kokoro")) return { where: "browser", status: voice.status() };
+  if (isKaleVoice(picked) || replyVoicePlugin(picked) === null) return { where: "browser", status: warm.status() };
   return { where: "card", name: picked };
 }
 
@@ -1045,23 +950,19 @@ function logActive() {
 export function speechStatus(task: "stt" | "voice"): ModelStatus | null {
   if (task === "stt") return onComputer.stt() ? null : ears.status();
   const picked = replyVoice();
-  if (onComputer.voice()) return null;
-  if (wantsComputer.voice()) return (voiceStandIn() === "warm" ? warm : voice).status();
-  if (isKaleVoice(picked)) return warm.status();
-  if (picked.startsWith("kokoro")) return voice.status();
-  return null;
+  return isKaleVoice(picked) || replyVoicePlugin(picked) === null ? warm.status() : null;
 }
 
 /** A model is still downloading or loading; a reload now would throw that away (callGuard). */
 export const speechLoading = (): boolean =>
-  ears.loading() || voice.loading() || warm.loading();
+  ears.loading() || warm.loading();
 
 /**
  * The models this call is downloading, for the bar's readout; empty while they only load from disk (or
  * before a worker has said which), null once all are ready.
  */
 export function speechProgress(): ReadonlyArray<VoiceBarModel> | null {
-  const loading = [ears, voice, warm].filter((model) => model.started() && !model.gaveUp());
+  const loading = [ears, warm].filter((model) => model.started() && !model.gaveUp());
   if (loading.every((model) => model.ready())) return null;
   return loading.map((model) => model.model()).filter((model) => model !== null);
 }
@@ -1080,7 +981,7 @@ export async function checkComputerSpeech(start?: "auto" | "force"): Promise<Com
   return state;
 }
 
-/** This browser has WebGPU with 16-bit floats (the 0.6B on the GPU) / any WebGPU (Kokoro on the GPU). */
+/** This browser has WebGPU with 16-bit floats (the 0.6B on the GPU) / any WebGPU. */
 export async function checkGpu(): Promise<{ f16: boolean; any: boolean }> {
   const gpu = (navigator as Navigator & {
     gpu?: { requestAdapter(): Promise<{ features?: { has(name: string): boolean } } | null> };
@@ -1092,7 +993,7 @@ export async function checkGpu(): Promise<{ f16: boolean; any: boolean }> {
 // What each speech model holds, in every memory snapshot (memoryTrail): its file, and the WASM
 // memory and WebGPU buffers its worker counted (wasmMeter).
 registerMeter("models", () => {
-  const models: unknown[] = [ears.memory(), voice.memory(), warm.memory()].filter(Boolean);
+  const models: unknown[] = [ears.memory(), warm.memory()].filter(Boolean);
   if (vadWorker !== null)
     models.push({ model: "vad", phase: vadReady ? "ready" : "loading", wasmMB: vadMeter?.wasmMB });
   return models;

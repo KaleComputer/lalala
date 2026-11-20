@@ -1082,7 +1082,7 @@ export function PickRow(props: {
       >
         <SelectTrigger ref={triggerRef} aria-label={props.label} data-lalala-settings-pick="">
           <span>
-            {/* Automatic shows what it runs and where: "Auto · Kokoro 82M · computer". */}
+            {/* Automatic shows what it runs and where: "Auto · Parakeet 0.6B · Computer". */}
             {props.shows ? "Auto" : <PickLabel option={selected} />}
             {props.shows ? (
               <small data-lalala-settings-shows="">
@@ -1710,12 +1710,7 @@ export function SoundSection() {
 }
 
 type BrowserEars = Exclude<SttModel, "auto" | "computer">;
-type VoiceBuild =
-  | "kokoro-gpu"
-  | "kokoro-cpu"
-  | "kale-tts-1-nano-10"
-  | "kale-tts-1-tiny-10"
-  | "computer";
+type VoiceBuild = "kale-tts-1-nano-10" | "kale-tts-1-tiny-10";
 const STT_LABELS: Record<Exclude<SttModel, "auto">, string> = {
   "0.6b-gpu": "Parakeet 0.6B\u00a0·\u00a0GPU",
   "0.6b-cpu": "Parakeet 0.6B\u00a0·\u00a0CPU",
@@ -1723,11 +1718,8 @@ const STT_LABELS: Record<Exclude<SttModel, "auto">, string> = {
   computer: "Parakeet 0.6B\u00a0·\u00a0Computer",
 };
 const VOICE_LABELS: Record<VoiceBuild, string> = {
-  "kokoro-gpu": "Kokoro\u00a082M\u00a0·\u00a0GPU",
-  "kokoro-cpu": "Kokoro\u00a082M\u00a0·\u00a0CPU",
   "kale-tts-1-nano-10": "kale-tts-1-nano",
   "kale-tts-1-tiny-10": "kale-tts-1-tiny",
-  computer: "Kokoro 82M\u00a0·\u00a0Computer",
 };
 const STT_COSTS: Partial<Record<string, string>> = {
   "0.6b-gpu": "1.25 GB download · ~1.3 GB memory",
@@ -1735,8 +1727,6 @@ const STT_COSTS: Partial<Record<string, string>> = {
   "110m": "137 MB download · ~0.25 GB memory",
 };
 const VOICE_COSTS: Partial<Record<string, string>> = {
-  "kokoro-gpu": "327 MB download · ~0.4 GB memory",
-  "kokoro-cpu": "93 MB download · ~0.2 GB memory",
   "kale-tts-1-nano-10": "15 MB download · ~0.1 GB memory",
   "kale-tts-1-tiny-10": "83 MB download · ~0.3 GB memory",
 };
@@ -1787,8 +1777,6 @@ const LOADED_KEYS: Record<string, string> = {
   "parakeet 0.6b gpu": "0.6b-gpu",
   "parakeet 0.6b": "0.6b-cpu",
   "parakeet 110m": "110m",
-  "kokoro 82m gpu": "kokoro-gpu",
-  "kokoro 82m cpu": "kokoro-cpu",
   "kale-tts-1-nano-10": "kale-tts-1-nano-10",
   "kale-tts-1-tiny-10": "kale-tts-1-tiny-10",
 };
@@ -1849,11 +1837,11 @@ export function useSpeechSummary() {
     return active.where === "computer" ? "on your computer" : active.where === "card" ? "from a card" : "here";
   };
   const hears = `${runningName("stt", "Parakeet")} ${where("stt")}`;
-  const speaks = `${runningName("voice", "Kokoro")} ${where("voice")}`;
-  return { hears, speaks, line: `${runningName("voice", "Kokoro")} · ${runningName("stt", "Parakeet")}` };
+  const speaks = `${runningName("voice", "kale-tts-1")} ${where("voice")}`;
+  return { hears, speaks, line: `${runningName("voice", "kale-tts-1")} · ${runningName("stt", "Parakeet")}` };
 }
 
-/** The model a task runs on now, short, for Automatic's closed select: "Kokoro 82M · GPU". */
+/** The model a task runs on now, short, for Automatic's closed select: "Parakeet 0.6B · GPU". */
 function runningName(task: "stt" | "voice", planned: string): string {
   const active = activeSpeech(task);
   const name =
@@ -1867,7 +1855,7 @@ function runningName(task: "stt" | "voice", planned: string): string {
 /** The same without its build: the closed select has room for the model, "Now:" says GPU or CPU. */
 const modelOnly = (name: string) => name.replace(/\u00a0·\u00a0(GPU|CPU|Computer)$/, "").replace(/ · (GPU|CPU|Computer)$/, "");
 
-/** What runs a task right now, in a few words: "Kokoro (Kale's voice), in this browser · ready". */
+/** What runs a task right now, in a few words: "kale-tts-1-nano, in this browser · ready". */
 export function nowText(active: ActiveSpeech, waiting: string, meanwhile = ""): string {
   if (active.where === "computer") return `${loadedName(active.name)}, on your computer · ready, nothing downloads here`;
   if (active.where === "card") return "a voice from your cards";
@@ -1981,7 +1969,7 @@ function TaskState(props: {
         : " while your computer starts";
   let now = `Now: ${nowText(active, waiting, meanwhile)}`;
   if (picked === "computer" && computer === "absent") now += " (connect T3 Code first)";
-  // Loading without byte progress (kokoro-js reports none) still names what it costs.
+  // Loading without byte progress still names what it costs.
   if (status?.phase === "loading" && props.cost)
     now = now.replace(" · loading", ` · loading, ${props.cost.split(" download")[0]!.replace(" ", "\u00a0")}`);
   if (status?.phase === "idle" && props.cost)
@@ -2049,14 +2037,6 @@ export function SpeechSection() {
         : "0.6b-cpu";
   // Automatic's voice: kale-tts-1-nano on every device (settingsStore).
   const autoVoice = defaultReplyVoice() as VoiceBuild;
-  // Who stands in for your computer's voice: the same Kokoro 82M here on a desktop, Automatic's on a phone.
-  const voiceStandIn: VoiceBuild | null = phone
-    ? autoVoice
-    : gpu === null
-      ? null
-      : gpu.any
-        ? "kokoro-gpu"
-        : "kokoro-cpu";
   const earsAuto = autoEars === null ? CHECKING : STT_LABELS[autoEars];
   const voiceAuto = VOICE_LABELS[autoVoice];
   // The computer's line in the list: its state, and how fast it is once it answers.
@@ -2226,13 +2206,11 @@ export function SpeechSection() {
             Speaks the answers, from the next sentence.
             <TaskState
               cost={
-                VOICE_COSTS[
-                  voice === "computer" || voice === "auto" ? (voiceStandIn ?? "") : voice
-                ]
+VOICE_COSTS[voice === "auto" ? autoVoice : voice]
               }
               picked={voice}
               auto={voiceAuto}
-              standIn={voiceStandIn === null ? CHECKING : VOICE_LABELS[voiceStandIn]}
+              standIn={voiceAuto}
               computer={computer}
               task="voice"
               active={activeSpeech("voice")}
@@ -2243,7 +2221,7 @@ export function SpeechSection() {
         value={voice}
         shows={
           voice === "auto"
-            ? { model: modelOnly(runningName("voice", voiceStandIn === null ? voiceAuto : VOICE_LABELS[voiceStandIn])), where: activeSpeech("voice").where === "computer" ? "computer" : "browser" }
+            ? { model: modelOnly(runningName("voice", voiceAuto)), where: activeSpeech("voice").where === "computer" ? "computer" : "browser" }
             : undefined
         }
         onReset={voice === "auto" ? undefined : () => setReplyVoice("auto")}
@@ -2276,35 +2254,6 @@ export function SpeechSection() {
                 label: VOICE_LABELS["kale-tts-1-nano-10"],
                 detail: "10 voices, smallest and fastest",
                 meta: VOICE_COSTS["kale-tts-1-nano-10"],
-              },
-            ],
-          },
-          {
-            label: "In this browser · Kokoro 82M",
-            options: [
-              {
-                value: "kokoro-gpu",
-                label: VOICE_LABELS["kokoro-gpu"],
-                ...(gpu !== null && !gpu.any
-                  ? { meta: "Needs WebGPU", disabled: true }
-                  : { detail: heavy("most natural"), meta: VOICE_COSTS["kokoro-gpu"] }),
-              },
-              {
-                value: "kokoro-cpu",
-                label: VOICE_LABELS["kokoro-cpu"],
-                detail: phone ? "natural, about 2× a sentence to render" : "natural, slower",
-                meta: VOICE_COSTS["kokoro-cpu"],
-              },
-            ],
-          },
-          {
-            label: "On your computer",
-            options: [
-              {
-                value: "computer",
-                label: VOICE_LABELS.computer,
-                detail: "most natural",
-                ...computerOption(measuredComputer("voice")),
               },
             ],
           },

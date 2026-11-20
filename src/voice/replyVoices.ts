@@ -1,8 +1,8 @@
 /**
- * Reply voices besides Kokoro, added by the user's own cards (`cards/index.tsx` calls
+ * Reply voices besides kale-tts-1, added by the user's own cards (`cards/index.tsx` calls
  * `registerReplyVoice`), so a private voice never has to live in this repo. Each renders a whole
  * sentence in this tab; the settings list them under Sound & mic, and a voice that is gone (another
- * device, lalala.talk) falls back to Kokoro.
+ * device, lalala.talk) falls back to kale-tts-1-nano.
  */
 export type ReplyVoicePlugin = {
   readonly id: string;
