@@ -4,8 +4,12 @@
 // anyway, and as WASM memory is about to grow: no timer, no polling.
 type Memory = WebAssembly.Memory;
 const memories = new Set<WeakRef<Memory>>();
+// Each memory once: it is seen again when exported and at every grow.
+const counted = new WeakSet<Memory>();
 const keep = (memory: unknown) => {
-  if (memory instanceof WebAssembly.Memory) memories.add(new WeakRef(memory));
+  if (!(memory instanceof WebAssembly.Memory) || counted.has(memory)) return;
+  counted.add(memory);
+  memories.add(new WeakRef(memory));
 };
 const wasmBytes = () => {
   let bytes = 0;

@@ -1737,8 +1737,8 @@ const STT_COSTS: Partial<Record<string, string>> = {
 const VOICE_COSTS: Partial<Record<string, string>> = {
   "kokoro-gpu": "327 MB download · ~0.4 GB memory",
   "kokoro-cpu": "93 MB download · ~0.2 GB memory",
-  "kale-tts-1-nano-10": "15 MB download · ~0.3 GB memory",
-  "kale-tts-1-tiny-10": "83 MB download · ~0.6 GB memory",
+  "kale-tts-1-nano-10": "15 MB download · ~0.1 GB memory",
+  "kale-tts-1-tiny-10": "83 MB download · ~0.3 GB memory",
 };
 const MB = (bytes: number) =>
   bytes >= 1e9 ? `${(bytes / 1e9).toFixed(2)}\u00a0GB` : `${Math.round(bytes / 1e6)}\u00a0MB`;
@@ -2603,13 +2603,19 @@ const KILL_TIME = new Intl.DateTimeFormat("en-GB", {
 function MemoryLine() {
   const [now] = useState(memoryNow);
   const [kill] = useState(lastTabKill);
-  const models = (now.models as Array<{ model: string; wasmMB?: number; fileMB?: number }> | undefined) ?? [];
+  const models =
+    (now.models as
+      | Array<{ model: string; name?: string | null; wasmMB?: number; gpuMB?: number; fileMB?: number }>
+      | undefined) ?? [];
+  // The same sum as the total: WASM memory and WebGPU buffers, the file while neither is counted yet.
+  const held = (m: (typeof models)[number]) =>
+    m.wasmMB === undefined ? (m.fileMB ?? "?") : m.wasmMB + (m.gpuMB ?? 0);
+  const label = (m: (typeof models)[number]) =>
+    m.model === "vad" ? "voice detection" : m.name ? speechModelName(m.name) : m.model;
   return (
     <p data-lalala-memory-line="">
       ~{now.estMB} MB
-      {models.length > 0
-        ? ` (${models.map((m) => `${m.model} ${m.wasmMB ?? m.fileMB ?? "?"}`).join(", ")})`
-        : ""}
+      {models.length > 0 ? ` (${models.map((m) => `${label(m)} ${held(m)}`).join(", ")})` : ""}
       {kill
         ? ` · last tab.killed ${KILL_TIME.format(new Date(kill.at))}${kill.hidden ? " (hidden)" : ""}, ~${kill.estMB ?? "?"} MB after ${kill.last ?? "?"}`
         : " · no tab.killed yet"}
