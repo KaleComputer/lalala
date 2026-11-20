@@ -616,7 +616,46 @@ export function fitCard(id: string, more: { readonly w: number; readonly h: numb
   const w = more.w > 1 ? Math.min(FIT_MAX.w, Math.ceil(rect.w + more.w)) : widen;
   const h = more.h > 1 && widen === rect.w ? Math.min(FIT_MAX.h, Math.ceil(rect.h + more.h)) : rect.h;
   if (w <= rect.w && h <= rect.h) return;
-  setCard(id, { ...rect, w: Math.max(w, rect.w), h: Math.max(h, rect.h) });
+  setCard(id, roomToGrow(id, rect, { ...rect, w: Math.max(w, rect.w), h: Math.max(h, rect.h) }));
+}
+
+/**
+ * Where a card that outgrew its box goes: where it is, bigger, when that crowds nothing it wasn't
+ * already crowding (cards GAP apart; a grouped card's area clear of other groups and loose cards),
+ * else to the nearest free spot at its new size, beside its group as a new card would land. Nothing
+ * else moves. Cards land at their first size and grow once their content loads; growing in place
+ * regardless spread them over their neighbours, on every device the layout syncs to.
+ */
+function roomToGrow(id: string, was: Rect, grown: Rect): Rect {
+  const group = cardsInCode.get(cardOf(id))?.group;
+  const taken = canvasBoxes(id);
+  const cards = surfaceCards().filter((c) => c.id !== id);
+  const loose = cards.flatMap((c) => (c.group === undefined ? [c.rect] : []));
+  const siblings = cards.flatMap((c) => (group !== undefined && c.group === group ? [c.rect] : []));
+  const own = group === undefined ? undefined : live.cards[groupKey(group)];
+  const otherAreas = groupAreas().flatMap((a) => (a.label === group ? [] : [a.rect]));
+  const others = group === undefined ? otherAreas : [...otherAreas, ...loose];
+  const areaWith = (rect?: Rect) => {
+    const boxes = rect ? [...siblings, rect] : siblings;
+    const around = boxes.length > 0 ? areaAround(boxes) : undefined;
+    return own && around ? union(own, around) : (around ?? own);
+  };
+  const shape = (rect: Rect) => (group === undefined ? rect : areaWith(rect)!);
+  const clear = (rect: Rect) =>
+    taken.every((t) => apart(rect, t) >= Math.min(GAP, apart(was, t)) - 0.5) &&
+    others.every((o) => apart(shape(rect), o) >= Math.min(GAP, apart(shape(was), o)) - 0.5);
+  if (clear(grown)) return grown;
+  if (siblings.length > 0) return spotInGroup(grown, siblings, areaWith()!, taken, others);
+  const box = shape(grown);
+  const at = place(box, {
+    taken,
+    near: blocks(id),
+    avoid: otherAreas,
+    ...(group !== undefined && { gap: GROUP_GAP, clear: GROUP_GAP }),
+    focus: shape(was),
+    aspect: mapAspect(),
+  });
+  return { ...grown, x: grown.x + at.x - box.x, y: grown.y + at.y - box.y };
 }
 
 /** Whether the card (its id in code) on the open canvas grows with its content; the card menu's switch. */
@@ -643,6 +682,8 @@ const storage = () => {
   const adapter = globalThis.__lalalaAdapters?.storage;
   return adapter?.shared ? adapter : null;
 };
+/** Whether every device shares this layout (the app's server), not this browser alone (lalala.talk). */
+export const isLayoutShared = () => storage() !== null;
 const POLL_MS = 3_000;
 type Shared = {
   readonly cards: Readonly<Record<string, Rect>>;
@@ -1371,14 +1412,19 @@ const viewport = (): Rect | undefined => {
 
 let placing = false;
 
+/** What new cards go beside: loose cards and group areas, `except` a card and its group. */
+const blocks = (except = "") => {
+  const group = cardsInCode.get(cardOf(except))?.group;
+  return [
+    ...surfaceCards().flatMap((c) => (c.group === undefined && c.id !== except ? [c.rect] : [])),
+    ...groupAreas().flatMap((a) => (group !== undefined && a.label === group ? [] : [a.rect])),
+  ];
+};
+
 function placeNew() {
   placing = false;
   const waiting = [...unplaced].filter(([id]) => mounted.has(id) && live.cards[id] === undefined);
   const groupOf = (id: string) => cardsInCode.get(cardOf(id))?.group;
-  const blocks = () => [
-    ...surfaceCards().flatMap((c) => (c.group === undefined ? [c.rect] : [])),
-    ...groupAreas().map((a) => a.rect),
-  ];
   // A group new to the canvas lands whole, its area packed as tidy would and put beside the
   // others like one big card, so its frame never reaches into another group's.
   const newGroups = new Map<string, { id: string; w: number; h: number }[]>();
@@ -1417,7 +1463,11 @@ function placeNew() {
     const area = groupAreas().find((a) => a.label === group);
     if (area) {
       const siblings = surfaceCards().filter((c) => c.id !== id && c.group === group);
-      const others = groupAreas().flatMap((a) => (a.label === group ? [] : [a.rect]));
+      // Its grown area stays clear of loose cards too, not only of other groups.
+      const others = [
+        ...groupAreas().flatMap((a) => (a.label === group ? [] : [a.rect])),
+        ...surfaceCards().flatMap((c) => (c.group === undefined ? [c.rect] : [])),
+      ];
       setCard(id, spotInGroup(fallback, siblings.map((c) => c.rect), area.rect, taken, others));
       newlyPlaced.add(id);
       continue;

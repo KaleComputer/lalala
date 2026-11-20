@@ -25,6 +25,7 @@ import {
   isLayered,
   isNear,
   isPrivate,
+  isLayoutShared,
   isRemoved,
   mountCard,
   scrollTops,
@@ -46,12 +47,21 @@ declare global {
 /** The bar and its rail need this much room at the bottom of the first view. */
 const BAR_ROOM = 188;
 
-const firstPlace = ({ x, y, w, h }: Rect): Rect => ({
-  x,
-  y,
-  w: Math.min(w, window.innerWidth - 24),
-  h: Math.min(h, Math.max(160, window.innerHeight - y - BAR_ROOM)),
-});
+/**
+ * A card's first size: its own, fitted into this window only when the layout is this browser's
+ * alone. A shared layout keeps whichever device placed a card first, so a size from a phone's window
+ * would be every device's.
+ */
+const firstPlace = (rect: Rect): Rect => {
+  if (isLayoutShared()) return rect;
+  const { x, y, w, h } = rect;
+  return {
+    x,
+    y,
+    w: Math.min(w, window.innerWidth - 24),
+    h: Math.min(h, Math.max(160, window.innerHeight - y - BAR_ROOM)),
+  };
+};
 
 const snap = (v: number) => Math.round(v * devicePixelRatio) / devicePixelRatio;
 
