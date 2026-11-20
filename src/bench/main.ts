@@ -69,7 +69,7 @@ const WARMUP = ["Hi there.", "The build is green, and the tests pass."];
 const SITE = import.meta.env.LALALA_HOST === "site";
 const RATE = 24_000;
 
-// ?bench=nano or tiny (the model card's two), storyteller or k10c (Hazel), each in its first voice.
+// ?bench=nano or tiny (the model card's two), or storyteller, each in its first voice.
 const BENCH_MODELS = {
   nano: { label: "kale-tts-1-nano", model: "kale-tts-1-nano", voice: "v7" },
   tiny: { label: "kale-tts-1-tiny", model: "kale-tts-1-tiny", voice: "v7" },
@@ -80,7 +80,6 @@ const BENCH_MODELS = {
   nano10i8: { label: "kale-tts-1-nano · 10 voices · int8", model: "kale-tts-1-nano-10-i8", voice: "s057b" },
   nano10fp16: { label: "kale-tts-1-nano · 10 voices · fp16", model: "kale-tts-1-nano-10-fp16", voice: "s057b" },
   storyteller: { label: "storyteller", model: "kale-storyteller", voice: "storyteller" },
-  k10c: { label: "k10c (Hazel)", model: "k10c", voice: "hazel" },
 };
 const MODEL = SUITE
   ? BENCH_MODELS[SUITE_STEPS[STEP].bench]

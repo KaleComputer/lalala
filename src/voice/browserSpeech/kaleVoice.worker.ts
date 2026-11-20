@@ -1,5 +1,5 @@
 // Kale's small voices (61 MB each: Kokoro's text side with Kale's own small decoder): the storyteller
-// (Automatic) and kale-tts-1-tiny (Hazel's voice), one per worker, named by the load message. They run
+// (Automatic) and kale-tts-1-tiny, one per worker, named by the load message. They run
 // through Transformers.js the way kokoro-js runs Kokoro (StyleTextToSpeech2Model and its tokenizer),
 // from the model folders lalala serves (public/models/<model>; the release graphs from Hugging Face).
 // Transformers.js reports load and run errors; only the words come from Kale's own front end

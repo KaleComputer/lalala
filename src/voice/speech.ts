@@ -383,7 +383,7 @@ export class VoiceSession {
 
   /**
    * Muted is no microphone at all: a disabled track still runs the platform's voice processing, and
-   * iOS ducks everything else playing under Tim's voice (15 Nov: the Hazel player dimmed while he
+   * iOS ducks everything else playing under Tim's voice (15 Nov: a playing card dimmed while he
    * talked muted). The tracks stop, the session plays only, and unmuting opens the mic anew.
    */
   private releaseMic(): void {

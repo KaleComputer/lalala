@@ -70,7 +70,6 @@ import {
   useSyncedSettings,
 } from "./settingsStore";
 import { micLabel, subscribeMicLabel } from "./speech";
-import { replyVoicePlugins, subscribeReplyVoices } from "./replyVoices";
 import {
   browserFaster,
   checkGpu,
@@ -1834,7 +1833,7 @@ export function useSpeechSummary() {
   useReplyVoicePick();
   const where = (task: "stt" | "voice") => {
     const active = activeSpeech(task);
-    return active.where === "computer" ? "on your computer" : active.where === "card" ? "from a card" : "here";
+    return active.where === "computer" ? "on your computer" : "here";
   };
   const hears = `${runningName("stt", "Parakeet")} ${where("stt")}`;
   const speaks = `${runningName("voice", "kale-tts-1")} ${where("voice")}`;
@@ -1858,7 +1857,6 @@ const modelOnly = (name: string) => name.replace(/\u00a0·\u00a0(GPU|CPU|Compute
 /** What runs a task right now, in a few words: "kale-tts-1-nano, in this browser · ready". */
 export function nowText(active: ActiveSpeech, waiting: string, meanwhile = ""): string {
   if (active.where === "computer") return `${loadedName(active.name)}, on your computer · ready, nothing downloads here`;
-  if (active.where === "card") return "a voice from your cards";
   const { status } = active;
   const name = status.name === null ? waiting : loadedName(status.name);
   const phase =
@@ -2020,7 +2018,6 @@ function TaskState(props: {
 export function SpeechSection() {
   const ears = useSttModel();
   const voice = useReplyVoicePick();
-  const plugins = useSyncExternalStore(subscribeReplyVoices, replyVoicePlugins, replyVoicePlugins);
   useSyncExternalStore(subscribeSpeechState, speechStateVersion, speechStateVersion);
   const gpu = useGpu();
   // oxlint-disable-next-line t3code/no-unreasoned-state-sync -- asks the computer's speech service whether it can take a task, each time Settings open
@@ -2257,18 +2254,6 @@ VOICE_COSTS[voice === "auto" ? autoVoice : voice]
               },
             ],
           },
-          ...(plugins.length > 0
-            ? [
-                {
-                  label: "From your cards",
-                  options: plugins.map((plugin) => ({
-                    value: plugin.id,
-                    label: plugin.label,
-                    meta: "In this browser · size unknown until it loads",
-                  })),
-                },
-              ]
-            : []),
         ]}
         onChange={(value) => setReplyVoice(value)}
       />

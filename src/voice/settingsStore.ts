@@ -272,30 +272,14 @@ const RETIRED_TINY = new Set([
   "kale-tts-1-tiny-10-fp",
   "kale-tts-1-tiny-preview",
 ]);
-const RETIRED = new Set([
-  "kokoro",
-  "kokoro-gpu",
-  "kokoro-cpu",
-  "computer",
-  "matcha",
-  "llama-kokoro",
-  "kale-kokoro",
-  "kale-storyteller",
-  "kale-tts-1-nano",
-  "kale-tts-1-nano-10-i8",
-  "kale-tts-1-nano-10-fp16",
-  "k10c",
-]);
-
 /**
  * Who speaks the replies on this device: "auto" (nothing stored: defaultReplyVoice), kale-tts-1-tiny or
- * -nano, or a voice the user's cards registered (replyVoices.ts) by its id.
+ * -nano. Anything else stored (a retired build, a voice cards once added) is Automatic.
  */
 export const replyVoicePick = (): string => {
   const stored = read(REPLY_VOICE_KEY) ?? "auto";
   if (RETIRED_TINY.has(stored)) return TINY10_VOICE;
-  if (RETIRED.has(stored)) return "auto";
-  return stored;
+  return isKaleVoice(stored) ? stored : "auto";
 };
 export const setReplyVoice = (voice: string) => {
   write(REPLY_VOICE_KEY, voice === "auto" ? null : voice);

@@ -16,7 +16,6 @@ import {
   speechModelName,
   sttModel,
 } from "../settingsStore";
-import { replyVoicePlugin } from "../replyVoices";
 import { voiceLog } from "../voiceLog";
 import { gpuTrial } from "./gpuTrial";
 import type { LoadMessage, WorkerMeter } from "./readout";
@@ -781,7 +780,6 @@ export const startWarmVoice = () => {
   }
   warm.start();
 };
-export const releaseWarmVoice = () => warm.releaseWhenIdle();
 
 /**
  * 16 kHz PCM, transcribed by Parakeet (the buffer moves to its worker), with its word times when
@@ -900,7 +898,7 @@ export async function warmSpeak(
 
 /**
  * Starts the speech models as the page opens, one after the other (Parakeet, then the reply voice),
- * so a call finds them ready. A voice the user's cards registered loads with the call instead.
+ * so a call finds them ready.
  */
 /** Automatic sends this task to your computer when it can (the voice only runs here). */
 export const automaticTriesComputer = (task: Task) => task === "stt";
@@ -911,24 +909,20 @@ export function prewarm() {
   prewarmVoice();
   if (sttModel() === "computer" || automatic.stt()) void refreshComputerSpeech();
 }
-/** The reply voice's browser model; a card's voice loads with the call instead. */
 function prewarmVoice() {
-  if (isKaleVoice(replyVoice())) startWarmVoice();
+  startWarmVoice();
 }
 
 /** What actually runs a task on this device right now, for Settings and the settings tab's readout. */
 export type ActiveSpeech =
   | { readonly where: "computer"; readonly name: string }
-  | { readonly where: "browser"; readonly status: ModelStatus }
-  | { readonly where: "card"; readonly name: string };
+  | { readonly where: "browser"; readonly status: ModelStatus };
 export function activeSpeech(task: "stt" | "voice"): ActiveSpeech {
   if (task === "stt")
     return onComputer.stt()
       ? { where: "computer", name: "parakeet 0.6b mlx" }
       : { where: "browser", status: ears.status() };
-  const picked = replyVoice();
-  if (isKaleVoice(picked) || replyVoicePlugin(picked) === null) return { where: "browser", status: warm.status() };
-  return { where: "card", name: picked };
+  return { where: "browser", status: warm.status() };
 }
 
 /** The models that hear and speak right now, in the session log whenever they change (the brain reads it). */
@@ -946,11 +940,10 @@ function logActive() {
   voiceLog("system", "speech.active", now);
 }
 
-/** What a task's browser model is doing, for Settings; null while the computer or a card voice has it. */
+/** What a task's browser model is doing, for Settings; null while the computer has it. */
 export function speechStatus(task: "stt" | "voice"): ModelStatus | null {
   if (task === "stt") return onComputer.stt() ? null : ears.status();
-  const picked = replyVoice();
-  return isKaleVoice(picked) || replyVoicePlugin(picked) === null ? warm.status() : null;
+  return warm.status();
 }
 
 /** A model is still downloading or loading; a reload now would throw that away (callGuard). */

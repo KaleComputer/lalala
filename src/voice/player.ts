@@ -4,8 +4,7 @@
  * iOS can interrupt the context mid-reply, so it is resumed, cut pieces replay, and every end is
  * logged with its cause.
  */
-import { releaseWarmVoice, startWarmVoice, warmSpeak } from "./browserSpeech/browser";
-import { replyVoicePlugin } from "./replyVoices";
+import { startWarmVoice, warmSpeak } from "./browserSpeech/browser";
 import { soundGain } from "./extras/soundVolume";
 import { voiceLog } from "./voiceLog";
 import { voiceErrorText } from "./voiceErrors";
@@ -13,7 +12,6 @@ import { registerMeter } from "./memoryTrail";
 import { narrowbandCall } from "./callRoute";
 import {
   BUILT_IN_TOPIC_SOUND,
-  isKaleVoice,
   modelVoice,
   replyVoice,
   subscribeSettings,
@@ -198,28 +196,12 @@ export class SpeechPlayer {
     for (const text of rest) this.speak(text);
   }
 
-  /** The reply voice loads with the call, so the first reply does not wait for it; the other is freed. */
+  /** The reply voice loads with the call, so the first reply does not wait for it. */
   private prepareVoice(): void {
     const voice = replyVoice();
     if (voice === this.preparedVoice) return;
-    const previous = this.preparedVoice === null ? null : replyVoicePlugin(this.preparedVoice);
     this.preparedVoice = voice;
-    previous?.unload();
-    // A card's voice that is gone (another device, lalala.talk) falls back to Kale's voice.
-    const plugin = isKaleVoice(voice) ? null : replyVoicePlugin(voice);
-    if (plugin === null) {
-      startWarmVoice();
-      return;
-    }
-    releaseWarmVoice();
-    plugin.load().then(
-      (load) => voiceLog("voice", "reply-voice.load", { voice, ...load }),
-      (error: unknown) => {
-        voiceLog("system", "error", { where: "reply-voice.load", voice, message: String(error) });
-        this.preparedVoice = null;
-        this.onError(voiceErrorText(error));
-      },
-    );
+    startWarmVoice();
   }
 
   private loadTopicSound(): void {
@@ -248,8 +230,6 @@ export class SpeechPlayer {
   dispose(): void {
     this.stopFollowingSettings();
     this.stopMetering();
-    // A card's voice frees its memory; the built-in voices stay loaded for the next call.
-    if (this.preparedVoice !== null) replyVoicePlugin(this.preparedVoice)?.unload();
     this.context.removeEventListener("statechange", this.onContextState);
     if (this.resumeTimer !== null) window.clearTimeout(this.resumeTimer);
     this.resumeTimer = null;
@@ -479,13 +459,8 @@ export class SpeechPlayer {
     };
     try {
       const voice = replyVoice();
-      const plugin = isKaleVoice(voice) ? null : replyVoicePlugin(voice);
-      // Kale's voice renders in its worker, a plugin voice in this tab, a whole sentence at a time.
       const renderStart = performance.now();
-      const rendered =
-        plugin === null
-          ? await warmSpeak(sentence.text)
-          : await plugin.speak(sentence.text, signal);
+      const rendered = await warmSpeak(sentence.text);
       if (signal.aborted) return;
       const { samples } = rendered;
       const output = await this.toOutputRate(samples);
