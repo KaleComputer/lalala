@@ -19,7 +19,10 @@ type Model = {
     pcm: Float32Array,
     rate: number,
     options: object,
-  ): Promise<{ utterance_text?: string }>;
+  ): Promise<{
+    utterance_text?: string;
+    words?: ReadonlyArray<{ text: string; start_time: number; end_time: number }>;
+  }>;
 };
 type ParakeetModule = {
   fromUrls(config: {
@@ -268,8 +271,14 @@ self.onmessage = (
   if (message.type !== "transcribe") return;
   queue = queue.then(async () => {
     try {
-      const result = await (await model!).transcribe(message.pcm!, 16_000, {});
-      postMessage({ type: "text", id: message.id, text: (result.utterance_text ?? "").trim() });
+      // Word times stitch the pieces of a long utterance together (sttPieces.ts).
+      const result = await (await model!).transcribe(message.pcm!, 16_000, { returnTimestamps: true });
+      const words = (result.words ?? []).map((word) => ({
+        text: word.text,
+        start: word.start_time,
+        end: word.end_time,
+      }));
+      postMessage({ type: "text", id: message.id, text: (result.utterance_text ?? "").trim(), words });
     } catch (error) {
       postMessage({ type: "error", id: message.id, message: String(error) });
     }

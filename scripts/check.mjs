@@ -6,7 +6,8 @@
 //   2. The site typechecks (Vercel's build starts with it; a failure there ships nothing, silently).
 //   3. The site builds, with the leak guard on, into a temp folder (site/out stays untouched).
 //   Before 2 and 3: barge-in on recorded speech (scripts/barge-in), which broke silently too often,
-//   tidy's packing (scripts/tidy) and which hot updates count as app updates (scripts/live-update).
+//   tidy's packing (scripts/tidy), long utterances in pieces (scripts/stt-pieces) and which hot
+//   updates count as app updates (scripts/live-update).
 import { execFileSync } from "node:child_process";
 import * as NodeFS from "node:fs";
 import * as NodeOS from "node:os";
@@ -48,6 +49,9 @@ run(process.execPath, ["--experimental-strip-types", "--no-warnings", "--test", 
 
 step("tidy packs every group about square (scripts/tidy)");
 run(process.execPath, ["--experimental-strip-types", "--no-warnings", "--test", "scripts/tidy/check.test.mjs"]);
+
+step("long utterances reach Parakeet in pieces, stitched whole (scripts/stt-pieces)");
+run(process.execPath, ["--experimental-strip-types", "--no-warnings", "--test", "scripts/stt-pieces/check.test.mjs"]);
 
 step("card and data edits never count as app updates (scripts/live-update)");
 run(process.execPath, ["--experimental-strip-types", "--no-warnings", "--test", "scripts/live-update/check.test.mjs"]);

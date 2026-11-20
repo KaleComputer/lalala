@@ -22,9 +22,10 @@ import { gpuTrial } from "./gpuTrial";
 import type { LoadMessage, WorkerMeter } from "./readout";
 import { memoryMoment, registerMeter } from "../memoryTrail";
 import { type ComputerSpeech, computerRoute } from "./computerRoute";
+import type { Heard } from "../sttPieces";
 
 type Reply =
-  | { type: "text"; id: number; text: string }
+  | { type: "text"; id: number; text: string; words?: Heard["words"] }
   | {
       type: "audio";
       id: number;
@@ -822,9 +823,12 @@ export const releaseWarmVoice = () => {
   if (!(wantsComputer.voice() && standingIn() && voiceStandIn() === "warm")) warm.releaseWhenIdle();
 };
 
-/** 16 kHz PCM, transcribed by Parakeet. The buffer moves to its worker. */
-export async function transcribe(pcm: Float32Array<ArrayBuffer>): Promise<string> {
-  if (earsOff) return "";
+/**
+ * 16 kHz PCM, transcribed by Parakeet (the buffer moves to its worker), with its word times when
+ * Parakeet in this browser heard it.
+ */
+export async function transcribe(pcm: Float32Array<ArrayBuffer>): Promise<Heard> {
+  if (earsOff) return { text: "", words: null };
   const audioMs = (pcm.length / 16_000) * 1000;
   const startedAt = performance.now();
   if (onComputer.stt()) {
@@ -832,7 +836,7 @@ export async function transcribe(pcm: Float32Array<ArrayBuffer>): Promise<string
       const text = await computerRoute().stt(wavOf(pcm));
       record("stt", "computer", performance.now() - startedAt, audioMs);
       computerWorked("stt");
-      return text;
+      return { text, words: null };
     } catch (error) {
       voiceLog("system", "speech.computer-down", { task: "stt", message: String(error) });
       setComputer("down");
@@ -841,7 +845,7 @@ export async function transcribe(pcm: Float32Array<ArrayBuffer>): Promise<string
   const browserAt = performance.now();
   const reply = await ears.ask({ type: "transcribe", pcm }, [pcm.buffer]);
   if (ears.ready()) record("stt", "browser", performance.now() - browserAt, audioMs);
-  return reply.type === "text" ? reply.text : "";
+  return reply.type === "text" ? { text: reply.text, words: reply.words ?? null } : { text: "", words: null };
 }
 
 /**

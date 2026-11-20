@@ -1,9 +1,12 @@
 /**
  * Speech-to-text in this browser: Parakeet (browserSpeech/) transcribes the utterance again as it
- * grows, for partials, and whole when it is committed. Silero VAD hears every mic frame: an utterance
- * it heard no speech in is never transcribed, and its run of speech tells Tim from noise and breath.
+ * grows, for partials, and whole when it is committed, in pieces of at most 20 s (sttPieces.ts): a
+ * piece is transcribed once when it is cut, and only the rest after it again. Silero VAD hears every
+ * mic frame: an utterance it heard no speech in is never transcribed, and its run of speech tells Tim
+ * from noise and breath.
  */
 import { openVad, startEars, transcribe } from "./browserSpeech/browser";
+import { type Heard, PIECE_MAX, cutPiece, joinPieces } from "./sttPieces";
 
 export const STT_SAMPLE_RATE = 16_000;
 const VAD_WINDOW = 512;
@@ -21,16 +24,20 @@ const PARTIAL_EVERY_SAMPLES = STT_SAMPLE_RATE * 0.6;
 const MAX_PARTIAL_LOAD = 0.25;
 const PAUSE_PARTIAL_SAMPLES = STT_SAMPLE_RATE * 0.15;
 
-function pcmOf(chunks: ReadonlyArray<Int16Array>, samples: number): Float32Array<ArrayBuffer> {
-  const pcm = new Float32Array(samples);
-  let at = 0;
-  for (const chunk of chunks) for (const sample of chunk) pcm[at++] = sample / 0x8000;
+function pcmOf(audio: Int16Array, start: number, end: number): Float32Array<ArrayBuffer> {
+  const pcm = new Float32Array(end - start);
+  for (let i = start; i < end; i += 1) pcm[i - start] = audio[i]! / 0x8000;
   return pcm;
 }
 
+/** The utterance's pieces cut so far, each being transcribed, and where the rest of it starts. */
+type Pieces = { starts: number[]; ends: number[]; heard: Promise<Heard>[]; rest: number };
+const noPieces = (): Pieces => ({ starts: [], ends: [], heard: [], rest: 0 });
+
 export class RealtimeStt {
-  private utterance: Int16Array[] = [];
+  private utterance = new Int16Array(STT_SAMPLE_RATE * 4);
   private samples = 0;
+  private pieces = noPieces();
   /** Bumped by discard and commit, so a partial of an earlier utterance is dropped. */
   private generation = 0;
   private vad: ReturnType<typeof openVad> | null = null;
@@ -118,15 +125,22 @@ export class RealtimeStt {
       this.speechWindows = this.recentSpeech.filter((at) => now - at < PRE_ROLL_MS).length;
       this.recentSpeech = [];
     }
-    this.utterance.push(chunk);
+    if (this.samples + chunk.length > this.utterance.length) {
+      const grown = new Int16Array(Math.max(this.utterance.length * 2, this.samples + chunk.length));
+      grown.set(this.utterance.subarray(0, this.samples));
+      this.utterance = grown;
+    }
+    this.utterance.set(chunk, this.samples);
     this.samples += chunk.length;
+    while (this.samples - this.pieces.rest >= PIECE_MAX) this.cut();
     this.partial();
   }
 
   /** Drops the utterance in progress (it was noise or our own echo). */
   discard(): void {
-    this.utterance = [];
+    this.utterance = new Int16Array(STT_SAMPLE_RATE * 4);
     this.samples = 0;
+    this.pieces = noPieces();
     this.partialAt = 0;
     this.speechWindows = 0;
     this.generation += 1;
@@ -137,17 +151,43 @@ export class RealtimeStt {
     return !this.speechOnly || this.speechWindows >= MIN_SPEECH_WINDOWS;
   }
 
+  /** Cuts the next piece off the rest and starts transcribing it. */
+  private cut(): void {
+    const pieces = this.pieces;
+    const audio = this.utterance;
+    const { end, next } = cutPiece((i) => audio[i]! / 0x8000, pieces.rest);
+    const heard = transcribe(pcmOf(audio, pieces.rest, end));
+    heard.catch(() => {});
+    pieces.starts.push(pieces.rest);
+    pieces.ends.push(end);
+    pieces.heard.push(heard);
+    pieces.rest = next;
+  }
+
+  /**
+   * The pieces' transcripts and the rest's, joined. The load is the rest's own: the worker takes it
+   * after the pieces before it.
+   */
+  private async heardAll(): Promise<string> {
+    const { starts, ends, heard, rest } = this.pieces;
+    const samples = this.samples;
+    const asked = performance.now();
+    const [{ each, at }, last] = await Promise.all([
+      Promise.all(heard).then((each) => ({ each, at: performance.now() })),
+      transcribe(pcmOf(this.utterance, rest, samples)),
+    ]);
+    this.load = (performance.now() - Math.max(asked, at)) / ((Math.max(1, samples - rest) / STT_SAMPLE_RATE) * 1000);
+    return joinPieces([...each, last], [...starts, rest], [...ends, samples]);
+  }
+
   private partial(every = PARTIAL_EVERY_SAMPLES): void {
     if (this.partialBusy || this.load > MAX_PARTIAL_LOAD) return;
     if (this.samples - this.partialAt < every || !this.heardSpeech()) return;
     this.partialBusy = true;
     this.partialAt = this.samples;
     const generation = this.generation;
-    const samples = this.samples;
-    const started = performance.now();
-    void transcribe(pcmOf(this.utterance, samples))
+    void this.heardAll()
       .then((text) => {
-        this.measure(started, samples);
         if (generation === this.generation && text.trim() !== "") this.onPartial?.(text.trim());
       })
       .catch(() => {})
@@ -156,23 +196,14 @@ export class RealtimeStt {
       });
   }
 
-  private measure(started: number, samples: number): void {
-    this.load = (performance.now() - started) / ((samples / STT_SAMPLE_RATE) * 1000);
-  }
-
-  /** Ends the utterance and resolves with its transcript, made from all of it at once. */
+  /** Ends the utterance and resolves with its transcript: its pieces' and the rest's, joined. */
   async commit(): Promise<string> {
-    const utterance = this.utterance;
-    const samples = this.samples;
-    const speech = this.heardSpeech();
+    const heard = this.samples > 0 && this.heardSpeech() ? this.heardAll() : null;
     this.discard();
-    if (samples === 0 || !speech) return "";
+    if (heard === null) return "";
     this.committing += 1;
-    const started = performance.now();
     try {
-      const text = await transcribe(pcmOf(utterance, samples));
-      this.measure(started, samples);
-      return text.trim();
+      return (await heard).trim();
     } finally {
       this.committing -= 1;
     }
