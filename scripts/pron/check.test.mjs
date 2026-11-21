@@ -8,7 +8,7 @@ import { readFileSync } from "node:fs";
 import { test } from "node:test";
 
 import { BritishG2p, britishNormalizer } from "../../src/voice/browserSpeech/matcha/enGb.js";
-import { G2p, G2pModel, normalizer, readTable } from "../../src/voice/browserSpeech/matcha/kaleTts.js";
+import { G2p, G2pModel, normalizer, readTable, sentences } from "../../src/voice/browserSpeech/matcha/kaleTts.js";
 
 const MATCHA = new URL("../../src/voice/browserSpeech/matcha/", import.meta.url);
 
@@ -20,7 +20,10 @@ function loadFrontend(british) {
   const model = new G2pModel(raw.buffer.slice(raw.byteOffset, raw.byteOffset + raw.byteLength));
   const g2p = british ? new BritishG2p(lex, model) : new G2p(lex, model);
   const norm = british ? britishNormalizer(lex) : normalizer(lex);
-  return (text) => g2p.phonemes(norm(text));
+  const fn = (text) => g2p.phonemes(norm(text));
+  fn.norm = norm;
+  fn.sentences = (text) => sentences(text, norm);
+  return fn;
 }
 
 const us = loadFrontend(false);
@@ -64,4 +67,47 @@ test("21 Nov improvements stay intact in both accents", () => {
     assert.equal(us(word), wantUs, `${word} (en-us)`);
     assert.equal(gb(word), wantGb, `${word} (en-gb)`);
   }
+});
+
+test("KAL-3132: structured math subtraction equations read minus without affecting ranges or dates", () => {
+  for (const [label, fe] of [["en-us", us], ["en-gb", gb]]) {
+    assert.equal(fe.norm("10 - 4 = ?"), "ten minus four equals?", `${label}: 10 - 4 = ?`);
+    assert.equal(fe.norm("10 − 4 = ?"), "ten minus four equals?", `${label}: 10 − 4 = ?`);
+    assert.equal(fe.norm("10 - ? = 4"), "ten minus? equals four", `${label}: 10 - ? = 4`);
+    assert.equal(fe.norm("10 - 4 - 2 = ?"), "ten minus four minus two equals?", `${label}: 10 - 4 - 2 = ?`);
+    assert.equal(
+      fe.norm("5 + 4 = 9, so 9 - 4 = ?"),
+      "five plus four equals nine, so nine minus four equals?",
+      `${label}: fact family`
+    );
+    assert.equal(fe.norm("Ages 6-9."), "Ages six to nine.", `${label}: range stays to`);
+  }
+});
+
+test("KAL-3132: well read uses past-tense heteronym while Well, read stays present", () => {
+  for (const [label, fe] of [["en-us", us], ["en-gb", gb]]) {
+    assert.equal(fe("Well read!"), "wˈɛl ɹˈɛd!", `${label}: Well read!`);
+    assert.ok(fe("I heard you read it. Well read!").endsWith("wˈɛl ɹˈɛd!"), `${label}: readBackHeard`);
+    assert.ok(fe("She is well-read.").endsWith("wˈɛl ɹˈɛd."), `${label}: well-read`);
+    assert.equal(fe("Well, read this!"), "wˈɛl, ɹˈiːd ðɪs!", `${label}: Well, read this!`);
+    assert.ok(fe("You can read well.").endsWith("ɹˈiːd wˈɛl."), `${label}: You can read well.`);
+  }
+});
+
+test("KAL-3132: sentence-final or isolated the/a/an/to take stressed strong forms while proclitics stay weak", () => {
+  for (const [label, fe] of [["en-us", us], ["en-gb", gb]]) {
+    assert.equal(fe("the"), "ðˈʌ", `${label}: isolated the`);
+    assert.ok(fe("The word is the.").startsWith("ðə ") && fe("The word is the.").endsWith(" ðˈʌ."), `${label}: The word is the.`);
+    assert.ok(fe("Copy the word the.").endsWith(" ðˈʌ."), `${label}: Copy the word the.`);
+    assert.ok(fe("Copy the word a.").endsWith(" ˈeɪ."), `${label}: Copy the word a.`);
+    assert.ok(fe("Peek whenever you need to.").endsWith(" tˈuː."), `${label}: final to`);
+    assert.ok(fe("the cat").startsWith("ðə "), `${label}: proclitic the`);
+    assert.ok(fe("a dog").startsWith("ɐ "), `${label}: proclitic a`);
+    assert.ok(fe("to go").startsWith("tə "), `${label}: proclitic to`);
+  }
+});
+
+test("KAL-3132: 20. Yes! stays one sentence for prosody", () => {
+  assert.deepEqual(us.sentences("20. Yes!"), ["twenty. Yes!"]);
+  assert.deepEqual(gb.sentences("20. Yes!"), ["twenty. Yes!"]);
 });
