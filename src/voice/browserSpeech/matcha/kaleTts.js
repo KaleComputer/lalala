@@ -116,6 +116,32 @@ function weekdayAbbrevs(text) {
 
 const oneWord = (s) => (s.match(/[\p{L}\p{N}]+(?:['’][\p{L}]+)*/gu) ?? []).length === 1;
 
+/** Split normalized text into sentences without breaking at an interior "?" answer blank inside a math equation ("8 - ? = 5"). */
+function splitNormalized(text, normalize) {
+  const norm = normalize(text);
+  const protectedSpans = [];
+  let cursor = 0;
+  for (const m of text.matchAll(MATH_EQUATION)) {
+    if (!m[0].includes("=") || !m[0].slice(0, -1).includes("?")) continue;
+    const eqNorm = normalize(m[0]);
+    const at = norm.indexOf(eqNorm, cursor);
+    if (at >= 0) {
+      protectedSpans.push([at, at + eqNorm.length]);
+      cursor = at + eqNorm.length;
+    }
+  }
+  if (!protectedSpans.length) return norm.split(/(?<=[.!?…])\s+|\n+/);
+  const out = [];
+  let start = 0;
+  for (const m of norm.matchAll(/(?<=[.!?…])\s+|\n+/g)) {
+    if (protectedSpans.some(([a, b]) => m.index >= a && m.index < b)) continue;
+    out.push(norm.slice(start, m.index));
+    start = m.index + m[0].length;
+  }
+  out.push(norm.slice(start));
+  return out;
+}
+
 /**
  * Sentences, each one model call (as the app and the bench render). A one-word sentence ("Four.", "Monday.") rides with the
  * next one: the small voices garble a word said alone, swallowing its end and adding a tail ("Four." -> "Forwarding", "Five." ->
@@ -124,7 +150,7 @@ const oneWord = (s) => (s.match(/[\p{L}\p{N}]+(?:['’][\p{L}]+)*/gu) ?? []).len
 function sentences(text, normalize) {
   const out = [];
   let carry = "";
-  for (const part of normalize(text).split(/(?<=[.!?…])\s+|\n+/)) {
+  for (const part of splitNormalized(text, normalize)) {
     const s = dropListComma(part.trim());
     if (!s) continue;
     const joined = carry ? `${carry} ${s}` : s;

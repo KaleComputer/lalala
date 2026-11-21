@@ -81,6 +81,9 @@ test("KAL-3132: structured math subtraction equations read minus without affecti
       `${label}: fact family`
     );
     assert.equal(fe.norm("Ages 6-9."), "Ages six to nine.", `${label}: range stays to`);
+    assert.deepEqual(fe.sentences("8 - ? = 5"), ["eight minus? equals five"], `${label}: sentence split keeps 8 - ? = 5 intact`);
+    assert.deepEqual(fe.sentences("8 - ? = 5. Great job!"), ["eight minus? equals five.", "Great job!"], `${label}: 8 - ? = 5. Great job!`);
+    assert.deepEqual(fe.sentences("8 - 5 = ? Next one."), ["eight minus five equals?", "Next one."], `${label}: trailing ? still splits`);
   }
 });
 
