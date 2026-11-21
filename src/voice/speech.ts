@@ -19,7 +19,12 @@ import {
 import { heldReply, TopicHold, type TopicSentence, unheardLines } from "./topicHold";
 import { VoiceComb } from "./voiceComb";
 import { micDeviceId } from "./settingsStore";
-import { setCallMicRate } from "./callRoute";
+import {
+  matchHardwareContext,
+  routeRebuildCheck,
+  setCallMicRate,
+  trackRouteInfo,
+} from "./callRoute";
 import { voiceErrorText } from "./voiceErrors";
 import { voiceLog } from "./voiceLog";
 import { VoiceSounds } from "./voiceSounds";
@@ -274,6 +279,9 @@ export class VoiceSession {
   private clockKicks = 0;
   private reopening = false;
   private reopens = 0;
+  private callGeneration = 0;
+  private micTrackLabel: string | null = null;
+  private micTrackRate: number | null = null;
   private player: SpeechPlayer | null = null;
   private sounds: VoiceSounds | null = null;
   private input: AnalyserNode | null = null;
@@ -462,7 +470,7 @@ export class VoiceSession {
     const deaf = ended || (silenced && performance.now() - this.pausedVisibleAt >= REOPEN_AFTER_MS);
     if (deaf && !this.reopening && this.reopens < MAX_REOPENS) {
       this.reopens += 1;
-      void this.reopenMic();
+      void this.reopenMic(ended);
     }
     this.reviveTimer ??= window.setTimeout(() => {
       this.reviveTimer = null;
@@ -477,10 +485,10 @@ export class VoiceSession {
     voiceLog("voice", "mic.revive", { context: context.state, stuck: this.clockStuck });
     if (this.clockStuck) this.kickContext();
     else void context.resume().catch(() => {});
-    const deaf = (this.stream?.getAudioTracks() ?? []).some(
-      (track) => track.muted || track.readyState === "ended",
-    );
-    if (deaf && !this.reopening) void this.reopenMic();
+    const tracks = this.stream?.getAudioTracks() ?? [];
+    const ended = tracks.some((track) => track.readyState === "ended");
+    const deaf = ended || tracks.some((track) => track.muted);
+    if (deaf && !this.reopening) void this.reopenMic(ended);
     else this.checkMic();
   }
 
@@ -524,17 +532,144 @@ export class VoiceSession {
       .catch(() => {});
   }
 
-  /** Asks for the microphone again and puts it where the old one was in the graph. */
-  private async reopenMic(): Promise<void> {
+  /** Builds the capture worklet, mic filters, analysers, player and call sounds on `context`. */
+  private async createAudioGraph(context: AudioContext, stream: MediaStream) {
+    const moduleUrl = URL.createObjectURL(
+      new Blob([CAPTURE_WORKLET], { type: "application/javascript" }),
+    );
+    try {
+      await context.audioWorklet.addModule(moduleUrl);
+    } finally {
+      URL.revokeObjectURL(moduleUrl);
+    }
+    const capture = new AudioWorkletNode(context, "lalala-capture");
+    capture.port.onmessage = (event: MessageEvent<{ pcm: Int16Array; level: number }>) =>
+      this.onFrame(event.data.pcm, event.data.level);
+    const microphone = context.createMediaStreamSource(stream);
+    const windCut = context.createBiquadFilter();
+    windCut.type = "highpass";
+    windCut.frequency.value = WIND_CUT_HZ;
+    microphone.connect(windCut);
+    windCut.connect(capture);
+    const input = context.createAnalyser();
+    input.fftSize = 2048;
+    input.smoothingTimeConstant = 0.8;
+    windCut.connect(input);
+    const comb = new VoiceComb(context);
+    windCut.connect(comb.analyser);
+    // A silent sink keeps the capture node pulled by the audio graph.
+    const sink = context.createGain();
+    sink.gain.value = 0;
+    capture.connect(sink).connect(context.destination);
+    const player = new SpeechPlayer(context, () => this.updatePhase(), this.events.onError);
+    const sounds = new VoiceSounds(context);
+    return { capture, microphone, windCut, input, comb, player, sounds };
+  }
+
+  /**
+   * Asks for the microphone again and puts it into the graph. When the previous track ended
+   * (Bluetooth disconnect/reconnect) or the hardware route/rate changed, rebuilds the AudioContext
+   * and SpeechPlayer cleanly so iOS WebKit never stays stuck on a stale/clock-drifted context.
+   */
+  private async reopenMic(rebuildContext = false): Promise<void> {
     const context = this.context;
     const windCut = this.windCut;
+    const generation = this.callGeneration;
     if (context === null || windCut === null) return;
     this.reopening = true;
     try {
       const stream = await this.openMic();
-      if (this.context !== context || this.stream === null || this.muted) {
+      if (this.callGeneration !== generation || this.context !== context || this.stream === null || this.muted) {
         for (const track of stream.getTracks()) track.stop();
         return;
+      }
+      const initialInfo = trackRouteInfo(stream, context);
+      const { shouldCheck, forceRebuild } = routeRebuildCheck({
+        rebuildContext,
+        prevLabel: this.micTrackLabel,
+        prevRate: this.micTrackRate,
+        nextLabel: initialInfo.label,
+        nextRate: initialInfo.trackRate,
+        contextRate: context.sampleRate,
+      });
+      let nextContext = context;
+      if (shouldCheck) {
+        nextContext = await matchHardwareContext(context, initialInfo.trackRate, forceRebuild);
+        if (this.callGeneration !== generation || this.context !== context || this.stream === null || this.muted) {
+          if (nextContext !== context) void nextContext.close().catch(() => {});
+          for (const track of stream.getTracks()) track.stop();
+          return;
+        }
+      }
+      if (nextContext !== context) {
+        try {
+          const graph = await this.createAudioGraph(nextContext, stream);
+          if (
+            this.callGeneration !== generation ||
+            this.context !== context ||
+            this.stream === null ||
+            this.muted
+          ) {
+            graph.capture.port.onmessage = null;
+            graph.player.dispose();
+            graph.sounds.silence();
+            void nextContext.close().catch(() => {});
+            for (const track of stream.getTracks()) track.stop();
+            return;
+          }
+          const pending = (this.player?.stop("audio route changed") ?? []).filter(
+            (text, index, all) => index === 0 || text !== all[index - 1],
+          );
+          this.player?.dispose();
+          this.sounds?.silence();
+          if (this.capture !== null) this.capture.port.onmessage = null;
+          this.microphone?.disconnect();
+          context.removeEventListener("statechange", this.checkMic);
+          void context.close().catch(() => {});
+          const old = this.stream;
+          this.context = nextContext;
+          this.capture = graph.capture;
+          this.microphone = graph.microphone;
+          this.windCut = graph.windCut;
+          this.input = graph.input;
+          this.comb = graph.comb;
+          this.player = graph.player;
+          this.sounds = graph.sounds;
+          this.clockSeen = { time: -1, at: 0 };
+          this.clockStuck = false;
+          this.clockKicks = 0;
+          nextContext.addEventListener("statechange", this.checkMic);
+          this.stream = stream;
+          for (const track of old.getTracks()) track.stop();
+          this.watchTracks(stream);
+          const info = trackRouteInfo(stream, nextContext);
+          this.micTrackLabel = info.label;
+          this.micTrackRate = info.trackRate;
+          setActiveMicLabel(info.label);
+          setCallMicRate(info.routeRate);
+          voiceLog("system", "mic.reopen", {
+            context: nextContext.state,
+            rate: nextContext.sampleRate,
+            rateBefore: context.sampleRate,
+            rebuilt: true,
+            label: info.label,
+            settings: info.settings,
+          });
+          for (const text of pending) graph.player.speak(text);
+          return;
+        } catch (cause) {
+          void nextContext.close().catch(() => {});
+          voiceLog("system", "error", { where: "mic.reopen.rebuild", message: String(cause) });
+          if (
+            this.callGeneration !== generation ||
+            this.context !== context ||
+            this.stream === null ||
+            this.muted
+          ) {
+            for (const track of stream.getTracks()) track.stop();
+            return;
+          }
+        }
       }
       const old = this.stream;
       this.microphone?.disconnect();
@@ -543,7 +678,18 @@ export class VoiceSession {
       this.stream = stream;
       for (const track of old.getTracks()) track.stop();
       this.watchTracks(stream);
-      voiceLog("system", "mic.reopen", { context: context.state });
+      const info = trackRouteInfo(stream, context);
+      this.micTrackLabel = info.label;
+      this.micTrackRate = info.trackRate;
+      setActiveMicLabel(info.label);
+      setCallMicRate(info.routeRate);
+      voiceLog("system", "mic.reopen", {
+        context: context.state,
+        rate: context.sampleRate,
+        rebuilt: false,
+        label: info.label,
+        settings: info.settings,
+      });
     } catch (cause) {
       voiceLog("system", "error", { where: "mic.reopen", message: String(cause) });
     } finally {
@@ -605,56 +751,82 @@ export class VoiceSession {
   }
 
   async start(): Promise<void> {
-    if (this.stream !== null) return;
-    // Mobile Safari only starts audio inside the tap itself, so the context comes before any await,
-    // and play-and-record keeps replies audible with the ringer switch on silent.
-    const context = new AudioContext();
-    this.context = context;
-    void context.resume();
+    if (this.stream !== null || this.context !== null) return;
+    const generation = ++this.callGeneration;
+    // Set play-and-record BEFORE creating the AudioContext so iOS picks the call session's real
+    // hardware sample rate right away (still synchronously inside the user tap, before any await).
     const audioSession = (navigator as { audioSession?: { type: string } }).audioSession;
     if (audioSession !== undefined) {
       this.sessionBefore = audioSession.type;
       audioSession.type = "play-and-record";
     }
+    let context = new AudioContext();
+    this.context = context;
+    void context.resume();
     this.stt.warm();
-    this.stream = await this.openMic();
-    const moduleUrl = URL.createObjectURL(
-      new Blob([CAPTURE_WORKLET], { type: "application/javascript" }),
-    );
-    await context.audioWorklet.addModule(moduleUrl);
-    URL.revokeObjectURL(moduleUrl);
-    const capture = new AudioWorkletNode(context, "lalala-capture");
-    capture.port.onmessage = (event: MessageEvent<{ pcm: Int16Array; level: number }>) =>
-      this.onFrame(event.data.pcm, event.data.level);
-    const microphone = context.createMediaStreamSource(this.stream);
-    const windCut = context.createBiquadFilter();
-    windCut.type = "highpass";
-    windCut.frequency.value = WIND_CUT_HZ;
-    microphone.connect(windCut);
-    this.microphone = microphone;
-    this.windCut = windCut;
-    windCut.connect(capture);
-    this.input = context.createAnalyser();
-    this.input.fftSize = 2048;
-    this.input.smoothingTimeConstant = 0.8;
-    windCut.connect(this.input);
-    this.comb = new VoiceComb(context);
-    windCut.connect(this.comb.analyser);
-    // A silent sink keeps the capture node pulled by the audio graph.
-    const sink = context.createGain();
-    sink.gain.value = 0;
-    capture.connect(sink).connect(context.destination);
-    this.capture = capture;
-    this.player = new SpeechPlayer(context, () => this.updatePhase(), this.events.onError);
-    this.sounds = new VoiceSounds(context);
-    const track = this.stream.getAudioTracks()[0];
-    setActiveMicLabel(track?.label || null);
-    setCallMicRate(track?.getSettings?.().sampleRate ?? context.sampleRate);
+    let stream: MediaStream;
+    try {
+      stream = await this.openMic();
+    } catch (cause) {
+      if (this.callGeneration === generation) {
+        void context.close().catch(() => {});
+        if (audioSession !== undefined && this.sessionBefore !== null) {
+          audioSession.type = this.sessionBefore;
+        }
+        this.sessionBefore = null;
+        this.context = null;
+      }
+      throw cause;
+    }
+    if (this.callGeneration !== generation) {
+      for (const track of stream.getTracks()) track.stop();
+      void context.close().catch(() => {});
+      return;
+    }
+    const rateBefore = context.sampleRate;
+    const initialInfo = trackRouteInfo(stream, context);
+    if (initialInfo.trackRate !== null && initialInfo.trackRate !== context.sampleRate) {
+      const matched = await matchHardwareContext(context, initialInfo.trackRate, false);
+      if (this.callGeneration !== generation) {
+        if (matched !== context) void matched.close().catch(() => {});
+        void context.close().catch(() => {});
+        for (const track of stream.getTracks()) track.stop();
+        return;
+      }
+      if (matched !== context) {
+        void context.close().catch(() => {});
+        context = matched;
+        this.context = context;
+      }
+    }
+    const graph = await this.createAudioGraph(context, stream);
+    if (this.callGeneration !== generation) {
+      graph.capture.port.onmessage = null;
+      graph.player.dispose();
+      graph.sounds.silence();
+      void context.close().catch(() => {});
+      for (const track of stream.getTracks()) track.stop();
+      return;
+    }
+    this.stream = stream;
+    this.microphone = graph.microphone;
+    this.windCut = graph.windCut;
+    this.capture = graph.capture;
+    this.input = graph.input;
+    this.comb = graph.comb;
+    this.player = graph.player;
+    this.sounds = graph.sounds;
+    const info = trackRouteInfo(stream, context);
+    this.micTrackLabel = info.label;
+    this.micTrackRate = info.trackRate;
+    setActiveMicLabel(info.label);
+    setCallMicRate(info.routeRate);
     voiceLog("system", "mic.open", {
       context: context.state,
       rate: context.sampleRate,
-      label: track?.label ?? null,
-      settings: track?.getSettings?.() ?? null,
+      ...(context.sampleRate !== rateBefore ? { rateBefore } : {}),
+      label: info.label,
+      settings: info.settings,
     });
     // iOS: opening the microphone switches the audio session and can leave the context suspended.
     if ((context.state as string) !== "running") void context.resume().catch(() => {});
@@ -682,6 +854,9 @@ export class VoiceSession {
   };
 
   stop(): void {
+    this.callGeneration += 1;
+    this.micTrackLabel = null;
+    this.micTrackRate = null;
     this.waiting = [];
     this.topics.clear();
     this.onAir = [];

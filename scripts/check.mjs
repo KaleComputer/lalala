@@ -59,6 +59,9 @@ run(process.execPath, ["--experimental-strip-types", "--no-warnings", "--test", 
 step("TTS pronunciation regressions stay fixed (scripts/pron)");
 run(process.execPath, ["--experimental-strip-types", "--no-warnings", "--test", "scripts/pron/check.test.mjs"]);
 
+step("audio route changes rebuild the AudioContext cleanly (scripts/audio-route)");
+run(process.execPath, ["--experimental-strip-types", "--no-warnings", "--test", "scripts/audio-route/check.test.mjs"]);
+
 if (!process.argv.includes("--files-only")) {
   step("site typechecks (as on Vercel)");
   const site = NodePath.join(root, "site");
