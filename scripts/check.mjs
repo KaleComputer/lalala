@@ -56,6 +56,9 @@ run(process.execPath, ["--experimental-strip-types", "--no-warnings", "--test", 
 step("card and data edits never count as app updates (scripts/live-update)");
 run(process.execPath, ["--experimental-strip-types", "--no-warnings", "--test", "scripts/live-update/check.test.mjs"]);
 
+step("TTS pronunciation regressions stay fixed (scripts/pron)");
+run(process.execPath, ["--experimental-strip-types", "--no-warnings", "--test", "scripts/pron/check.test.mjs"]);
+
 if (!process.argv.includes("--files-only")) {
   step("site typechecks (as on Vercel)");
   const site = NodePath.join(root, "site");
