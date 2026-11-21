@@ -12,6 +12,13 @@ import {
   setCallMicRate,
   trackRouteInfo,
 } from "../../src/voice/callRoute.ts";
+import {
+  CLAUSE_GAP_S,
+  MAX_IDS,
+  PHONE_MAX_IDS,
+  SPACE_GAP_S,
+  splitIpaPieces,
+} from "../../src/voice/browserSpeech/ipaPieces.ts";
 
 function fakeContext(sampleRate, state = "running", resumeState = "running") {
   return {
@@ -186,4 +193,41 @@ test("speech.ts sets audioSession play-and-record before AudioContext in start()
   assert.ok(reopenBody.includes("setCallMicRate("), "reopenMic() must update callMicRate");
   assert.ok(reopenBody.includes("createAudioGraph("), "reopenMic() must rebuild the audio graph on route change");
   assert.ok(reopenBody.includes("label: info.label") && reopenBody.includes("settings: info.settings"), "reopenMic() must log label, rate, and settings");
+});
+
+test("splitIpaPieces keeps normal sentences intact and splits long phone sentences at clause punctuation first", () => {
+  // Short sentence stays in one piece even under PHONE_MAX_IDS.
+  const shortIpa = "nˈiːɑn ɪz tʃˈɛkɪŋ ðæt ˈaɪfoʊn kɹˈæʃ.";
+  assert.deepEqual(splitIpaPieces(shortIpa, PHONE_MAX_IDS), [{ ipa: shortIpa, gapAfterS: 0 }]);
+
+  // Long multi-clause sentence (220+ IPA chars, like a 14 s reply) splits at commas/dashes under PHONE_MAX_IDS.
+  const longIpa =
+    "ˈoʊpən ðə kˈeɪl ɡɹˈoʊn ʌp stˈeɪdʒɪŋ ˈæp ɑn jˈʊɹ fˈoʊn, tˈæp ˈæd kəmpjˈuːtəɹ, ænd ˈɛntəɹ ðə sˈɪks dˈɪdʒɪt kˈoʊd ɑn ðə tˈæblət — ɪts ɡˈʊd fɔɹ tˈɛn mˈɪnɪts, ænd wˈʌns ɪts pˈɛɹd, ðə wˈɜːkəɹ wɪl ɹˈʌn ðə fˈaɪnəl tʃˈɛks.";
+  const phonePieces = splitIpaPieces(longIpa, PHONE_MAX_IDS);
+  assert.ok(phonePieces.length >= 3, `expected >= 3 phone pieces, got ${phonePieces.length}`);
+  for (const piece of phonePieces) {
+    assert.ok([...piece.ipa].length <= PHONE_MAX_IDS, `piece exceeded PHONE_MAX_IDS: ${[...piece.ipa].length}`);
+  }
+  // At least one split landed right on a comma or dash with CLAUSE_GAP_S.
+  assert.ok(
+    phonePieces.slice(0, -1).some((p) => /[,—]$/.test(p.ipa) && p.gapAfterS === CLAUSE_GAP_S),
+    "expected clause-boundary split with CLAUSE_GAP_S",
+  );
+  assert.equal(phonePieces.at(-1).gapAfterS, 0);
+  // Rejoining with spaces preserves every non-space character verbatim.
+  assert.equal(phonePieces.map((p) => p.ipa).join(" "), longIpa);
+
+  // Same sentence stays in one piece on desktop (MAX_IDS = 510).
+  assert.equal(splitIpaPieces(longIpa, MAX_IDS).length, 1);
+
+  // Bare-space fallback uses shorter SPACE_GAP_S and preserves all characters; hard cut drops nothing.
+  const noPunct = Array.from({ length: 20 }, () => "wˈɜːdz").join(" ");
+  const spacePieces = splitIpaPieces(noPunct, 50);
+  assert.ok(spacePieces.length >= 3);
+  assert.equal(spacePieces[0].gapAfterS, SPACE_GAP_S);
+  assert.equal(spacePieces.map((p) => p.ipa).join(" "), noPunct);
+
+  const noSpaces = "a".repeat(120);
+  const hardPieces = splitIpaPieces(noSpaces, 50);
+  assert.equal(hardPieces.map((p) => p.ipa).join(""), noSpaces);
 });

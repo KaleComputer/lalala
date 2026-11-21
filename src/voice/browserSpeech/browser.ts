@@ -18,6 +18,7 @@ import {
 } from "../settingsStore";
 import { voiceLog } from "../voiceLog";
 import { gpuTrial } from "./gpuTrial";
+import { MAX_IDS, PHONE_MAX_IDS } from "./ipaPieces";
 import type { LoadMessage, WorkerMeter } from "./readout";
 import { memoryMoment, registerMeter } from "../memoryTrail";
 import { type ComputerSpeech, computerRoute } from "./computerRoute";
@@ -510,6 +511,7 @@ const warm = modelWorker(
   () => ({
     ...kaleModel(),
     device: gpuTry() && !kaleModel().cpuOnly ? "gpu-if-available" : "wasm",
+    maxIds: isPhoneDevice() ? PHONE_MAX_IDS : MAX_IDS,
     ...(memoryTight ? { threads: 1 } : {}),
   }),
   {

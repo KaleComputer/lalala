@@ -9,6 +9,7 @@ import { G2p, G2pModel, normalizer, readTable } from "./matcha/kaleTts.js";
 import { BritishG2p, britishNormalizer } from "./matcha/enGb.js";
 import { EttinTokenizer, ettinInputs, wordIndex } from "./matcha/ettin.js";
 import { webGpuWorks } from "./gpuTrial";
+import { MAX_IDS, splitIpaPieces } from "./ipaPieces";
 import { termsReplacer } from "./terms";
 
 // Transformers.js 4.3.2 with onnxruntime-web 1.31.1 instead of its pinned 1.31.0-dev (faster wasm), built
@@ -19,9 +20,6 @@ const TRANSFORMERS_GPU =
 
 const RATE = 24_000;
 const STYLE = 256;
-// Kokoro reads at most 512 ids, its two pads included.
-const MAX_IDS = 510;
-const PIECE_GAP_S = 0.06;
 const PEAK = 0.95;
 type FrontEndFiles = {
   g2pModel: string;
@@ -145,6 +143,8 @@ type Message = {
   runtime?: string;
   /** The model's own bytes (settingsStore's SMALL_VOICES), for the download bar. */
   expected?: number;
+  /** Max IPA chars per ONNX pass (lower on phones to cap WASM linear memory growth). */
+  maxIds?: number;
 };
 
 let voice: Promise<Voice> | null = null;
@@ -481,20 +481,6 @@ const spokenWith =
   (rules: (text: string) => string, terms: (text: string) => string) => (text: string) =>
     rules(terms(text));
 
-/** IPA in pieces Kokoro can read at once, cut at spaces (a sentence that long is rare). */
-function pieces(ipa: string): string[] {
-  const out: string[] = [];
-  let rest = [...ipa];
-  while (rest.length > MAX_IDS) {
-    let cut = rest.lastIndexOf(" ", MAX_IDS);
-    if (cut <= 0) cut = MAX_IDS;
-    out.push(rest.slice(0, cut).join(""));
-    rest = rest.slice(cut + 1);
-  }
-  out.push(rest.join(""));
-  return out;
-}
-
 /**
  * A WebGPU bench run (?bench=…&gpu) logs every step to the Mac's session log and waits for the server
  * to take it before the next risky one, so a tab that iOS kills still shows where it died.
@@ -694,8 +680,10 @@ async function speak(ready: Voice, raw: string) {
   const g2pMs = performance.now() - started;
   const parts: Float32Array[] = [];
   let idAt = 0;
-  for (const piece of pieces(ipa)) {
-    if (parts.length > 0) parts.push(new Float32Array(Math.round(PIECE_GAP_S * RATE)));
+  let prevGapS = 0;
+  for (const { ipa: piece, gapAfterS } of splitIpaPieces(ipa, maxIds)) {
+    if (parts.length > 0 && prevGapS > 0) parts.push(new Float32Array(Math.round(prevGapS * RATE)));
+    prevGapS = gapAfterS;
     if (!words) {
       parts.push(await render(ready, piece));
       continue;
@@ -722,6 +710,7 @@ async function speak(ready: Voice, raw: string) {
 let device = "wasm";
 let threads: number | undefined;
 let runtime: string | undefined;
+let maxIds = MAX_IDS;
 const start = (message: Message) => {
   voice = load(
     // A model whose graph doesn't run on WebGPU loads on the CPU, also when swapped in here.
@@ -744,6 +733,7 @@ self.onmessage = (event: MessageEvent<Message>) => {
     device = message.device ?? "wasm";
     threads = message.threads;
     runtime = message.runtime;
+    maxIds = message.maxIds ?? MAX_IDS;
     traceId = message.trace ?? null;
     // lazyRelease by default: the default "bucket" cache took WebKit's GPU process to 2.4 GB (Mac, 16 Nov).
     gpuCache = message.gpuCache ?? "lazyRelease";

@@ -277,6 +277,8 @@ export class VoiceSession {
   private clockSeen = { time: -1, at: 0 };
   private clockStuck = false;
   private clockKicks = 0;
+  private clockRebuilt = false;
+  private kicking = false;
   private reopening = false;
   private reopens = 0;
   private callGeneration = 0;
@@ -510,12 +512,17 @@ export class VoiceSession {
       if (this.clockKicks < MAX_CLOCK_KICKS) {
         this.clockKicks += 1;
         this.kickContext();
+      } else if (!this.clockRebuilt && !this.reopening) {
+        // Kicks couldn't unstick iOS's post-phone-call frozen context: rebuild it once cleanly.
+        this.clockRebuilt = true;
+        void this.reopenMic(true);
       }
       return;
     }
     if (running && time !== this.clockSeen.time && this.clockStuck) {
       this.clockStuck = false;
       this.clockKicks = 0;
+      this.clockRebuilt = false;
       voiceLog("voice", "audio.context.unstuck", { clock: Math.round(time * 1000) / 1000 });
       this.checkMic();
     }
@@ -525,11 +532,15 @@ export class VoiceSession {
   /** A stuck context's render thread only starts again from a full suspend and resume. */
   private kickContext(): void {
     const context = this.context;
-    if (context === null) return;
+    if (context === null || this.kicking) return;
+    this.kicking = true;
     void context
       .suspend()
-      .then(() => context.resume())
-      .catch(() => {});
+      .then(() => (this.context === context ? context.resume() : undefined))
+      .catch(() => {})
+      .finally(() => {
+        this.kicking = false;
+      });
   }
 
   /** Builds the capture worklet, mic filters, analysers, player and call sounds on `context`. */
@@ -638,6 +649,8 @@ export class VoiceSession {
           this.clockSeen = { time: -1, at: 0 };
           this.clockStuck = false;
           this.clockKicks = 0;
+          this.clockRebuilt = false;
+          this.kicking = false;
           nextContext.addEventListener("statechange", this.checkMic);
           this.stream = stream;
           for (const track of old.getTracks()) track.stop();
@@ -876,6 +889,8 @@ export class VoiceSession {
     this.clockTimer = null;
     this.clockStuck = false;
     this.clockKicks = 0;
+    this.clockRebuilt = false;
+    this.kicking = false;
     this.clockSeen = { time: -1, at: 0 };
     if (this.micPaused) this.events.onMicPaused?.(false);
     this.micPaused = false;
