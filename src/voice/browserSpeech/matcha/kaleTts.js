@@ -23,7 +23,7 @@ function normalizer(lex, Rules = Normalizer) {
     return upper.length <= 5 && !(upper.length >= 3 && lex.has(letters.toLowerCase())) ? upper : [...upper].join(" ");
   };
   // The sentence splitter cuts after "Dr.", leaving it last, where dizione cannot tell it from "drive".
-  return (text) => dottedNames(spokenText(weekdayAbbrevs(mathMultiply(relativePaths(sizeSuffixes(text)))).replace(/\bDr\.(?=\s*$)/, "Doctor"), rules, spell));
+  return (text) => dottedNames(spokenText(weekdayAbbrevs(mathMultiply(mathEquations(relativePaths(sizeSuffixes(text))))).replace(/\bDr\.(?=\s*$)/, "Doctor"), rules, spell));
 }
 
 /**
@@ -76,6 +76,18 @@ function sizeSuffixes(text) {
     .replace(/(?<![\p{L}\p{N}.])(\d+(?: s|\.\d+ ?s))(?![\p{L}\p{N}'’])/gu, (m, n) => `${n.replace(/ ?s$/, "")} sec`);
 }
 
+/** Arithmetic equations containing "=" ("10 - 4 = ?", "10 - ? = 4", "10 - 4 - 2 = ?", "5 + 4 = 9, so 9 - 4 = ?"):
+ *  binary "-" / "−" inside the equation span becomes "minus" before range or dash rules run. Pure equation structure, no word list. */
+const MATH_OPERAND = String.raw`(?:\d+(?:,\d{3})*(?:\.\d+)?|\?)`;
+const MATH_EQUATION = new RegExp(
+  String.raw`(?<![\p{L}\p{N}.])${MATH_OPERAND}(?:\s*[+\-−×÷=]\s*[-−]?${MATH_OPERAND})+(?![\p{L}\p{N}]|\.\d)`,
+  "gu"
+);
+const MATH_SUB = new RegExp(String.raw`(${MATH_OPERAND})\s*[-−]\s*(?=${MATH_OPERAND})`, "g");
+function mathEquations(text) {
+  return text.replace(MATH_EQUATION, (expr) => (expr.includes("=") ? expr.replace(MATH_SUB, "$1 minus ") : expr));
+}
+
 /** Kids' math multiplication ("What is 3x4?", "3 x 4 = 12", "Solve 6x7") -> "times", while keeping "a 4x4 truck" and "0x1F". */
 const MATH_BEFORE = /(?:what(?:'s|’s| is)|solve|calculate|compute|multiply|find|does|equals|[+\-=÷(])\s*$/i;
 function mathMultiply(text) {
@@ -104,6 +116,32 @@ function weekdayAbbrevs(text) {
 
 const oneWord = (s) => (s.match(/[\p{L}\p{N}]+(?:['’][\p{L}]+)*/gu) ?? []).length === 1;
 
+/** Split normalized text into sentences without breaking at an interior "?" answer blank inside a math equation ("8 - ? = 5"). */
+function splitNormalized(text, normalize) {
+  const norm = normalize(text);
+  const protectedSpans = [];
+  let cursor = 0;
+  for (const m of text.matchAll(MATH_EQUATION)) {
+    if (!m[0].includes("=") || !m[0].slice(0, -1).includes("?")) continue;
+    const eqNorm = normalize(m[0]);
+    const at = norm.indexOf(eqNorm, cursor);
+    if (at >= 0) {
+      protectedSpans.push([at, at + eqNorm.length]);
+      cursor = at + eqNorm.length;
+    }
+  }
+  if (!protectedSpans.length) return norm.split(/(?<=[.!?…])\s+|\n+/);
+  const out = [];
+  let start = 0;
+  for (const m of norm.matchAll(/(?<=[.!?…])\s+|\n+/g)) {
+    if (protectedSpans.some(([a, b]) => m.index >= a && m.index < b)) continue;
+    out.push(norm.slice(start, m.index));
+    start = m.index + m[0].length;
+  }
+  out.push(norm.slice(start));
+  return out;
+}
+
 /**
  * Sentences, each one model call (as the app and the bench render). A one-word sentence ("Four.", "Monday.") rides with the
  * next one: the small voices garble a word said alone, swallowing its end and adding a tail ("Four." -> "Forwarding", "Five." ->
@@ -112,7 +150,7 @@ const oneWord = (s) => (s.match(/[\p{L}\p{N}]+(?:['’][\p{L}]+)*/gu) ?? []).len
 function sentences(text, normalize) {
   const out = [];
   let carry = "";
-  for (const part of normalize(text).split(/(?<=[.!?…])\s+|\n+/)) {
+  for (const part of splitNormalized(text, normalize)) {
     const s = dropListComma(part.trim());
     if (!s) continue;
     const joined = carry ? `${carry} ${s}` : s;
@@ -298,6 +336,7 @@ function senseRule(low, words, i) {
     return metal ? "lˈɛd" : "lˈiːd";
   }
   if (low === "read") {
+    if (at(i - 1) === "well") return "ɹˈɛd";
     const habit = READ_HABIT.has(at(i + 1)) || ((at(i + 1) === "every" || at(i + 1) === "each") && PERIODS.has(at(i + 2)));
     if (habit && !words.some((x) => PAST.has(x))) return "ɹˈiːd";
   }
@@ -318,6 +357,10 @@ function letterRun(tokens, start) {
   if (plural) letters += tokens[i++][0];
   return letters.length >= 2 ? { letters, plural, end: i } : null;
 }
+
+// Proclitic function words ("the", "a", "an", "to") reduce only before a following word; isolated or sentence-final
+// ("the", "The word is the.", "Copy the word a.", "Peek whenever you need to.") they take their stressed strong form.
+const FINAL_STRONG = { the: "ðˈʌ", a: "ˈeɪ", an: "ˈæn", to: "tˈuː" };
 
 class G2p {
   constructor(lex, model) { this.lex = lex; this.model = model || null; this.learnt = new Map(); }
@@ -403,6 +446,8 @@ class G2p {
       const following = this.lookup(norm(next).toLowerCase(), null);
       const variant = lex.get(low + "#v");
       if (following != null && variant !== undefined) { const f = firstSound(following); if (f !== null && VOWELS.has(f)) return variant; }
+    } else if (low in FINAL_STRONG) {
+      return FINAL_STRONG[low];
     }
     return this.lookup(low, w);
   }
