@@ -12,6 +12,19 @@ import {
 } from "../../inbox/capture";
 import { isLocalOrigin } from "../../pairing";
 import {
+  ACTIVE_RUN,
+  type RawMessage,
+  type RawRun,
+  type RawUsage,
+  type SlimCompactionItem,
+  type SlimRun,
+  collectCompactionItems,
+  deriveBrainContext,
+  isCompactionMessage,
+  slimCompactionItem,
+  slimRun,
+} from "./compaction";
+import {
   SOCKET_CLOSED,
   T3Socket,
   localNetworkPermission,
@@ -22,41 +35,13 @@ import {
   uuid,
 } from "./t3";
 
-const ACTIVE_RUN = new Set(["preparing", "queued", "starting", "running", "waiting"]);
 const MAX_ROWS = 400;
 const STEP_TIMEOUT_MS = 10_000;
 const RETRY_MS = [1_000, 2_000, 5_000, 10_000];
 // How long a turn waits for a dropped link to come back before it fails.
 const SEND_WAIT_MS = 15_000;
 
-type Run = {
-  id: string;
-  status: string;
-  userMessageId: string;
-  requestedAt?: string;
-  startedAt?: string | null;
-  workStartedAt?: string | null;
-  completedAt?: string | null;
-};
-type Usage = {
-  usedTokens: number;
-  maxTokens?: number | null;
-  promptCacheTtlMs?: number;
-  updatedAt: string;
-};
-type ProviderTurn = { providerThreadId: string; tokenUsage?: Usage };
-type Message = { id: string; role: string; text?: string; attachments?: unknown[] };
-const isCompaction = (message: Message) =>
-  message.role === "user" &&
-  message.text?.trim().toLowerCase() === "/compact" &&
-  (message.attachments?.length ?? 0) === 0;
-const slimRun = (run: Run) => ({
-  status: run.status,
-  userMessageId: run.userMessageId,
-  // T3's orchestrationV2RunWorkStartedAt: when the run began its work.
-  workStartedAt: run.workStartedAt ?? run.startedAt ?? run.requestedAt ?? null,
-  completedAt: run.completedAt ?? null,
-});
+type ProviderTurn = { providerThreadId: string; tokenUsage?: RawUsage };
 
 type Item = {
   id: string;
@@ -65,6 +50,7 @@ type Item = {
   streaming?: boolean;
   parentItemId?: string | null;
   startedAt?: string | null;
+  completedAt?: string | null;
   updatedAt?: string | null;
   runId?: string | null;
   status?: string;
@@ -132,11 +118,12 @@ export function browserHarness(): HarnessAdapter {
     error: null as string | null,
     thread: null as Thread | null,
     rows: new Map<string, Row>(),
-    runs: new Map<string, ReturnType<typeof slimRun>>(),
+    runs: new Map<string, SlimRun>(),
     // The brain's context for the page's compact-on-return (src/voice/brainCompaction.ts).
-    usage: null as Usage | null,
+    usage: null as RawUsage | null,
     claude: false,
     compactions: new Set<string>(),
+    compactionItems: new Map<string, SlimCompactionItem>(),
     contextLine: "null",
     titles: new Map<string, string>(),
     environmentId: null as string | null,
@@ -151,36 +138,7 @@ export function browserHarness(): HarnessAdapter {
   const waiters = new Set<() => void>();
 
   const active = () => [...state.runs.values()].some((run) => ACTIVE_RUN.has(run.status));
-  const context = () => {
-    if (state.usage === null) return null;
-    let compacting = false;
-    let compactedAt: number | null = null;
-    let compactStartedAt: number | null = null;
-    const compactTookMs: number[] = [];
-    for (const run of state.runs.values()) {
-      if (!state.compactions.has(run.userMessageId)) continue;
-      const began = run.workStartedAt === null ? null : Date.parse(run.workStartedAt);
-      if (ACTIVE_RUN.has(run.status)) {
-        compacting = true;
-        compactStartedAt = began;
-      } else if (run.status === "completed" && run.completedAt !== null) {
-        const done = Date.parse(run.completedAt);
-        compactedAt = Math.max(compactedAt ?? 0, done);
-        if (began !== null) compactTookMs.push(done - began);
-      }
-    }
-    return {
-      usedTokens: state.usage.usedTokens,
-      maxTokens: state.usage.maxTokens ?? null,
-      reportedAt: Date.parse(state.usage.updatedAt),
-      cacheTtlMs: state.usage.promptCacheTtlMs ?? null,
-      claude: state.claude,
-      compacting,
-      compactedAt,
-      compactStartedAt,
-      compactTookMs,
-    };
-  };
+  const context = () => deriveBrainContext(state);
   // Newest report of the thread's active provider session.
   const takeUsage = (turn: ProviderTurn) => {
     if (turn.tokenUsage === undefined) return;
@@ -354,8 +312,8 @@ export function browserHarness(): HarnessAdapter {
             if (chunk.kind === "snapshot" && chunk.projection) {
               const projection = chunk.projection as {
                 thread: Thread;
-                runs: Run[];
-                messages: Message[];
+                runs: RawRun[];
+                messages: RawMessage[];
                 providerThreads: { id: string; driver: string }[];
                 providerTurns: ProviderTurn[];
                 visibleTurnItems: { visibility: string; item: Item }[];
@@ -363,8 +321,9 @@ export function browserHarness(): HarnessAdapter {
               state.thread = projection.thread;
               state.runs = new Map(projection.runs.map((run) => [run.id, slimRun(run)]));
               state.compactions = new Set(
-                projection.messages.filter(isCompaction).map((message) => message.id),
+                projection.messages.filter(isCompactionMessage).map((message) => message.id),
               );
+              state.compactionItems = collectCompactionItems(projection.visibleTurnItems);
               state.claude =
                 projection.providerThreads.find(
                   (thread) => thread.id === projection.thread.activeProviderThreadId,
@@ -387,7 +346,7 @@ export function browserHarness(): HarnessAdapter {
             } else if (chunk.kind === "event" && chunk.event) {
               const { type, payload } = chunk.event as {
                 type: string;
-                payload: Item & Run & ProviderTurn & Message & { threadId?: string; driver?: string };
+                payload: Item & RawRun & ProviderTurn & RawMessage & { threadId?: string; driver?: string };
               };
               if (type === "turn-item.updated" && payload.threadId === brain.threadId) {
                 const row = slim("local", payload);
@@ -395,6 +354,10 @@ export function browserHarness(): HarnessAdapter {
                 state.rows.set(row.item.id, row);
                 while (state.rows.size > MAX_ROWS) state.rows.delete(state.rows.keys().next().value!);
                 emit({ type: "row", row });
+                if (payload.type === "compaction") {
+                  state.compactionItems.set(payload.id, slimCompactionItem(payload));
+                  emitContext();
+                }
                 // Before the project's copy is in, the first capture (and its seed) waits for it.
                 if (
                   inboxRead &&
@@ -415,7 +378,7 @@ export function browserHarness(): HarnessAdapter {
                   state.claude = payload.driver === "claudeAgent";
                   emitContext();
                 }
-              } else if (type === "message.updated" && isCompaction(payload)) {
+              } else if (type === "message.updated" && isCompactionMessage(payload)) {
                 state.compactions.add(payload.id);
                 emitContext();
               }

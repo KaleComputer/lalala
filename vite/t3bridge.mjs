@@ -7,6 +7,14 @@ import * as NodePath from "node:path";
 import { stateDir } from "./stateDir.mjs";
 import { createDigest } from "./inboxDigest.mjs";
 import {
+  ACTIVE_RUN,
+  collectCompactionItems,
+  deriveBrainContext,
+  isCompactionMessage,
+  slimCompactionItem,
+  slimRun,
+} from "../src/voice/adapters/harness/compaction.ts";
+import {
   EMPTY_INBOX,
   applyInboxChange,
   captureInbox,
@@ -27,7 +35,6 @@ import {
 } from "./t3client.mjs";
 
 const PREFIX = "/__lalala/t3";
-const ACTIVE_RUN = new Set(["preparing", "queued", "starting", "running", "waiting"]);
 const MAX_ROWS = 400;
 const SEND_WAITS_FOR_T3_MS = 5_000;
 // A data event, not an SSE comment, so the page (src/t3/bridge.ts) can tell a live stream from one a
@@ -48,15 +55,6 @@ const SECRET_FAILURES = {
   record_failed: "Saved the secret, but could not update the request.",
 };
 const SECRET_FAILED = "Could not answer the request. Try again.";
-const isCompaction = (message) =>
-  message.role === "user" &&
-  message.text?.trim().toLowerCase() === "/compact" &&
-  (message.attachments?.length ?? 0) === 0;
-const slimRun = (run) => ({
-  status: run.status,
-  userMessageId: run.userMessageId,
-  completedAt: run.completedAt ?? null,
-});
 // The context id of the brain's rules on a user message (src/voice/brief.ts), so every device
 // sees they went once.
 const briefIdOf = (item) =>
@@ -165,6 +163,7 @@ export function t3BridgePlugin({ threadId: configuredThreadId, workspaceRoot }) 
     usage: null,
     claude: false,
     compactions: new Set(),
+    compactionItems: new Map(),
     contextLine: "null",
     connected: false,
     error: null,
@@ -188,27 +187,7 @@ export function t3BridgePlugin({ threadId: configuredThreadId, workspaceRoot }) 
   let generation = 0;
 
   const active = () => [...state.runs.values()].some((run) => ACTIVE_RUN.has(run.status));
-  const context = () => {
-    if (state.usage === null) return null;
-    let compacting = false;
-    let compactedAt = null;
-    for (const run of state.runs.values()) {
-      if (!state.compactions.has(run.userMessageId)) continue;
-      if (ACTIVE_RUN.has(run.status)) compacting = true;
-      else if (run.status === "completed" && run.completedAt !== null) {
-        compactedAt = Math.max(compactedAt ?? 0, Date.parse(run.completedAt));
-      }
-    }
-    return {
-      usedTokens: state.usage.usedTokens,
-      maxTokens: state.usage.maxTokens ?? null,
-      reportedAt: Date.parse(state.usage.updatedAt),
-      cacheTtlMs: state.usage.promptCacheTtlMs ?? null,
-      claude: state.claude,
-      compacting,
-      compactedAt,
-    };
-  };
+  const context = () => deriveBrainContext(state);
   const compacting = () => context()?.compacting === true;
   // Newest report of the thread's active provider session.
   const takeUsage = (turn) => {
@@ -327,8 +306,9 @@ export function t3BridgePlugin({ threadId: configuredThreadId, workspaceRoot }) 
               state.thread = projection.thread;
               state.runs = new Map(projection.runs.map((run) => [run.id, slimRun(run)]));
               state.compactions = new Set(
-                projection.messages.filter(isCompaction).map((message) => message.id),
+                projection.messages.filter(isCompactionMessage).map((message) => message.id),
               );
+              state.compactionItems = collectCompactionItems(projection.visibleTurnItems);
               state.claude =
                 projection.providerThreads.find(
                   (thread) => thread.id === projection.thread.activeProviderThreadId,
@@ -349,6 +329,10 @@ export function t3BridgePlugin({ threadId: configuredThreadId, workspaceRoot }) 
               const { type, payload } = chunk.event;
               if (type === "turn-item.updated" && payload.threadId === state.threadId) {
                 upsert(slim("local", payload));
+                if (payload.type === "compaction") {
+                  state.compactionItems.set(payload.id, slimCompactionItem(payload));
+                  broadcastContext();
+                }
               } else if (type === "run.created" || type === "run.updated") {
                 const was = active();
                 state.runs.set(payload.id, slimRun(payload));
@@ -363,7 +347,7 @@ export function t3BridgePlugin({ threadId: configuredThreadId, workspaceRoot }) 
                   broadcastContext();
                 }
               } else if (type === "message.updated") {
-                if (isCompaction(payload)) {
+                if (isCompactionMessage(payload)) {
                   state.compactions.add(payload.id);
                   broadcastContext();
                 }

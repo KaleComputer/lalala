@@ -68,6 +68,9 @@ run(process.execPath, ["--experimental-strip-types", "--no-warnings", "--test", 
 step("settle action and canvas follow helpers hold (scripts/settle-follow)");
 run(process.execPath, ["--experimental-strip-types", "--no-warnings", "--test", "scripts/settle-follow/check.test.mjs"]);
 
+step("live compaction turn items and /compact context hold (scripts/compaction)");
+run(process.execPath, ["--experimental-strip-types", "--no-warnings", "--test", "scripts/compaction/check.test.mjs"]);
+
 if (!process.argv.includes("--files-only")) {
   step("site typechecks (as on Vercel)");
   const site = NodePath.join(root, "site");

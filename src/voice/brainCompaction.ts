@@ -10,9 +10,9 @@ export type VoiceBrainContext = {
   readonly reportedAt: number;
   /** The prompt cache's lifetime from that report; Claude API keys get 5 min unless 1h is enabled. */
   readonly cacheTtlMs: number | null;
-  /** Only Claude sessions compact. */
+  /** Only Claude sessions run idle `/compact` on return. */
   readonly claude: boolean;
-  /** A `/compact` run is in progress. */
+  /** A compaction is in progress (an explicit `/compact` run or a live `compaction` turn item). */
   readonly compacting: boolean;
   /** When the latest compaction finished (epoch ms). */
   readonly compactedAt: number | null;

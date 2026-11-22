@@ -1487,7 +1487,9 @@ function BrainSection(props: {
 /** The brain's context size; a big one compacts when the user comes back (VoiceHost). */
 function BrainContextRow() {
   const context = useVoiceBrainContext(useSharedBrainThread());
-  if (context === null || !context.claude) return null;
+  if (context === null || !context.claude || (!context.compacting && context.reportedAt === 0)) {
+    return null;
+  }
   // It compacts only once its prompt cache has run out, so with the 1-hour cache that is an hour of quiet.
   const pause = context.cacheTtlMs ?? 5 * 60_000;
   const quiet =
