@@ -1,7 +1,7 @@
 import { useEffect, useLayoutEffect, useRef, useSyncExternalStore } from "react";
 
 import { CanvasCard } from "./CanvasCard";
-import { getMarks, isPrivate, subscribeMarks } from "./canvasStore";
+import { followCard, getMarks, isPrivate, subscribeMarks } from "./canvasStore";
 import { REDACT_FAMILY, REDACT_FONT_FACE } from "./redactFont";
 import { useStreamer } from "./streamer";
 import "./brainCards.css";
@@ -45,9 +45,7 @@ function write(next: Cards) {
 const api = {
   put: (id: string, card: BrainCard) => {
     write({ ...cards, [id]: card });
-    try {
-      if (localStorage.getItem("lalala:follow") === "1") globalThis.__lalalaCanvases?.focus?.(id);
-    } catch {}
+    followCard(id, "brain-card");
   },
   remove: (id: string) => {
     if (!(id in cards)) return;

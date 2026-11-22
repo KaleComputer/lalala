@@ -102,18 +102,21 @@ export function CanvasSurface({ children }: { readonly children: ReactNode }) {
     const stopMediaLod = attachMediaLod(world);
 
     // Track card HMR updates so Follow mode pans to updated cards even with voice off.
-    let lastCardHmrAt = 0;
+    let lastUnmatchedCardHmrAt = 0;
     const onHmrAfterUpdate = (payload: { updates?: ReadonlyArray<{ path?: string }> }) => {
       const cardsUrl = (globalThis as { __lalalaCardsUrl?: string }).__lalalaCardsUrl;
       const updates = payload?.updates ?? [];
+      let sawCardUpdate = false;
       let matched = false;
       for (const update of updates) {
         const path = update.path ?? "";
         if (!cardsUrl || !path.startsWith(cardsUrl)) continue;
-        lastCardHmrAt = performance.now();
+        sawCardUpdate = true;
         if (followModuleUpdate(path) !== null) matched = true;
       }
-      void matched;
+      // Only fall back to DOM mutation watching when an HMR card update didn't match a card file
+      // directly (e.g. a shared data module), so live timers in other cards never hijack the camera.
+      lastUnmatchedCardHmrAt = sawCardUpdate && !matched ? performance.now() : 0;
     };
     const hot = import.meta.hot as
       | {
@@ -123,17 +126,17 @@ export function CanvasSurface({ children }: { readonly children: ReactNode }) {
       | undefined;
     hot?.on?.("vite:afterUpdate", onHmrAfterUpdate);
 
-    // Watch card body DOM mutations right after a card HMR update (catches cards whose filename
-    // differs from their card id, e.g. shared data modules updating a mounted card).
+    // Watch card body DOM mutations right after an unmatched card HMR update (catches cards whose
+    // filename differs from their card id, e.g. shared data modules updating a mounted card).
     const cardChangeObserver = new MutationObserver((mutations) => {
-      if (performance.now() - lastCardHmrAt > 1_500) return;
+      if (lastUnmatchedCardHmrAt === 0 || performance.now() - lastUnmatchedCardHmrAt > 1_500) return;
       for (const m of mutations) {
         const node = m.target instanceof Element ? m.target : m.target.parentElement;
         const body = node?.closest("[data-lalala-card-body]");
         if (!body) continue;
         const key = body.closest<HTMLElement>("[data-lalala-card]")?.dataset.lalalaCard;
-        if (key) {
-          followCard(cardOf(key), "hmr-dom");
+        if (key && followCard(cardOf(key), "hmr-dom")) {
+          lastUnmatchedCardHmrAt = 0;
           return;
         }
       }

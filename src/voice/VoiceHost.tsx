@@ -27,7 +27,15 @@ import { compactEstimateMs, compactionDue, shareBrainThread } from "./brainCompa
 import { markBriefed, needsBrief, withBrief, withCanvas } from "./brief";
 import { prewarm, speechProgress, speechStatus } from "./browserSpeech/browser";
 import { afterCanvasShown } from "./canvasShown";
-import { followCommand, isFollowing, setFollowing, subscribeFollow, takeAboutCards, takeFocus } from "./follow";
+import {
+  followCommand,
+  isFollowing,
+  isFollowLabEnabled,
+  setFollowing,
+  subscribeFollow,
+  takeAboutCards,
+  takeFocus,
+} from "./follow";
 import { settleBrainThread } from "./settleThread";
 import { type VoicePhase, VoiceSession } from "./speech";
 import { takeSentences } from "./speechText";
@@ -500,7 +508,7 @@ export function VoiceHost({
       const threadId = existingThreadId ?? newThreadId();
       if (existingThreadId === null) pendingThreadIdRef.current = threadId;
       const follow = followCommand(text);
-      if (follow !== undefined) setFollowing(follow);
+      if (follow === false || (follow === true && isFollowLabEnabled())) setFollowing(follow);
       const briefed =
         existingThreadId === null || needsBrief(threadId, items, brainContext?.compactedAt ?? null);
       const tagged = withCanvas(text, unheard);
@@ -694,9 +702,13 @@ export function VoiceHost({
 
   // Passive follow: when Follow is on, focus cards named by incoming `[focus: …]` or `[about: …]`
   // tags even when voice is OFF (e.g. on a big screen). Seeds existing history on first snapshot so
-  // reloading never jumps to an old message.
+  // reloading or re-enabling Follow never jumps to an old message.
   // oxlint-disable-next-line t3code/no-unreasoned-state-sync -- moves the canvas camera in response to incoming brain messages while follow is enabled
   useEffect(() => {
+    if (!following) {
+      passiveFollowedRef.current = null;
+      return;
+    }
     if (items.length === 0) return;
     if (passiveFollowedRef.current === null) {
       const seed = new Map<string, number>();
@@ -720,7 +732,6 @@ export function VoiceHost({
       seen.set(item.id, total);
       // During an active call, `[focus:]` is handled by the voice loop below; passive follow still
       // covers `[about:]` updates and any `[focus:]` when voice is off.
-      if (!following) continue;
       const card =
         sessionRef.current === null
           ? (focusCards.at(-1) ?? aboutCards.at(-1))
@@ -730,7 +741,7 @@ export function VoiceHost({
           card,
           via: sessionRef.current === null ? "passive" : "about",
         });
-        globalThis.__lalalaCanvases?.focus?.(card);
+        globalThis.__lalalaCanvases?.focus?.(card, false);
       }
     }
   }, [items, following]);
@@ -808,7 +819,7 @@ export function VoiceHost({
         // over the transcript missed "shout me" and "follow the card", so its tag is trusted.
         if (card) {
           voiceLog("brain", "focus", { card });
-          globalThis.__lalalaCanvases?.focus?.(card);
+          globalThis.__lalalaCanvases?.focus?.(card, false);
         }
       }
       if (finishedRef.current.has(item.id)) continue;

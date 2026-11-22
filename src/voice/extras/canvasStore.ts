@@ -474,7 +474,6 @@ export function select(key: string | null) {
 export function touchCard(id: string) {
   if (touched === id) return;
   touched = id;
-  emitFollowSignal(live.canvas, cardOf(id));
   changed();
 }
 
@@ -635,8 +634,6 @@ export function fitCard(id: string, more: { readonly w: number; readonly h: numb
   const h = more.h > 1 && widen === rect.w ? Math.min(FIT_MAX.h, Math.ceil(rect.h + more.h)) : rect.h;
   if (w <= rect.w && h <= rect.h) return;
   setCard(id, roomToGrow(id, rect, { ...rect, w: Math.max(w, rect.w), h: Math.max(h, rect.h) }));
-  // If Follow is on after boot and a card grows with new content, pan/zoom to show it.
-  if (bootSettled && Date.now() > suppressFollowUntil) followCard(cardOf(id), "grown");
 }
 
 /**
@@ -1095,7 +1092,7 @@ export function spawnTemplate(
   editTemplate(instance.id, instance);
   if (typeof window !== "undefined") {
     window.requestAnimationFrame(() => {
-      focusCard(instance.id, true);
+      focusCard(instance.id, false);
     });
   }
   return instance;
@@ -1211,7 +1208,10 @@ const FOCUS_MAX_ZOOM = 1.25;
 let focusFrame = 0;
 
 const FOLLOW_KEY = "lalala:follow";
+const SETTINGS_KEY = "lalala:settings";
 const FOLLOW_SIGNAL_STORAGE = "lalala:canvas-follow";
+/** Built-in chrome cards that manage their own explicit focus and must never hijack Follow. */
+const NO_AUTO_FOLLOW = new Set([STARTER_CARD_ID, "agent-monitor"]);
 const DEVICE_ID = Math.random().toString(36).slice(2, 10);
 const USER_ACT_GRACE_MS = 1_200;
 let lastUserActAt = 0;
@@ -1220,7 +1220,6 @@ let suppressFollowUntil = 0;
 let unsentFollow: FollowSignal | null = null;
 let seenFollowAt = 0;
 let followSeeded = false;
-const knownCards = new Set<string>();
 let pendingFollowCard: string | null = null;
 let pendingFollowTimer = 0;
 
@@ -1229,7 +1228,19 @@ export function noteUserActivity() {
   lastUserActAt = performance.now();
 }
 
-const isFollowOn = () => {
+const isFollowLabOn = () => {
+  try {
+    const raw = JSON.parse(localStorage.getItem(SETTINGS_KEY) ?? "null") as {
+      labs?: { followButton?: unknown };
+    } | null;
+    return raw?.labs?.followButton === true;
+  } catch {
+    return false;
+  }
+};
+
+export const isFollowOn = () => {
+  if (!isFollowLabOn()) return false;
   try {
     return localStorage.getItem(FOLLOW_KEY) === "1";
   } catch {
@@ -1237,9 +1248,9 @@ const isFollowOn = () => {
   }
 };
 
-/** Broadcasts this device's active canvas / focused card so other devices with Follow ON follow along. */
+/** Broadcasts this device's active canvas / focused card when Follow is ON so other following devices follow along. */
 function emitFollowSignal(canvas: string, card?: string) {
-  if (!bootSettled || canvas === "") return;
+  if (!bootSettled || canvas === "" || !isFollowOn()) return;
   const signal: FollowSignal = {
     canvas,
     ...(card ? { card } : {}),
@@ -1282,6 +1293,7 @@ function adoptFollowSignal(signal: FollowSignal) {
  */
 export function followCard(name: string, reason: string) {
   if (!bootSettled || !isFollowOn()) return false;
+  if (NO_AUTO_FOLLOW.has(name.trim().toLowerCase())) return false;
   if (held !== null || Date.now() < suppressFollowUntil) return false;
   if (performance.now() - lastUserActAt < USER_ACT_GRACE_MS) return false;
   pendingFollowCard = name;
@@ -1338,7 +1350,7 @@ export function followModuleUpdate(modulePath: string): string | null {
  * Pans and zooms to fit a card (its id or title), opening its canvas first. A short ease; any
  * camera move from elsewhere (the user's hand) stops it.
  */
-function focusCard(name: string, broadcast = true) {
+function focusCard(name: string, broadcast = false) {
   const wanted = name.trim().toLowerCase();
   const found = [...cardsInCode].find(
     ([id, card]) => id.toLowerCase() === wanted || card.title.toLowerCase() === wanted,
@@ -1775,13 +1787,12 @@ function placeNew() {
   const added = waiting.map(([id]) => id);
   unplaced.clear();
   if (!bootSettled) {
-    for (const id of mounted) knownCards.add(id);
     window.setTimeout(() => {
-      for (const id of mounted) knownCards.add(id);
       bootSettled = true;
     }, 600);
   } else if (added.length > 0) {
-    followCard(cardOf(added.at(-1)!), "added");
+    const target = added.map(cardOf).findLast((id) => !NO_AUTO_FOLLOW.has(id.toLowerCase()));
+    if (target) followCard(target, "added");
   }
 }
 
@@ -1797,12 +1808,9 @@ export function mountCard(id: string, fallback: Rect, exact = false) {
     placing = true;
     void firstPull.then(placeNew);
   }
-  const isNew = bootSettled && !knownCards.has(id) && Date.now() >= suppressFollowUntil;
-  knownCards.add(id);
   if (live.cards[id] === undefined) unplaced.set(id, { rect: fallback, exact });
   mounted.add(id);
   changed();
-  if (isNew && live.cards[id] !== undefined) followCard(cardOf(id), "mounted");
   return () => {
     mounted.delete(id);
     changed();

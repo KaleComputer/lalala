@@ -6,7 +6,16 @@ import * as NodeOS from "node:os";
 import * as NodePath from "node:path";
 import { test } from "node:test";
 
-import { matchCardByModulePath, takeAboutCards, takeFocus } from "../../src/voice/follow.ts";
+import {
+  followCommand,
+  isFollowing,
+  isFollowLabEnabled,
+  matchCardByModulePath,
+  setFollowing,
+  subscribeFollow,
+  takeAboutCards,
+  takeFocus,
+} from "../../src/voice/follow.ts";
 import { applyInboxChange, captureInbox, EMPTY_INBOX } from "../../src/voice/inbox/capture.ts";
 import { parseSynced } from "../../src/voice/settingsStore.ts";
 import { settleBrainThread } from "../../src/voice/settleThread.ts";
@@ -147,4 +156,163 @@ test("labs.followButton defaults off and parses strictly as boolean", () => {
   assert.equal(parseSynced({})?.labs.followButton, false);
   assert.equal(parseSynced({ labs: { followButton: true } })?.labs.followButton, true);
   assert.equal(parseSynced({ labs: { followButton: "yes" } })?.labs.followButton, false);
+});
+
+function withMockLocalStorage(fn) {
+  const store = new Map();
+  const prevStorage = globalThis.localStorage;
+  const mock = {
+    getItem: (key) => (store.has(key) ? store.get(key) : null),
+    setItem: (key, value) => store.set(key, String(value)),
+    removeItem: (key) => store.delete(key),
+    clear: () => store.clear(),
+  };
+  Object.defineProperty(globalThis, "localStorage", {
+    value: mock,
+    configurable: true,
+    writable: true,
+  });
+  try {
+    return fn(store);
+  } finally {
+    if (prevStorage === undefined) delete globalThis.localStorage;
+    else {
+      Object.defineProperty(globalThis, "localStorage", {
+        value: prevStorage,
+        configurable: true,
+        writable: true,
+      });
+    }
+  }
+}
+
+test("effective Follow is always off when labs.followButton is false, even if lalala:follow is stored as 1", () => {
+  withMockLocalStorage((store) => {
+    setFollowing(true);
+    assert.equal(store.get("lalala:follow"), "1");
+    assert.equal(isFollowLabEnabled(), false);
+    assert.equal(isFollowing(), false);
+
+    store.set("lalala:settings", JSON.stringify({ labs: { followButton: false } }));
+    assert.equal(isFollowLabEnabled(), false);
+    assert.equal(isFollowing(), false);
+
+    store.set("lalala:settings", JSON.stringify({ labs: { followButton: true } }));
+    assert.equal(isFollowLabEnabled(), true);
+    assert.equal(isFollowing(), true);
+
+    setFollowing(false);
+    assert.equal(isFollowing(), false);
+  });
+});
+
+test("subscribeFollow reacts to both lalala:follow and lalala:settings updates", () => {
+  const docListeners = new Map();
+  const winListeners = new Map();
+  const prevDoc = globalThis.document;
+  const prevWin = globalThis.window;
+  Object.defineProperty(globalThis, "document", {
+    value: {
+      addEventListener: (type, fn) => docListeners.set(type, [...(docListeners.get(type) ?? []), fn]),
+      removeEventListener: (type, fn) =>
+        docListeners.set(
+          type,
+          (docListeners.get(type) ?? []).filter((f) => f !== fn),
+        ),
+      dispatchEvent: (event) => {
+        for (const fn of docListeners.get(event.type) ?? []) fn(event);
+        return true;
+      },
+    },
+    configurable: true,
+    writable: true,
+  });
+  Object.defineProperty(globalThis, "window", {
+    value: {
+      addEventListener: (type, fn) => winListeners.set(type, [...(winListeners.get(type) ?? []), fn]),
+      removeEventListener: (type, fn) =>
+        winListeners.set(
+          type,
+          (winListeners.get(type) ?? []).filter((f) => f !== fn),
+        ),
+    },
+    configurable: true,
+    writable: true,
+  });
+  try {
+    let calls = 0;
+    const stop = subscribeFollow(() => {
+      calls += 1;
+    });
+    globalThis.document.dispatchEvent(new Event("lalala:follow"));
+    globalThis.document.dispatchEvent(new Event("lalala:settings"));
+    for (const fn of winListeners.get("storage") ?? []) fn({ key: "lalala:settings" });
+    for (const fn of winListeners.get("storage") ?? []) fn({ key: "unrelated" });
+    assert.equal(calls, 3);
+    stop();
+  } finally {
+    if (prevDoc === undefined) delete globalThis.document;
+    else Object.defineProperty(globalThis, "document", { value: prevDoc, configurable: true, writable: true });
+    if (prevWin === undefined) delete globalThis.window;
+    else Object.defineProperty(globalThis, "window", { value: prevWin, configurable: true, writable: true });
+  }
+});
+
+test("followCommand only matches explicit commands and never turns Follow on for negative or casual phrases", () => {
+  assert.equal(followCommand("follow"), true);
+  assert.equal(followCommand("follow me"), true);
+  assert.equal(followCommand("turn follow on"), true);
+  assert.equal(followCommand("stop following"), false);
+  assert.equal(followCommand("unfollow"), false);
+  assert.equal(followCommand("turn off follow"), false);
+  assert.equal(followCommand("turn follow off"), false);
+  assert.equal(followCommand("follow up on that"), undefined);
+  assert.equal(followCommand("is follow on?"), undefined);
+  assert.equal(followCommand("can you follow?"), undefined);
+});
+
+test("viewport jump guards stay intact across canvasStore, CanvasSurface, BrainCards, VoiceHost, and VoiceSettings", () => {
+  const root = NodePath.resolve(import.meta.dirname, "../..");
+  const storeSrc = NodeFS.readFileSync(NodePath.join(root, "src/voice/extras/canvasStore.ts"), "utf8");
+  const surfaceSrc = NodeFS.readFileSync(NodePath.join(root, "src/voice/extras/CanvasSurface.tsx"), "utf8");
+  const brainCardsSrc = NodeFS.readFileSync(NodePath.join(root, "src/voice/extras/BrainCards.tsx"), "utf8");
+  const hostSrc = NodeFS.readFileSync(NodePath.join(root, "src/voice/VoiceHost.tsx"), "utf8");
+  const settingsSrc = NodeFS.readFileSync(NodePath.join(root, "src/voice/VoiceSettings.tsx"), "utf8");
+
+  // canvasStore gates Follow on labs.followButton and excludes built-in chrome cards (agent-monitor, starter).
+  assert.match(storeSrc, /raw\?\.labs\?\.followButton === true/);
+  assert.match(storeSrc, /NO_AUTO_FOLLOW\s*=\s*new Set\(\[STARTER_CARD_ID,\s*"agent-monitor"\]\)/);
+
+  // fitCard must never call followCard (prevents AgentMonitor row growth / lazy card mount jump loops).
+  const fitBody = storeSrc.slice(storeSrc.indexOf("export function fitCard("), storeSrc.indexOf("function roomToGrow("));
+  assert.doesNotMatch(fitBody, /followCard\(/);
+
+  // touchCard must never emit cross-device follow signals.
+  const touchBody = storeSrc.slice(storeSrc.indexOf("export function touchCard("), storeSrc.indexOf("function changed("));
+  assert.doesNotMatch(touchBody, /emitFollowSignal\(/);
+
+  // mountCard must not auto-follow pre-existing cards with saved boxes.
+  const mountBody = storeSrc.slice(storeSrc.indexOf("export function mountCard("), storeSrc.indexOf("export function setView("));
+  assert.doesNotMatch(mountBody, /followCard\(/);
+
+  // focusCard must default broadcast to false so local focus never hijacks another device.
+  assert.match(storeSrc, /function focusCard\(name: string, broadcast = false\)/);
+
+  // emitFollowSignal must require isFollowOn().
+  const emitBody = storeSrc.slice(storeSrc.indexOf("function emitFollowSignal("), storeSrc.indexOf("function adoptFollowSignal("));
+  assert.match(emitBody, /!isFollowOn\(\)/);
+
+  // CanvasSurface DOM fallback only fires on unmatched card HMR and disarms after matching.
+  assert.match(surfaceSrc, /lastUnmatchedCardHmrAt/);
+
+  // BrainCards delegates follow to followCard instead of raw localStorage.getItem("lalala:follow").
+  assert.doesNotMatch(brainCardsSrc, /localStorage\.getItem\("lalala:follow"\)/);
+  assert.match(brainCardsSrc, /followCard\(id,\s*"brain-card"\)/);
+
+  // VoiceHost never broadcasts focus across devices and gates voice "follow" command on Labs.
+  assert.match(hostSrc, /focus\?\.\(card,\s*false\)/);
+  assert.match(hostSrc, /isFollowLabEnabled\(\)/);
+
+  // Settings disables Follow canvas toggle while Labs -> Follow button is off.
+  assert.match(settingsSrc, /disabled=\{!followLab\}/);
 });

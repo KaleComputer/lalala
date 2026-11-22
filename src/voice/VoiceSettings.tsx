@@ -2416,16 +2416,22 @@ function VolumeRow() {
 
 export function CanvasRows() {
   const following = useSyncExternalStore(subscribeFollow, isFollowing, () => false);
+  const followLab = useSyncedSettings().labs.followButton;
   const streamer = useStreamerMode();
   return (
     <Section title="Canvas">
       <Row
         title="Follow canvas"
-        description="Moves the canvas to newly added or updated cards and cards the brain talks about — even when voice is off. Also the Follow toggle in the bar (enable in Labs), or say “follow”."
+        description={
+          followLab
+            ? "Moves the canvas to newly added or updated cards and cards the brain talks about — even when voice is off. Also the Follow toggle in the bar, or say “follow”."
+            : "Enable Follow button in Labs to allow the canvas to pan and zoom automatically."
+        }
         field
       >
         <Toggle
           on={following}
+          disabled={!followLab}
           label="Follow canvas"
           onChange={setFollowing}
         />
@@ -2502,7 +2508,7 @@ function LabsSection() {
       </Row>
       <Row
         title="Follow button"
-        description="Show the Follow toggle button in the bar to turn Follow canvas on and off directly."
+        description="Enable Follow canvas and show the Follow toggle button in the bar. Off disables Follow on every device."
         field
       >
         <Toggle

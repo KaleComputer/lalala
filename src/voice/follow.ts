@@ -5,8 +5,27 @@
  */
 const KEY = "lalala:follow";
 const EVENT = "lalala:follow";
+const SETTINGS_KEY = "lalala:settings";
+const SETTINGS_EVENT = "lalala:settings";
 
+/** Whether the Follow feature is enabled in Settings → Labs (`labs.followButton`). */
+export function isFollowLabEnabled(): boolean {
+  try {
+    const raw = JSON.parse(localStorage.getItem(SETTINGS_KEY) ?? "null") as {
+      labs?: { followButton?: unknown };
+    } | null;
+    return raw?.labs?.followButton === true;
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Effective Follow state on this device: always false while the Follow Labs gate is off, so a
+ * previously stored `lalala:follow = "1"` never hijacks the viewport invisibly.
+ */
 export function isFollowing(): boolean {
+  if (!isFollowLabEnabled()) return false;
   try {
     return localStorage.getItem(KEY) === "1";
   } catch {
@@ -20,20 +39,37 @@ export function setFollowing(on: boolean) {
   } catch {
     // No storage: follow stays off.
   }
-  document.dispatchEvent(new Event(EVENT));
+  if (typeof document !== "undefined") document.dispatchEvent(new Event(EVENT));
 }
 
 export const subscribeFollow = (listener: () => void) => {
+  const onStorage = (event: StorageEvent) => {
+    if (event.key === KEY || event.key === SETTINGS_KEY) listener();
+  };
   document.addEventListener(EVENT, listener);
-  return () => document.removeEventListener(EVENT, listener);
+  document.addEventListener(SETTINGS_EVENT, listener);
+  window.addEventListener("storage", onStorage);
+  return () => {
+    document.removeEventListener(EVENT, listener);
+    document.removeEventListener(SETTINGS_EVENT, listener);
+    window.removeEventListener("storage", onStorage);
+  };
 };
 
-/** "follow", "follow me" turn it on; "stop following", "unfollow" turn it off; else undefined. */
+/** Explicit follow voice commands: "follow"/"follow me" -> true, "stop following"/"unfollow" -> false. */
 export function followCommand(text: string): boolean | undefined {
   const words = text.toLowerCase().match(/[a-z']+/g) ?? [];
   const said = words.join(" ");
-  if (/\b(stop following|unfollow|don't follow|follow off)\b/.test(said)) return false;
-  if (words.length <= 4 && /\bfollow(ing)?\b/.test(said)) return true;
+  if (/\b(stop following|unfollow|don't follow|follow off|turn off follow|turn follow off|disable follow)\b/.test(said)) {
+    return false;
+  }
+  if (
+    /^(please )?(follow|follow me|follow along|follow canvas|follow the canvas|follow on|turn on follow|turn follow on|start following|enable follow)( please)?$/.test(
+      said,
+    )
+  ) {
+    return true;
+  }
   return undefined;
 }
 
