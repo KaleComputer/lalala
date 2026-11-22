@@ -2491,7 +2491,7 @@ function LabsSection() {
       ) : null}
       <Row
         title="Agent monitor"
-        description="Show the Agents tab in the bar and the pinnable Agent Monitor card for watching background workers."
+        description="Show the Agents tab in the bar and the pinnable Agent Monitor card for jumping to active threads."
         field
       >
         <Toggle

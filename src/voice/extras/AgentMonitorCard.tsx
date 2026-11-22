@@ -136,21 +136,6 @@ function formatElapsed(startedAt: string, endMs: number): string {
   return `${hours}h ${String(remMins).padStart(2, "0")}m`;
 }
 
-function formatDoneAt(completedAt: string | null, now: Date): string {
-  if (!completedAt) return "done";
-  const date = new Date(completedAt);
-  if (Number.isNaN(date.getTime())) return "done";
-  const hh = String(date.getHours()).padStart(2, "0");
-  const mm = String(date.getMinutes()).padStart(2, "0");
-  const sameDay =
-    date.getFullYear() === now.getFullYear() &&
-    date.getMonth() === now.getMonth() &&
-    date.getDate() === now.getDate();
-  if (sameDay) return `done at ${hh}:${mm}`;
-  const day = date.toLocaleDateString("en-US", { weekday: "short" });
-  return `done ${day} ${hh}:${mm}`;
-}
-
 function formatCompactMeta(agent: AgentRunView, now: number): string {
   if (agent.status === "running") return formatElapsed(agent.startedAt, now);
   if (agent.status === "waiting") return "waiting";
@@ -171,17 +156,9 @@ function formatCompactMeta(agent: AgentRunView, now: number): string {
   return `${day} ${hh}:${mm}`;
 }
 
-function formatDuration(startedAt: string, completedAt: string | null): string | null {
-  if (!completedAt) return null;
-  const start = Date.parse(startedAt);
-  const end = Date.parse(completedAt);
-  if (!Number.isFinite(start) || !Number.isFinite(end) || end <= start) return null;
-  return formatElapsed(startedAt, end);
-}
-
 /**
  * Pinnable Agent Monitor card on the canvas (behind Settings -> Labs -> Agent monitor):
- * compact one-line-per-agent rows with zero pulsing dots and click-to-expand details.
+ * compact one-line-per-agent direct links that open each T3 thread in one click.
  */
 export function AgentMonitorCard() {
   const labEnabled = useSyncExternalStore(subscribeLab, () => cachedLab, () => false);
@@ -210,9 +187,10 @@ export function AgentMonitorCard() {
 }
 
 function AgentMonitorBody() {
-  const agents = useSyncExternalStore(subscribeAgents, getAgentsSnapshot, () => EMPTY_AGENTS);
+  const agents = useSyncExternalStore(subscribeAgents, getAgentsSnapshot, () => EMPTY_AGENTS).filter(
+    (agent) => agent.title.trim() !== "" && agent.title !== "Background worker",
+  );
   const [filter, setFilter] = useState<"all" | "active">("all");
-  const [expandedId, setExpandedId] = useState<string | null>(null);
   const [now, setNow] = useState(() => Date.now());
 
   const active = agents.filter(isActive);
@@ -260,92 +238,42 @@ function AgentMonitorBody() {
         <p data-lalala-agent-card-empty="">
           {filter === "active"
             ? "No agents running right now."
-            : "No background workers yet. Live progress appears here automatically."}
+            : "No agent runs yet. Threads appear here automatically."}
         </p>
       ) : (
         <ol data-lalala-agent-card-list="">
           {shown.map((agent) => {
             const running = isActive(agent);
-            const expanded = expandedId === agent.id;
             const compactMeta = formatCompactMeta(agent, now);
-            const duration = running ? null : formatDuration(agent.startedAt, agent.completedAt);
-            const timingDetail = running
-              ? `Running for ${formatElapsed(agent.startedAt, now)}`
-              : `${formatDoneAt(agent.completedAt, new Date(now))}${duration ? ` · ${duration}` : ""}`;
-            const statusLabel =
-              agent.status === "running"
-                ? "Running"
-                : agent.status === "waiting"
-                  ? "Waiting"
-                  : agent.status === "failed"
-                    ? "Failed"
-                    : agent.status === "cancelled"
-                      ? "Stopped"
-                      : "Completed";
-            return (
-              <li
-                key={agent.id}
-                data-lalala-agent-card-item=""
-                data-status={agent.status}
-                data-expanded={expanded ? "" : undefined}
-              >
-                <button
-                  type="button"
-                  data-lalala-agent-card-row=""
-                  aria-expanded={expanded}
-                  onClick={() =>
-                    setExpandedId((current) => (current === agent.id ? null : agent.id))
-                  }
+            const rowContent = (
+              <>
+                <span data-lalala-agent-card-title="">
+                  <Hidden text={agent.title} />
+                </span>
+                <time
+                  data-lalala-agent-card-time=""
+                  dateTime={running ? agent.startedAt : (agent.completedAt ?? agent.updatedAt)}
                 >
-                  <span data-lalala-agent-card-title="">
-                    <Hidden text={agent.title} />
-                  </span>
-                  <time
-                    data-lalala-agent-card-time=""
-                    dateTime={running ? agent.startedAt : (agent.completedAt ?? agent.updatedAt)}
+                  {compactMeta}
+                </time>
+              </>
+            );
+            return (
+              <li key={agent.id} data-lalala-agent-card-item="" data-status={agent.status}>
+                {agent.link ? (
+                  <a
+                    data-lalala-agent-card-row=""
+                    href={agent.link}
+                    target="_blank"
+                    rel="noreferrer"
                   >
-                    {compactMeta}
-                  </time>
-                  <svg data-lalala-agent-card-chevron="" viewBox="0 0 16 16" aria-hidden="true">
-                    <path d="M6 4l4 4-4 4" />
-                  </svg>
-                </button>
-                {expanded ? (
-                  <div data-lalala-agent-card-details="">
-                    <div data-lalala-agent-card-meta="">
-                      <span>{statusLabel}</span>
-                      <span>·</span>
-                      <span>{timingDetail}</span>
-                    </div>
-                    {agent.step ? (
-                      <p data-lalala-agent-card-step="">
-                        <Hidden text={agent.step} />
-                      </p>
-                    ) : null}
-                    {agent.card || agent.link ? (
-                      <div data-lalala-agent-card-actions="">
-                        {agent.card ? (
-                          <Button
-                            data-lalala-agent-card-action=""
-                            onClick={() => globalThis.__lalalaCanvases?.focus?.(agent.card!)}
-                          >
-                            Show card
-                          </Button>
-                        ) : null}
-                        {agent.link ? (
-                          <a
-                            data-lalala-agent-card-action=""
-                            href={agent.link}
-                            target="_blank"
-                            rel="noreferrer"
-                          >
-                            Open thread
-                          </a>
-                        ) : null}
-                      </div>
-                    ) : null}
+                    {rowContent}
+                  </a>
+                ) : (
+                  <div data-lalala-agent-card-row="" data-inert="">
+                    {rowContent}
                   </div>
-                ) : null}
+                )}
               </li>
             );
           })}

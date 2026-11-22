@@ -1,4 +1,4 @@
-/* Live Agent Progress & Monitor: bar tab (icon + count, no dot) and compact one-line-per-agent popover. */
+/* Live Agent Monitor: bar tab (icon + count, no dot) and compact one-line-per-agent direct thread list. */
 [data-lalala-presence] [data-lalala-agents-tab][data-lalala-tab] {
   width: auto;
   min-width: var(--lalala-input-tab-w);
@@ -31,7 +31,6 @@
   --a-fg-3: color-mix(in srgb, var(--a-fg) 42%, transparent);
   --a-border: color-mix(in srgb, var(--a-fg) 9%, transparent);
   --a-hover: color-mix(in srgb, var(--a-fg) 6%, transparent);
-  --a-expand-bg: color-mix(in srgb, var(--a-fg) 3.5%, transparent);
   --a-accent: var(--lala-accent, #3dff8f);
   --a-warn: var(--lala-warn, #ffc14d);
   --a-danger: var(--lala-danger, #ff5c7a);
@@ -162,30 +161,32 @@
   border-bottom: 0;
 }
 
-/* Fixed-height single-line row: zero layout shift while agents run. */
+/* Fixed-height single-line direct thread link: zero layout shift, one click to open in T3 Code. */
 [data-lalala-agents-row] {
+  box-sizing: border-box;
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 10px;
   width: 100%;
   height: 32px;
   padding: 0 12px;
-  border: 0;
-  background: none;
   color: inherit;
   font: inherit;
-  text-align: left;
+  text-decoration: none;
   cursor: pointer;
+}
+[data-lalala-agents-row][data-inert] {
+  cursor: default;
 }
 [data-lalala-agents-row]:focus-visible {
   outline: 1px solid var(--a-accent);
   outline-offset: -1px;
 }
 @media (hover: hover) {
-  [data-lalala-agents-row]:hover {
+  a[data-lalala-agents-row]:hover {
     background: var(--a-hover);
   }
-  :is([data-lalala-agents-action], [data-lalala-agents-icon], [data-lalala-agents-panel] > header [data-lalala-agents-close]):not(
+  :is([data-lalala-agents-icon], [data-lalala-agents-panel] > header [data-lalala-agents-close]):not(
       :disabled
     ):hover {
     background: var(--a-hover);
@@ -226,63 +227,6 @@
 }
 [data-lalala-agents-item][data-status="failed"] [data-lalala-agents-time] {
   color: var(--a-danger);
-}
-
-[data-lalala-agents-chevron] {
-  flex: none;
-  width: 12px !important;
-  height: 12px !important;
-  color: var(--a-fg-3);
-  transition: transform 120ms ease;
-}
-[data-lalala-agents-item][data-expanded] [data-lalala-agents-chevron] {
-  transform: rotate(90deg);
-  color: var(--a-fg-2);
-}
-
-[data-lalala-agents-details] {
-  padding: 6px 12px 10px;
-  background: var(--a-expand-bg);
-  border-top: 1px solid color-mix(in srgb, var(--a-border) 60%, transparent);
-}
-[data-lalala-agents-detail-meta] {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 5px;
-  color: var(--a-fg-3);
-  font: 500 11px / 15px var(--a-mono);
-  font-variant-numeric: tabular-nums;
-}
-[data-lalala-agents-step] {
-  margin: 5px 0 0;
-  color: var(--a-fg-2);
-  font-size: 12px;
-  line-height: 17px;
-  overflow-wrap: anywhere;
-}
-[data-lalala-agents-item][data-status="failed"] [data-lalala-agents-step] {
-  color: var(--a-danger);
-}
-
-[data-lalala-agents-actions] {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 6px;
-  margin-top: 8px;
-}
-[data-lalala-agents-action] {
-  display: inline-flex;
-  align-items: center;
-  gap: 5px;
-  height: 25px;
-  padding: 0 9px;
-  border: 1px solid var(--a-border);
-  border-radius: 6px;
-  color: var(--a-fg);
-  font: 500 11.5px / 1 var(--a-sans);
-  text-decoration: none;
-  background: none;
-  cursor: pointer;
 }
 
 [data-lalala-agents-empty] {

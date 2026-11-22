@@ -277,7 +277,7 @@ export function projectDelegateShell(
   link: string | null,
   nowIso = new Date().toISOString(),
 ): AgentRun {
-  const title = firstString(thread.title, prev?.title) ?? "Background worker";
+  const title = firstString(thread.title, prev?.title) ?? thread.id.slice(-8);
   const resolvedLink = link ?? prev?.link ?? null;
   const active = thread.activeRunId != null;
   const updatedAt = firstString(thread.updatedAt, prev?.updatedAt) ?? nowIso;
@@ -443,7 +443,12 @@ export function projectBrainNotificationAgents(
     const card = extractLinkedCard(replyText) ?? existing?.card ?? null;
     const completedAt = item.startedAt ?? item.updatedAt;
     const outcomeStatus = trigger.outcome ? normalizeRunStatus(trigger.outcome) : "completed";
-    const title = firstString(context.titleOf(threadId), existing?.title) ?? "Background worker";
+    const title = firstString(
+      context.titleOf(threadId),
+      existing?.title,
+      trigger.lead ? clip(trigger.lead, 64) : null,
+    );
+    if (!title) continue;
     const link = context.linkOf(threadId) ?? existing?.link ?? null;
 
     // Never downgrade an actively running delegate from an older notification of an earlier run.

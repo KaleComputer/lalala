@@ -343,6 +343,31 @@ test("formatting helpers and bridge SSE reducer handle agents events cleanly", (
   assert.equal(afterUpdate.agents[0]?.status, "completed");
   assert.equal(afterUpdate.agents[0]?.completedAt, "2026-11-22T10:00:45.000Z");
 
+  // Nameless historical notifications without title or lead are omitted (never shown as "Background worker").
+  const nameless = projectBrainNotificationAgents(
+    new Map(),
+    [
+      {
+        item: {
+          id: "n-anon",
+          type: "notification",
+          text: "",
+          streaming: false,
+          parentItemId: null,
+          startedAt: "2026-11-22T11:55:00.000Z",
+          updatedAt: "2026-11-22T11:55:00.000Z",
+          runId: "r-anon",
+          trigger: { kind: "delegated", threadId: "anon-1", outcome: "completed" },
+        },
+      },
+    ],
+    {
+      titleOf: () => null,
+      linkOf: () => null,
+    },
+  );
+  assert.equal(nameless.size, 0);
+
   // Labs flag defaults off and parses cleanly.
   assert.equal(parseSynced({})?.labs.agentsMonitor, false);
   assert.equal(parseSynced({ labs: { agentsMonitor: true } })?.labs.agentsMonitor, true);
