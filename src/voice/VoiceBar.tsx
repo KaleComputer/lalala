@@ -23,6 +23,7 @@ import { isFollowing, setFollowing, subscribeFollow } from "./follow";
 import { InboxTab } from "./inbox/InboxTab";
 import { useUpdateReady } from "./phoneUpdate";
 import { SecretAsks } from "./SecretAsk";
+import { useSyncedSettings } from "./settingsStore";
 import { TOPIC_EVENT, TOPIC_SOUND_FALLBACK_MS } from "./player";
 import { type VoiceFileUpload, VoiceInput, type VoiceInputSubmit } from "./VoiceInput";
 import {
@@ -203,6 +204,7 @@ export function VoiceBar(props: {
   const [room, setRoom] = useState<HTMLElement | null>(null);
   const onCanvas = useLocation({ select: (location) => location.pathname === "/canvas" });
   const following = useSyncExternalStore(subscribeFollow, isFollowing, () => false);
+  const showFollowButton = useSyncedSettings().labs.followButton;
   // An update starts playing: UPDATE wipes over the room for a moment, the wave running on beneath it.
   // How long it shows (the update sound's length, ms); 0 when it doesn't.
   const [topicMs, setTopicMs] = useState(0);
@@ -500,7 +502,7 @@ export function VoiceBar(props: {
       {canvasHost !== null && inputHosts !== null ? (
         <CanvasTabs tabHost={canvasHost} panelHost={inputHosts.panel} bar={inputHosts.bar} />
       ) : null}
-      {followHost !== null && onCanvas
+      {followHost !== null && onCanvas && showFollowButton
         ? createPortal(
             <Toggle
               data-lalala-follow=""

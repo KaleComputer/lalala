@@ -34,8 +34,15 @@ export type Labs = {
   readonly awayDigest: boolean;
   /** Live Agent Progress & Monitor tab in the bar + pinnable Agent Monitor card (src/voice/agents). */
   readonly agentsMonitor: boolean;
+  /** Follow toggle button in the bottom voice bar (src/voice/VoiceBar). */
+  readonly followButton: boolean;
 };
-const DEFAULT_LABS: Labs = { awayInbox: false, awayDigest: false, agentsMonitor: false };
+const DEFAULT_LABS: Labs = {
+  awayInbox: false,
+  awayDigest: false,
+  agentsMonitor: false,
+  followButton: false,
+};
 
 // The brain's model with its own defaults: options are per provider (Claude's `effort`, Codex's
 // `reasoningEffort`), and T3 refuses a delegate whose options its model doesn't have.
@@ -95,6 +102,7 @@ export function parseSynced(value: unknown): SyncedSettings | null {
       awayInbox: isRecord(value.labs) && value.labs.awayInbox === true,
       awayDigest: isRecord(value.labs) && value.labs.awayDigest === true,
       agentsMonitor: isRecord(value.labs) && value.labs.agentsMonitor === true,
+      followButton: isRecord(value.labs) && value.labs.followButton === true,
     },
     onboardingDismissed: value.onboardingDismissed === true,
     at: typeof value.at === "number" ? value.at : 0,

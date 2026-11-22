@@ -8,6 +8,7 @@ import { test } from "node:test";
 
 import { matchCardByModulePath, takeAboutCards, takeFocus } from "../../src/voice/follow.ts";
 import { applyInboxChange, captureInbox, EMPTY_INBOX } from "../../src/voice/inbox/capture.ts";
+import { parseSynced } from "../../src/voice/settingsStore.ts";
 import { settleBrainThread } from "../../src/voice/settleThread.ts";
 import { readCanvasLayout, saveCanvasCards } from "../../vite/canvasLayout.ts";
 
@@ -140,4 +141,10 @@ test("canvasLayout merges cross-device follow signals (newest wins, invalid igno
     else process.env.LALALA_CANVAS_FILE = prev;
     NodeFS.rmSync(dir, { recursive: true, force: true });
   }
+});
+
+test("labs.followButton defaults off and parses strictly as boolean", () => {
+  assert.equal(parseSynced({})?.labs.followButton, false);
+  assert.equal(parseSynced({ labs: { followButton: true } })?.labs.followButton, true);
+  assert.equal(parseSynced({ labs: { followButton: "yes" } })?.labs.followButton, false);
 });

@@ -2421,7 +2421,7 @@ export function CanvasRows() {
     <Section title="Canvas">
       <Row
         title="Follow canvas"
-        description="Moves the canvas to newly added or updated cards and cards the brain talks about — even when voice is off. Also the Follow toggle in the bar, or say “follow”."
+        description="Moves the canvas to newly added or updated cards and cards the brain talks about — even when voice is off. Also the Follow toggle in the bar (enable in Labs), or say “follow”."
         field
       >
         <Toggle
@@ -2498,6 +2498,17 @@ function LabsSection() {
           on={labs.agentsMonitor}
           label="labs: agent monitor"
           onChange={(on) => setLab("agentsMonitor", on)}
+        />
+      </Row>
+      <Row
+        title="Follow button"
+        description="Show the Follow toggle button in the bar to turn Follow canvas on and off directly."
+        field
+      >
+        <Toggle
+          on={labs.followButton}
+          label="labs: follow button"
+          onChange={(on) => setLab("followButton", on)}
         />
       </Row>
     </Section>
