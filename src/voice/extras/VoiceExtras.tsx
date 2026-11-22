@@ -3,6 +3,7 @@ import { AgentMonitorCard } from "./AgentMonitorCard";
 import { BrainCards } from "./BrainCards";
 import { CanvasMap } from "./CanvasMap";
 import { CanvasSurface } from "./CanvasSurface";
+import { StarterCard } from "./StarterCard";
 import "./look";
 import "./looks/looks";
 
@@ -13,13 +14,19 @@ import "./looks/looks";
  *   <CanvasCard id="..." title="..." at={{ x, y, w, h }}><YourThing /></CanvasCard>
  * `children` are a host's own cards (lalala.talk's), beside these and the brain's file cards.
  */
-export function VoiceExtras(props: { readonly children?: ReactNode }) {
+export function VoiceExtras(props: {
+  readonly children?: ReactNode;
+  /** Auto-mount the Starter Selector when Main has 0 cards (on in the local app, off on lalala.talk). */
+  readonly starter?: boolean;
+}) {
+  const starter = props.starter ?? import.meta.env?.LALALA_HOST !== "site";
   return (
     <>
       <CanvasSurface>
         <AgentMonitorCard />
         <BrainCards />
         {props.children}
+        <StarterCard enabled={starter} />
       </CanvasSurface>
       <CanvasMap />
     </>

@@ -74,6 +74,9 @@ run(process.execPath, ["--experimental-strip-types", "--no-warnings", "--test", 
 step("live agent progress projection, timestamps, and bridge state hold (scripts/agents-monitor)");
 run(process.execPath, ["--experimental-strip-types", "--no-warnings", "--test", "scripts/agents-monitor/check.test.mjs"]);
 
+step("first-run onboarding starter card and dismissal persistence hold (scripts/starter)");
+run(process.execPath, ["--experimental-strip-types", "--no-warnings", "--test", "scripts/starter/check.test.mjs"]);
+
 if (!process.argv.includes("--files-only")) {
   step("site typechecks (as on Vercel)");
   const site = NodePath.join(root, "site");

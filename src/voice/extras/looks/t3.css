@@ -445,6 +445,20 @@
   font: 400 13px / 1 var(--lala-font-sans);
   letter-spacing: 0;
 }
+:root[data-lala-look="t3"] [data-lalala-presence] [data-lalala-canvas-starter] {
+  min-height: 30px;
+  padding: 6px 12px;
+  color: var(--t3l-text);
+  background: var(--lala-raise-2);
+  font: 500 12px / 1.2 var(--lala-font-sans);
+  letter-spacing: 0;
+  text-transform: none;
+}
+:root[data-lala-look="t3"]
+  [data-lalala-presence]
+  [data-lalala-canvas-starter]:is(:hover, :focus-visible) {
+  background: linear-gradient(var(--t3l-hover), var(--t3l-hover)), var(--lala-raise-2);
+}
 :root[data-lala-look="t3"] [data-lalala-presence] [data-lalala-canvas-actions] > button {
   height: 28px;
   color: var(--t3l-text);

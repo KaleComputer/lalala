@@ -1,7 +1,5 @@
 import { useSyncExternalStore } from "react";
 
-import { REQUEST_TIMEOUT_MS } from "./voiceErrors";
-
 /**
  * The voice's own settings. `synced` is one value for every device (the storage adapter keeps it,
  * newest write wins; without a shared store it stays on this device); the mic is per device. The brain's own model lives on its T3 thread, not here.
@@ -24,6 +22,8 @@ export type SyncedSettings = {
   readonly modelVoices: Readonly<Record<string, string>>;
   /** Labs: features still settling in, each off until the user turns it on (VoiceSettings' Labs). */
   readonly labs: Labs;
+  /** Whether the local canvas's first-run Starter Selector has been dismissed. */
+  readonly onboardingDismissed: boolean;
   readonly at: number;
 };
 
@@ -46,6 +46,7 @@ const DEFAULTS: SyncedSettings = {
   topicSound: DEFAULT_TOPIC_SOUND,
   modelVoices: {},
   labs: DEFAULT_LABS,
+  onboardingDismissed: false,
   at: 0,
 };
 
@@ -62,7 +63,7 @@ const storage = () => {
 const isRecord = (value: unknown): value is Record<string, unknown> =>
   typeof value === "object" && value !== null && !Array.isArray(value);
 
-function parseSynced(value: unknown): SyncedSettings | null {
+export function parseSynced(value: unknown): SyncedSettings | null {
   if (!isRecord(value)) return null;
   const delegates = isRecord(value.delegates) ? value.delegates : {};
   const options = isRecord(delegates.options)
@@ -92,6 +93,7 @@ function parseSynced(value: unknown): SyncedSettings | null {
       awayInbox: isRecord(value.labs) && value.labs.awayInbox === true,
       awayDigest: isRecord(value.labs) && value.labs.awayDigest === true,
     },
+    onboardingDismissed: value.onboardingDismissed === true,
     at: typeof value.at === "number" ? value.at : 0,
   };
 }
@@ -114,13 +116,18 @@ function adopt(next: SyncedSettings) {
   } catch {
     // No storage: this tab keeps it in memory.
   }
-  document.dispatchEvent(new Event(EVENT));
+  if (typeof document !== "undefined") document.dispatchEvent(new Event(EVENT));
 }
 
 export const syncedSettings = (): SyncedSettings => current();
 
 export const setLab = (name: keyof Labs, on: boolean) =>
   updateSynced({ labs: { ...current().labs, [name]: on } });
+
+export const onboardingDismissed = (): boolean => current().onboardingDismissed;
+
+export const setOnboardingDismissed = (dismissed: boolean) =>
+  updateSynced({ onboardingDismissed: dismissed });
 
 export function updateSynced(patch: Partial<Omit<SyncedSettings, "at">>) {
   const next = { ...current(), ...patch, at: Math.max(Date.now(), current().at + 1) };
@@ -367,6 +374,22 @@ export const useAutoStartCall = () =>
   useSyncExternalStore(subscribeSettings, autoStartCall, () => false);
 export const useAutoRetrySeconds = () =>
   useSyncExternalStore(subscribeSettings, autoRetrySeconds, () => DEFAULT_AUTO_RETRY_SECONDS);
+export const useOnboardingDismissed = () =>
+  useSyncExternalStore(subscribeSettings, onboardingDismissed, () => false);
+
+declare global {
+  /** Shared bridge for extras/ (which may not import settingsStore) to read and persist onboarding dismissal. */
+  var __lalalaOnboarding:
+    | {
+        readonly isDismissed: () => boolean;
+        readonly setDismissed: (dismissed: boolean) => void;
+      }
+    | undefined;
+}
+globalThis.__lalalaOnboarding = {
+  isDismissed: onboardingDismissed,
+  setDismissed: setOnboardingDismissed,
+};
 
 /** For the brain's context tag: `default effort=high fastMode=false`. */
 export function delegatesTag(delegates = current().delegates): string {
