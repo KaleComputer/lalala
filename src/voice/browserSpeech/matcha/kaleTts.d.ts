@@ -31,7 +31,7 @@ export class G2pModel {
   constructor(buffer: ArrayBuffer);
 }
 export class G2p {
-  constructor(lex: Map<string, string>, model?: G2pModel | null);
+  constructor(lex: Map<string, string>, model?: G2pModel | null, overrides?: ReadonlySet<string> | null);
   phonemes(sentence: string): string;
 }
 export function readTable(text: string, into?: Map<string, string>): Map<string, string>;

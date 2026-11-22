@@ -215,14 +215,22 @@ function pastSuffix(ipa) {
   return "d";
 }
 
+const OVERRIDE_KEYS = new WeakMap();
+
 function readTable(text, into) {
   const out = into || new Map();
+  const track = into ? (OVERRIDE_KEYS.get(into) || new Set()) : null;
   for (const raw of text.split("\n")) {
     const line = raw.replace(/\r$/, "");
     if (!line || line.startsWith("#")) continue;
     const tab = line.indexOf("\t");
-    if (tab > 0) out.set(line.slice(0, tab), line.slice(tab + 1));
+    if (tab > 0) {
+      const key = line.slice(0, tab);
+      out.set(key, line.slice(tab + 1));
+      if (track) track.add(key);
+    }
   }
+  if (track) OVERRIDE_KEYS.set(out, track);
   return out;
 }
 
@@ -363,7 +371,12 @@ function letterRun(tokens, start) {
 const FINAL_STRONG = { the: "ðˈʌ", a: "ˈeɪ", an: "ˈæn", to: "tˈuː" };
 
 class G2p {
-  constructor(lex, model) { this.lex = lex; this.model = model || null; this.learnt = new Map(); }
+  constructor(lex, model, overrides = null) {
+    this.lex = lex;
+    this.model = model || null;
+    this.overrides = overrides || OVERRIDE_KEYS.get(lex) || null;
+    this.learnt = new Map();
+  }
 
   phonemes(sentence) {
     const tokens = fold(sentence).match(TOKEN) || [];
@@ -452,8 +465,36 @@ class G2p {
     return this.lookup(low, w);
   }
 
+  /** Possessives ('s, s') whose stem is overridden inherit the override instead of a stale base-lexicon possessive. */
+  overridePossessive(low) {
+    const ov = this.overrides;
+    if (!ov || ov.size === 0 || ov.has(low)) return null;
+    if (low.endsWith("'s") && low.length > 2) {
+      const stem = low.slice(0, -2);
+      if (ov.has(stem)) {
+        const base = this.lex.get(stem);
+        if (base) { const ipa = this.letters(stem, base); return ipa + pluralSuffix(ipa); }
+      }
+    }
+    if (low.endsWith("s'") && low.length > 2) {
+      const pluralStem = low.slice(0, -1);
+      if (ov.has(pluralStem)) {
+        const base = this.lex.get(pluralStem);
+        if (base) return this.letters(pluralStem, base);
+      }
+      const singularStem = low.slice(0, -2);
+      if (singularStem.length > 1 && ov.has(singularStem)) {
+        const base = this.lex.get(singularStem);
+        if (base) { const ipa = this.letters(singularStem, base); return ipa + pluralSuffix(ipa); }
+      }
+    }
+    return null;
+  }
+
   lookup(low, original) {
     const lex = this.lex;
+    const ov = this.overridePossessive(low);
+    if (ov !== null) return ov;
     if (lex.has(low)) return this.letters(low, lex.get(low));
     if (original === null) return null;
     for (const [cands, suffix] of this.stems(low)) {

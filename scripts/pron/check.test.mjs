@@ -62,6 +62,17 @@ test("21–22 Nov regression words use their clean pronunciations (no corrupted 
   // h013f canary: Elizabeth met Socrates (prevents "Elizabeth Metz Socrates" blur)
   assert.equal(us("Elizabeth met Socrates."), "ᵻlˈɪzəbɪθ mˈɛt sˈɑːkɹətˌiːz.");
   assert.equal(gb("Elizabeth met Socrates."), "ɪlˈɪzəbɪθ mˈɛt sˈɒkɹətˌiːz.");
+  // Possessives and inflections ('s, s') inherit overridden stems instead of stale base-lexicon entries
+  assert.equal(us("Elizabeth wore Elizabeth's crown."), "ᵻlˈɪzəbɪθ wˈoːɹ ᵻlˈɪzəbɪθs kɹˈaʊn.");
+  assert.equal(gb("Elizabeth wore Elizabeth's crown."), "ɪlˈɪzəbɪθ wˈɔː ɪlˈɪzəbɪθs kɹˈaʊn.");
+  assert.equal(us("Elizabeth’s"), "ᵻlˈɪzəbɪθs");
+  assert.equal(gb("Elizabeth’s"), "ɪlˈɪzəbɪθs");
+  assert.equal(us("Elizabeths'"), "ᵻlˈɪzəbɪθs");
+  assert.equal(gb("Elizabeths'"), "ɪlˈɪzəbɪθs");
+  assert.equal(us("Sunday's"), "sˈʌndˌeɪz");
+  assert.equal(gb("Sunday's"), "sˈʌndˌeɪz");
+  assert.equal(us("Sundays'"), "sˈʌndˌeɪz");
+  assert.equal(gb("Sundays'"), "sˈʌndˌeɪz");
 });
 
 test("21 Nov improvements stay intact in both accents", () => {
