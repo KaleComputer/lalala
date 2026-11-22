@@ -191,7 +191,10 @@ try {
       if (await evalPage(expression)) return;
       await sleep(150);
     }
-    throw new Error(`timeout waiting for ${what}`);
+    const diag = await evalPage(`(() => ({
+      imgs: [...document.images].map((i) => ({ alt: i.alt, lod: i.dataset.lalalaLod, nw: i.naturalWidth, complete: i.complete, src: (i.getAttribute("src")||"").slice(0,80) })),
+    }))()`).catch(() => null);
+    throw new Error(`timeout waiting for ${what}; diag=${JSON.stringify(diag)}`);
   };
 
   // Phone viewport (390×844 @ 3x DPR, touch)
@@ -209,12 +212,12 @@ try {
 
   // Place cards in a known grid with far5 genuinely off-screen, then zoom out to 0.18 (iPhone overview).
   await evalPage(`${store}.then((s) => {
-    s.setCard("card0", { x: 0, y: 0, w: 500, h: 680 });
-    s.setCard("card1", { x: 560, y: 0, w: 500, h: 680 });
-    s.setCard("card2", { x: 1120, y: 0, w: 500, h: 680 });
-    s.setCard("card3", { x: 0, y: 760, w: 500, h: 680 });
-    s.setCard("card4", { x: 560, y: 760, w: 500, h: 680 });
-    s.setCard("far5", { x: 9000, y: 9000, w: 500, h: 680 });
+    s.setCard("card0", { x: 0, y: 0, w: 500, h: 680, sized: true });
+    s.setCard("card1", { x: 560, y: 0, w: 500, h: 680, sized: true });
+    s.setCard("card2", { x: 1120, y: 0, w: 500, h: 680, sized: true });
+    s.setCard("card3", { x: 0, y: 760, w: 500, h: 680, sized: true });
+    s.setCard("card4", { x: 560, y: 760, w: 500, h: 680, sized: true });
+    s.setCard("far5", { x: 9000, y: 9000, w: 500, h: 680, sized: true });
     s.setCamera({ x: 30, y: 80, z: 0.18 });
   })`);
   await waitUntil(
@@ -275,12 +278,67 @@ try {
     throw new Error(`Expected zoomed-in phone imgMB <= 12 MB (raw is 184 MB), got ${zoomedStats.imgMB} MB`);
   }
 
-  // Zoom back OUT to 0.18 -> Card 0 downgrades back to <= 256 px to reclaim memory!
+  // Zoom back OUT to 0.18 -> Card 0 downgrades back to <= 256 px and total imgMB returns to baseline (no doubling!).
   await evalPage(`${store}.then((s) => s.setCamera({ x: 30, y: 80, z: 0.18 }))`);
   await waitUntil(
     `[...document.images].some(i => i.alt === "Card 0" && Number(i.dataset.lalalaLod) <= 256 && i.complete && i.naturalWidth <= 256)`,
     "Card 0 downgraded back to <= 256 px when zooming back out",
   );
+  await sleep(450);
+
+  const afterZoomOutStats = await evalPage(`(() => {
+    let bytes = 0;
+    for (const img of document.images) {
+      if (img.complete) bytes += img.naturalWidth * img.naturalHeight * 4;
+    }
+    return { imgMB: Math.round((bytes / 1e6) * 100) / 100 };
+  })()`);
+  console.log("Phone after zoom-in -> zoom-out (z=0.18) stats:", JSON.stringify(afterZoomOutStats));
+  if (afterZoomOutStats.imgMB > overviewStats.imgMB + 0.5) {
+    throw new Error(
+      `Memory did not return to baseline after zoom-in -> zoom-out: before=${overviewStats.imgMB} MB, after=${afterZoomOutStats.imgMB} MB`,
+    );
+  }
+
+  // Desktop viewport check: zoomed-in at z=0.75 loads full lossless 2400px (never blurry), then
+  // zooming back out to z=0.18 downgrades and reclaims memory back to <= 4 MB!
+  await cdp("Emulation.setTouchEmulationEnabled", { enabled: false });
+  await cdp("Emulation.setDeviceMetricsOverride", {
+    width: 1440,
+    height: 900,
+    deviceScaleFactor: 2,
+    mobile: false,
+  });
+  await evalPage(`${store}.then((s) => s.setCamera({ x: 40, y: 60, z: 0.75 }))`);
+  await waitUntil(
+    `[...document.images].some(i => i.alt === "Card 0" && i.dataset.lalalaLod === "full" && i.complete && i.naturalWidth === 2400)`,
+    "Desktop zoomed-in Card 0 loaded at full lossless 2400px",
+  );
+  await evalPage(`${store}.then((s) => s.setCamera({ x: 40, y: 60, z: 0.18 }))`);
+  await waitUntil(
+    `[...document.images].some(i => i.alt === "Card 0" && Number(i.dataset.lalalaLod) <= 256 && i.complete && i.naturalWidth <= 256)`,
+    "Desktop zoomed-out Card 0 downgraded back to <= 256 px",
+  );
+  await sleep(400);
+  const desktopOutMB = await evalPage(`(() => {
+    let bytes = 0;
+    for (const img of document.images) if (img.complete) bytes += img.naturalWidth * img.naturalHeight * 4;
+    return Math.round((bytes / 1e6) * 100) / 100;
+  })()`);
+  console.log("Desktop after zoom-in -> zoom-out (z=0.18) imgMB:", desktopOutMB);
+  if (desktopOutMB > 4) {
+    throw new Error(`Desktop imgMB did not reclaim after zoom-out: got ${desktopOutMB} MB`);
+  }
+  // Restore phone viewport for modal & UI checks
+  await cdp("Emulation.setDeviceMetricsOverride", {
+    width: 390,
+    height: 844,
+    deviceScaleFactor: 3,
+    mobile: true,
+  });
+  await cdp("Emulation.setTouchEmulationEnabled", { enabled: true, maxTouchPoints: 5 });
+  await evalPage(`${store}.then((s) => s.setCamera({ x: 10, y: 60, z: 0.78 }))`);
+  await sleep(300);
 
   // Open ZoomImage-style modal on Card 0 -> untouched full 2400×3200 resolution!
   await evalPage(`document.querySelector('img[alt="Card 0"]')?.click()`);

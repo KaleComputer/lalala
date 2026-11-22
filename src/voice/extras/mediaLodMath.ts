@@ -48,6 +48,12 @@ export function lodUrlFor(rawSrc: string, bucket: number, origin: string): strin
 /**
  * Picks the target LOD pixel width (`128..1600`, or `Infinity` for full original resolution)
  * for an image occupying `(screenCssW, screenCssH)` CSS px on screen at camera `zoom`.
+ *
+ * Rules:
+ * - Only downscale aggressively when genuinely tiny / zoomed out in overview mode.
+ * - Readable cards on screen get full device sharpness (on desktop, full original resolution at
+ *   `z >= 0.65` or whenever physical width > 1200 px; on phones, 2×–2.5× effective DPR capped at
+ *   960/1600 px inline so diagrams stay crisp without ever decoding a 97 MB 4096px bitmap inline).
  */
 export function chooseLodBucket(params: {
   readonly screenCssW: number;
@@ -60,46 +66,37 @@ export function chooseLodBucket(params: {
 }): number {
   if (params.inModal || params.forceFull) return Infinity;
   const { screenCssW, screenCssH, zoom, dpr, phone } = params;
-  const effDpr = phone
-    ? zoom < 0.45
-      ? 1.0
-      : zoom < 0.85
-        ? 1.5
-        : 2.0
-    : zoom < 0.35
-      ? 1.25
-      : zoom < 0.7
-        ? Math.min(dpr, 1.75)
-        : Math.min(dpr, 2.0);
-  // Primarily width-driven, with a floor from height so tall portrait diagrams stay crisp.
-  const needed = Math.max(screenCssW, screenCssH * 0.75) * effDpr;
 
-  if (phone) {
-    // Never decode a 4096px bitmap inline on a phone: full-res opens in ZoomImage modal.
-    const cap = zoom >= 1.35 ? 1600 : 960;
-    const clamped = Math.min(needed, cap);
+  if (!phone) {
+    // Desktop stays 100% lossless full resolution whenever the user is zoomed in to read a card.
+    if (zoom >= 0.65) return Infinity;
+    const effDpr = zoom < 0.3 ? 1.5 : Math.min(Math.max(dpr, 1), 2.0);
+    const needed = Math.max(screenCssW, screenCssH * 0.75) * effDpr * 1.15;
+    if (needed > 1280) return Infinity;
     for (const bucket of LOD_BUCKETS) {
-      if (clamped <= bucket) return bucket;
+      if (needed <= bucket) return bucket;
     }
-    return cap;
+    return Infinity;
   }
 
-  // Desktop stays razor-sharp when zoomed in close or when the card image is huge on screen.
-  if (needed > 1600 || (zoom >= 0.9 && needed > 1100)) return Infinity;
+  // Phone: lean in overview (z < 0.3), crisp for readable cards (z >= 0.3), capped inline against Jetsam.
+  const effDpr = zoom < 0.3 ? 1.25 : zoom < 0.55 ? 2.0 : Math.min(Math.max(dpr, 2.0), 2.5);
+  const needed = Math.max(screenCssW, screenCssH * 0.75) * effDpr;
+  const cap = zoom >= 1.15 ? 1600 : 960;
+  const clamped = Math.min(needed, cap);
   for (const bucket of LOD_BUCKETS) {
-    if (needed <= bucket) return bucket;
+    if (clamped <= bucket) return bucket;
   }
-  return Infinity;
+  return cap;
 }
 
-/** Whether zooming out should step down an already-decoded image to reclaim memory. */
-export function shouldDowngrade(currentBucket: number, targetBucket: number, phone: boolean): boolean {
-  if (targetBucket >= currentBucket) return false;
-  if (phone) {
-    return currentBucket === Infinity || currentBucket >= targetBucket * 2;
-  }
-  if (currentBucket === Infinity) return targetBucket <= 512;
-  return currentBucket > 512 && currentBucket >= targetBucket * 2;
+/**
+ * Whether zooming out should step down an already-decoded image to reclaim memory.
+ * Any settled step down reclaims oversized bitmaps (so zoom-in -> zoom-out returns to baseline
+ * instead of pinning high-res bitmaps in memory).
+ */
+export function shouldDowngrade(currentBucket: number, targetBucket: number, _phone: boolean): boolean {
+  return targetBucket < currentBucket;
 }
 
 /**

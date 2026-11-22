@@ -33,12 +33,14 @@ export {
  * 4. Off-screen paused `<video>` elements release their decoded frames and restore `src` on return.
  */
 
-const UPGRADE_SETTLE_MS = 180;
-const DOWNGRADE_SETTLE_MS = 350;
+const UPGRADE_SETTLE_MS = 140;
+const DOWNGRADE_SETTLE_MS = 300;
 const SCROLL_DEBOUNCE_MS = 90;
+const SHARPEN_DEBOUNCE_MS = 80;
 
 type ImgRecord = {
   originalSrc: string;
+  originalSrcset: string | null;
   appliedSrc: string;
   bucket: number; // 0 = culled, 128..1600 = thumb, Infinity = full
   natW: number;
@@ -57,7 +59,7 @@ type VideoRecord = {
 
 const isUnmanagedImg = (img: HTMLImageElement) =>
   img.hasAttribute("data-lalala-zoom-img") ||
-  img.dataset.lalalaLod === "full" ||
+  img.hasAttribute("data-lalala-lod-full") ||
   img.closest("dialog") !== null;
 
 const isDynamicSrc = (src: string) => src === "" || /^(?:data:|blob:)/i.test(src.trim());
@@ -71,19 +73,46 @@ export function attachMediaLod(world: HTMLElement): () => void {
   const records = new WeakMap<HTMLImageElement, ImgRecord>();
   const videos = new WeakMap<HTMLVideoElement, VideoRecord>();
   const failedProxy = new Set<string>();
+  const activePreloads = new Set<HTMLImageElement>();
 
   let raf = 0;
   let upgradeTimer = 0;
   let downgradeTimer = 0;
   let scrollTimer = 0;
+  let sharpenTimer = 0;
+  let sharpenFrame = 0;
   let lastZoom = getCamera().z;
   let lastZoomChangeAt = 0;
 
+  /**
+   * Forces composited card layers to re-rasterize sharp after an async LOD upgrade lands
+   * (otherwise WebKit/Blink can keep a layer rasterized at the earlier blurry zoom scale).
+   */
+  const pulseSharpen = () => {
+    window.clearTimeout(sharpenTimer);
+    sharpenTimer = window.setTimeout(() => {
+      sharpenTimer = 0;
+      window.cancelAnimationFrame(sharpenFrame);
+      world.dataset.lalalaSharpen = "";
+      sharpenFrame = window.requestAnimationFrame(() => {
+        sharpenFrame = window.requestAnimationFrame(() => {
+          sharpenFrame = 0;
+          delete world.dataset.lalalaSharpen;
+        });
+      });
+    }, SHARPEN_DEBOUNCE_MS);
+  };
+
+  const releasePreload = (pre: HTMLImageElement) => {
+    pre.onload = null;
+    pre.onerror = null;
+    pre.src = "";
+    activePreloads.delete(pre);
+  };
+
   const cancelPreload = (rec: ImgRecord) => {
     if (rec.preload !== null) {
-      rec.preload.onload = null;
-      rec.preload.onerror = null;
-      rec.preload.src = "";
+      releasePreload(rec.preload);
       rec.preload = null;
       rec.preloadBucket = 0;
     }
@@ -98,6 +127,7 @@ export function attachMediaLod(world: HTMLElement): () => void {
       if (isDynamicSrc(attr)) return null;
       rec = {
         originalSrc: attr,
+        originalSrcset: img.getAttribute("srcset"),
         appliedSrc: attr,
         bucket: Infinity,
         natW: img.complete && img.naturalWidth > 16 ? img.naturalWidth : 0,
@@ -118,6 +148,7 @@ export function attachMediaLod(world: HTMLElement): () => void {
         return null;
       }
       rec.originalSrc = attr;
+      rec.originalSrcset = img.getAttribute("srcset");
       rec.appliedSrc = attr;
       rec.bucket = Infinity;
       rec.natW = 0;
@@ -133,6 +164,15 @@ export function attachMediaLod(world: HTMLElement): () => void {
     if (rec.appliedSrc === nextSrc && rec.bucket === bucket) return;
     rec.appliedSrc = nextSrc;
     rec.bucket = bucket;
+    if (bucket === Infinity) {
+      if (rec.originalSrcset !== null) img.setAttribute("srcset", rec.originalSrcset);
+    } else if (img.hasAttribute("srcset")) {
+      img.removeAttribute("srcset");
+    }
+    // Actively managed visible images should decode immediately instead of stalling on loading="lazy".
+    if (bucket > 0 && img.getAttribute("loading") === "lazy") {
+      img.loading = "eager";
+    }
     img.setAttribute("src", nextSrc);
     img.dataset.lalalaLod = bucket === 0 ? "culled" : bucket === Infinity ? "full" : String(bucket);
   };
@@ -335,26 +375,36 @@ export function attachMediaLod(world: HTMLElement): () => void {
         cancelPreload(rec);
         const pre = new Image();
         pre.decoding = "async";
+        activePreloads.add(pre);
         rec.preload = pre;
         rec.preloadBucket = target;
         pre.onload = () => {
-          if (rec.preload !== pre) return;
+          const nw = pre.naturalWidth;
+          const nh = pre.naturalHeight;
+          const current = rec.preload === pre;
+          // Immediately drop the off-DOM decoded buffer so memory never doubles!
+          releasePreload(pre);
+          if (!current) return;
           rec.preload = null;
           rec.preloadBucket = 0;
           if (rec.bucket === 0) return; // Culled while preloading.
-          if (pre.naturalWidth > 16 && pre.naturalHeight > 16) {
-            rec.natW = pre.naturalWidth;
-            rec.natH = pre.naturalHeight;
+          if (nw > 16 && nh > 16) {
+            rec.natW = nw;
+            rec.natH = nh;
           }
           applySrc(img, rec, nextUrl, target);
+          pulseSharpen();
         };
         pre.onerror = () => {
-          if (rec.preload !== pre) return;
+          const current = rec.preload === pre;
+          releasePreload(pre);
+          if (!current) return;
           rec.preload = null;
           rec.preloadBucket = 0;
           if (target !== Infinity) {
             failedProxy.add(rec.originalSrc);
             applySrc(img, rec, rec.originalSrc, Infinity);
+            pulseSharpen();
           }
         };
         pre.src = nextUrl;
@@ -443,13 +493,16 @@ export function attachMediaLod(world: HTMLElement): () => void {
   evaluate(true, true);
 
   return () => {
+    for (const pre of [...activePreloads]) releasePreload(pre);
     unsubscribe();
     observer.disconnect();
     world.removeEventListener("scroll", onScroll, true);
     world.removeEventListener("error", onError, true);
     window.cancelAnimationFrame(raf);
+    window.cancelAnimationFrame(sharpenFrame);
     window.clearTimeout(upgradeTimer);
     window.clearTimeout(downgradeTimer);
     window.clearTimeout(scrollTimer);
+    window.clearTimeout(sharpenTimer);
   };
 }

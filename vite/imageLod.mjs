@@ -248,7 +248,7 @@ export function imageLodPlugin({ dir, root }) {
     const job = withSlot(async () => {
       if (NodeFS.existsSync(target)) return { file: target, contentType };
       const tmp = `${target}.${process.pid}.${Date.now()}.tmp`;
-      const quality = bucket <= 256 ? 70 : bucket <= 512 ? 76 : 82;
+      const quality = bucket <= 256 ? 75 : bucket <= 512 ? 84 : bucket <= 960 ? 88 : 90;
       try {
         if (cwebp) {
           await runCommand(cwebp, [
@@ -352,8 +352,9 @@ export function imageLodPlugin({ dir, root }) {
           res.writeHead(404).end();
           return;
         }
+        const qualityTag = bucket <= 256 ? 75 : bucket <= 512 ? 84 : bucket <= 960 ? 88 : 90;
         const key = NodeCrypto.createHash("sha256")
-          .update(`${realPath}\0${stat.mtimeMs}\0${stat.size}\0${bucket}`)
+          .update(`${realPath}\0${stat.mtimeMs}\0${stat.size}\0${bucket}\0q${qualityTag}`)
           .digest("hex")
           .slice(0, 24);
         const etag = `"${key}"`;

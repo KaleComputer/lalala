@@ -335,6 +335,9 @@ let touched: string | null = null;
 
 function pickDrawn() {
   const { x, y, z } = live.camera;
+  const tight = Math.min(surface.view.w, surface.view.h) <= 500;
+  const drawEnter = tight ? 0.25 : DRAW_ENTER;
+  const drawLeave = tight ? 0.5 : DRAW_LEAVE;
   const nextDrawn = new Set<string>();
   const near: { id: string; rank: number; area: number }[] = [];
   for (const id of mounted) {
@@ -357,7 +360,7 @@ function pickDrawn() {
         2) /
         surface.view.h,
     );
-    if (id !== held && far > 1 + 2 * (drawn.has(id) ? DRAW_LEAVE : DRAW_ENTER)) continue;
+    if (id !== held && far > 1 + 2 * (drawn.has(id) ? drawLeave : drawEnter)) continue;
     nextDrawn.add(id);
     // A card keeps its layer until it is half a screen farther out than one without.
     const rank = id === held || id === touched ? -1 : far - (layered.has(id) ? 1 : 0);

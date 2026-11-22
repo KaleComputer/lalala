@@ -20,8 +20,8 @@ import {
   snapBucket,
 } from "../../vite/imageLod.mjs";
 
-test("phone zoomed out picks tiny WebP LOD buckets instead of full-res bitmaps", () => {
-  // Phone at zoom 0.18: a 500 px wide card is 90 CSS px wide on screen.
+test("phone zoomed out picks tiny WebP LOD buckets and stays sharp when readable", () => {
+  // Phone at zoom 0.18: a 500 px wide card is 90 CSS px wide on screen -> tiny preview.
   const bucket = chooseLodBucket({
     screenCssW: 90,
     screenCssH: 130,
@@ -33,17 +33,29 @@ test("phone zoomed out picks tiny WebP LOD buckets instead of full-res bitmaps",
   });
   assert.equal(bucket, 128);
 
-  // Zooming into a card on phone upgrades smoothly up to 960 px inline (never 4096 px inline).
-  const zoomedIn = chooseLodBucket({
-    screenCssW: 390,
-    screenCssH: 560,
-    zoom: 0.9,
+  // Readable 360px tweet diagram at z=0.45 (162 CSS px) gets crisp 512px instead of blurry 256px.
+  const tweetMid = chooseLodBucket({
+    screenCssW: 162,
+    screenCssH: 69,
+    zoom: 0.45,
     dpr: 3,
     phone: true,
     inModal: false,
     forceFull: false,
   });
-  assert.equal(zoomedIn, 960);
+  assert.equal(tweetMid, 512);
+
+  // Readable 360px tweet diagram at z=0.75 (270 CSS px) gets crisp 960px inline.
+  const tweetClose = chooseLodBucket({
+    screenCssW: 270,
+    screenCssH: 115,
+    zoom: 0.75,
+    dpr: 3,
+    phone: true,
+    inModal: false,
+    forceFull: false,
+  });
+  assert.equal(tweetClose, 960);
 
   // Opening ZoomImage modal always loads untouched full resolution.
   const modal = chooseLodBucket({
@@ -58,7 +70,7 @@ test("phone zoomed out picks tiny WebP LOD buckets instead of full-res bitmaps",
   assert.equal(modal, Infinity);
 });
 
-test("desktop zoomed out uses lightweight previews and zoomed in stays full sharpness", () => {
+test("desktop zoomed out uses lightweight previews and stays full resolution when reading", () => {
   const overview = chooseLodBucket({
     screenCssW: 110,
     screenCssH: 80,
@@ -70,23 +82,26 @@ test("desktop zoomed out uses lightweight previews and zoomed in stays full shar
   });
   assert.equal(overview, 256);
 
-  const closeup = chooseLodBucket({
-    screenCssW: 800,
-    screenCssH: 600,
-    zoom: 1.0,
+  // Desktop at z >= 0.65 (reading a 360px tweet card or diagram) gets full lossless resolution.
+  const tweetDesktop = chooseLodBucket({
+    screenCssW: 252,
+    screenCssH: 108,
+    zoom: 0.7,
     dpr: 2,
     phone: false,
     inModal: false,
     forceFull: false,
   });
-  assert.equal(closeup, Infinity);
+  assert.equal(tweetDesktop, Infinity);
 });
 
-test("zooming back out reclaims oversized bitmaps via downgrade threshold", () => {
+test("zooming back out always reclaims oversized bitmaps on phone and desktop", () => {
+  assert.equal(shouldDowngrade(960, 512, true), true);
   assert.equal(shouldDowngrade(960, 256, true), true);
   assert.equal(shouldDowngrade(Infinity, 512, true), true);
   assert.equal(shouldDowngrade(256, 256, true), false);
-  assert.equal(shouldDowngrade(512, 256, false), false);
+  assert.equal(shouldDowngrade(512, 256, false), true);
+  assert.equal(shouldDowngrade(1600, 960, false), true);
   assert.equal(shouldDowngrade(Infinity, 256, false), true);
 });
 
