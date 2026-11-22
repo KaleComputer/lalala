@@ -1,4 +1,5 @@
 import type { ReactNode } from "react";
+import { AgentMonitorCard } from "./AgentMonitorCard";
 import { BrainCards } from "./BrainCards";
 import { CanvasMap } from "./CanvasMap";
 import { CanvasSurface } from "./CanvasSurface";
@@ -16,6 +17,7 @@ export function VoiceExtras(props: { readonly children?: ReactNode }) {
   return (
     <>
       <CanvasSurface>
+        <AgentMonitorCard />
         <BrainCards />
         {props.children}
       </CanvasSurface>

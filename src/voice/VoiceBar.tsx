@@ -17,6 +17,7 @@ import { observeResize } from "~/lib/observeResize";
 import { type CallWaveLevels, type CallWaveSpectrum, createCallWave } from "./presence/callwave";
 import { createFrame, type PresenceFrame } from "./presence/frame";
 import { CanvasTabs } from "./CanvasSwitcher";
+import { AgentsTab } from "./agents/AgentsTab";
 import { CompactingDefrag } from "./extras/CompactingDefrag";
 import { isFollowing, setFollowing, subscribeFollow } from "./follow";
 import { InboxTab } from "./inbox/InboxTab";
@@ -107,7 +108,7 @@ function makeStatusTab(frameEl: HTMLElement) {
   timer.setAttribute("aria-label", "Call time");
   const lead = document.createElement("span");
   lead.className = "lalala-lead";
-  // Right to left from the time: input (keyboard), mic, follow toggle, canvases, settings gear, inbox.
+  // Right to left from the time: input (keyboard), mic, follow toggle, canvases, settings gear, inbox, agents.
   const canvas = document.createElement("span");
   canvas.className = "lalala-canvas-slot";
   const follow = document.createElement("span");
@@ -121,9 +122,12 @@ function makeStatusTab(frameEl: HTMLElement) {
   // Labs' away inbox, left of the gear (empty, and so hidden, while it is off).
   const inbox = document.createElement("span");
   inbox.className = "lalala-inbox-slot";
+  // Live Agent Progress & Monitor tab, left of the inbox.
+  const agents = document.createElement("span");
+  agents.className = "lalala-agents-slot";
   const row = document.createElement("div");
   row.className = "lalala-tabs";
-  row.append(inbox, settings, canvas, follow, mic, input, tab);
+  row.append(agents, inbox, settings, canvas, follow, mic, input, tab);
   // The row's slot: it clips the row at the frame's top edge, so revealed content rises out of it.
   const clip = document.createElement("div");
   clip.className = "lalala-tabs-clip";
@@ -195,6 +199,7 @@ export function VoiceBar(props: {
   const [followHost, setFollowHost] = useState<HTMLElement | null>(null);
   const [settingsHost, setSettingsHost] = useState<HTMLElement | null>(null);
   const [inboxHost, setInboxHost] = useState<HTMLElement | null>(null);
+  const [agentsHost, setAgentsHost] = useState<HTMLElement | null>(null);
   const [room, setRoom] = useState<HTMLElement | null>(null);
   const onCanvas = useLocation({ select: (location) => location.pathname === "/canvas" });
   const following = useSyncExternalStore(subscribeFollow, isFollowing, () => false);
@@ -326,6 +331,7 @@ export function VoiceBar(props: {
     setCanvasHost(root.querySelector<HTMLElement>(".lalala-canvas-slot"));
     setSettingsHost(root.querySelector<HTMLElement>(".lalala-settings-slot"));
     setInboxHost(root.querySelector<HTMLElement>(".lalala-inbox-slot"));
+    setAgentsHost(root.querySelector<HTMLElement>(".lalala-agents-slot"));
     setRoom(root.querySelector<HTMLElement>(".bar-line"));
     document.dispatchEvent(new Event("lalala:bar"));
 
@@ -539,7 +545,8 @@ export function VoiceBar(props: {
             micHost,
           )
         : null}
-      {/* Only the real bar: a preview copy (the bar states card) shows no inbox. */}
+      {/* Only the real bar: a preview copy (the bar states card) shows no inbox or agents popover. */}
+      {agentsHost !== null && !previewed ? <AgentsTab tabHost={agentsHost} /> : null}
       {inboxHost !== null && !previewed ? <InboxTab tabHost={inboxHost} /> : null}
       {settingsHost !== null ? (
         <VoiceSettings tabHost={settingsHost} pages={props.settings} />

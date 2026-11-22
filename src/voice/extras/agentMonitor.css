@@ -1,0 +1,208 @@
+/* Pinnable Agent Monitor canvas card (extras/AgentMonitorCard.tsx). Uses canvas look tokens. */
+[data-lalala-agent-card] {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-height: 100%;
+  padding: 12px 14px 14px;
+  box-sizing: border-box;
+  color: var(--lala-ink);
+  font-family: var(--lala-font);
+  font-size: 13px;
+  line-height: 1.4;
+}
+
+[data-lalala-agent-card-head] {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid var(--lala-line);
+}
+
+[data-lalala-agent-card-summary] {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font: 600 11px / 1.2 var(--lala-font-mono);
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--lala-ink-dim);
+}
+[data-lalala-agent-card-summary][data-active] {
+  color: var(--lala-accent);
+}
+[data-lalala-agent-card-summary] > i {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: currentColor;
+}
+[data-lalala-agent-card-summary][data-active] > i {
+  animation: lalala-card-agent-pulse 1.5s ease-in-out infinite;
+}
+
+[data-lalala-agent-card-filters] {
+  display: inline-flex;
+  gap: 4px;
+}
+[data-lalala-agent-card-filters] button {
+  height: 24px;
+  padding: 0 8px;
+  border: 1px solid var(--lala-line);
+  border-radius: var(--lala-radius, 6px);
+  background: none;
+  color: var(--lala-ink-dim);
+  font: 500 11px / 1 var(--lala-font-mono);
+  cursor: pointer;
+}
+[data-lalala-agent-card-filters] button[data-selected] {
+  border-color: var(--lala-accent);
+  color: var(--lala-accent);
+  background: color-mix(in srgb, var(--lala-accent) 12%, transparent);
+}
+
+[data-lalala-agent-card-list] {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+[data-lalala-agent-card-item] {
+  padding: 9px 10px;
+  border: 1px solid var(--lala-line);
+  border-radius: var(--lala-radius, 8px);
+  background: color-mix(in srgb, var(--lala-ink) 3%, transparent);
+}
+[data-lalala-agent-card-item][data-status="running"] {
+  border-color: color-mix(in srgb, var(--lala-accent) 45%, var(--lala-line));
+  background: color-mix(in srgb, var(--lala-accent) 6%, transparent);
+}
+[data-lalala-agent-card-item][data-status="waiting"] {
+  border-color: color-mix(in srgb, var(--lala-warn, #ffc14d) 50%, var(--lala-line));
+  background: color-mix(in srgb, var(--lala-warn, #ffc14d) 7%, transparent);
+}
+[data-lalala-agent-card-item][data-status="failed"] {
+  border-color: color-mix(in srgb, var(--lala-danger, #ff5c7a) 45%, var(--lala-line));
+}
+
+[data-lalala-agent-card-row] {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  min-width: 0;
+}
+[data-lalala-agent-card-dot] {
+  flex: none;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--lala-ink-dim);
+}
+[data-lalala-agent-card-item][data-status="running"] [data-lalala-agent-card-dot] {
+  background: var(--lala-accent);
+  animation: lalala-card-agent-pulse 1.5s ease-in-out infinite;
+}
+[data-lalala-agent-card-item][data-status="waiting"] [data-lalala-agent-card-dot] {
+  background: var(--lala-warn, #ffc14d);
+  animation: lalala-card-agent-pulse 1.5s ease-in-out infinite;
+}
+[data-lalala-agent-card-item][data-status="completed"] [data-lalala-agent-card-dot] {
+  background: color-mix(in srgb, var(--lala-accent) 65%, var(--lala-ink-dim));
+}
+[data-lalala-agent-card-item][data-status="failed"] [data-lalala-agent-card-dot] {
+  background: var(--lala-danger, #ff5c7a);
+}
+
+[data-lalala-agent-card-title] {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-weight: 600;
+  color: var(--lala-ink);
+}
+[data-lalala-agent-card-item][data-status="completed"] [data-lalala-agent-card-title],
+[data-lalala-agent-card-item][data-status="cancelled"] [data-lalala-agent-card-title] {
+  color: var(--lala-ink-dim);
+}
+
+[data-lalala-agent-card-time] {
+  flex: none;
+  font: 500 11px / 1.2 var(--lala-font-mono);
+  font-variant-numeric: tabular-nums;
+  color: var(--lala-ink-dim);
+}
+[data-lalala-agent-card-item][data-status="running"] [data-lalala-agent-card-time] {
+  color: var(--lala-accent);
+}
+[data-lalala-agent-card-item][data-status="waiting"] [data-lalala-agent-card-time] {
+  color: var(--lala-warn, #ffc14d);
+}
+
+[data-lalala-agent-card-step] {
+  margin: 4px 0 0 14px;
+  color: var(--lala-ink-dim);
+  font-size: 12px;
+  line-height: 1.35;
+  overflow-wrap: anywhere;
+}
+[data-lalala-agent-card-item][data-status="failed"] [data-lalala-agent-card-step] {
+  color: var(--lala-danger, #ff5c7a);
+}
+
+[data-lalala-agent-card-actions] {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 7px 0 0 14px;
+}
+[data-lalala-agent-card-action] {
+  display: inline-flex;
+  align-items: center;
+  height: 24px;
+  padding: 0 8px;
+  border: 1px solid var(--lala-line);
+  border-radius: var(--lala-radius, 6px);
+  color: var(--lala-ink);
+  font: 500 11px / 1 var(--lala-font-mono);
+  text-decoration: none;
+  background: none;
+  cursor: pointer;
+}
+@media (hover: hover) {
+  [data-lalala-agent-card-action]:hover {
+    border-color: var(--lala-accent);
+    color: var(--lala-accent);
+  }
+}
+
+[data-lalala-agent-card-empty] {
+  margin: 12px 0;
+  color: var(--lala-ink-dim);
+  font-size: 12.5px;
+}
+
+@keyframes lalala-card-agent-pulse {
+  0%,
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.45;
+    transform: scale(0.82);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  [data-lalala-agent-card-summary][data-active] > i,
+  [data-lalala-agent-card-dot] {
+    animation: none !important;
+  }
+}

@@ -52,3 +52,6 @@ export function useThreadVisibleTurnItems(ref: unknown) {
   const rows = useBridge((state) => state.rows);
   return ref === null ? NO_ROWS : rows;
 }
+
+/** Live and recently completed delegate threads of the brain, active first. */
+export const useAgents = () => useBridge((state) => state.agents);

@@ -366,10 +366,10 @@
     --lalala-input-tab-w: 40px;
   }
 }
-:is(.lalala-input-slot, .lalala-mic-slot, .lalala-follow-slot, .lalala-canvas-slot, .lalala-settings-slot, .lalala-inbox-slot) {
+:is(.lalala-input-slot, .lalala-mic-slot, .lalala-follow-slot, .lalala-canvas-slot, .lalala-settings-slot, .lalala-inbox-slot, .lalala-agents-slot) {
   display: flex;
 }
-:is(.lalala-input-slot, .lalala-mic-slot, .lalala-follow-slot, .lalala-canvas-slot, .lalala-settings-slot, .lalala-inbox-slot):empty {
+:is(.lalala-input-slot, .lalala-mic-slot, .lalala-follow-slot, .lalala-canvas-slot, .lalala-settings-slot, .lalala-inbox-slot, .lalala-agents-slot):empty {
   display: none;
 }
 [data-lalala-presence] [data-lalala-canvas-tabs] {

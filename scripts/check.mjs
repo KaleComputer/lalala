@@ -71,6 +71,9 @@ run(process.execPath, ["--experimental-strip-types", "--no-warnings", "--test", 
 step("live compaction turn items and /compact context hold (scripts/compaction)");
 run(process.execPath, ["--experimental-strip-types", "--no-warnings", "--test", "scripts/compaction/check.test.mjs"]);
 
+step("live agent progress projection, timestamps, and bridge state hold (scripts/agents-monitor)");
+run(process.execPath, ["--experimental-strip-types", "--no-warnings", "--test", "scripts/agents-monitor/check.test.mjs"]);
+
 if (!process.argv.includes("--files-only")) {
   step("site typechecks (as on Vercel)");
   const site = NodePath.join(root, "site");

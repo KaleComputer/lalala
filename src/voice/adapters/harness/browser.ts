@@ -2,6 +2,11 @@
 // (paired in the settings' Connection section) and sends turns to it, speaking the same events as vite/t3bridge.mjs.
 import type { HarnessAdapter } from "..";
 import {
+  type AgentRun,
+  projectBrainNotificationAgents,
+  sortAgents,
+} from "../../agents/model";
+import {
   type Inbox,
   type InboxChange,
   applyInboxChange,
@@ -127,6 +132,8 @@ export function browserHarness(): HarnessAdapter {
     contextLine: "null",
     titles: new Map<string, string>(),
     environmentId: null as string | null,
+    agents: new Map<string, AgentRun>(),
+    agentsLine: "[]",
     inbox: parseInbox(null),
   };
   let socket: T3Socket | null = null;
@@ -156,6 +163,7 @@ export function browserHarness(): HarnessAdapter {
   const workspaceRoot = brain ? `t3:${brain.threadId}` : null;
   if (brain) state.inbox = readLocalInbox(brain.threadId);
   const inboxView = () => ({ ...state.inbox, digest: false });
+  const agentsView = () => sortAgents(state.agents.values());
   const hello = () => ({
     type: "hello",
     connected: state.connected,
@@ -164,6 +172,7 @@ export function browserHarness(): HarnessAdapter {
     shell: state.thread && { ...state.thread, active: active() },
     rows: [...state.rows.values()],
     context: context(),
+    agents: agentsView(),
     inbox: inboxView(),
   });
   const emit = (event: unknown) => {
@@ -216,9 +225,18 @@ export function browserHarness(): HarnessAdapter {
   };
   // The first capture in this browser and project finds what the thread already holds: that came
   // before the inbox, so it is heard.
+  const takeAgents = () => {
+    state.agents = projectBrainNotificationAgents(state.agents, state.rows.values(), inboxContext);
+    const list = agentsView();
+    const line = JSON.stringify(list);
+    if (line === state.agentsLine) return;
+    state.agentsLine = line;
+    emit({ type: "agents", agents: list });
+  };
   const takeInbox = (seed = false) => {
     const next = captureInbox(state.inbox, state.rows.values(), inboxContext);
     setInbox(seed ? applyInboxChange(next, { heard: "all" }) : next);
+    takeAgents();
   };
   // Once per connection: thread titles, the environment for links, and the project's copy.
   async function readInboxContext(link: T3Socket) {

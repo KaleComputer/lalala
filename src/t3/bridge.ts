@@ -1,98 +1,31 @@
 // The standalone's stand-in for T3's client state (apps/web/src/state): the brain thread's shell
 // and visible turn items, fed by the dev server's T3 bridge (vite/t3bridge.mjs) over SSE.
 import { useSyncExternalStore } from "react";
-import type { VoiceBrainContext } from "../voice/brainCompaction";
-import { EMPTY_INBOX, type Inbox } from "../voice/inbox/capture";
-import type { OrchestrationV2ProjectedTurnItem } from "./contracts";
+import type { AgentRun } from "../voice/agents/model";
+import {
+  type BridgeEvent,
+  type BridgeState,
+  INITIAL_BRIDGE_STATE,
+  reduceBridgeState,
+  type SecretAsk,
+} from "./bridgeState";
+
+export type { AgentRun, BridgeEvent, BridgeState, SecretAsk };
+export { INITIAL_BRIDGE_STATE, reduceBridgeState };
 
 export const ENVIRONMENT_ID = "standalone";
 export const PROJECT_ID = "standalone-project";
 
-type Shell = {
-  readonly id: string;
-  readonly projectId: string;
-  readonly title: string;
-  readonly createdAt: string;
-  readonly runtimeMode: string;
-  readonly interactionMode: string;
-  readonly active: boolean;
-};
-
-/** A secret card (T3's `request_secret`) waiting in some thread. Never the value. */
-export type SecretAsk = {
-  readonly threadId: string;
-  readonly turnItemId: string;
-  readonly thread: string;
-  readonly label: string;
-  readonly reason: string;
-  readonly placeholder: string | null;
-  readonly file: boolean;
-};
-
-type BridgeState = {
-  readonly connected: boolean;
-  readonly error: string | null;
-  readonly workspaceRoot: string | null;
-  readonly shell: Shell | null;
-  readonly rows: ReadonlyArray<OrchestrationV2ProjectedTurnItem>;
-  readonly context: VoiceBrainContext | null;
-  readonly asks: ReadonlyArray<SecretAsk>;
-  /** The away inbox (Labs), as the harness keeps it; `digest`: the app can send its digest. */
-  readonly inbox: Inbox & { readonly digest?: boolean };
-};
-
-let state: BridgeState = {
-  connected: false,
-  error: null,
-  workspaceRoot: null,
-  shell: null,
-  rows: [],
-  context: null,
-  asks: [],
-  inbox: EMPTY_INBOX,
-};
+let state: BridgeState = INITIAL_BRIDGE_STATE;
 const listeners = new Set<() => void>();
 const set = (next: BridgeState) => {
+  if (next === state) return;
   state = next;
   for (const listener of listeners) listener();
 };
 
-function onEvent(event: {
-  type: string;
-  connected: boolean;
-  error: string | null;
-  workspaceRoot: string | null;
-  shell: Shell | null;
-  rows: ReadonlyArray<OrchestrationV2ProjectedTurnItem>;
-  row: OrchestrationV2ProjectedTurnItem;
-  asks?: ReadonlyArray<SecretAsk>;
-  value: boolean;
-  context?: VoiceBrainContext | null;
-  inbox?: BridgeState["inbox"];
-}) {
-  if (event.type === "hello") {
-    set({
-      connected: event.connected,
-      error: event.error,
-      workspaceRoot: event.workspaceRoot,
-      shell: event.shell,
-      rows: event.rows,
-      context: event.context ?? null,
-      asks: event.asks ?? [],
-      inbox: event.inbox ?? state.inbox,
-    });
-  } else if (event.type === "inbox") {
-    set({ ...state, inbox: event.inbox ?? state.inbox });
-  } else if (event.type === "row") {
-    const rows = state.rows.filter((row) => row.item.id !== event.row.item.id);
-    set({ ...state, rows: [...rows, event.row] });
-  } else if (event.type === "asks") {
-    set({ ...state, asks: event.asks ?? [] });
-  } else if (event.type === "context") {
-    set({ ...state, context: event.context ?? null });
-  } else if (event.type === "active" && state.shell !== null) {
-    set({ ...state, shell: { ...state.shell, active: event.value } });
-  }
+function onEvent(event: BridgeEvent) {
+  set(reduceBridgeState(state, event));
 }
 
 // The bridge pings every 10 s. A restart behind the phone's front door can leave the stream open
@@ -145,6 +78,22 @@ const subscribe = (listener: () => void) => {
   listeners.add(listener);
   return () => listeners.delete(listener);
 };
+
+declare global {
+  /** Read/subscribe handle for extras/AgentMonitorCard (extras/ may not import from src/t3). */
+  var __lalalaAgents:
+    | {
+        readonly get: () => ReadonlyArray<AgentRun>;
+        readonly subscribe: (listener: () => void) => () => void;
+      }
+    | undefined;
+}
+if (typeof window !== "undefined") {
+  globalThis.__lalalaAgents = {
+    get: () => state.agents,
+    subscribe,
+  };
+}
 
 export function useBridge<T>(select: (state: BridgeState) => T): T {
   return useSyncExternalStore(subscribe, () => select(state));
