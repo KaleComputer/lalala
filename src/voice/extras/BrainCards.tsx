@@ -157,13 +157,14 @@ const BRIDGE =
   `d.error?p[1](new Error(d.error)):p[0](d.value)});function ask(t,a){return new Promise(function(ok,no){` +
   `var k=++n;w[k]=[ok,no];parent.postMessage({lalala:1,n:k,type:t,arg:a},"*")})}` +
   `window.lalala={data:function(){return ask("data")},log:function(what,data){` +
-  `parent.postMessage({lalala:1,type:"log",arg:{what:String(what),data:data===undefined?null:data}},"*")}}})();`;
+  `parent.postMessage({lalala:1,type:"log",arg:{what:String(what),data:data===undefined?null:data}},"*")},` +
+  `send:function(text){return ask("send",{text:String(text)})}}})();`;
 
 type BridgeMessage = {
   readonly lalala: 1;
   readonly n?: number;
-  readonly type: "data" | "log";
-  readonly arg?: { readonly what?: unknown; readonly data?: unknown };
+  readonly type: "data" | "log" | "send";
+  readonly arg?: { readonly what?: unknown; readonly data?: unknown; readonly text?: unknown };
 };
 
 function answer(frame: HTMLIFrameElement, id: string, message: BridgeMessage) {
@@ -175,10 +176,21 @@ function answer(frame: HTMLIFrameElement, id: string, message: BridgeMessage) {
     });
     return;
   }
-  const adapters = globalThis.__lalalaAdapters;
-  const read = adapters?.harness?.readFile ?? adapters?.readFile;
   const reply = (body: { value?: unknown; error?: string }) =>
     frame.contentWindow?.postMessage({ lalala: 1, n: message.n, ...body }, "*");
+  if (message.type === "send") {
+    const text = String(message.arg?.text ?? "").trim();
+    if (!text) return reply({ value: false });
+    globalThis.__lalalaLog?.("system", "card.log", { id, what: "send", data: { text } });
+    const sendTyped = globalThis.__lalalaSendTyped;
+    if (!sendTyped) return reply({ error: "no active voice brain connection" });
+    sendTyped(text)
+      .then((ok) => reply({ value: ok }))
+      .catch((error: unknown) => reply({ error: String(error) }));
+    return;
+  }
+  const adapters = globalThis.__lalalaAdapters;
+  const read = adapters?.harness?.readFile ?? adapters?.readFile;
   if (!read) return reply({ error: "this canvas can't read card data" });
   read(`cards/${id}.data.json`)
     .then((text) => reply({ value: text === null ? null : (JSON.parse(text) as unknown) }))

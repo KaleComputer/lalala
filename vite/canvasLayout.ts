@@ -22,16 +22,33 @@ export type FollowSignal = {
   at: number;
   by?: string;
 };
+/** A built-in card template instance spawned on a canvas; `null` once removed, so removal syncs. */
+export type TemplateInstance = {
+  id: string;
+  template: "todo" | "chat" | "image-gen" | "video-gen";
+  title: string;
+  canvas?: string;
+  w: number;
+  h: number;
+  createdAt: number;
+  config?: Record<string, unknown>;
+};
+type Templates = Record<string, TemplateInstance | null>;
 type Layout = {
   cards: Record<string, Rect>;
   canvases: Record<string, Canvas>;
   marks: Record<string, Mark>;
   state: CardState;
+  templates: Templates;
   follow?: FollowSignal;
   at: number;
 };
 /** A tab, a round, a filter: anything bigger is a card keeping data, which belongs in its own file. */
 const MAX_VALUE = 16 * 1024;
+const MAX_TEMPLATE_CONFIG = 8 * 1024;
+const TEMPLATE_IDS = new Set(["todo", "chat", "image-gen", "video-gen"]);
+const TEMPLATE_CARD_ID = /^[a-z0-9][a-z0-9-]{0,63}$/i;
+const clamp = (value: number, min: number, max: number) => Math.min(max, Math.max(min, value));
 
 const layoutFile = () =>
   process.env.LALALA_CANVAS_FILE?.trim() || NodePath.join(stateDir(), "canvas.json");
@@ -119,6 +136,57 @@ const parseFollow = (value: unknown): FollowSignal | undefined => {
   };
 };
 
+const parseTemplates = (value: unknown): Templates =>
+  typeof value === "object" && value !== null && !Array.isArray(value)
+    ? Object.fromEntries(
+        Object.entries(value).flatMap(([id, raw]: [string, unknown]): [string, TemplateInstance | null][] => {
+          if (!TEMPLATE_CARD_ID.test(id)) return [];
+          if (raw === null) return [[id, null]];
+          if (typeof raw !== "object" || Array.isArray(raw)) return [];
+          const entry = raw as Record<string, unknown>;
+          if (typeof entry.template !== "string" || !TEMPLATE_IDS.has(entry.template)) return [];
+          const title =
+            typeof entry.title === "string" && entry.title.trim() !== ""
+              ? entry.title.trim().slice(0, 80)
+              : entry.template;
+          const canvas =
+            typeof entry.canvas === "string" && entry.canvas.trim() !== ""
+              ? entry.canvas.trim().slice(0, 80)
+              : undefined;
+          const w = clamp(Number.isFinite(entry.w) ? Number(entry.w) : 360, 160, 1200);
+          const h = clamp(Number.isFinite(entry.h) ? Number(entry.h) : 420, 100, 900);
+          const createdAt =
+            Number.isFinite(entry.createdAt) && Number(entry.createdAt) >= 0
+              ? Number(entry.createdAt)
+              : 0;
+          let config: Record<string, unknown> | undefined;
+          if (
+            typeof entry.config === "object" &&
+            entry.config !== null &&
+            !Array.isArray(entry.config) &&
+            (JSON.stringify(entry.config)?.length ?? Infinity) <= MAX_TEMPLATE_CONFIG
+          ) {
+            config = entry.config as Record<string, unknown>;
+          }
+          return [
+            [
+              id,
+              {
+                id,
+                template: entry.template as TemplateInstance["template"],
+                title,
+                ...(canvas ? { canvas } : {}),
+                w,
+                h,
+                createdAt,
+                ...(config ? { config } : {}),
+              },
+            ],
+          ];
+        }),
+      )
+    : {};
+
 export function readCanvasLayout(): Layout {
   try {
     const saved = JSON.parse(NodeFS.readFileSync(layoutFile(), "utf8")) as Partial<Layout>;
@@ -128,19 +196,20 @@ export function readCanvasLayout(): Layout {
       canvases: canvases(saved.canvases),
       marks: marks(saved.marks),
       state: cardState(saved.state),
+      templates: parseTemplates(saved.templates),
       ...(follow ? { follow } : {}),
       at: Number(saved.at) || 0,
     };
   } catch {
-    return { cards: {}, canvases: {}, marks: {}, state: {}, at: 0 };
+    return { cards: {}, canvases: {}, marks: {}, state: {}, templates: {}, at: 0 };
   }
 }
 
 /**
  * Merges `patch` (card id to box), `canvasPatch`, `markPatch` (each mark whole), `statePatch`
- * (per card and key) and `followPatch` (newest cross-device Follow target) into the layout and
- * returns the result. `placed` are new cards a client found a spot for: the first one to arrive
- * keeps its spot.
+ * (per card and key), `followPatch` (newest cross-device Follow target) and `templatePatch`
+ * (spawned template instances and `null` tombstones) into the layout and returns the result.
+ * `placed` are new cards a client found a spot for: the first one to arrive keeps its spot.
  */
 export function saveCanvasCards(
   patch: unknown,
@@ -149,6 +218,7 @@ export function saveCanvasCards(
   markPatch?: unknown,
   statePatch?: unknown,
   followPatch?: unknown,
+  templatePatch?: unknown,
 ): Layout {
   const current = readCanvasLayout();
   const state = { ...current.state };
@@ -165,6 +235,7 @@ export function saveCanvasCards(
     canvases: { ...current.canvases, ...canvases(canvasPatch) },
     marks: { ...current.marks, ...marks(markPatch) },
     state,
+    templates: { ...current.templates, ...parseTemplates(templatePatch) },
     ...(follow ? { follow } : {}),
     at: Math.max(Date.now(), current.at + 1),
   };

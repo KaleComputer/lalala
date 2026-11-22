@@ -460,7 +460,8 @@
   box-shadow: 0 10px 22px -10px rgba(110, 76, 40, 0.45);
   animation: none;
 }
-:root[data-lala-look="paper"] [data-lalala-presence] [data-lalala-canvas-panel] > ul {
+:root[data-lala-look="paper"] [data-lalala-presence] [data-lalala-canvas-panel] > ul,
+:root[data-lala-look="paper"] [data-lalala-presence] [data-lalala-template-head] {
   clip-path: none;
   border-radius: 9px 9px 0 0;
 }

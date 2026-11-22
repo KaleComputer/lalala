@@ -68,6 +68,9 @@ run(process.execPath, ["--experimental-strip-types", "--no-warnings", "--test", 
 step("settle action and canvas follow helpers hold (scripts/settle-follow)");
 run(process.execPath, ["--experimental-strip-types", "--no-warnings", "--test", "scripts/settle-follow/check.test.mjs"]);
 
+step("built-in card templates registry, dispatch, layout persistence, and docs hold (scripts/templates)");
+run(process.execPath, ["--experimental-strip-types", "--no-warnings", "--test", "scripts/templates/check.test.mjs"]);
+
 if (!process.argv.includes("--files-only")) {
   step("site typechecks (as on Vercel)");
   const site = NodePath.join(root, "site");

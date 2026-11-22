@@ -1,3 +1,10 @@
+import {
+  createTemplateInstance,
+  sanitizeTemplates,
+  type CreateTemplateOptions,
+  type TemplateId,
+  type TemplateInstance,
+} from "../templates/registry";
 import { AREA, GROUP_GAP, areaAround, packInWidth, spotInGroup, tidyLayout } from "./tidyPack";
 
 /**
@@ -28,6 +35,7 @@ type Canvases = Readonly<Record<string, CanvasInfo | null>>;
  */
 export type Mark = { readonly removed?: number; readonly private?: boolean };
 type Marks = Readonly<Record<string, Mark>>;
+type Templates = Readonly<Record<string, TemplateInstance | null>>;
 export type CanvasesSnapshot = {
   readonly active: string;
   readonly list: readonly (CanvasInfo & { readonly id: string })[];
@@ -48,6 +56,7 @@ const CANVASES = "lalala:canvases";
 const ACTIVE = "lalala:canvas-active";
 const CAMERAS = "lalala:canvas-cameras";
 const MARKS = "lalala:canvas-marks";
+const TEMPLATES = "lalala:canvas-templates";
 const HOME: Camera = { x: 0, y: 0, z: 1 };
 /** Far enough out to see a big canvas whole; past the cards is void, see `reach`. */
 const MIN_ZOOM = 0.05;
@@ -75,6 +84,7 @@ function readJson<T>(key: string, empty: T): T {
 const readCanvases = () => readJson<Canvases>(CANVASES, {});
 const readCameras = () => readJson<Record<string, Camera>>(CAMERAS, {});
 const readMarks = () => readJson<Marks>(MARKS, {});
+const readTemplates = (): Templates => sanitizeTemplates(readJson<unknown>(TEMPLATES, {}));
 function writeJson(key: string, value: unknown) {
   try {
     localStorage.setItem(key, JSON.stringify(value));
@@ -110,6 +120,7 @@ function fresh(): Live {
     canvas,
     canvases,
     marks: readMarks(),
+    templates: readTemplates(),
   };
 }
 
@@ -238,6 +249,7 @@ type Live = {
   canvas: string;
   canvases: Canvases;
   marks: Marks;
+  templates: Templates;
 };
 declare global {
   var __lalalaCanvas: Live | undefined;
@@ -251,6 +263,7 @@ const live: Live = (globalThis.__lalalaCanvas ??= fresh());
 live.canvases ??= readCanvases();
 live.canvas ??= MAIN;
 live.marks ??= readMarks();
+live.templates ??= readTemplates();
 /** Each card body's scroll, so a swap or remount opens it where it was. */
 export const scrollTops = live.scroll;
 declare global {
@@ -702,6 +715,7 @@ type Shared = {
   readonly canvases?: Canvases;
   readonly marks?: Marks;
   readonly state?: CardState;
+  readonly templates?: Templates;
   readonly follow?: FollowSignal;
   readonly at: number;
 };
@@ -779,6 +793,7 @@ function applyShared(shared: Shared) {
   }
   adoptCanvases(shared.canvases ?? {});
   adoptMarks(shared.marks ?? {});
+  if (shared.templates) adoptTemplates(shared.templates);
   if (shared.state) {
     sharedState = shared.state;
     cardStateLink?.adopt(shared.state);
@@ -814,6 +829,7 @@ async function push(leaving = false) {
     (unsynced.size === 0 &&
       unsentCanvases.size === 0 &&
       unsentMarks.size === 0 &&
+      unsentTemplates.size === 0 &&
       unsentFollow === null &&
       Object.keys(cardStateLink?.unsent() ?? {}).length === 0);
   if (store === null || idle()) return;
@@ -831,6 +847,9 @@ async function push(leaving = false) {
     [...unsentCanvases].map((id) => [id, live.canvases[id] ?? null]),
   );
   const sentMarks = Object.fromEntries([...unsentMarks].map((key) => [key, live.marks[key] ?? {}]));
+  const sentTemplates = Object.fromEntries(
+    [...unsentTemplates].map((id) => [id, live.templates[id] ?? null]),
+  );
   const sentState = cardStateLink?.unsent() ?? {};
   const hasState = Object.keys(sentState).length > 0;
   const sentFollow = unsentFollow;
@@ -843,6 +862,7 @@ async function push(leaving = false) {
         ...(Object.keys(sentPlaced).length > 0 && { placed: sentPlaced }),
         ...(unsentCanvases.size > 0 && { canvases: sentCanvases }),
         ...(unsentMarks.size > 0 && { marks: sentMarks }),
+        ...(unsentTemplates.size > 0 && { templates: sentTemplates }),
         ...(hasState && { state: sentState }),
         ...(sentFollow !== null && { follow: sentFollow }),
       },
@@ -882,6 +902,11 @@ async function push(leaving = false) {
         unsentMarks.delete(key);
       }
     }
+    for (const [id, tpl] of Object.entries(sentTemplates)) {
+      if (shared.templates && id in shared.templates && (live.templates[id] ?? null) === tpl) {
+        unsentTemplates.delete(id);
+      }
+    }
     if (hasState && shared.state) cardStateLink?.sent(sentState);
     applyShared(shared);
     if (unsynced.size > 0) schedulePush();
@@ -903,6 +928,7 @@ async function pull(first = false) {
     if (first && shared.at === 0) {
       for (const id of Object.keys(live.cards)) unsynced.add(id);
       for (const key of Object.keys(live.marks)) unsentMarks.add(key);
+      for (const id of Object.keys(live.templates)) unsentTemplates.add(id);
       await push();
     } else {
       applyShared(shared);
@@ -1004,6 +1030,81 @@ export const removeMarked = (key: string) => editMark(key, { removed: Date.now()
 /** Puts a removed card or group back where it was. */
 export const restoreMarked = (key: string) => editMark(key, { removed: undefined });
 export const setPrivate = (key: string, on: boolean | undefined) => editMark(key, { private: on });
+
+/** Spawned built-in template instances changed here that the shared layout doesn't have yet. */
+const unsentTemplates = new Set<string>();
+const TEMPLATES_EVENT = "lalala:canvas-templates";
+const activeTemplatesOf = (map: Templates): readonly TemplateInstance[] =>
+  Object.values(map)
+    .flatMap((entry) => (entry ? [entry] : []))
+    .sort((a, b) => a.createdAt - b.createdAt || a.id.localeCompare(b.id));
+let templatesSnapshot: readonly TemplateInstance[] = activeTemplatesOf(live.templates);
+function templatesChanged() {
+  templatesSnapshot = activeTemplatesOf(live.templates);
+  document.dispatchEvent(new Event(TEMPLATES_EVENT));
+}
+export const subscribeTemplates = (listener: () => void) => {
+  document.addEventListener(TEMPLATES_EVENT, listener);
+  return () => document.removeEventListener(TEMPLATES_EVENT, listener);
+};
+/** Active template instances on any canvas; stable reference for useSyncExternalStore. */
+export const getActiveTemplates = () => templatesSnapshot;
+
+/** Shows spawned templates from the shared layout or another tab, keeping this tab's unsent edits. */
+function adoptTemplates(incoming: Templates) {
+  const clean = sanitizeTemplates(incoming);
+  const mine = Object.fromEntries(
+    [...unsentTemplates].map((id) => [id, live.templates[id] ?? null]),
+  );
+  const next: Templates = { ...live.templates, ...clean, ...mine };
+  if (JSON.stringify(next) === JSON.stringify(live.templates)) return;
+  live.templates = next;
+  writeJson(TEMPLATES, next);
+  templatesChanged();
+}
+
+function editTemplate(id: string, instance: TemplateInstance | null) {
+  live.templates = { ...live.templates, [id]: instance };
+  unsentTemplates.add(id);
+  writeJson(TEMPLATES, { ...readTemplates(), [id]: instance });
+  templatesChanged();
+  schedulePush();
+}
+
+/** Spawns a built-in template onto the active (or named) canvas in free space and focuses it. */
+export function spawnTemplate(
+  templateId: TemplateId,
+  options: Omit<CreateTemplateOptions, "existingIds"> = {},
+): TemplateInstance {
+  const list = listOf(live.canvases);
+  const resolvedCanvas = options.canvas
+    ? homeOf(options.canvas, list)
+    : live.canvas || MAIN;
+  const activeTemplateIds = Object.entries(live.templates).flatMap(([id, entry]) =>
+    entry !== null ? [id] : [],
+  );
+  const existingIds = [...cardsInCode.keys(), ...activeTemplateIds];
+  const instance = createTemplateInstance(templateId, {
+    ...options,
+    existingIds,
+    ...(resolvedCanvas !== MAIN ? { canvas: resolvedCanvas } : { canvas: undefined }),
+  });
+  // If an earlier card with this id was marked removed, un-remove it so the new instance shows.
+  if (live.marks[cardMark(instance.id)]?.removed) restoreMarked(cardMark(instance.id));
+  editTemplate(instance.id, instance);
+  if (typeof window !== "undefined") {
+    window.requestAnimationFrame(() => {
+      focusCard(instance.id, true);
+    });
+  }
+  return instance;
+}
+
+/** Removes a spawned template card (synced as a null tombstone across devices). */
+export function removeTemplate(id: string) {
+  if (live.templates[id] === undefined || live.templates[id] === null) return;
+  editTemplate(id, null);
+}
 
 /** A card's own private choice, else its default; a private group makes all its cards private. */
 export function isPrivate(
@@ -1517,6 +1618,10 @@ const api = {
   tidy: tidyCanvas,
   tidyGroup,
   inView: cardInView,
+  /** Built-in predefined card templates (src/voice/templates/registry.ts). */
+  spawnTemplate,
+  removeTemplate,
+  templates: getActiveTemplates,
   /** The settings' "Removed from the canvas" list. */
   removed: removedList,
   restore: restoreMarked,
@@ -1691,6 +1796,7 @@ function adopt(event: StorageEvent) {
   if (event.key === STORE && event.newValue !== null) adoptCards(read().cards);
   if (event.key === CANVASES && event.newValue !== null) adoptCanvases(readCanvases());
   if (event.key === MARKS && event.newValue !== null) adoptMarks(readMarks());
+  if (event.key === TEMPLATES && event.newValue !== null) adoptTemplates(readTemplates());
   if (event.key === FOLLOW_SIGNAL_STORAGE && event.newValue !== null) {
     try {
       const sig = JSON.parse(event.newValue) as FollowSignal;
