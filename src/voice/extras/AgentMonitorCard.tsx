@@ -40,15 +40,18 @@ const EMPTY_AGENTS: ReadonlyArray<AgentRunView> = [];
 type PinState = { readonly pinned: boolean; readonly canvas?: string };
 const UNPINNED: PinState = { pinned: false };
 
+const DEFAULT_AGENTS_MONITOR = import.meta.env?.LALALA_HOST === "site";
+
 function readAgentsLab(): boolean {
-  if (typeof localStorage === "undefined") return false;
+  if (typeof localStorage === "undefined") return DEFAULT_AGENTS_MONITOR;
   try {
     const raw = JSON.parse(localStorage.getItem(SETTINGS_KEY) ?? "null") as {
       labs?: { agentsMonitor?: unknown };
     } | null;
-    return raw?.labs?.agentsMonitor === true;
+    if (typeof raw?.labs?.agentsMonitor === "boolean") return raw.labs.agentsMonitor;
+    return DEFAULT_AGENTS_MONITOR;
   } catch {
-    return false;
+    return DEFAULT_AGENTS_MONITOR;
   }
 }
 

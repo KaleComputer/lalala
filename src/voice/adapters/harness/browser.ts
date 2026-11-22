@@ -2,9 +2,10 @@
 // (paired in the settings' Connection section) and sends turns to it, speaking the same events as vite/t3bridge.mjs.
 import type { HarnessAdapter } from "..";
 import {
-  type AgentRun,
-  projectBrainNotificationAgents,
-  sortAgents,
+  type RawDelegateThread,
+  type RawPendingBackgroundTask,
+  type RawSubagentTurnItem,
+  createBrowserDelegateTracker,
 } from "../../agents/model";
 import {
   type Inbox,
@@ -30,6 +31,7 @@ import {
   slimRun,
 } from "./compaction";
 import {
+  type Project,
   SOCKET_CLOSED,
   T3Socket,
   localNetworkPermission,
@@ -59,6 +61,13 @@ type Item = {
   updatedAt?: string | null;
   runId?: string | null;
   status?: string;
+  title?: string | null;
+  summary?: string;
+  label?: string | null;
+  childThreadId?: string | null;
+  subagentThreadId?: string | null;
+  targetThreadId?: string | null;
+  source?: { kind?: string; childThreadId?: string };
   retry?: unknown;
   context?: { records?: { contextId?: string }[] };
 };
@@ -70,6 +79,7 @@ type Thread = {
   runtimeMode: string;
   interactionMode: string;
   activeProviderThreadId?: string | null;
+  pendingBackgroundTasks?: ReadonlyArray<RawPendingBackgroundTask> | null;
 };
 
 // The page only reads these fields (VoiceHost, brief.ts), as from the app's bridge.
@@ -132,8 +142,6 @@ export function browserHarness(): HarnessAdapter {
     contextLine: "null",
     titles: new Map<string, string>(),
     environmentId: null as string | null,
-    agents: new Map<string, AgentRun>(),
-    agentsLine: "[]",
     inbox: parseInbox(null),
   };
   let socket: T3Socket | null = null;
@@ -163,24 +171,19 @@ export function browserHarness(): HarnessAdapter {
   const workspaceRoot = brain ? `t3:${brain.threadId}` : null;
   if (brain) state.inbox = readLocalInbox(brain.threadId);
   const inboxView = () => ({ ...state.inbox, digest: false });
-  const agentsView = () => sortAgents(state.agents.values());
-  const hello = () => ({
-    type: "hello",
-    connected: state.connected,
-    error: state.error,
-    workspaceRoot,
-    shell: state.thread && { ...state.thread, active: active() },
-    rows: [...state.rows.values()],
-    context: context(),
-    agents: agentsView(),
-    inbox: inboxView(),
-  });
   const emit = (event: unknown) => {
     for (const listener of listeners) listener(event);
   };
-
+  const inboxContext = {
+    titleOf: (threadId: string) => state.titles.get(threadId) ?? null,
+    linkOf: (threadId: string) =>
+      brain && state.environmentId
+        ? `${brain.session.origin}/${state.environmentId}/${encodeURIComponent(threadId)}`
+        : null,
+  };
   let inboxTimer: ReturnType<typeof setTimeout> | undefined;
   let inboxRead = false;
+  let shellProjects: Project[] | null = null;
   const setInbox = (next: Inbox) => {
     if (next === state.inbox || brain === null) return;
     state.inbox = next;
@@ -216,37 +219,61 @@ export function browserHarness(): HarnessAdapter {
       // The next change writes it again.
     }
   }
-  const inboxContext = {
-    titleOf: (threadId: string) => state.titles.get(threadId) ?? null,
-    linkOf: (threadId: string) =>
-      brain && state.environmentId
-        ? `${brain.session.origin}/${state.environmentId}/${encodeURIComponent(threadId)}`
-        : null,
-  };
+  const tracker = createBrowserDelegateTracker<Project, RawDelegateThread>({
+    brainThreadId: brain?.threadId ?? "",
+    titleOf: inboxContext.titleOf,
+    linkOf: inboxContext.linkOf,
+    onTitle: (threadId, title) => state.titles.set(threadId, title),
+    onAgents: (agents) => emit({ type: "agents", agents }),
+    onShellSnapshot: (snapshot) => {
+      if (snapshot.projects.length > 0) shellProjects = snapshot.projects;
+      if (inboxRead) takeInbox();
+    },
+  });
+  const hello = () => ({
+    type: "hello",
+    connected: state.connected,
+    error: state.error,
+    workspaceRoot,
+    shell: state.thread && { ...state.thread, active: active() },
+    rows: [...state.rows.values()],
+    context: context(),
+    agents: tracker.view(),
+    inbox: inboxView(),
+  });
   // The first capture in this browser and project finds what the thread already holds: that came
   // before the inbox, so it is heard.
   const takeAgents = () => {
-    state.agents = projectBrainNotificationAgents(state.agents, state.rows.values(), inboxContext);
-    const list = agentsView();
-    const line = JSON.stringify(list);
-    if (line === state.agentsLine) return;
-    state.agentsLine = line;
-    emit({ type: "agents", agents: list });
+    tracker.takeBrainNotifications(state.rows.values());
   };
   const takeInbox = (seed = false) => {
     const next = captureInbox(state.inbox, state.rows.values(), inboxContext);
     setInbox(seed ? applyInboxChange(next, { heard: "all" }) : next);
     takeAgents();
   };
-  // Once per connection: thread titles, the environment for links, and the project's copy.
+  // Once per connection: server config for links/shell flags, live shell stream for running
+  // delegates and titles, and the project's away-inbox file.
   async function readInboxContext(link: T3Socket) {
+    let config: {
+      environment?: { environmentId?: string };
+      shellThreadFamilies?: boolean;
+      shellOlderSettled?: boolean;
+    } | null = null;
     try {
-      const [{ threads }, config] = await Promise.all([
-        readShell(link),
-        link.request<{ environment?: { environmentId?: string } }>("server.getConfig", {}),
-      ]);
-      for (const thread of threads) state.titles.set(thread.id, thread.title);
+      config = await link.request<{
+        environment?: { environmentId?: string };
+        shellThreadFamilies?: boolean;
+        shellOlderSettled?: boolean;
+      }>("server.getConfig", {});
+      if (socket !== link) return;
       state.environmentId = config.environment?.environmentId ?? null;
+      tracker.refreshLinks();
+    } catch {
+      // Links and shell flags are extras: still follow the shell stream below.
+    }
+    if (socket !== link) return;
+    tracker.startShell(link, config ?? undefined);
+    try {
       if (!inboxRead) {
         const contents = await rootOf(link).then((cwd) =>
           link.request<{ contents: string; exists?: boolean }>("projects.readFile", {
@@ -255,14 +282,16 @@ export function browserHarness(): HarnessAdapter {
             allowMissing: true,
           }),
         );
+        if (socket !== link) return;
         const there = contents.exists === false ? null : parseInbox(JSON.parse(contents.contents));
         inboxRead = true;
         if (there) setInbox(mergeInbox(state.inbox, there));
         return takeInbox(there === null && state.inbox.items.length === 0);
       }
     } catch {
-      // Titles, links and the project's copy are extras: items still come in under their kind.
+      // The project's copy is an extra: items still come in under their kind.
     }
+    if (socket !== link) return;
     inboxRead = true;
     takeInbox();
   }
@@ -317,6 +346,7 @@ export function browserHarness(): HarnessAdapter {
       socket = next;
       next.onClose = () => {
         socket = null;
+        tracker.reset();
         // Closed on purpose (the last listener left): no reconnect.
         if (!started) return;
         fail("Reconnecting to T3 Code…");
@@ -335,6 +365,7 @@ export function browserHarness(): HarnessAdapter {
                 providerThreads: { id: string; driver: string }[];
                 providerTurns: ProviderTurn[];
                 visibleTurnItems: { visibility: string; item: Item }[];
+                turnItems?: RawSubagentTurnItem[];
               };
               state.thread = projection.thread;
               state.runs = new Map(projection.runs.map((run) => [run.id, slimRun(run)]));
@@ -354,6 +385,7 @@ export function browserHarness(): HarnessAdapter {
                   .slice(-MAX_ROWS)
                   .map((row) => [row.item.id, slim(row.visibility, row.item)]),
               );
+              tracker.takeBrainSnapshot(next, projection);
               state.connected = true;
               state.error = null;
               failures = 0;
@@ -364,7 +396,11 @@ export function browserHarness(): HarnessAdapter {
             } else if (chunk.kind === "event" && chunk.event) {
               const { type, payload } = chunk.event as {
                 type: string;
-                payload: Item & RawRun & ProviderTurn & RawMessage & { threadId?: string; driver?: string };
+                payload: Item &
+                  RawRun &
+                  ProviderTurn &
+                  RawMessage &
+                  Partial<Thread> & { threadId?: string; driver?: string };
               };
               if (type === "turn-item.updated" && payload.threadId === brain.threadId) {
                 const row = slim("local", payload);
@@ -372,6 +408,9 @@ export function browserHarness(): HarnessAdapter {
                 state.rows.set(row.item.id, row);
                 while (state.rows.size > MAX_ROWS) state.rows.delete(state.rows.keys().next().value!);
                 emit({ type: "row", row });
+                if (payload.type === "subagent") {
+                  tracker.takeBrainTurnItem(next, payload);
+                }
                 if (payload.type === "compaction") {
                   state.compactionItems.set(payload.id, slimCompactionItem(payload));
                   emitContext();
@@ -399,6 +438,9 @@ export function browserHarness(): HarnessAdapter {
               } else if (type === "message.updated" && isCompactionMessage(payload)) {
                 state.compactions.add(payload.id);
                 emitContext();
+              } else if (type === "thread.updated" && payload.id === brain.threadId) {
+                if (state.thread) state.thread = { ...state.thread, ...payload };
+                tracker.takeBrainThreadUpdated(next, payload);
               }
             }
           },
@@ -407,6 +449,7 @@ export function browserHarness(): HarnessAdapter {
           if (socket !== next) return;
           // The thread's stream ended with the socket still up: start over on a fresh one.
           socket = null;
+          tracker.reset();
           next.close();
           fail(`T3: ${error.message}`);
           later();
@@ -434,7 +477,9 @@ export function browserHarness(): HarnessAdapter {
   // The brain thread's project folder on the paired machine, for its card files.
   let projectRoot: Promise<string> | null = null;
   const rootOf = (link: T3Socket) =>
-    (projectRoot ??= readShell(link).then(({ projects }) => {
+    (projectRoot ??= (
+      shellProjects !== null ? Promise.resolve({ projects: shellProjects }) : readShell(link)
+    ).then(({ projects }) => {
       const root = projects.find((p) => p.id === state.thread?.projectId)?.workspaceRoot;
       if (root === undefined) throw new Error("The voice thread's project is gone");
       return root;
@@ -493,6 +538,7 @@ export function browserHarness(): HarnessAdapter {
         window.removeEventListener("online", now);
         document.removeEventListener("visibilitychange", onVisible);
         if (permission) permission.onchange = null;
+        tracker.reset();
         socket?.close();
         socket = null;
       };

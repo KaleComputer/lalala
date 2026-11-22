@@ -37,10 +37,12 @@ export type Labs = {
   /** Follow toggle button in the bottom voice bar (src/voice/VoiceBar). */
   readonly followButton: boolean;
 };
+const isSiteHost = () => import.meta.env?.LALALA_HOST === "site";
+
 const DEFAULT_LABS: Labs = {
   awayInbox: false,
   awayDigest: false,
-  agentsMonitor: false,
+  agentsMonitor: isSiteHost(),
   followButton: false,
 };
 
@@ -72,10 +74,14 @@ const storage = () => {
 const isRecord = (value: unknown): value is Record<string, unknown> =>
   typeof value === "object" && value !== null && !Array.isArray(value);
 
-export function parseSynced(value: unknown): SyncedSettings | null {
+export function parseSynced(
+  value: unknown,
+  options?: { readonly defaultAgentsMonitor?: boolean },
+): SyncedSettings | null {
   if (!isRecord(value)) return null;
+  const defaultAgentsMonitor = options?.defaultAgentsMonitor ?? isSiteHost();
   const delegates = isRecord(value.delegates) ? value.delegates : {};
-  const options = isRecord(delegates.options)
+  const optionsMap = isRecord(delegates.options)
     ? Object.fromEntries(
         Object.entries(delegates.options).filter(
           (entry): entry is [string, OptionValue] =>
@@ -88,7 +94,7 @@ export function parseSynced(value: unknown): SyncedSettings | null {
       instanceId: typeof delegates.instanceId === "string" ? delegates.instanceId : null,
       model: typeof delegates.model === "string" ? delegates.model : null,
       modelName: typeof delegates.modelName === "string" ? delegates.modelName : null,
-      options,
+      options: optionsMap,
     },
     topicSound: typeof value.topicSound === "string" ? value.topicSound : DEFAULT_TOPIC_SOUND,
     modelVoices: isRecord(value.modelVoices)
@@ -101,7 +107,10 @@ export function parseSynced(value: unknown): SyncedSettings | null {
     labs: {
       awayInbox: isRecord(value.labs) && value.labs.awayInbox === true,
       awayDigest: isRecord(value.labs) && value.labs.awayDigest === true,
-      agentsMonitor: isRecord(value.labs) && value.labs.agentsMonitor === true,
+      agentsMonitor:
+        isRecord(value.labs) && typeof value.labs.agentsMonitor === "boolean"
+          ? value.labs.agentsMonitor
+          : defaultAgentsMonitor,
       followButton: isRecord(value.labs) && value.labs.followButton === true,
     },
     onboardingDismissed: value.onboardingDismissed === true,

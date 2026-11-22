@@ -23,12 +23,18 @@ import {
   parseInboxChange,
 } from "../src/voice/inbox/capture.ts";
 import {
+  isActiveAgent,
   isBrainDelegateThread,
+  isShellThreadActive,
+  isShellThreadWaiting,
   projectBrainNotificationAgents,
+  projectBrainPendingTasks,
+  projectBrainSubagentItem,
   projectDelegateRun,
   projectDelegateShell,
   projectDelegateTurnItem,
   sortAgents,
+  subagentThreadIdOf,
 } from "../src/voice/agents/model.ts";
 import {
   T3Socket,
@@ -184,6 +190,7 @@ export function t3BridgePlugin({ threadId: configuredThreadId, workspaceRoot }) 
     delegates: new Map(),
     // Live and recently completed delegate runs of the brain, by thread id.
     agents: new Map(),
+    pendingTaskIds: new Set(),
     agentsLine: "[]",
     // Every thread's title from the shell, for where an inbox item came from.
     titles: new Map(),
@@ -282,6 +289,44 @@ export function t3BridgePlugin({ threadId: configuredThreadId, workspaceRoot }) 
     state.agents = projectBrainNotificationAgents(state.agents, state.rows.values(), inboxContext);
     broadcastAgents();
   };
+  const takeBrainSubagentItem = (item) => {
+    if (item?.type !== "subagent") return;
+    const id = subagentThreadIdOf(item) ?? (typeof item.id === "string" ? item.id : null);
+    if (!id) return;
+    if (typeof item.title === "string" && item.title.trim() !== "") {
+      state.titles.set(id, item.title);
+    }
+    const projected = projectBrainSubagentItem(state.agents.get(id), item, inboxContext);
+    if (!projected) return;
+    state.agents.set(id, projected);
+    broadcastAgents();
+  };
+  const syncBrainPendingTasks = (tasks, completeMissing) => {
+    if (!Array.isArray(tasks)) return;
+    const { agents: nextAgents, activeIds } = projectBrainPendingTasks(
+      state.agents,
+      tasks,
+      inboxContext,
+    );
+    state.agents = nextAgents;
+    if (completeMissing) {
+      for (const prevId of state.pendingTaskIds) {
+        if (activeIds.has(prevId)) continue;
+        const existing = state.agents.get(prevId);
+        if (existing && isActiveAgent(existing)) {
+          const nowIso = new Date().toISOString();
+          state.agents.set(prevId, {
+            ...existing,
+            status: "completed",
+            completedAt: nowIso,
+            updatedAt: nowIso,
+          });
+        }
+      }
+    }
+    state.pendingTaskIds = activeIds;
+    broadcastAgents();
+  };
   const takeInbox = () => {
     const next = captureInbox(state.inbox, state.rows.values(), inboxContext);
     setInbox(seeded ? next : applyInboxChange(next, { heard: "all" }));
@@ -348,12 +393,19 @@ export function t3BridgePlugin({ threadId: configuredThreadId, workspaceRoot }) 
               );
               state.connected = true;
               state.error = null;
+              for (const row of projection.visibleTurnItems ?? []) {
+                if (row.item?.type === "subagent") takeBrainSubagentItem(row.item);
+              }
+              syncBrainPendingTasks(projection.thread?.pendingBackgroundTasks, false);
               takeInbox();
               broadcast(hello());
             } else if (chunk.kind === "event") {
               const { type, payload } = chunk.event;
               if (type === "turn-item.updated" && payload.threadId === state.threadId) {
                 upsert(slim("local", payload));
+                if (payload.type === "subagent") {
+                  takeBrainSubagentItem(payload);
+                }
                 if (payload.type === "compaction") {
                   state.compactionItems.set(payload.id, slimCompactionItem(payload));
                   broadcastContext();
@@ -384,6 +436,9 @@ export function t3BridgePlugin({ threadId: configuredThreadId, workspaceRoot }) 
               ) {
                 if (payload && typeof payload === "object" && payload.id === state.threadId) {
                   state.thread = { ...state.thread, ...payload };
+                  if (Array.isArray(payload.pendingBackgroundTasks)) {
+                    syncBrainPendingTasks(payload.pendingBackgroundTasks, true);
+                  }
                 }
               }
             }
@@ -476,6 +531,7 @@ export function t3BridgePlugin({ threadId: configuredThreadId, workspaceRoot }) 
     state.asks.clear();
     state.waiting.clear();
     state.agents.clear();
+    state.pendingTaskIds.clear();
     state.agentsLine = "[]";
     const delegates = [...state.delegates.values()];
     state.delegates.clear();
@@ -515,7 +571,7 @@ export function t3BridgePlugin({ threadId: configuredThreadId, workspaceRoot }) 
   // runs, projecting live progress into `state.agents` and broadcasting `agents` SSE events.
   function followDelegate(via, thread) {
     const isDelegate = isBrainDelegateThread(thread, state.threadId);
-    const running = via === socket && isDelegate && thread.activeRunId != null;
+    const running = via === socket && isDelegate && isShellThreadActive(thread);
     if (via === socket && (isDelegate || state.agents.has(thread.id))) {
       state.agents.set(
         thread.id,
@@ -538,6 +594,7 @@ export function t3BridgePlugin({ threadId: configuredThreadId, workspaceRoot }) 
     if (followed !== undefined) return;
     const child = new T3Socket();
     state.delegates.set(thread.id, child);
+    let childWaiting = isShellThreadWaiting(thread);
     const current = () => state.delegates.get(thread.id) === child;
     const take = (item, runId) => {
       const existing = state.agents.get(thread.id);
@@ -558,7 +615,7 @@ export function t3BridgePlugin({ threadId: configuredThreadId, workspaceRoot }) 
     const takeRun = (run) => {
       const existing = state.agents.get(thread.id);
       if (!existing || !run) return;
-      const updated = projectDelegateRun(existing, run);
+      const updated = projectDelegateRun(existing, run, undefined, { threadWaiting: childWaiting });
       if (updated !== existing) {
         state.agents.set(thread.id, updated);
         broadcastAgents();
@@ -578,6 +635,7 @@ export function t3BridgePlugin({ threadId: configuredThreadId, workspaceRoot }) 
             if (!current()) return;
             if (chunk.kind === "snapshot") {
               const proj = chunk.projection;
+              childWaiting = isShellThreadWaiting(proj.thread);
               if (proj.thread && typeof proj.thread.title === "string") {
                 state.titles.set(thread.id, proj.thread.title);
                 const existing = state.agents.get(thread.id);
@@ -590,7 +648,8 @@ export function t3BridgePlugin({ threadId: configuredThreadId, workspaceRoot }) 
                 proj.runs?.findLast((run) => ACTIVE_RUN.has(run.status)) ??
                 proj.runs?.at(-1);
               if (activeRun) takeRun(activeRun);
-              for (const item of proj.turnItems ?? []) take(item, thread.activeRunId);
+              const items = proj.turnItems ?? proj.visibleTurnItems?.map((row) => row.item) ?? [];
+              for (const item of items) take(item, thread.activeRunId);
               broadcastAgents();
             } else if (chunk.kind === "event") {
               const { type, payload } = chunk.event;
@@ -598,12 +657,21 @@ export function t3BridgePlugin({ threadId: configuredThreadId, workspaceRoot }) 
                 take(payload);
               } else if (type === "run.created" || type === "run.updated") {
                 takeRun(payload);
-              } else if (type === "thread.updated" && typeof payload?.title === "string") {
-                state.titles.set(thread.id, payload.title);
-                const existing = state.agents.get(thread.id);
-                if (existing && existing.title !== payload.title) {
-                  state.agents.set(thread.id, { ...existing, title: payload.title });
-                  broadcastAgents();
+              } else if (type === "thread.updated") {
+                if (
+                  payload?.pendingBackgroundTasks !== undefined ||
+                  payload?.pendingRuntimeRequest !== undefined ||
+                  payload?.status !== undefined
+                ) {
+                  childWaiting = isShellThreadWaiting(payload);
+                }
+                if (typeof payload?.title === "string") {
+                  state.titles.set(thread.id, payload.title);
+                  const existing = state.agents.get(thread.id);
+                  if (existing && existing.title !== payload.title) {
+                    state.agents.set(thread.id, { ...existing, title: payload.title });
+                    broadcastAgents();
+                  }
                 }
               }
             }
@@ -628,9 +696,33 @@ export function t3BridgePlugin({ threadId: configuredThreadId, workspaceRoot }) 
           for (const thread of chunk.snapshot.threads) void takeShell(via, thread);
           takeBrainAgents();
         } else if (chunk.kind === "thread.updated") {
-          void takeShell(via, chunk.location === "active" ? chunk.thread : { id: chunk.thread.id });
+          void takeShell(
+            via,
+            chunk.location === "active"
+              ? chunk.thread
+              : {
+                  id: chunk.thread.id,
+                  ...(typeof chunk.thread.title === "string" ? { title: chunk.thread.title } : {}),
+                  ...(typeof chunk.thread.updatedAt === "string"
+                    ? { updatedAt: chunk.thread.updatedAt }
+                    : {}),
+                  ...(typeof chunk.thread.latestRunStatus === "string"
+                    ? { latestRunStatus: chunk.thread.latestRunStatus }
+                    : {}),
+                  activeRunId: null,
+                  status: null,
+                  pendingBackgroundTasks: [],
+                  pendingRuntimeRequest: null,
+                },
+          );
         } else if (chunk.kind === "thread.removed") {
-          void takeShell(via, { id: chunk.threadId });
+          void takeShell(via, {
+            id: chunk.threadId,
+            activeRunId: null,
+            status: null,
+            pendingBackgroundTasks: [],
+            pendingRuntimeRequest: null,
+          });
         }
       },
     );

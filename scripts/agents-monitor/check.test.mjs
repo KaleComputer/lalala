@@ -7,6 +7,7 @@ import { test } from "node:test";
 import { INITIAL_BRIDGE_STATE, reduceBridgeState } from "../../src/t3/bridgeState.ts";
 import { parseSynced } from "../../src/voice/settingsStore.ts";
 import {
+  createBrowserDelegateTracker,
   describeTurnItemStep,
   extractLinkedCard,
   formatDoneAt,
@@ -14,12 +15,17 @@ import {
   formatElapsed,
   isActiveAgent,
   isBrainDelegateThread,
+  isShellThreadActive,
+  isShellThreadWaiting,
   normalizeRunStatus,
   projectBrainNotificationAgents,
+  projectBrainPendingTasks,
+  projectBrainSubagentItem,
   projectDelegateRun,
   projectDelegateShell,
   projectDelegateTurnItem,
   sortAgents,
+  subagentThreadIdOf,
 } from "../../src/voice/agents/model.ts";
 
 test("describeTurnItemStep extracts concise labels for tools, waits, reasoning, and ignores bookkeeping", () => {
@@ -368,8 +374,286 @@ test("formatting helpers and bridge SSE reducer handle agents events cleanly", (
   );
   assert.equal(nameless.size, 0);
 
-  // Labs flag defaults off and parses cleanly.
+  // Labs flag defaults off in local app mode, on in site mode (lalala.talk), and honors explicit false.
   assert.equal(parseSynced({})?.labs.agentsMonitor, false);
   assert.equal(parseSynced({ labs: { agentsMonitor: true } })?.labs.agentsMonitor, true);
   assert.equal(parseSynced({ labs: { agentsMonitor: "yes" } })?.labs.agentsMonitor, false);
+  assert.equal(parseSynced({}, { defaultAgentsMonitor: true })?.labs.agentsMonitor, true);
+  assert.equal(parseSynced({ labs: {} }, { defaultAgentsMonitor: true })?.labs.agentsMonitor, true);
+  assert.equal(
+    parseSynced({ labs: { agentsMonitor: false } }, { defaultAgentsMonitor: true })?.labs.agentsMonitor,
+    false,
+  );
+});
+
+test("background-waiting subagents and brain subagent turn items stay active until completion", () => {
+  const brainId = "brain-claude";
+  const childId = "thread:delegated-task:demo-worker-1";
+  const itemId = "turn-item:delegated-task:demo-worker-1";
+
+  assert.equal(subagentThreadIdOf({ id: itemId }), childId);
+  assert.equal(subagentThreadIdOf({ id: "other", childThreadId: childId }), childId);
+
+  // Direct subagent matched by parentThreadId (even when rootThreadId differs or is omitted).
+  assert.equal(
+    isBrainDelegateThread(
+      {
+        id: childId,
+        parentThreadId: brainId,
+        relationshipToParent: "subagent",
+      },
+      brainId,
+    ),
+    true,
+  );
+
+  // A delegate waiting on a background shell command has activeRunId: null, status: "waiting",
+  // and non-empty pendingBackgroundTasks — must stay active, not flip to completed.
+  const waitingThread = {
+    id: childId,
+    title: "Monitor test worker 1",
+    activeRunId: null,
+    status: "waiting",
+    createdAt: "2026-11-22T21:59:24.000Z",
+    updatedAt: "2026-11-22T21:59:33.000Z",
+    pendingBackgroundTasks: [
+      { taskId: "bg-1", kind: "command", description: "Sleep for 180 seconds in background", awaited: true },
+    ],
+    lineage: { relationshipToParent: "subagent", rootThreadId: brainId },
+  };
+  assert.equal(isShellThreadWaiting(waitingThread), true);
+  assert.equal(isShellThreadActive(waitingThread), true);
+
+  let agent = projectDelegateShell(undefined, waitingThread, "https://t3.example/env/demo-worker-1");
+  assert.equal(agent.status, "waiting");
+  assert.equal(agent.completedAt, null);
+  assert.equal(agent.step, "Sleep for 180 seconds in background");
+  assert.equal(isActiveAgent(agent), true);
+
+  // Completed turn run while thread is still waiting on background task must NOT downgrade to completed.
+  agent = projectDelegateRun(
+    agent,
+    { id: "run-1", status: "completed", completedAt: "2026-11-22T21:59:33.000Z" },
+    "2026-11-22T21:59:34.000Z",
+    { threadWaiting: true },
+  );
+  assert.equal(agent.status, "waiting");
+  assert.equal(agent.completedAt, null);
+
+  // Brain `type: "subagent"` turn item projects immediately and transitions cleanly to completed.
+  const ctx = {
+    titleOf: () => null,
+    linkOf: (id) => `https://t3.example/env/${encodeURIComponent(id)}`,
+  };
+  let fromItem = projectBrainSubagentItem(
+    undefined,
+    {
+      id: itemId,
+      type: "subagent",
+      status: "running",
+      title: "Monitor test worker 1",
+      startedAt: "2026-11-22T21:59:24.000Z",
+      updatedAt: "2026-11-22T21:59:24.000Z",
+    },
+    ctx,
+  );
+  assert.ok(fromItem);
+  assert.equal(fromItem.id, childId);
+  assert.equal(fromItem.status, "running");
+  assert.equal(fromItem.title, "Monitor test worker 1");
+  assert.equal(fromItem.link, `https://t3.example/env/${encodeURIComponent(childId)}`);
+
+  fromItem = projectBrainSubagentItem(
+    fromItem,
+    {
+      id: itemId,
+      type: "subagent",
+      status: "completed",
+      title: "Monitor test worker 1",
+      completedAt: "2026-11-22T22:02:30.000Z",
+      updatedAt: "2026-11-22T22:02:30.000Z",
+    },
+    ctx,
+  );
+  assert.ok(fromItem);
+  assert.equal(fromItem.status, "completed");
+  assert.equal(fromItem.completedAt, "2026-11-22T22:02:30.000Z");
+
+  const pending = projectBrainPendingTasks(
+    new Map(),
+    [{ taskId: itemId, kind: "subagent", description: "Monitor test worker 1", childThreadId: childId }],
+    ctx,
+  );
+  assert.equal(pending.activeIds.has(childId), true);
+  assert.equal(pending.agents.get(childId)?.status, "running");
+});
+
+test("createBrowserDelegateTracker tracks live subagents, shell updates, child streams, links, and completion", () => {
+  const brainId = "thread:project:demo:brain";
+  const worker1 = "thread:delegated-task:worker-1";
+  const worker2 = "thread:delegated-task:worker-2";
+
+  const streams = [];
+  const socket = {
+    stream(tag, payload, onChunk) {
+      const entry = { tag, payload, onChunk, stopped: false };
+      streams.push(entry);
+      return {
+        done: new Promise(() => {}),
+        stop() {
+          entry.stopped = true;
+        },
+      };
+    },
+  };
+
+  let envId = null;
+  const titles = new Map();
+  const emitted = [];
+  const tracker = createBrowserDelegateTracker({
+    brainThreadId: brainId,
+    titleOf: (id) => titles.get(id) ?? null,
+    linkOf: (id) => (envId ? `https://t3.example/${envId}/${encodeURIComponent(id)}` : null),
+    onTitle: (id, title) => titles.set(id, title),
+    onAgents: (list) => emitted.push(list),
+  });
+
+  // 1) Brain snapshot arrives with an active subagent turn item + pendingBackgroundTasks.
+  tracker.takeBrainSnapshot(socket, {
+    thread: {
+      pendingBackgroundTasks: [
+        {
+          taskId: "turn-item:delegated-task:worker-1",
+          kind: "subagent",
+          description: "Monitor test worker 1",
+          childThreadId: worker1,
+        },
+      ],
+    },
+    visibleTurnItems: [
+      {
+        item: {
+          id: "turn-item:delegated-task:worker-1",
+          type: "subagent",
+          status: "running",
+          title: "Monitor test worker 1",
+          startedAt: "2026-11-22T21:59:24.000Z",
+          updatedAt: "2026-11-22T21:59:24.000Z",
+        },
+      },
+    ],
+  });
+
+  assert.equal(tracker.view().length, 1);
+  assert.equal(tracker.view()[0]?.id, worker1);
+  assert.equal(tracker.view()[0]?.status, "running");
+  assert.equal(tracker.view()[0]?.link, null);
+  assert.equal(
+    streams.some((s) => s.tag === "orchestration.subscribeThread" && s.payload.threadId === worker1),
+    true,
+  );
+
+  // 2) server.getConfig returns environmentId -> refreshLinks backfills clickable link.
+  envId = "env-1";
+  tracker.refreshLinks();
+  assert.equal(tracker.view()[0]?.link, `https://t3.example/env-1/${encodeURIComponent(worker1)}`);
+
+  // 3) Live shell subscription opens and delivers a second active delegate.
+  tracker.startShell(socket, { shellThreadFamilies: true, shellOlderSettled: true });
+  const shellStream = streams.find((s) => s.tag === "orchestration.subscribeShell");
+  assert.ok(shellStream);
+  assert.deepEqual(shellStream.payload, { omitIdleSubagents: true, omitOlderSettled: true });
+
+  shellStream.onChunk({
+    kind: "thread.updated",
+    location: "active",
+    thread: {
+      id: worker2,
+      title: "Monitor test worker 2",
+      activeRunId: "run-w2",
+      createdAt: "2026-11-22T21:59:25.000Z",
+      updatedAt: "2026-11-22T21:59:26.000Z",
+      lineage: { relationshipToParent: "subagent", rootThreadId: brainId },
+    },
+  });
+  assert.equal(tracker.view().filter(isActiveAgent).length, 2);
+
+  // 4) Child stream for worker-2 delivers a live tool step and title rename.
+  const child2Stream = streams.find(
+    (s) => s.tag === "orchestration.subscribeThread" && s.payload.threadId === worker2,
+  );
+  assert.ok(child2Stream);
+  child2Stream.onChunk({
+    kind: "event",
+    event: {
+      type: "turn-item.updated",
+      payload: {
+        type: "tool_call",
+        runId: "run-w2",
+        toolSummary: "Running checks",
+        updatedAt: "2026-11-22T21:59:30.000Z",
+      },
+    },
+  });
+  child2Stream.onChunk({
+    kind: "event",
+    event: {
+      type: "thread.updated",
+      payload: { id: worker2, title: "Checks worker" },
+    },
+  });
+  const w2 = tracker.view().find((a) => a.id === worker2);
+  assert.equal(w2?.step, "Running checks");
+  assert.equal(w2?.title, "Checks worker");
+
+  // 5) Worker-1 waits on background command (activeRunId: null, status: "waiting"): stays active!
+  const child1Stream = streams.find(
+    (s) => s.tag === "orchestration.subscribeThread" && s.payload.threadId === worker1,
+  );
+  assert.ok(child1Stream);
+  child1Stream.onChunk({
+    kind: "snapshot",
+    projection: {
+      thread: {
+        id: worker1,
+        title: "Monitor test worker 1",
+        activeRunId: null,
+        status: "waiting",
+        pendingBackgroundTasks: [{ taskId: "bg-1", kind: "command", description: "Sleep 180s" }],
+      },
+      runs: [{ id: "run-w1", status: "completed", completedAt: "2026-11-22T21:59:33.000Z" }],
+      turnItems: [],
+    },
+  });
+  assert.equal(tracker.view().find((a) => a.id === worker1)?.status, "waiting");
+  assert.equal(child1Stream.stopped, false);
+
+  // 6) Worker-2 finishes via shell (location !== "active") -> leaves Active and stops child stream.
+  shellStream.onChunk({
+    kind: "thread.updated",
+    location: "idle",
+    thread: { id: worker2, updatedAt: "2026-11-22T22:00:10.000Z" },
+  });
+  assert.equal(tracker.view().find((a) => a.id === worker2)?.status, "completed");
+  assert.equal(child2Stream.stopped, true);
+
+  // 7) Worker-1 finishes via brain subagent item + pendingBackgroundTasks update -> clears Active!
+  tracker.takeBrainTurnItem(socket, {
+    id: "turn-item:delegated-task:worker-1",
+    type: "subagent",
+    status: "completed",
+    title: "Monitor test worker 1",
+    completedAt: "2026-11-22T22:02:30.000Z",
+    updatedAt: "2026-11-22T22:02:30.000Z",
+  });
+  tracker.takeBrainThreadUpdated(socket, { pendingBackgroundTasks: [] });
+  assert.equal(tracker.view().filter(isActiveAgent).length, 0);
+  assert.equal(tracker.view().find((a) => a.id === worker1)?.status, "completed");
+  assert.equal(child1Stream.stopped, true);
+  assert.ok(emitted.length > 0);
+
+  // 8) Reset stops shell subscription and clears tracked state.
+  tracker.reset();
+  assert.equal(shellStream.stopped, true);
+  assert.equal(tracker.view().length, 0);
 });
