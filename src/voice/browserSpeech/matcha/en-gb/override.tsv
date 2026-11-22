@@ -170,6 +170,7 @@ edmontosaurus	ɛdmˌɒntəsˈɔːɹɪs
 electrocardiograph	ɪlˈɛktɹəʊkˌɑːdiˌəʊɡɹæf
 electrophone	ɪlˌɛktɹɪfˈəʊn
 elizabeth	ɪlˈɪzəbɪθ
+elizabeth's	ɪlˈɪzəbɪθs
 elo	ˈɛləʊ
 emojis	ɪmˈəʊdʒiz
 enceladus	ɛnsˈɛlədəs
@@ -2669,3 +2670,11 @@ activityjigsawhalf	ˈæktɪvˌɪtidʒˌɪɡsɑːhˌæf
 kwame	kwˈɒmeɪ
 languag	lˈæŋɡwɪdʒ
 leia	lˈeɪɐ
+# 22 Nov: restore vetted overrides dropped in KAL-3115 (Spanish j in Jurado, Elisha US/GB parity, proper nouns)
+jurado	hʊəɹˈɑːdəʊ
+elisha	ɪlˈaɪʃə
+brunel	bɹˈuːnəl
+cauchy	kˈəʊʃi
+ruffalo	ɹˈʌfɪlˌəʊ
+wenceslas	wˈɛnsɪslɑːs
+langevin	lˈɑːndʒəvˌɪn

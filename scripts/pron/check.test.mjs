@@ -36,23 +36,40 @@ test("sunday carries secondary stress on -deɪ so d03 never blurs 'see you sunda
   assert.equal(us("sundays"), "sˈʌndˌeɪz");
 });
 
-test("21 Nov regression words use their clean pronunciations (no corrupted overrides)", () => {
+test("21–22 Nov regression words use their clean pronunciations (no corrupted or dropped overrides)", () => {
   const expected = [
     ["cosimo", "koʊsˈiːmoʊ", "kəʊsˈiːməʊ"],
     ["italo", "ɪtˈɑːloʊ", "ɪtˈɑːləʊ"],
-    ["elisha", "ᵻlˈaɪʃə", "ˈɛlɪʃə"],
+    ["elisha", "ᵻlˈaɪʃə", "ɪlˈaɪʃə"],
     ["iwatani", "ˌiːwɑːtˈɑːni", "ˌɪwətˈɑːni"],
     ["plato", "plˈeɪɾoʊ", "plˈeɪtəʊ"],
+    ["muybridge", "mˈaɪbɹɪdʒ", "mˈaɪbɹɪdʒ"],
     ["othniel", "ˈɑːθniəl", "ˈɒθniəl"],
     ["ullrich", "ˈʊlɹɪk", "ˈʊlɹɪk"],
     ["guillermo", "ɡwɪljˈɛɹmoʊ", "ɡwɪljˈɛəməʊ"],
-    ["jurado", "jʊɹˈɑːdoʊ", "jʊəɹˈɑːdəʊ"],
-    ["elizabeth", "əlˈɪzəbəθ", "ɪlˈɪzəbɪθ"],
+    ["jurado", "hʊɹˈɑːdoʊ", "hʊəɹˈɑːdəʊ"],
+    ["elizabeth", "ᵻlˈɪzəbɪθ", "ɪlˈɪzəbɪθ"],
+    ["brunel", "bɹˈuːnəl", "bɹˈuːnəl"],
+    ["cauchy", "kˈoʊʃi", "kˈəʊʃi"],
+    ["ruffalo", "ɹˈʌfᵻlˌoʊ", "ɹˈʌfɪlˌəʊ"],
+    ["wenceslas", "wˈɛnsɪslɑːs", "wˈɛnsɪslɑːs"],
+    ["langevin", "lˈɑːndʒɚvˌɪn", "lˈɑːndʒəvˌɪn"],
   ];
   for (const [word, wantUs, wantGb] of expected) {
     assert.equal(us(word), wantUs, `${word} (en-us)`);
     assert.equal(gb(word), wantGb, `${word} (en-gb)`);
   }
+  // h013f canary: Elizabeth met Socrates (prevents "Elizabeth Metz Socrates" blur)
+  assert.equal(us("Elizabeth met Socrates."), "ᵻlˈɪzəbɪθ mˈɛt sˈɑːkɹətˌiːz.");
+  assert.equal(gb("Elizabeth met Socrates."), "ɪlˈɪzəbɪθ mˈɛt sˈɒkɹətˌiːz.");
+  assert.equal(us("Elizabeth wore Elizabeth's crown."), "ᵻlˈɪzəbɪθ wˈoːɹ ᵻlˈɪzəbɪθs kɹˈaʊn.");
+  assert.equal(gb("Elizabeth wore Elizabeth's crown."), "ɪlˈɪzəbɪθ wˈɔː ɪlˈɪzəbɪθs kɹˈaʊn.");
+  assert.equal(us("Elizabeth’s"), "ᵻlˈɪzəbɪθs");
+  assert.equal(gb("Elizabeth’s"), "ɪlˈɪzəbɪθs");
+  assert.equal(us("Elizabeths'"), "ᵻlˈɪzəbɪθs");
+  assert.equal(gb("Elizabeths'"), "ɪlˈɪzəbɪθs");
+  assert.equal(us("Sundays'"), "sˈʌndˌeɪz");
+  assert.equal(gb("Sundays'"), "sˈʌndˌeɪz");
 });
 
 test("21 Nov improvements stay intact in both accents", () => {
@@ -106,8 +123,16 @@ test("KAL-3132: sentence-final or isolated the/a/an/to take stressed strong form
     assert.ok(fe("Peek whenever you need to.").endsWith(" tˈuː."), `${label}: final to`);
     assert.ok(fe("the cat").startsWith("ðə "), `${label}: proclitic the`);
     assert.ok(fe("a dog").startsWith("ɐ "), `${label}: proclitic a`);
+    assert.ok(fe("an egg").startsWith("ɐn "), `${label}: proclitic an`);
     assert.ok(fe("to go").startsWith("tə "), `${label}: proclitic to`);
   }
+  // Full-sentence running speech check: "the", "to", "a", and "an" stay unstressed (weak/prevocalic)
+  assert.equal(us("The dog ran to the house."), "ðə dˈɔɡ ɹˈæn tə ðə hˈaʊs.");
+  assert.equal(gb("The dog ran to the house."), "ðə dˈɒɡ ɹˈæn tə ðə hˈaʊs.");
+  assert.equal(us("The cat went to a park for an apple."), "ðə kˈæt wɛnt tʊ ɐ pˈɑːɹk fɔːɹɐn ˈæpəl.");
+  assert.equal(gb("The cat went to a park for an apple."), "ðə kˈæt wɛnt tʊ ɐ pˈɑːk fɔːɹɐn ˈæpəl.");
+  assert.equal(us("We saw an owl in a tree."), "wiː sˈɔː ɐn ˈaʊl ɪn ɐ tɹˈiː.");
+  assert.equal(gb("We saw an owl in a tree."), "wiː sˈɔː ɐn ˈaʊl ɪn ɐ tɹˈiː.");
 });
 
 test("KAL-3132: 20. Yes! stays one sentence for prosody", () => {

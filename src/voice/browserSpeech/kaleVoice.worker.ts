@@ -673,7 +673,18 @@ async function speak(ready: Voice, raw: string) {
   if (ready.ettin) {
     const list = said.split(/\s+/).filter(Boolean);
     const all = idsOf(ready, ipa);
-    const per = list.map((word) => idsOf(ready, ready.frontEnd.g2p.phonemes(word)));
+    // Evaluate non-final words with their right neighbour so proclitics ("the", "a", "an", "to") keep their
+    // in-sentence weak/prevocalic phonemes instead of triggering FINAL_STRONG and breaking exact widx alignment.
+    const per = list.map((word, i) => {
+      const solo = ready.frontEnd.g2p.phonemes(word);
+      let ctx = solo;
+      if (i < list.length - 1) {
+        const nxt = ready.frontEnd.g2p.phonemes(list[i + 1]!);
+        const pair = ready.frontEnd.g2p.phonemes(`${word} ${list[i + 1]!}`);
+        if (nxt && pair.endsWith(` ${nxt}`)) ctx = pair.slice(0, pair.length - nxt.length - 1);
+      }
+      return idsOf(ready, ctx);
+    });
     words = { e: ettinInputs(ready.ettin.tok, said, ready.ettin.prev), widx: wordIndex(all, per, list.length), all };
     ready.ettin.prev = said;
   }
