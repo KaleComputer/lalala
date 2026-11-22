@@ -1,5 +1,6 @@
 import type { HotPayload, Update } from "vite";
 
+import { handleHmrFullReload } from "./liveUpdate";
 import { markUpdateReady } from "./phoneUpdate";
 import { voiceLog } from "./voiceLog";
 
@@ -13,6 +14,12 @@ interface HmrClient {
   notifyListeners(event: string, data: unknown): Promise<void>;
   queueUpdate(update: Update): Promise<void>;
   prunePaths(paths: string[]): Promise<void>;
+}
+
+export interface HmrReconnectGuard {
+  readonly callActive: () => boolean;
+  readonly hold: (what: string) => void;
+  readonly clearErrorOverlays: () => void;
 }
 
 // The dev server's count of source changes (vite/devVersion.mjs); null where it has none.
@@ -29,15 +36,19 @@ const devVersion = async (): Promise<DevVersion> => {
 const remember = () => void devVersion().then((version) => (seen = version));
 
 let connected = false;
+let reconnecting = false;
 let refresh: number | undefined;
 let queue = Promise.resolve();
 
 /** False when this Vite has no HMR client to drive; the caller keeps Vite's own reload then. */
-export function keepHmrAcrossDisconnects(hot: NonNullable<ImportMeta["hot"]>): boolean {
+export function keepHmrAcrossDisconnects(
+  hot: NonNullable<ImportMeta["hot"]>,
+  guard?: HmrReconnectGuard,
+): boolean {
   const client = (hot as unknown as { hmrClient?: HmrClient }).hmrClient;
   if (!client?.transport) return false;
   hot.on("vite:ws:disconnect", ({ webSocket }) => {
-    void reconnect(client, webSocket.url);
+    void reconnect(client, webSocket.url, guard);
     // Vite awaits this listener before its ping-then-reload.
     return new Promise<never>(() => {});
   });
@@ -46,7 +57,7 @@ export function keepHmrAcrossDisconnects(hot: NonNullable<ImportMeta["hot"]>): b
 }
 
 // What Vite's own handleMessage does, for the socket it no longer owns.
-function handle(client: HmrClient, payload: HotPayload): void {
+function handle(client: HmrClient, payload: HotPayload, guard?: HmrReconnectGuard): void {
   if (payload.type === "custom") {
     if (payload.event === "vite:ws:connect") connected = true;
     if (payload.event === "vite:ws:disconnect") connected = false;
@@ -60,6 +71,7 @@ function handle(client: HmrClient, payload: HotPayload): void {
   }
   queue = queue.then(async () => {
     if (payload.type === "update") {
+      if (guard?.callActive()) guard.clearErrorOverlays();
       await client.notifyListeners("vite:beforeUpdate", payload);
       await Promise.all(
         payload.updates.map((update) =>
@@ -70,10 +82,13 @@ function handle(client: HmrClient, payload: HotPayload): void {
     } else if (payload.type === "full-reload") {
       if (payload.ifFallback) return;
       await client.notifyListeners("vite:beforeFullReload", payload);
-      const path = payload.path;
-      if (!path?.endsWith(".html") || path === "/index.html" || path === location.pathname) {
-        window.location.reload();
-      }
+      handleHmrFullReload({
+        path: payload.path,
+        pathname: location.pathname,
+        callActive: guard?.callActive ?? (() => false),
+        hold: guard?.hold ?? (() => markUpdateReady()),
+        reload: () => window.location.reload(),
+      });
     } else if (payload.type === "prune") {
       await client.notifyListeners("vite:beforePrune", payload);
       await client.prunePaths(payload.paths);
@@ -114,7 +129,7 @@ const visible = () =>
         document.addEventListener("visibilitychange", on);
       });
 
-const ping = (url: string) =>
+export const pingViteServer = (url: string) =>
   new Promise<boolean>((resolve) => {
     const socket = new WebSocket(url, "vite-ping");
     socket.addEventListener("open", () => {
@@ -124,21 +139,27 @@ const ping = (url: string) =>
     socket.addEventListener("error", () => resolve(false));
   });
 
-async function reconnect(client: HmrClient, socketUrl: string): Promise<void> {
-  const url = new URL(socketUrl);
-  url.search = "";
-  for (;;) {
-    await visible();
-    if (await ping(url.href)) break;
-    await new Promise((resolve) => window.setTimeout(resolve, 1_000));
+async function reconnect(client: HmrClient, socketUrl: string, guard?: HmrReconnectGuard): Promise<void> {
+  if (reconnecting) return;
+  reconnecting = true;
+  try {
+    const url = new URL(socketUrl);
+    url.search = "";
+    for (;;) {
+      await visible();
+      if (await pingViteServer(url.href)) break;
+      await new Promise((resolve) => window.setTimeout(resolve, 1_000));
+    }
+    await client.transport.connect((payload) => handle(client, payload, guard)).catch(() => {});
+    const before = seen;
+    seen = await devVersion();
+    // A connect that failed leaves Vite's transport marked connected, so no hot update arrives again.
+    const missed =
+      !connected ||
+      (before !== null && (seen === null || seen.boot !== before.boot || seen.seq !== before.seq));
+    voiceLog("system", "hmr.reconnected", { connected, missed });
+    if (missed) markUpdateReady();
+  } finally {
+    reconnecting = false;
   }
-  await client.transport.connect((payload) => handle(client, payload)).catch(() => {});
-  const before = seen;
-  seen = await devVersion();
-  // A connect that failed leaves Vite's transport marked connected, so no hot update arrives again.
-  const missed =
-    !connected ||
-    (before !== null && (seen === null || seen.boot !== before.boot || seen.seq !== before.seq));
-  voiceLog("system", "hmr.reconnected", { connected, missed });
-  if (missed) markUpdateReady();
 }

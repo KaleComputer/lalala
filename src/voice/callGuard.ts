@@ -1,17 +1,21 @@
 import { speechLoading } from "./browserSpeech/browser";
-import { keepHmrAcrossDisconnects } from "./hmrReconnect";
-import { appliesLive } from "./liveUpdate";
-import { markUpdateReady } from "./phoneUpdate";
+import { keepHmrAcrossDisconnects, pingViteServer } from "./hmrReconnect";
+import { type HmrHotLike, installHmrCallGuard } from "./liveUpdate";
+import { isCallLive, markUpdateReady } from "./phoneUpdate";
 import { voiceLog } from "./voiceLog";
 
 /**
- * The call runs unless the bar is on standby ("off") or not mounted; a speech model still
- * downloading counts too.
+ * The call runs whenever VoiceHost reports a live call, a speech model is still downloading or
+ * loading, or any mounted device bar is out of standby ("off") / marked live.
  */
 function callActive(): boolean {
-  if (speechLoading()) return true;
-  const bar = document.querySelector<HTMLElement>("[data-lalala-presence]");
-  return (bar?.dataset.voiceState ?? "off") !== "off";
+  if (isCallLive() || speechLoading()) return true;
+  for (const bar of document.querySelectorAll<HTMLElement>("[data-lalala-presence]")) {
+    if (bar.hasAttribute("data-lalala-live") || (bar.dataset.voiceState ?? "off") !== "off") {
+      return true;
+    }
+  }
+  return false;
 }
 
 /** Reloading is only safe with the call off and nothing typed in a field. */
@@ -28,63 +32,51 @@ export function voiceIdle(): boolean {
   return !callActive() && !typing;
 }
 
+function clearErrorOverlays(): void {
+  for (const overlay of document.querySelectorAll("vite-error-overlay")) {
+    const closable = overlay as HTMLElement & { close?: () => void };
+    if (typeof closable.close === "function") closable.close();
+    else overlay.remove();
+  }
+}
+
+async function waitForServer(socketUrl?: string): Promise<void> {
+  if (!socketUrl) return;
+  const url = new URL(socketUrl);
+  url.search = "";
+  for (;;) {
+    if (await pingViteServer(url.href)) return;
+    await new Promise((resolve) => window.setTimeout(resolve, 1_000));
+  }
+}
+
 declare global {
   /** Where the app serves the user's cards folder (vite/cards.mjs); they hot-update like extras/. */
   var __lalalaCardsUrl: string | undefined;
-}
-const live = (path: string) => appliesLive(path, globalThis.__lalalaCardsUrl);
-
-/**
- * Whether Vite's client reloads this page for a full reload: an .html path (a brain card written
- * into the served folder) only when it is this page's own.
- */
-function reloadsPage(path: string | undefined): boolean {
-  if (!path?.endsWith(".html")) return true;
-  const page = decodeURI(location.pathname);
-  return page === path || path === "/index.html" || `${page}index.html` === path;
 }
 
 // Dev: a hot update outside extras/ remounts the voice host and a dev server restart reloads the
 // page, either one ends the call. During a call extras and CSS still apply; the rest is held for
 // one reload once the call is off (Vite awaits these listeners before it applies anything).
 if (import.meta.hot) {
-  let waiting: Promise<void> | null = null;
-  const whenIdle = () =>
-    (waiting ??= new Promise<void>((resolve) => {
-      const timer = window.setInterval(() => {
-        if (!voiceIdle()) return;
-        window.clearInterval(timer);
-        resolve();
-      }, 1_000);
-    }));
-  let held = false;
-  const hold = (what: string) => {
-    if (held) return;
-    held = true;
-    voiceLog("system", "update.held", { what });
-    // The bar's update chip: tapping it reloads now instead of after the call.
-    markUpdateReady();
-    void whenIdle().then(() => {
-      voiceLog("system", "reload", { why: "held dev update, voice off" });
+  const hot = import.meta.hot;
+  installHmrCallGuard({
+    hot: hot as unknown as HmrHotLike,
+    callActive,
+    voiceIdle,
+    cardsUrl: () => globalThis.__lalalaCardsUrl,
+    pathname: () => location.pathname,
+    clearErrorOverlays,
+    waitForServer,
+    onHold: (what) => {
+      voiceLog("system", "update.held", { what });
+      // The bar's update chip: tapping it reloads now instead of after the call.
+      markUpdateReady();
+    },
+    onReload: (why) => {
+      voiceLog("system", "reload", { why });
       window.location.reload();
-    });
-  };
-  import.meta.hot.on("vite:beforeUpdate", (payload) => {
-    if (!callActive()) return;
-    const now = payload.updates.filter((update) => live(update.path));
-    if (now.length === payload.updates.length) return;
-    hold(payload.updates.map((update) => update.path).join(", "));
-    payload.updates.splice(0, payload.updates.length, ...now);
+    },
+    keepAcrossDisconnects: (guard) => keepHmrAcrossDisconnects(hot, guard),
   });
-  import.meta.hot.on("vite:beforeFullReload", (payload) => {
-    if (!callActive() || !reloadsPage(payload.path)) return;
-    hold(payload.path ?? "full reload");
-    // The client reloads for an .html path only when it is this page's.
-    payload.path = "/__lalala-held.html";
-  });
-  // A locked phone drops this socket and Vite's client reloads once the server answers again;
-  // hmrReconnect reconnects in place instead. Without it, that reload waits for the call to end.
-  if (!keepHmrAcrossDisconnects(import.meta.hot)) {
-    import.meta.hot.on("vite:ws:disconnect", () => (callActive() ? whenIdle() : undefined));
-  }
 }

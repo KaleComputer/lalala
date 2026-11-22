@@ -30,6 +30,7 @@ import { afterCanvasShown } from "./canvasShown";
 import { followCommand, setFollowing, takeFocus } from "./follow";
 import { type VoicePhase, VoiceSession } from "./speech";
 import { takeSentences } from "./speechText";
+import { setCallLive } from "./phoneUpdate";
 import { VoiceBar, type VoiceBarModel, type VoiceBarState } from "./VoiceBar";
 import type { VoiceFileRef } from "./VoiceInput";
 import { closeVoiceSettings, CONNECTED_HOLD_MS, onVoiceSettingsClosed, openVoiceSettings } from "./VoiceSettings";
@@ -646,6 +647,7 @@ export function VoiceHost({
     inboxCallStarted();
     sessionRef.current = session;
     sessionStartedAtRef.current = Date.now();
+    setCallLive(true);
     setStarting(true);
     startingRef.current = true;
     void compactIfDue("call start");
@@ -926,6 +928,13 @@ export function VoiceHost({
     };
   }, [harness]);
 
+  const live = phase !== "off" || starting;
+  // oxlint-disable-next-line t3code/no-unreasoned-state-sync -- mirrors call-live state to callGuard outside React so HMR never reloads mid-call
+  useEffect(() => {
+    setCallLive(live);
+    return () => setCallLive(false);
+  }, [live]);
+
   if (config === null) return null;
 
   // Offline says why everything else fails; then words that weren't sent (a tap sends them), then the rest.
@@ -938,7 +947,6 @@ export function VoiceHost({
       : notSent && heldCount > 0
       ? NOT_SENT_TEXT
       : error;
-  const live = phase !== "off" || starting;
   // In a call, a dropped link to T3 shows while it comes back (the harness retries on its own).
   const linkProblem = live ? link : null;
   const paused = micPaused && phase !== "off";

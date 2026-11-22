@@ -4,6 +4,18 @@ import { useSyncExternalStore } from "react";
 let ready = false;
 const listeners = new Set<() => void>();
 
+// Synchronous in-memory flag set by VoiceHost as soon as a call starts (connecting through hangup),
+// so callGuard never misses a call during a DOM-commit or state-transition gap.
+let callLive = false;
+
+export function setCallLive(live: boolean): void {
+  callLive = live;
+}
+
+export function isCallLive(): boolean {
+  return callLive;
+}
+
 export function markUpdateReady(): void {
   if (ready) return;
   ready = true;
