@@ -682,6 +682,97 @@
 [data-lalala-presence] [data-lalala-canvas-actions] > [data-danger] {
   color: var(--lalala-warn);
 }
+/* "+ Template" and "Starter…" row & inline picker inside the canvas panel. */
+[data-lalala-presence] [data-lalala-canvas-template-row] {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 1px;
+}
+[data-lalala-presence] [data-lalala-canvas-template-row] > button {
+  height: 24px;
+  padding: 0 10px;
+  border: 0;
+  color: var(--lalala-live);
+  background: var(--lalala-fill);
+  font: 600 calc(var(--tab-fs) - 1px) / 1 var(--font-mono);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  text-align: left;
+  cursor: pointer;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+}
+[data-lalala-presence] [data-lalala-canvas-template-row] > [data-lalala-canvas-starter] {
+  width: auto;
+  min-height: 0;
+  justify-content: center;
+  color: var(--hud);
+  font-weight: 400;
+}
+[data-lalala-presence] [data-lalala-canvas-template-row] > button:is(:hover, :focus-visible) {
+  outline: 0;
+  background:
+    linear-gradient(
+      color-mix(in srgb, var(--lala-accent, #3dff8f) 16%, transparent),
+      color-mix(in srgb, var(--lala-accent, #3dff8f) 16%, transparent)
+    ),
+    var(--lalala-fill);
+}
+[data-lalala-presence] [data-lalala-template-picker] {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+[data-lalala-presence] [data-lalala-template-head] {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 6px 10px;
+  color: var(--lalala-live);
+  background: var(--lalala-fill);
+  font: 600 calc(var(--tab-fs) - 1px) / 1.2 var(--font-mono);
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+  clip-path: polygon(5.4px 0, 100% 0, 100% 100%, 0 100%, 0 5.4px);
+}
+[data-lalala-presence] [data-lalala-template-list] {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  background: var(--lalala-fill);
+}
+[data-lalala-presence] [data-lalala-template-list] li > button {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+  width: 100%;
+  padding: 7px 10px;
+  border: 0;
+  color: var(--hud);
+  background: none;
+  font: 600 var(--tab-fs) / 1.2 var(--font-mono);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  text-align: left;
+  cursor: pointer;
+}
+[data-lalala-presence] [data-lalala-template-list] li > button::before {
+  display: none;
+}
+[data-lalala-presence] [data-lalala-template-list] li > button > small {
+  color: var(--hud-2);
+  font: 400 10px / 1.3 var(--lala-font-sans, sans-serif);
+  letter-spacing: 0.01em;
+  text-transform: none;
+  white-space: normal;
+}
+[data-lalala-presence] [data-lalala-template-list] li > button:is(:hover, :focus-visible) {
+  outline: 0;
+  color: var(--lalala-live);
+  background: color-mix(in srgb, var(--lala-accent, #3dff8f) 12%, transparent);
+}
 /* DELETE asks in the list itself: the question on the panel, then Cancel and Delete in the actions row. */
 [data-lalala-presence] [data-lalala-canvas-confirm] {
   margin: 0;

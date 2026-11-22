@@ -1,3 +1,4 @@
+import type { TemplateId } from "../templates/registry";
 import type { Rect } from "./canvasStore";
 
 /** The Starter Selector card's stable id on the canvas. */
@@ -10,6 +11,8 @@ const SETTINGS_KEY = "lalala:settings";
 const SETTINGS_EVENT = "lalala:settings";
 const STARTER_EVENT = "lalala:starter";
 const BRAIN_CARDS_KEY = "lalala:brain-cards";
+const AGENT_MONITOR_STORAGE_KEY = "lalala:agent-monitor-pinned";
+const AGENT_MONITOR_EVENT = "lalala:agent-monitor";
 
 export type StarterPreset = {
   readonly id: string;
@@ -19,6 +22,8 @@ export type StarterPreset = {
   readonly w: number;
   readonly h: number;
   readonly defaultSelected: boolean;
+  /** Built-in M3 template spawned when selected; omitted for native cards like Agent Monitor. */
+  readonly template?: TemplateId;
 };
 
 /** Built-in starter cards a new user can drop onto their canvas in one click. */
@@ -29,16 +34,17 @@ export const STARTER_PRESETS: ReadonlyArray<StarterPreset> = [
     tag: "TASKS",
     description: "Daily checklist for tasks and quick Notion pulls.",
     w: 360,
-    h: 320,
+    h: 420,
     defaultSelected: true,
+    template: "todo",
   },
   {
     id: "agent-monitor",
     title: "Agent Monitor",
     tag: "AGENTS",
     description: "Track background worker status and completion times.",
-    w: 380,
-    h: 300,
+    w: 420,
+    h: 360,
     defaultSelected: true,
   },
   {
@@ -46,29 +52,60 @@ export const STARTER_PRESETS: ReadonlyArray<StarterPreset> = [
     title: "Quick Chat",
     tag: "CHAT",
     description: "Scratchpad for prompts and quick voice notes.",
-    w: 360,
-    h: 300,
+    w: 380,
+    h: 440,
     defaultSelected: false,
+    template: "chat",
   },
   {
     id: "image-gen",
     title: "Image Gen",
     tag: "IMAGE",
     description: "Draft image prompts with aspect ratio and style.",
-    w: 360,
-    h: 320,
+    w: 400,
+    h: 480,
     defaultSelected: false,
+    template: "image-gen",
   },
   {
     id: "video-gen",
     title: "Video Gen",
     tag: "VIDEO",
     description: "Plan video shots with duration and camera motion.",
-    w: 360,
-    h: 320,
+    w: 420,
+    h: 500,
     defaultSelected: false,
+    template: "video-gen",
   },
 ];
+
+/** Pins the native M1 Agent Monitor card onto `canvas` via its shared storage/event contract. */
+export function pinAgentMonitorFromStarter(canvas?: string): void {
+  const payload = canvas && canvas !== "" && canvas !== "main" ? { pinned: true, canvas } : { pinned: true };
+  try {
+    localStorage.setItem(AGENT_MONITOR_STORAGE_KEY, JSON.stringify(payload));
+  } catch {
+    // No storage: stays for this visit only.
+  }
+  if (typeof document !== "undefined") {
+    document.dispatchEvent(new Event(AGENT_MONITOR_EVENT));
+  }
+}
+
+/** Whether the native M1 Agent Monitor card is currently pinned on `activeCanvas`. */
+export function isAgentMonitorPinnedOn(activeCanvas: string): boolean {
+  try {
+    const raw = localStorage.getItem(AGENT_MONITOR_STORAGE_KEY);
+    if (!raw || raw === "0" || raw === "false") return false;
+    if (raw === "1" || raw === "true") return activeCanvas === "main";
+    const parsed = JSON.parse(raw) as { pinned?: unknown; canvas?: unknown } | null;
+    if (!parsed || parsed.pinned !== true) return false;
+    const pinnedCanvas = typeof parsed.canvas === "string" && parsed.canvas !== "" ? parsed.canvas : "main";
+    return pinnedCanvas === activeCanvas;
+  } catch {
+    return false;
+  }
+}
 
 export const DEFAULT_STARTER_IDS: ReadonlyArray<string> = STARTER_PRESETS.filter(
   (preset) => preset.defaultSelected,

@@ -19,6 +19,7 @@ import { useBridge } from "~/t3/bridge";
 import { liftOverKeyboard } from "./keyboardLift";
 import { settleBrainThread } from "./settleThread";
 import { StreamerText } from "./streamerMode";
+import { CARD_TEMPLATES, type TemplateId } from "./templates/registry";
 
 // canvasStore lives in the separately built extras bundle; it announces changes with this event.
 const subscribe = (listener: () => void) => {
@@ -46,6 +47,7 @@ export function CanvasTabs(props: {
   // "closing" plays the hologram back (list, then beam) before the list unmounts.
   const [closing, setClosing] = useState(false);
   const [renaming, setRenaming] = useState(false);
+  const [pickingTemplate, setPickingTemplate] = useState(false);
   // Delete asks inside the list, on the canvas it was pressed for, even if the open one changes meanwhile.
   const [deleting, setDeleting] = useState<{ readonly id: string; readonly name: string } | null>(
     null,
@@ -53,6 +55,8 @@ export function CanvasTabs(props: {
   const confirmId = useId();
   const deleteRef = useRef<HTMLButtonElement>(null);
   const cancelRef = useRef<HTMLButtonElement>(null);
+  const templateTriggerRef = useRef<HTMLButtonElement>(null);
+  const templateFirstRef = useRef<HTMLButtonElement>(null);
   // Opened from the keyboard: focus starts on the open canvas's row.
   const [byKey, setByKey] = useState(false);
   const tabsRef = useRef<HTMLSpanElement>(null);
@@ -64,6 +68,7 @@ export function CanvasTabs(props: {
   const hide = () => {
     setRenaming(false);
     setDeleting(null);
+    setPickingTemplate(false);
     if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) setOpenAt(null);
     else setClosing(true);
   };
@@ -115,6 +120,24 @@ export function CanvasTabs(props: {
   const cancelDelete = () => {
     refocusDelete.current = true;
     setDeleting(null);
+  };
+
+  // Backing out of the template picker returns focus to "+ Template".
+  const refocusTemplate = useRef(false);
+  // oxlint-disable-next-line t3code/no-unreasoned-state-sync -- focus moves between + Template and the template list
+  useLayoutEffect(() => {
+    if (pickingTemplate) templateFirstRef.current?.focus({ preventScroll: true });
+    else if (refocusTemplate.current) templateTriggerRef.current?.focus({ preventScroll: true });
+    refocusTemplate.current = false;
+  }, [pickingTemplate]);
+  const cancelTemplates = () => {
+    refocusTemplate.current = true;
+    setPickingTemplate(false);
+  };
+
+  const spawnTemplateCard = (templateId: TemplateId) => {
+    api?.spawnTemplate?.(templateId);
+    close();
   };
 
   const api = globalThis.__lalalaCanvases;
@@ -172,161 +195,207 @@ export function CanvasTabs(props: {
       data-state={phase}
       style={{ "--lalala-canvas-at": `${openAt}px` } as CSSProperties}
     >
-      {canvases.list.length > 0 ? (
-        <ul>
-          {canvases.list.map((canvas) => (
-            <li key={canvas.id} data-active={canvas.id === canvases.active ? "" : undefined}>
-              {editing && canvas.id === current?.id ? (
-                <Input
-                  aria-label="Canvas name"
-                  autoFocus
-                  defaultValue={canvas.name}
-                  onBlur={(event) => {
-                    api.rename(canvas.id, event.currentTarget.value);
-                    setRenaming(false);
-                  }}
-                  onFocus={(event) => event.currentTarget.select()}
-                  // A person's edit saves on blur; an agent's never blurs, so it saves as it lands.
-                  onValueChange={(name, details) => {
-                    if (details.source === "agent") api.rename(canvas.id, name);
-                  }}
-                  onKeyDown={(event) => {
-                    // Finished from the keyboard: the row that replaces the field takes focus.
-                    if (event.key === "Enter" || event.key === "Escape") setByKey(true);
-                    if (event.key === "Enter") event.currentTarget.blur();
-                    if (event.key === "Escape") {
-                      // Leaves the list open: Esc here only drops the edit.
-                      event.stopPropagation();
-                      event.currentTarget.value = canvas.name;
-                      event.currentTarget.blur();
-                    }
-                  }}
-                />
-              ) : (
+      {pickingTemplate ? (
+        <div
+          data-lalala-template-picker=""
+          onKeyDown={(event) => {
+            if (event.key !== "Escape") return;
+            event.stopPropagation();
+            cancelTemplates();
+          }}
+        >
+          <div data-lalala-template-head="">
+            <span>+ Template</span>
+            {current ? <StreamerText text={current.name} /> : null}
+          </div>
+          <ul data-lalala-template-list="">
+            {CARD_TEMPLATES.map((tpl, index) => (
+              <li key={tpl.id}>
                 <Button
-                  aria-current={canvas.id === canvases.active}
-                  autoFocus={byKey && canvas.id === canvases.active}
-                  onClick={() => {
-                    api.select(canvas.id);
-                    close();
-                  }}
+                  ref={index === 0 ? templateFirstRef : undefined}
+                  aria-label={`Add ${tpl.name} template`}
+                  onClick={() => spawnTemplateCard(tpl.id)}
                 >
-                  {canvas.id === canvases.active ? (
-                    <svg viewBox="0 0 24 24" aria-hidden="true">
-                      <path d="m4 12.5 5 5L20 6.5" />
-                    </svg>
-                  ) : null}
-                  <span>
-                    <StreamerText text={canvas.name} />
-                  </span>
+                  <span>{tpl.name}</span>
+                  <small>{tpl.description}</small>
                 </Button>
-              )}
-            </li>
-          ))}
-        </ul>
-      ) : null}
-      {deleting !== null ? (
-        <>
-          <p id={confirmId} data-lalala-canvas-confirm="">
-            Delete the canvas{" "}
-            <b>
-              “<StreamerText text={deleting.name} />”
-            </b>{" "}
-            and its layout? Its cards stay in the code.
-          </p>
-          <div
-            data-lalala-canvas-actions=""
-            role="group"
-            aria-labelledby={confirmId}
-            onKeyDown={(event) => {
-              if (event.key !== "Escape") return;
-              // Esc backs out of the delete only; the list stays open.
-              event.stopPropagation();
-              cancelDelete();
-            }}
-          >
-            <Button ref={cancelRef} aria-label="Cancel deleting" onClick={cancelDelete}>
-              Cancel
-            </Button>
-            <Button
-              aria-label="Delete forever"
-              data-danger=""
-              data-agent-confirm={`Deletes the canvas “${deleting.name}” and its layout; its cards stay in the code`}
-              onClick={() => {
-                api.remove(deleting.id);
-                close();
-              }}
-            >
-              Delete
+              </li>
+            ))}
+          </ul>
+          <div data-lalala-canvas-actions="">
+            <Button aria-label="Back to canvases" onClick={cancelTemplates}>
+              Back
             </Button>
           </div>
-        </>
+        </div>
       ) : (
         <>
-          {current ? (
-            <Button
-              data-lalala-canvas-starter=""
-              aria-label="Templates and starter"
-              onClick={() => {
-                api.openStarter?.();
-                close();
-              }}
-            >
-              <svg viewBox="0 0 24 24" aria-hidden="true">
-                <path d="M12 5v14M5 12h14" />
-              </svg>
-              <span>Templates &amp; starter…</span>
-            </Button>
+          {canvases.list.length > 0 ? (
+            <ul>
+              {canvases.list.map((canvas) => (
+                <li key={canvas.id} data-active={canvas.id === canvases.active ? "" : undefined}>
+                  {editing && canvas.id === current?.id ? (
+                    <Input
+                      aria-label="Canvas name"
+                      autoFocus
+                      defaultValue={canvas.name}
+                      onBlur={(event) => {
+                        api.rename(canvas.id, event.currentTarget.value);
+                        setRenaming(false);
+                      }}
+                      onFocus={(event) => event.currentTarget.select()}
+                      // A person's edit saves on blur; an agent's never blurs, so it saves as it lands.
+                      onValueChange={(name, details) => {
+                        if (details.source === "agent") api.rename(canvas.id, name);
+                      }}
+                      onKeyDown={(event) => {
+                        // Finished from the keyboard: the row that replaces the field takes focus.
+                        if (event.key === "Enter" || event.key === "Escape") setByKey(true);
+                        if (event.key === "Enter") event.currentTarget.blur();
+                        if (event.key === "Escape") {
+                          // Leaves the list open: Esc here only drops the edit.
+                          event.stopPropagation();
+                          event.currentTarget.value = canvas.name;
+                          event.currentTarget.blur();
+                        }
+                      }}
+                    />
+                  ) : (
+                    <Button
+                      aria-current={canvas.id === canvases.active}
+                      autoFocus={byKey && canvas.id === canvases.active}
+                      onClick={() => {
+                        api.select(canvas.id);
+                        close();
+                      }}
+                    >
+                      {canvas.id === canvases.active ? (
+                        <svg viewBox="0 0 24 24" aria-hidden="true">
+                          <path d="m4 12.5 5 5L20 6.5" />
+                        </svg>
+                      ) : null}
+                      <span>
+                        <StreamerText text={canvas.name} />
+                      </span>
+                    </Button>
+                  )}
+                </li>
+              ))}
+            </ul>
           ) : null}
-          <div data-lalala-canvas-actions="">
-            <Button
-              aria-label="New canvas"
-              onClick={() => {
-                api.create();
-                setRenaming(true);
-              }}
-            >
-              New
-            </Button>
-            {current ? (
-              <>
-                <Button aria-label="Rename canvas" onClick={() => setRenaming(true)}>
-                  Rename
+          {deleting !== null ? (
+            <>
+              <p id={confirmId} data-lalala-canvas-confirm="">
+                Delete the canvas{" "}
+                <b>
+                  “<StreamerText text={deleting.name} />”
+                </b>{" "}
+                and its layout? Its cards stay in the code.
+              </p>
+              <div
+                data-lalala-canvas-actions=""
+                role="group"
+                aria-labelledby={confirmId}
+                onKeyDown={(event) => {
+                  if (event.key !== "Escape") return;
+                  // Esc backs out of the delete only; the list stays open.
+                  event.stopPropagation();
+                  cancelDelete();
+                }}
+              >
+                <Button ref={cancelRef} aria-label="Cancel deleting" onClick={cancelDelete}>
+                  Cancel
                 </Button>
                 <Button
-                  aria-label="Tidy canvas"
-                  onClick={() => {
-                    api.tidy();
-                    close();
-                  }}
-                >
-                  Tidy
-                </Button>
-                <Button
-                  aria-label="Settle thread"
-                  disabled={!connected || settling}
-                  onClick={() => {
-                    setSettling(true);
-                    close();
-                    void settleBrainThread("user").finally(() => setSettling(false));
-                  }}
-                >
-                  Settle
-                </Button>
-                <Button
-                  ref={deleteRef}
-                  aria-label="Delete canvas"
+                  aria-label="Delete forever"
                   data-danger=""
+                  data-agent-confirm={`Deletes the canvas “${deleting.name}” and its layout; its cards stay in the code`}
                   onClick={() => {
-                    setRenaming(false);
-                    setDeleting({ id: current.id, name: current.name });
+                    api.remove(deleting.id);
+                    close();
                   }}
                 >
                   Delete
                 </Button>
-              </>
-            ) : null}
-          </div>
+              </div>
+            </>
+          ) : (
+            <>
+              {current ? (
+                <div data-lalala-canvas-template-row="">
+                  <Button
+                    ref={templateTriggerRef}
+                    aria-label="Add template card"
+                    onClick={() => {
+                      setRenaming(false);
+                      setPickingTemplate(true);
+                    }}
+                  >
+                    + Template
+                  </Button>
+                  <Button
+                    data-lalala-canvas-starter=""
+                    aria-label="Templates and starter"
+                    onClick={() => {
+                      api.openStarter?.();
+                      close();
+                    }}
+                  >
+                    Starter…
+                  </Button>
+                </div>
+              ) : null}
+              <div data-lalala-canvas-actions="">
+                <Button
+                  aria-label="New canvas"
+                  onClick={() => {
+                    api.create();
+                    setRenaming(true);
+                  }}
+                >
+                  New
+                </Button>
+                {current ? (
+                  <>
+                    <Button aria-label="Rename canvas" onClick={() => setRenaming(true)}>
+                      Rename
+                    </Button>
+                    <Button
+                      aria-label="Tidy canvas"
+                      onClick={() => {
+                        api.tidy();
+                        close();
+                      }}
+                    >
+                      Tidy
+                    </Button>
+                    <Button
+                      aria-label="Settle thread"
+                      disabled={!connected || settling}
+                      onClick={() => {
+                        setSettling(true);
+                        close();
+                        void settleBrainThread("user").finally(() => setSettling(false));
+                      }}
+                    >
+                      Settle
+                    </Button>
+                    <Button
+                      ref={deleteRef}
+                      aria-label="Delete canvas"
+                      data-danger=""
+                      onClick={() => {
+                        setRenaming(false);
+                        setDeleting({ id: current.id, name: current.name });
+                      }}
+                    >
+                      Delete
+                    </Button>
+                  </>
+                ) : null}
+              </div>
+            </>
+          )}
         </>
       )}
     </div>

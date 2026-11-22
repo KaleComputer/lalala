@@ -77,6 +77,9 @@ run(process.execPath, ["--experimental-strip-types", "--no-warnings", "--test", 
 step("first-run onboarding starter card and dismissal persistence hold (scripts/starter)");
 run(process.execPath, ["--experimental-strip-types", "--no-warnings", "--test", "scripts/starter/check.test.mjs"]);
 
+step("built-in card templates registry, dispatch, layout persistence, and docs hold (scripts/templates)");
+run(process.execPath, ["--experimental-strip-types", "--no-warnings", "--test", "scripts/templates/check.test.mjs"]);
+
 if (!process.argv.includes("--files-only")) {
   step("site typechecks (as on Vercel)");
   const site = NodePath.join(root, "site");

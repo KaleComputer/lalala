@@ -269,7 +269,9 @@
     [data-lalala-follow],
     [data-lalala-input-tab],
     [data-lalala-mic],
-    [data-lalala-settings-tab]
+    [data-lalala-settings-tab],
+    [data-lalala-inbox-tab],
+    [data-lalala-agents-tab]
   )::before,
 :root[data-lala-look="t3"]
   [data-lalala-presence]
@@ -278,7 +280,9 @@
     [data-lalala-follow],
     [data-lalala-input-tab],
     [data-lalala-mic],
-    [data-lalala-settings-tab]
+    [data-lalala-settings-tab],
+    [data-lalala-inbox-tab],
+    [data-lalala-agents-tab]
   )::after,
 :root[data-lala-look="t3"] [data-lalala-presence] .lalala-tabs > .fr-tab,
 :root[data-lala-look="t3"] [data-lalala-presence] .lalala-tabs > .fr-tab::before,
@@ -295,6 +299,8 @@
     [data-lalala-input-tab],
     [data-lalala-mic],
     [data-lalala-settings-tab],
+    [data-lalala-inbox-tab],
+    [data-lalala-agents-tab],
     [data-lalala-update]
   ) {
   color: var(--t3l-muted);
@@ -306,7 +312,9 @@
     [data-lalala-follow],
     [data-lalala-input-tab],
     [data-lalala-mic],
-    [data-lalala-settings-tab]
+    [data-lalala-settings-tab],
+    [data-lalala-inbox-tab],
+    [data-lalala-agents-tab]
   ):is(:hover, :focus-visible) {
   color: var(--t3l-text);
 }
@@ -317,7 +325,9 @@
     [data-lalala-follow],
     [data-lalala-input-tab],
     [data-lalala-mic],
-    [data-lalala-settings-tab]
+    [data-lalala-settings-tab],
+    [data-lalala-inbox-tab],
+    [data-lalala-agents-tab]
   ):is(:hover, :focus-visible)::after {
   background: linear-gradient(var(--t3l-hover), var(--t3l-hover)), var(--lalala-fill);
 }
@@ -327,7 +337,9 @@
     [data-lalala-canvas-name],
     [data-lalala-follow],
     [data-lalala-input-tab],
-    [data-lalala-settings-tab]
+    [data-lalala-settings-tab],
+    [data-lalala-inbox-tab],
+    [data-lalala-agents-tab]
   )[data-open] {
   color: var(--lala-accent);
 }
@@ -337,7 +349,9 @@
     [data-lalala-canvas-name],
     [data-lalala-follow],
     [data-lalala-input-tab],
-    [data-lalala-settings-tab]
+    [data-lalala-settings-tab],
+    [data-lalala-inbox-tab],
+    [data-lalala-agents-tab]
   )[data-open]::after {
   background:
     linear-gradient(
@@ -376,9 +390,42 @@
 }
 :root[data-lala-look="t3"]
   [data-lalala-presence]
-  :is([data-lalala-canvas-panel] > ul, [data-lalala-canvas-head]) {
+  :is(
+    [data-lalala-canvas-panel] > ul,
+    [data-lalala-canvas-head],
+    [data-lalala-template-head],
+    [data-lalala-template-list]
+  ) {
   clip-path: none;
   background: var(--lala-raise-2);
+}
+:root[data-lala-look="t3"] [data-lalala-presence] [data-lalala-canvas-template-row] > button {
+  height: 30px;
+  color: var(--lala-accent);
+  background: var(--lala-raise-2);
+  font: 500 12px / 1 var(--lala-font-sans);
+  letter-spacing: 0;
+  text-transform: none;
+}
+:root[data-lala-look="t3"]
+  [data-lalala-presence]
+  [data-lalala-canvas-template-row]
+  > button:is(:hover, :focus-visible) {
+  background: linear-gradient(var(--t3l-hover), var(--t3l-hover)), var(--lala-raise-2);
+}
+:root[data-lala-look="t3"] [data-lalala-presence] [data-lalala-template-head] {
+  padding: 8px 10px 6px;
+  color: var(--t3l-text);
+  font: 600 12px / 1.3 var(--lala-font-sans);
+  letter-spacing: 0;
+  text-transform: none;
+}
+:root[data-lala-look="t3"] [data-lalala-presence] [data-lalala-template-list] {
+  padding: 4px;
+}
+:root[data-lala-look="t3"] [data-lalala-presence] [data-lalala-template-list] li > button > small {
+  color: var(--t3l-muted);
+  font-size: 11px;
 }
 :root[data-lala-look="t3"] [data-lalala-presence] [data-lalala-canvas-panel] > ul {
   padding: 4px;
@@ -613,6 +660,25 @@
   background: rgb(0 0 0 / 60%);
 }
 :root[data-lala-look="t3"] [data-lalala-settings-panel] {
+  box-shadow: var(--t3l-float);
+}
+:root[data-lala-look="t3"] [data-lalala-agents] {
+  --a-bg: var(--lala-raise-2);
+  --a-fg: var(--t3l-text);
+  --a-fg-2: var(--t3l-muted);
+  --a-fg-3: color-mix(in srgb, var(--t3l-muted) 75%, transparent);
+  --a-border: var(--t3l-border);
+  --a-hover: var(--t3l-hover);
+  --a-expand-bg: color-mix(in srgb, var(--t3l-text) 3%, transparent);
+  --a-accent: var(--lala-accent);
+  --a-warn: var(--lala-warn);
+  --a-danger: var(--lala-danger);
+  color-scheme: light;
+}
+:root.dark[data-lala-look="t3"] [data-lalala-agents] {
+  color-scheme: dark;
+}
+:root[data-lala-look="t3"] [data-lalala-agents-panel] {
   box-shadow: var(--t3l-float);
 }
 /* Where the primary is text, the AA blue. */

@@ -110,6 +110,18 @@ test("preset selection toggles cleanly and skips already-mounted cards without c
     toSpawn.map((preset) => preset.id),
     ["agent-monitor", "image-gen"],
   );
+
+  // Built-in presets map directly to M3 templates (except native Agent Monitor).
+  assert.deepEqual(
+    Object.fromEntries(STARTER_PRESETS.map((preset) => [preset.id, preset.template ?? null])),
+    {
+      "today-todo": "todo",
+      "agent-monitor": null,
+      "quick-chat": "chat",
+      "image-gen": "image-gen",
+      "video-gen": "video-gen",
+    },
+  );
 });
 
 test("starterCardHtml renders self-contained monochrome cards with no external URLs", () => {

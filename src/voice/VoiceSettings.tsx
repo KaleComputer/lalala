@@ -2489,6 +2489,17 @@ function LabsSection() {
           />
         </Row>
       ) : null}
+      <Row
+        title="Agent monitor"
+        description="Show the Agents tab in the bar and the pinnable Agent Monitor card for watching background workers."
+        field
+      >
+        <Toggle
+          on={labs.agentsMonitor}
+          label="labs: agent monitor"
+          onChange={(on) => setLab("agentsMonitor", on)}
+        />
+      </Row>
     </Section>
   );
 }

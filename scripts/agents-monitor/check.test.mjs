@@ -5,6 +5,7 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 
 import { INITIAL_BRIDGE_STATE, reduceBridgeState } from "../../src/t3/bridgeState.ts";
+import { parseSynced } from "../../src/voice/settingsStore.ts";
 import {
   describeTurnItemStep,
   extractLinkedCard,
@@ -341,4 +342,9 @@ test("formatting helpers and bridge SSE reducer handle agents events cleanly", (
   assert.equal(afterUpdate.connected, true);
   assert.equal(afterUpdate.agents[0]?.status, "completed");
   assert.equal(afterUpdate.agents[0]?.completedAt, "2026-11-22T10:00:45.000Z");
+
+  // Labs flag defaults off and parses cleanly.
+  assert.equal(parseSynced({})?.labs.agentsMonitor, false);
+  assert.equal(parseSynced({ labs: { agentsMonitor: true } })?.labs.agentsMonitor, true);
+  assert.equal(parseSynced({ labs: { agentsMonitor: "yes" } })?.labs.agentsMonitor, false);
 });

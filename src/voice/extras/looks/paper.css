@@ -411,7 +411,9 @@
 :root[data-lala-look="paper"] [data-lalala-presence] .lalala-tabs > .fr-tab {
   --lalala-fill: linear-gradient(#ece3fb, #dccff5);
 }
-:root[data-lala-look="paper"] [data-lalala-presence] [data-lalala-settings-tab] {
+:root[data-lala-look="paper"] [data-lalala-presence] [data-lalala-settings-tab],
+:root[data-lala-look="paper"] [data-lalala-presence] [data-lalala-inbox-tab],
+:root[data-lala-look="paper"] [data-lalala-presence] [data-lalala-agents-tab] {
   --lalala-fill: linear-gradient(#e2effc, #cde2f8);
 }
 :root[data-lala-look="paper"] [data-lalala-presence] [data-lalala-canvas-name]::before,
@@ -424,6 +426,10 @@
 :root[data-lala-look="paper"] [data-lalala-presence] [data-lalala-mic]::after,
 :root[data-lala-look="paper"] [data-lalala-presence] [data-lalala-settings-tab]::before,
 :root[data-lala-look="paper"] [data-lalala-presence] [data-lalala-settings-tab]::after,
+:root[data-lala-look="paper"] [data-lalala-presence] [data-lalala-inbox-tab]::before,
+:root[data-lala-look="paper"] [data-lalala-presence] [data-lalala-inbox-tab]::after,
+:root[data-lala-look="paper"] [data-lalala-presence] [data-lalala-agents-tab]::before,
+:root[data-lala-look="paper"] [data-lalala-presence] [data-lalala-agents-tab]::after,
 :root[data-lala-look="paper"] [data-lalala-presence] .lalala-tabs > .fr-tab::before,
 :root[data-lala-look="paper"] [data-lalala-presence] .lalala-lead::before,
 :root[data-lala-look="paper"] [data-lalala-presence] .lalala-lead::after {
@@ -460,7 +466,8 @@
   box-shadow: 0 10px 22px -10px rgba(110, 76, 40, 0.45);
   animation: none;
 }
-:root[data-lala-look="paper"] [data-lalala-presence] [data-lalala-canvas-panel] > ul {
+:root[data-lala-look="paper"] [data-lalala-presence] [data-lalala-canvas-panel] > ul,
+:root[data-lala-look="paper"] [data-lalala-presence] [data-lalala-template-head] {
   clip-path: none;
   border-radius: 9px 9px 0 0;
 }
@@ -533,6 +540,21 @@
   box-shadow:
     0 2px 3px rgba(110, 76, 40, 0.12),
     0 26px 50px -18px rgba(80, 50, 20, 0.5);
+}
+:root[data-lala-look="paper"] [data-lalala-agents] {
+  --a-bg: var(--paper-sheet);
+  --a-fg: var(--lala-settings-ink);
+  --a-fg-2: color-mix(in srgb, var(--a-fg) 76%, transparent);
+  --a-fg-3: color-mix(in srgb, var(--a-fg) 54%, transparent);
+  --a-border: rgba(122, 88, 56, 0.18);
+  --a-hover: rgba(122, 88, 56, 0.08);
+  --a-expand-bg: rgba(122, 88, 56, 0.05);
+  color-scheme: light;
+}
+:root[data-lala-look="paper"] [data-lalala-agents-panel] {
+  box-shadow:
+    0 2px 3px rgba(110, 76, 40, 0.12),
+    0 18px 34px -16px rgba(80, 50, 20, 0.35);
 }
 :root[data-lala-look="paper"] [data-lalala-settings-panel]::after {
   content: "";

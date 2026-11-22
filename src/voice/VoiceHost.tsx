@@ -686,10 +686,10 @@ export function VoiceHost({
     sessionRef.current?.setThinking(replying);
   }, [replying]);
 
-  // oxlint-disable-next-line t3code/no-unreasoned-state-sync -- puts the cards named in the brain's finished replies on the canvas, reading their files from T3
+  // oxlint-disable-next-line t3code/no-unreasoned-state-sync -- puts the cards and templates named in the brain's finished replies on the canvas
   useEffect(() => {
     const readFile = brainFileReader();
-    if (readFile && voiceThread) applyCardTags(voiceThread.id, items, readFile);
+    if (voiceThread) applyCardTags(voiceThread.id, items, readFile);
   }, [items, voiceThread?.id]);
 
   // Passive follow: when Follow is on, focus cards named by incoming `[focus: …]` or `[about: …]`

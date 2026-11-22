@@ -137,6 +137,7 @@ export function lalalaPlugin(): Plugin {
             marks?: unknown;
             state?: unknown;
             follow?: unknown;
+            templates?: unknown;
           };
           sendJson(
             res,
@@ -148,6 +149,7 @@ export function lalalaPlugin(): Plugin {
               body.marks,
               body.state,
               body.follow,
+              body.templates,
             ),
           );
         })

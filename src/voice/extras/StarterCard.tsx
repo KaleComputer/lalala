@@ -3,21 +3,26 @@ import { useEffect, useState, useSyncExternalStore } from "react";
 import { CanvasCard } from "./CanvasCard";
 import {
   boxKey,
+  getActiveTemplates,
   getCanvases,
   getView,
   isLayoutReady,
   isMounted,
   mountedUserCardCount,
+  spawnTemplate,
   subscribe,
   subscribeCanvases,
+  subscribeTemplates,
 } from "./canvasStore";
 import {
   DEFAULT_STARTER_IDS,
   STARTER_CARD_ID,
   STARTER_PRESETS,
   closeStarterState,
+  isAgentMonitorPinnedOn,
   isOnboardingDismissed,
   isStarterForcedOpen,
+  pinAgentMonitorFromStarter,
   presetsToSpawn,
   readStoredBrainCardIds,
   setOnboardingDismissedFromExtras,
@@ -32,11 +37,15 @@ import "./starterCard.css";
 
 const subscribeCards = (listener: () => void) => {
   const stopStore = subscribe(listener);
-  const onBrainCards = () => listener();
-  document.addEventListener("lalala:brain-cards", onBrainCards);
+  const stopTemplates = subscribeTemplates(listener);
+  const onEvent = () => listener();
+  document.addEventListener("lalala:brain-cards", onEvent);
+  document.addEventListener("lalala:agent-monitor", onEvent);
   return () => {
     stopStore();
-    document.removeEventListener("lalala:brain-cards", onBrainCards);
+    stopTemplates();
+    document.removeEventListener("lalala:brain-cards", onEvent);
+    document.removeEventListener("lalala:agent-monitor", onEvent);
   };
 };
 
@@ -50,9 +59,22 @@ function StarterPicker(props: {
     subscribeCards,
     () => {
       const stored = readStoredBrainCardIds();
-      return STARTER_PRESETS.filter(
-        (preset) => stored.has(preset.id) || isMounted(boxKey(activeCanvas, preset.id)),
-      )
+      const activeTemplates = getActiveTemplates();
+      return STARTER_PRESETS.filter((preset) => {
+        if (isMounted(boxKey(activeCanvas, preset.id))) return true;
+        if (preset.id === "agent-monitor" && isAgentMonitorPinnedOn(activeCanvas)) return true;
+        if (
+          preset.template &&
+          activeTemplates.some(
+            (tpl) =>
+              (tpl.canvas ?? "main") === activeCanvas &&
+              (tpl.id === preset.id || tpl.template === preset.template),
+          )
+        ) {
+          return true;
+        }
+        return stored.has(preset.id);
+      })
         .map((preset) => preset.id)
         .join(",");
     },
@@ -71,16 +93,32 @@ function StarterPicker(props: {
 
   const handleAdd = () => {
     const cardsApi = globalThis.__lalalaCards;
+    let firstSpawnedId: string | undefined;
     for (const preset of toAdd) {
-      cardsApi?.put(preset.id, {
-        title: preset.title,
-        w: preset.w,
-        h: preset.h,
-        html: starterCardHtml(preset),
-        ...(activeCanvas !== "main" ? { canvas: activeCanvas } : {}),
-      });
+      if (preset.template) {
+        const spawned = spawnTemplate(preset.template, {
+          id: preset.id,
+          title: preset.title,
+          w: preset.w,
+          h: preset.h,
+          ...(activeCanvas !== "main" ? { canvas: activeCanvas } : {}),
+        });
+        firstSpawnedId ??= spawned.id;
+      } else if (preset.id === "agent-monitor") {
+        pinAgentMonitorFromStarter(activeCanvas);
+        firstSpawnedId ??= preset.id;
+      } else {
+        cardsApi?.put(preset.id, {
+          title: preset.title,
+          w: preset.w,
+          h: preset.h,
+          html: starterCardHtml(preset),
+          ...(activeCanvas !== "main" ? { canvas: activeCanvas } : {}),
+        });
+        firstSpawnedId ??= preset.id;
+      }
     }
-    const focusTarget = toAdd[0]?.id ?? selected[0];
+    const focusTarget = firstSpawnedId ?? toAdd[0]?.id ?? selected[0];
     onDismiss();
     if (focusTarget) {
       window.requestAnimationFrame(() => void globalThis.__lalalaCanvases?.focus?.(focusTarget));

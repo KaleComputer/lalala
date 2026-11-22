@@ -33,10 +33,42 @@ declare global {
 const CARD_ID = "agent-monitor";
 const PIN_KEY = "lalala:agent-monitor-pinned";
 const PIN_EVENT = "lalala:agent-monitor";
+const SETTINGS_KEY = "lalala:settings";
+const SETTINGS_EVENT = "lalala:settings";
 const EMPTY_AGENTS: ReadonlyArray<AgentRunView> = [];
 
 type PinState = { readonly pinned: boolean; readonly canvas?: string };
 const UNPINNED: PinState = { pinned: false };
+
+function readAgentsLab(): boolean {
+  if (typeof localStorage === "undefined") return false;
+  try {
+    const raw = JSON.parse(localStorage.getItem(SETTINGS_KEY) ?? "null") as {
+      labs?: { agentsMonitor?: unknown };
+    } | null;
+    return raw?.labs?.agentsMonitor === true;
+  } catch {
+    return false;
+  }
+}
+
+let cachedLab = readAgentsLab();
+
+function subscribeLab(listener: () => void) {
+  const refresh = () => {
+    cachedLab = readAgentsLab();
+    listener();
+  };
+  const onStorage = (event: StorageEvent) => {
+    if (event.key === SETTINGS_KEY) refresh();
+  };
+  document.addEventListener(SETTINGS_EVENT, refresh);
+  window.addEventListener("storage", onStorage);
+  return () => {
+    document.removeEventListener(SETTINGS_EVENT, refresh);
+    window.removeEventListener("storage", onStorage);
+  };
+}
 
 function readPin(): PinState {
   if (typeof localStorage === "undefined") return UNPINNED;
@@ -119,6 +151,26 @@ function formatDoneAt(completedAt: string | null, now: Date): string {
   return `done ${day} ${hh}:${mm}`;
 }
 
+function formatCompactMeta(agent: AgentRunView, now: number): string {
+  if (agent.status === "running") return formatElapsed(agent.startedAt, now);
+  if (agent.status === "waiting") return "waiting";
+  if (agent.status === "failed") return "failed";
+  if (agent.status === "cancelled") return "stopped";
+  if (!agent.completedAt) return "done";
+  const date = new Date(agent.completedAt);
+  if (Number.isNaN(date.getTime())) return "done";
+  const nowDate = new Date(now);
+  const hh = String(date.getHours()).padStart(2, "0");
+  const mm = String(date.getMinutes()).padStart(2, "0");
+  const sameDay =
+    date.getFullYear() === nowDate.getFullYear() &&
+    date.getMonth() === nowDate.getMonth() &&
+    date.getDate() === nowDate.getDate();
+  if (sameDay) return `${hh}:${mm}`;
+  const day = date.toLocaleDateString("en-US", { weekday: "short" });
+  return `${day} ${hh}:${mm}`;
+}
+
 function formatDuration(startedAt: string, completedAt: string | null): string | null {
   if (!completedAt) return null;
   const start = Date.parse(startedAt);
@@ -128,26 +180,27 @@ function formatDuration(startedAt: string, completedAt: string | null): string |
 }
 
 /**
- * Pinnable Agent Monitor card on the canvas: shows active & recently completed background workers,
- * their live tool/step, elapsed time, exact completion timestamps (`done at HH:MM`), and jump links.
+ * Pinnable Agent Monitor card on the canvas (behind Settings -> Labs -> Agent monitor):
+ * compact one-line-per-agent rows with zero pulsing dots and click-to-expand details.
  */
 export function AgentMonitorCard() {
+  const labEnabled = useSyncExternalStore(subscribeLab, () => cachedLab, () => false);
   const pin = useSyncExternalStore(subscribePin, () => cachedPin, () => UNPINNED);
 
   // If the card was previously hidden via right-click Remove, re-pinning from the bar restores it.
   // oxlint-disable-next-line t3code/no-unreasoned-state-sync -- restores a removed mark in canvasStore when user explicitly re-pins
   useEffect(() => {
-    if (!pin.pinned) return;
+    if (!labEnabled || !pin.pinned) return;
     const key = cardMark(CARD_ID);
     if (getMarks()[key]?.removed !== undefined) restoreMarked(key);
-  }, [pin.pinned]);
+  }, [labEnabled, pin.pinned]);
 
-  if (!pin.pinned) return null;
+  if (!labEnabled || !pin.pinned) return null;
   return (
     <CanvasCard
       id={CARD_ID}
       title="Agent Monitor"
-      at={{ x: 48, y: 48, w: 420, h: 360 }}
+      at={{ x: 48, y: 48, w: 400, h: 360 }}
       onRemove={unpinCard}
       {...(pin.canvas ? { canvas: pin.canvas } : {})}
     >
@@ -159,6 +212,7 @@ export function AgentMonitorCard() {
 function AgentMonitorBody() {
   const agents = useSyncExternalStore(subscribeAgents, getAgentsSnapshot, () => EMPTY_AGENTS);
   const [filter, setFilter] = useState<"all" | "active">("all");
+  const [expandedId, setExpandedId] = useState<string | null>(null);
   const [now, setNow] = useState(() => Date.now());
 
   const active = agents.filter(isActive);
@@ -183,7 +237,6 @@ function AgentMonitorBody() {
     <div data-lalala-agent-card="">
       <div data-lalala-agent-card-head="">
         <span data-lalala-agent-card-summary="" data-active={active.length > 0 ? "" : undefined}>
-          <i aria-hidden="true" />
           {summary}
         </span>
         <div data-lalala-agent-card-filters="" role="group" aria-label="Filter agents">
@@ -207,31 +260,43 @@ function AgentMonitorBody() {
         <p data-lalala-agent-card-empty="">
           {filter === "active"
             ? "No agents running right now."
-            : "No background workers yet. Live progress and completion times appear here automatically."}
+            : "No background workers yet. Live progress appears here automatically."}
         </p>
       ) : (
         <ol data-lalala-agent-card-list="">
           {shown.map((agent) => {
             const running = isActive(agent);
+            const expanded = expandedId === agent.id;
+            const compactMeta = formatCompactMeta(agent, now);
             const duration = running ? null : formatDuration(agent.startedAt, agent.completedAt);
-            const timeText = running
-              ? formatElapsed(agent.startedAt, now)
+            const timingDetail = running
+              ? `Running for ${formatElapsed(agent.startedAt, now)}`
               : `${formatDoneAt(agent.completedAt, new Date(now))}${duration ? ` · ${duration}` : ""}`;
-            const stepText =
-              agent.step ??
-              (agent.status === "waiting"
-                ? "Waiting for input…"
-                : agent.status === "running"
-                  ? "Working…"
+            const statusLabel =
+              agent.status === "running"
+                ? "Running"
+                : agent.status === "waiting"
+                  ? "Waiting"
                   : agent.status === "failed"
                     ? "Failed"
                     : agent.status === "cancelled"
-                      ? "Cancelled"
-                      : null);
+                      ? "Stopped"
+                      : "Completed";
             return (
-              <li key={agent.id} data-lalala-agent-card-item="" data-status={agent.status}>
-                <div data-lalala-agent-card-row="">
-                  <i data-lalala-agent-card-dot="" aria-hidden="true" />
+              <li
+                key={agent.id}
+                data-lalala-agent-card-item=""
+                data-status={agent.status}
+                data-expanded={expanded ? "" : undefined}
+              >
+                <button
+                  type="button"
+                  data-lalala-agent-card-row=""
+                  aria-expanded={expanded}
+                  onClick={() =>
+                    setExpandedId((current) => (current === agent.id ? null : agent.id))
+                  }
+                >
                   <span data-lalala-agent-card-title="">
                     <Hidden text={agent.title} />
                   </span>
@@ -239,33 +304,45 @@ function AgentMonitorBody() {
                     data-lalala-agent-card-time=""
                     dateTime={running ? agent.startedAt : (agent.completedAt ?? agent.updatedAt)}
                   >
-                    {timeText}
+                    {compactMeta}
                   </time>
-                </div>
-                {stepText ? (
-                  <p data-lalala-agent-card-step="">
-                    <Hidden text={stepText} />
-                  </p>
-                ) : null}
-                {agent.card || agent.link ? (
-                  <div data-lalala-agent-card-actions="">
-                    {agent.card ? (
-                      <Button
-                        data-lalala-agent-card-action=""
-                        onClick={() => globalThis.__lalalaCanvases?.focus?.(agent.card!)}
-                      >
-                        Show card
-                      </Button>
+                  <svg data-lalala-agent-card-chevron="" viewBox="0 0 16 16" aria-hidden="true">
+                    <path d="M6 4l4 4-4 4" />
+                  </svg>
+                </button>
+                {expanded ? (
+                  <div data-lalala-agent-card-details="">
+                    <div data-lalala-agent-card-meta="">
+                      <span>{statusLabel}</span>
+                      <span>·</span>
+                      <span>{timingDetail}</span>
+                    </div>
+                    {agent.step ? (
+                      <p data-lalala-agent-card-step="">
+                        <Hidden text={agent.step} />
+                      </p>
                     ) : null}
-                    {agent.link ? (
-                      <a
-                        data-lalala-agent-card-action=""
-                        href={agent.link}
-                        target="_blank"
-                        rel="noreferrer"
-                      >
-                        Open thread
-                      </a>
+                    {agent.card || agent.link ? (
+                      <div data-lalala-agent-card-actions="">
+                        {agent.card ? (
+                          <Button
+                            data-lalala-agent-card-action=""
+                            onClick={() => globalThis.__lalalaCanvases?.focus?.(agent.card!)}
+                          >
+                            Show card
+                          </Button>
+                        ) : null}
+                        {agent.link ? (
+                          <a
+                            data-lalala-agent-card-action=""
+                            href={agent.link}
+                            target="_blank"
+                            rel="noreferrer"
+                          >
+                            Open thread
+                          </a>
+                        ) : null}
+                      </div>
                     ) : null}
                   </div>
                 ) : null}
