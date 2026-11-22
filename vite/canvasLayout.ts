@@ -15,11 +15,19 @@ type Canvas = { name: string; cards: string[] } | null;
 type Mark = { removed?: number; private?: boolean };
 type State = Record<string, unknown>;
 type CardState = Record<string, State>;
+/** Cross-device Follow target: the latest canvas switch or card focus from any device. */
+export type FollowSignal = {
+  canvas: string;
+  card?: string;
+  at: number;
+  by?: string;
+};
 type Layout = {
   cards: Record<string, Rect>;
   canvases: Record<string, Canvas>;
   marks: Record<string, Mark>;
   state: CardState;
+  follow?: FollowSignal;
   at: number;
 };
 /** A tab, a round, a filter: anything bigger is a card keeping data, which belongs in its own file. */
@@ -95,14 +103,32 @@ const cardState = (value: unknown): CardState =>
       )
     : {};
 
+const parseFollow = (value: unknown): FollowSignal | undefined => {
+  if (typeof value !== "object" || value === null) return undefined;
+  const raw = value as { canvas?: unknown; card?: unknown; at?: unknown; by?: unknown };
+  if (typeof raw.canvas !== "string" || raw.canvas === "" || raw.canvas.length > 80) return undefined;
+  const at = Number(raw.at);
+  if (!Number.isFinite(at) || at <= 0) return undefined;
+  return {
+    canvas: raw.canvas,
+    ...(typeof raw.card === "string" && raw.card !== "" && raw.card.length <= 200
+      ? { card: raw.card }
+      : {}),
+    at,
+    ...(typeof raw.by === "string" && raw.by !== "" && raw.by.length <= 64 ? { by: raw.by } : {}),
+  };
+};
+
 export function readCanvasLayout(): Layout {
   try {
     const saved = JSON.parse(NodeFS.readFileSync(layoutFile(), "utf8")) as Partial<Layout>;
+    const follow = parseFollow(saved.follow);
     return {
       cards: rects(saved.cards),
       canvases: canvases(saved.canvases),
       marks: marks(saved.marks),
       state: cardState(saved.state),
+      ...(follow ? { follow } : {}),
       at: Number(saved.at) || 0,
     };
   } catch {
@@ -111,8 +137,9 @@ export function readCanvasLayout(): Layout {
 }
 
 /**
- * Merges `patch` (card id to box), `canvasPatch`, `markPatch` (each mark whole) and `statePatch`
- * (per card and key) into the layout and returns the result. `placed` are new cards a client found a spot for: the first one to arrive
+ * Merges `patch` (card id to box), `canvasPatch`, `markPatch` (each mark whole), `statePatch`
+ * (per card and key) and `followPatch` (newest cross-device Follow target) into the layout and
+ * returns the result. `placed` are new cards a client found a spot for: the first one to arrive
  * keeps its spot.
  */
 export function saveCanvasCards(
@@ -121,17 +148,24 @@ export function saveCanvasCards(
   placed?: unknown,
   markPatch?: unknown,
   statePatch?: unknown,
+  followPatch?: unknown,
 ): Layout {
   const current = readCanvasLayout();
   const state = { ...current.state };
   for (const [card, keys] of Object.entries(cardState(statePatch))) {
     state[card] = { ...state[card], ...keys };
   }
-  const next = {
+  const incomingFollow = parseFollow(followPatch);
+  const follow =
+    incomingFollow && (!current.follow || incomingFollow.at >= current.follow.at)
+      ? incomingFollow
+      : current.follow;
+  const next: Layout = {
     cards: { ...rects(placed), ...current.cards, ...rects(patch) },
     canvases: { ...current.canvases, ...canvases(canvasPatch) },
     marks: { ...current.marks, ...marks(markPatch) },
     state,
+    ...(follow ? { follow } : {}),
     at: Math.max(Date.now(), current.at + 1),
   };
   const file = layoutFile();

@@ -136,11 +136,19 @@ export function lalalaPlugin(): Plugin {
             placed?: unknown;
             marks?: unknown;
             state?: unknown;
+            follow?: unknown;
           };
           sendJson(
             res,
             200,
-            saveCanvasCards(body.cards, body.canvases, body.placed, body.marks, body.state),
+            saveCanvasCards(
+              body.cards,
+              body.canvases,
+              body.placed,
+              body.marks,
+              body.state,
+              body.follow,
+            ),
           );
         })
         .catch(() => sendJson(res, 400, { error: "bad canvas layout" }));

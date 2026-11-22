@@ -2,11 +2,14 @@ import { type ReactNode, useEffect, useLayoutEffect, useRef } from "react";
 import {
   type Rect,
   cardOf,
+  followCard,
+  followModuleUpdate,
   getCamera,
   getCards,
   getSelected,
   groupAreas,
   groupKey,
+  noteUserActivity,
   select,
   holdCard,
   isLayoutReady,
@@ -25,6 +28,7 @@ import {
 import { followBootScreen } from "./bootScreen";
 import { endSwap, hoverSwap, startSwap, stopGlides } from "./cardSwap";
 import { GroupAreas } from "./GroupAreas";
+import { attachMediaLod } from "./mediaLod";
 import {
   CanvasMenu,
   type MenuFor,
@@ -95,6 +99,46 @@ export function CanvasSurface({ children }: { readonly children: ReactNode }) {
     };
     const unsubscribe = subscribe(sharpen);
     sharpen();
+    const stopMediaLod = attachMediaLod(world);
+
+    // Track card HMR updates so Follow mode pans to updated cards even with voice off.
+    let lastCardHmrAt = 0;
+    const onHmrAfterUpdate = (payload: { updates?: ReadonlyArray<{ path?: string }> }) => {
+      const cardsUrl = (globalThis as { __lalalaCardsUrl?: string }).__lalalaCardsUrl;
+      const updates = payload?.updates ?? [];
+      let matched = false;
+      for (const update of updates) {
+        const path = update.path ?? "";
+        if (!cardsUrl || !path.startsWith(cardsUrl)) continue;
+        lastCardHmrAt = performance.now();
+        if (followModuleUpdate(path) !== null) matched = true;
+      }
+      void matched;
+    };
+    const hot = import.meta.hot as
+      | {
+          on?: (event: string, cb: (payload: { updates?: ReadonlyArray<{ path?: string }> }) => void) => void;
+          off?: (event: string, cb: (payload: { updates?: ReadonlyArray<{ path?: string }> }) => void) => void;
+        }
+      | undefined;
+    hot?.on?.("vite:afterUpdate", onHmrAfterUpdate);
+
+    // Watch card body DOM mutations right after a card HMR update (catches cards whose filename
+    // differs from their card id, e.g. shared data modules updating a mounted card).
+    const cardChangeObserver = new MutationObserver((mutations) => {
+      if (performance.now() - lastCardHmrAt > 1_500) return;
+      for (const m of mutations) {
+        const node = m.target instanceof Element ? m.target : m.target.parentElement;
+        const body = node?.closest("[data-lalala-card-body]");
+        if (!body) continue;
+        const key = body.closest<HTMLElement>("[data-lalala-card]")?.dataset.lalalaCard;
+        if (key) {
+          followCard(cardOf(key), "hmr-dom");
+          return;
+        }
+      }
+    });
+    cardChangeObserver.observe(world, { childList: true, characterData: true, subtree: true });
 
     const measure = () => setView(surface.clientWidth, surface.clientHeight);
     measure();
@@ -356,6 +400,7 @@ export function CanvasSurface({ children }: { readonly children: ReactNode }) {
     };
 
     const down = (event: PointerEvent) => {
+      noteUserActivity();
       lastPointerType = event.pointerType;
       const pressed = event.target instanceof Element ? event.target : null;
       // The menu and the undo are taps of their own; a press anywhere else closes the menu.
@@ -489,6 +534,7 @@ export function CanvasSurface({ children }: { readonly children: ReactNode }) {
     document.body.style.overscrollBehavior = "none";
 
     const wheel = (event: WheelEvent) => {
+      noteUserActivity();
       const inBody =
         event.target instanceof Element && event.target.closest("[data-lalala-card-body]");
       if (event.ctrlKey) {
@@ -550,6 +596,9 @@ export function CanvasSurface({ children }: { readonly children: ReactNode }) {
     document.addEventListener("gesturechange", gestureChange);
     document.addEventListener("gestureend", gestureEnd);
     return () => {
+      cardChangeObserver.disconnect();
+      hot?.off?.("vite:afterUpdate", onHmrAfterUpdate);
+      stopMediaLod();
       unsubscribe();
       resize.disconnect();
       window.clearTimeout(settle);

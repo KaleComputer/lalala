@@ -43,7 +43,12 @@ function write(next: Cards) {
 }
 
 const api = {
-  put: (id: string, card: BrainCard) => write({ ...cards, [id]: card }),
+  put: (id: string, card: BrainCard) => {
+    write({ ...cards, [id]: card });
+    try {
+      if (localStorage.getItem("lalala:follow") === "1") globalThis.__lalalaCanvases?.focus?.(id);
+    } catch {}
+  },
   remove: (id: string) => {
     if (!(id in cards)) return;
     const { [id]: _, ...rest } = cards;

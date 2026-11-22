@@ -41,6 +41,8 @@ export type HarnessAdapter = {
   run?(command: string): Promise<void>;
   /** Marks the away inbox (it arrives in the events as `inbox`); `call` says the user is here. */
   inbox?(change: InboxChange | { readonly call: true }): Promise<void>;
+  /** Settles the active T3 brain thread (same as T3 Code's thread.settle). */
+  settle?(): Promise<void>;
 };
 
 export type Adapters = {

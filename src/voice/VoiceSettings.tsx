@@ -2418,13 +2418,13 @@ export function CanvasRows() {
   return (
     <Section title="Canvas">
       <Row
-        title="Follow the voice"
-        description="The canvas moves to the cards the voice talks about. Also the Follow tab, or say “follow”."
+        title="Follow canvas"
+        description="Moves the canvas to newly added or updated cards and cards the brain talks about — even when voice is off. Also the Follow toggle in the bar, or say “follow”."
         field
       >
         <Toggle
           on={following}
-          label="Follow the voice"
+          label="Follow canvas"
           onChange={setFollowing}
         />
       </Row>

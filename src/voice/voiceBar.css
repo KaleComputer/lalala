@@ -366,10 +366,10 @@
     --lalala-input-tab-w: 40px;
   }
 }
-:is(.lalala-input-slot, .lalala-mic-slot, .lalala-canvas-slot, .lalala-settings-slot, .lalala-inbox-slot) {
+:is(.lalala-input-slot, .lalala-mic-slot, .lalala-follow-slot, .lalala-canvas-slot, .lalala-settings-slot, .lalala-inbox-slot) {
   display: flex;
 }
-:is(.lalala-input-slot, .lalala-mic-slot, .lalala-canvas-slot, .lalala-settings-slot, .lalala-inbox-slot):empty {
+:is(.lalala-input-slot, .lalala-mic-slot, .lalala-follow-slot, .lalala-canvas-slot, .lalala-settings-slot, .lalala-inbox-slot):empty {
   display: none;
 }
 [data-lalala-presence] [data-lalala-canvas-tabs] {
@@ -491,7 +491,7 @@
 }
 
 /* The list, projected over the canvases tab like the input's field (its beam, VoiceInput's): the edge 1px
-   around, the canvases (the open one's row lit), then New, Rename, Tidy and Delete as one row of cells.
+   around, the canvases (the open one's row lit), then New, Rename, Tidy, Settle and Delete as one row of cells.
    Flush with the bar's right edge, so the beam meets its straight bottom edge, never the cut corner; it
    materializes from the beam's top. */
 [data-lalala-presence] [data-lalala-canvas-panel] {
@@ -499,7 +499,7 @@
   z-index: 6;
   right: 0;
   bottom: calc(100% + var(--tab-h) + 21px);
-  width: min(200px, 100%);
+  width: min(260px, 100%);
   transform-origin: calc(100% - var(--lalala-canvas-at) - var(--lalala-input-tab-w) / 2) 100%;
   display: flex;
   flex-direction: column;
@@ -621,11 +621,15 @@
   color: var(--hud);
   background: var(--lalala-fill);
   font: 400 calc(var(--tab-fs) - 1px) / 1 var(--font-mono);
-  letter-spacing: 0.12em;
+  letter-spacing: 0.07em;
   text-transform: uppercase;
   cursor: pointer;
   touch-action: manipulation;
   -webkit-tap-highlight-color: transparent;
+}
+[data-lalala-presence] [data-lalala-canvas-actions] > button:disabled {
+  opacity: 0.4;
+  cursor: default;
 }
 [data-lalala-presence] [data-lalala-canvas-actions] > button:is(:hover, :focus-visible) {
   outline: 0;
@@ -663,7 +667,7 @@
 }
 @media (pointer: coarse) {
   [data-lalala-presence] [data-lalala-canvas-panel] {
-    width: min(240px, 100%);
+    width: min(288px, 100%);
   }
   [data-lalala-presence] [data-lalala-canvas-panel] li > button {
     min-height: 36px;

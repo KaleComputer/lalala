@@ -4,7 +4,7 @@ import { threadRuntimeIsActive } from "@t3tools/client-runtime/state/models";
 import { squashAtomCommandFailure } from "@t3tools/client-runtime/state/runtime";
 import type { ThreadId } from "@t3tools/contracts";
 import * as DateTime from "effect/DateTime";
-import { type ComponentProps, useEffect, useEffectEvent, useRef, useState } from "react";
+import { type ComponentProps, useEffect, useEffectEvent, useRef, useState, useSyncExternalStore } from "react";
 
 import { readFileAsDataUrl } from "~/lib/imageCompression";
 import { newMessageId, newThreadId, randomUUID } from "~/lib/utils";
@@ -27,7 +27,8 @@ import { compactEstimateMs, compactionDue, shareBrainThread } from "./brainCompa
 import { markBriefed, needsBrief, withBrief, withCanvas } from "./brief";
 import { prewarm, speechProgress, speechStatus } from "./browserSpeech/browser";
 import { afterCanvasShown } from "./canvasShown";
-import { followCommand, setFollowing, takeFocus } from "./follow";
+import { followCommand, isFollowing, setFollowing, subscribeFollow, takeAboutCards, takeFocus } from "./follow";
+import { settleBrainThread } from "./settleThread";
 import { type VoicePhase, VoiceSession } from "./speech";
 import { takeSentences } from "./speechText";
 import { setCallLive } from "./phoneUpdate";
@@ -91,6 +92,8 @@ const ABOUT_TAG = /\s*\[about:[^\]]*\]\s*/gi;
 const opensTopic = (text: string) => /^\s*[\u2063\u2064]/.test(text);
 // `[tidy]` repacks the open canvas, `[tidy: <group name>]` only that group.
 const TIDY_TAG = /\[tidy(?::\s*([^\]]*))?\]\s*/gi;
+// `[settle]` settles the current brain thread in T3 Code.
+const SETTLE_TAG = /\[settle\]\s*/gi;
 // A call whose mic another tab or app holds tries again this often until it opens.
 const MIC_RETRY_MS = 4_000;
 const MIC_IN_USE = /microphone is in use/i;
@@ -182,7 +185,9 @@ export function VoiceHost({
   const finishedRef = useRef(new Set<string>());
   // Focus tags already applied, by turn item id; and whether the user asked to be shown something.
   const focusedRef = useRef(new Map<string, number>());
+  const passiveFollowedRef = useRef<Map<string, number> | null>(null);
   const tidiedRef = useRef(new Set<string>());
+  const settledRef = useRef(new Set<string>());
   // How many `[new topic]` parts of each reply have started, by turn item id.
   const topicPartsRef = useRef(new Map<string, number>());
   // Per `[about: …]` update (reply id and its index): whether its card was on screen when it arrived.
@@ -220,9 +225,10 @@ export function VoiceHost({
     : null;
   // lalala.talk: the harness and speech adapters stand in for the dev server and the speech service.
   const harness = globalThis.__lalalaAdapters?.harness;
-  // Out of a call too where the brain's replies carry cards (brainCards.ts).
+  const following = useSyncExternalStore(subscribeFollow, isFollowing, () => false);
+  // Out of a call too where follow is on or the brain's replies carry cards (brainCards.ts).
   const items = useThreadVisibleTurnItems(
-    phase === "off" && !brainFileReader() ? null : voiceThreadRef,
+    phase === "off" && !following && !brainFileReader() ? null : voiceThreadRef,
   );
   const thinking = threadRuntimeIsActive(voiceThread?.runtime);
   const brainContext = useVoiceBrainContext(voiceThreadRef);
@@ -686,6 +692,49 @@ export function VoiceHost({
     if (readFile && voiceThread) applyCardTags(voiceThread.id, items, readFile);
   }, [items, voiceThread?.id]);
 
+  // Passive follow: when Follow is on, focus cards named by incoming `[focus: …]` or `[about: …]`
+  // tags even when voice is OFF (e.g. on a big screen). Seeds existing history on first snapshot so
+  // reloading never jumps to an old message.
+  // oxlint-disable-next-line t3code/no-unreasoned-state-sync -- moves the canvas camera in response to incoming brain messages while follow is enabled
+  useEffect(() => {
+    if (items.length === 0) return;
+    if (passiveFollowedRef.current === null) {
+      const seed = new Map<string, number>();
+      for (const { item } of items) {
+        if (item.type !== "assistant_message" || item.parentItemId !== null) continue;
+        const count = takeFocus(item.text).cards.length + takeAboutCards(item.text).length;
+        seed.set(item.id, count);
+      }
+      passiveFollowedRef.current = seed;
+      return;
+    }
+    const seen = passiveFollowedRef.current;
+    for (const { item, visibility } of items) {
+      if (item.type !== "assistant_message" || visibility !== "local") continue;
+      if (item.parentItemId !== null) continue;
+      const focusCards = takeFocus(item.text).cards;
+      const aboutCards = takeAboutCards(item.text);
+      const total = focusCards.length + aboutCards.length;
+      const prev = seen.get(item.id) ?? 0;
+      if (total <= prev) continue;
+      seen.set(item.id, total);
+      // During an active call, `[focus:]` is handled by the voice loop below; passive follow still
+      // covers `[about:]` updates and any `[focus:]` when voice is off.
+      if (!following) continue;
+      const card =
+        sessionRef.current === null
+          ? (focusCards.at(-1) ?? aboutCards.at(-1))
+          : aboutCards.at(-1);
+      if (card) {
+        voiceLog("brain", "follow.focus", {
+          card,
+          via: sessionRef.current === null ? "passive" : "about",
+        });
+        globalThis.__lalalaCanvases?.focus?.(card);
+      }
+    }
+  }, [items, following]);
+
   // oxlint-disable-next-line t3code/no-unreasoned-state-sync -- speaks the voice thread's replies sentence by sentence as they stream while the mic is on
   useEffect(() => {
     const session = sessionRef.current;
@@ -712,6 +761,8 @@ export function VoiceHost({
       const tidies = [...item.text.matchAll(TIDY_TAG)].map((m) =>
         (m[1] ?? "").replace(/[`"]/g, "").trim(),
       );
+      const wantsSettle = SETTLE_TAG.test(item.text);
+      SETTLE_TAG.lastIndex = 0;
       // Whether an update is about a card on screen is decided once, when its tag first arrives.
       let abouts = 0;
       const marked = takeCards(item.text)
@@ -731,6 +782,7 @@ export function VoiceHost({
         .replace(NEW_TOPIC_TAG, `\n\n${TOPIC_MARK}`)
         .replace(ABOUT_TAG, " ")
         .replace(TIDY_TAG, "")
+        .replace(SETTLE_TAG, "")
         .replace(STREAMER_TAG, "");
       const streamer = [...item.text.matchAll(STREAMER_TAG)].at(-1)?.[1]?.toLowerCase();
       if (thisTurn && streamer) setStreamerMode(streamer === "on");
@@ -743,6 +795,10 @@ export function VoiceHost({
           else voiceLog("brain", "tidy.group", { group, found: canvases?.tidyGroup?.(group) });
         }
         if (tidies.includes("")) voiceLog("brain", "tidy", {});
+      }
+      if (thisTurn && wantsSettle && !settledRef.current.has(item.id)) {
+        settledRef.current.add(item.id);
+        void settleBrainThread("brain");
       }
       const focused = focusedRef.current.get(item.id) ?? 0;
       if (thisTurn && cards.length > focused) {

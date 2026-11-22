@@ -480,6 +480,14 @@ export function browserHarness(): HarnessAdapter {
       if ("call" in change) return;
       setInbox(applyInboxChange(state.inbox, change));
     },
+    async settle() {
+      if (brain === null) throw new Error("Not paired with T3 Code yet");
+      const link = await linked();
+      await link.dispatch({
+        type: "thread.settle",
+        threadId: brain.threadId,
+      });
+    },
     async run(command) {
       if (brain === null) throw new Error("Not paired with T3 Code yet");
       const link = await linked();

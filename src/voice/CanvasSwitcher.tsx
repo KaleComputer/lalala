@@ -14,7 +14,10 @@ import { createPortal } from "react-dom";
 import { Button } from "@ui-sdk/react/button";
 import { Input } from "@ui-sdk/react/input";
 
+import { useBridge } from "~/t3/bridge";
+
 import { liftOverKeyboard } from "./keyboardLift";
+import { settleBrainThread } from "./settleThread";
 import { StreamerText } from "./streamerMode";
 
 // canvasStore lives in the separately built extras bundle; it announces changes with this event.
@@ -26,8 +29,8 @@ const snapshot = () => globalThis.__lalalaCanvases?.snapshot() ?? null;
 
 /**
  * The canvas's tab in the device bar's row: a stacked-layers icon, which raises its list over the bar
- * (switch, New, Rename, Tidy, Delete). On /canvas, live in and out of a
- * call and offline too, like the gear. Follow lives in the settings.
+ * (switch, New, Rename, Tidy, Settle, Delete). On /canvas, live in and out of a
+ * call and offline too, like the gear.
  */
 export function CanvasTabs(props: {
   readonly tabHost: HTMLElement;
@@ -35,7 +38,9 @@ export function CanvasTabs(props: {
   readonly bar: HTMLElement;
 }) {
   const onCanvas = useLocation({ select: (location) => location.pathname === "/canvas" });
+  const connected = useBridge((state) => state.connected);
   const canvases = useSyncExternalStore(subscribe, snapshot, () => null);
+  const [settling, setSettling] = useState(false);
   // Open: the list's right edge, px in from the frame's, so it rises over the name tab.
   const [openAt, setOpenAt] = useState<number | null>(null);
   // "closing" plays the hologram back (list, then beam) before the list unmounts.
@@ -280,6 +285,17 @@ export function CanvasTabs(props: {
                 }}
               >
                 Tidy
+              </Button>
+              <Button
+                aria-label="Settle thread"
+                disabled={!connected || settling}
+                onClick={() => {
+                  setSettling(true);
+                  close();
+                  void settleBrainThread("user").finally(() => setSettling(false));
+                }}
+              >
+                Settle
               </Button>
               <Button
                 ref={deleteRef}

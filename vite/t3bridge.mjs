@@ -743,6 +743,16 @@ export function t3BridgePlugin({ threadId: configuredThreadId, workspaceRoot }) 
     return readBrain();
   }
 
+  async function settleThread() {
+    const via = await connectedSocket();
+    await via.request("orchestration.dispatchCommand", {
+      type: "thread.settle",
+      commandId: uuid(),
+      threadId: state.threadId,
+    });
+    return { ok: true, threadId: state.threadId };
+  }
+
   const readBody = (req) =>
     new Promise((resolve, reject) => {
       const chunks = [];
@@ -859,6 +869,12 @@ export function t3BridgePlugin({ threadId: configuredThreadId, workspaceRoot }) 
           readBody(req)
             .then((raw) => send(JSON.parse(raw)))
             .then(() => json(res, 200, { ok: true }))
+            .catch((error) => json(res, 502, { error: error.message }));
+          return;
+        }
+        if (path === `${PREFIX}/settle` && req.method === "POST") {
+          settleThread()
+            .then((result) => json(res, 200, result))
             .catch((error) => json(res, 502, { error: error.message }));
           return;
         }

@@ -62,6 +62,12 @@ run(process.execPath, ["--experimental-strip-types", "--no-warnings", "--test", 
 step("audio route changes rebuild the AudioContext cleanly (scripts/audio-route)");
 run(process.execPath, ["--experimental-strip-types", "--no-warnings", "--test", "scripts/audio-route/check.test.mjs"]);
 
+step("game-style image zoom LOD and thumbnail guard hold (scripts/media-lod)");
+run(process.execPath, ["--experimental-strip-types", "--no-warnings", "--test", "scripts/media-lod/check.test.mjs"]);
+
+step("settle action and canvas follow helpers hold (scripts/settle-follow)");
+run(process.execPath, ["--experimental-strip-types", "--no-warnings", "--test", "scripts/settle-follow/check.test.mjs"]);
+
 if (!process.argv.includes("--files-only")) {
   step("site typechecks (as on Vercel)");
   const site = NodePath.join(root, "site");

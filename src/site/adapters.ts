@@ -65,6 +65,10 @@ const harness: HarnessAdapter = {
     if (!current?.inbox) return Promise.reject(new Error("Not paired with T3 Code yet"));
     return current.inbox(change);
   },
+  settle() {
+    if (!current?.settle) return Promise.reject(new Error("Not paired with T3 Code yet"));
+    return current.settle();
+  },
 };
 
 installAdapters({ storage: browserStorage, harness });

@@ -5,8 +5,10 @@ import {
   useLayoutEffect,
   useRef,
   useState,
+  useSyncExternalStore,
 } from "react";
 import { createPortal } from "react-dom";
+import { useLocation } from "@tanstack/react-router";
 import { Button } from "@ui-sdk/react/button";
 import { Toggle } from "@ui-sdk/react/toggle";
 
@@ -16,6 +18,7 @@ import { type CallWaveLevels, type CallWaveSpectrum, createCallWave } from "./pr
 import { createFrame, type PresenceFrame } from "./presence/frame";
 import { CanvasTabs } from "./CanvasSwitcher";
 import { CompactingDefrag } from "./extras/CompactingDefrag";
+import { isFollowing, setFollowing, subscribeFollow } from "./follow";
 import { InboxTab } from "./inbox/InboxTab";
 import { useUpdateReady } from "./phoneUpdate";
 import { SecretAsks } from "./SecretAsk";
@@ -104,10 +107,11 @@ function makeStatusTab(frameEl: HTMLElement) {
   timer.setAttribute("aria-label", "Call time");
   const lead = document.createElement("span");
   lead.className = "lalala-lead";
-  // Right to left from the time (the user, 8 Nov): the input (a keyboard tab, VoiceInput), the mic, the
-  // canvases (a layers tab), then the settings gear.
+  // Right to left from the time: input (keyboard), mic, follow toggle, canvases, settings gear, inbox.
   const canvas = document.createElement("span");
   canvas.className = "lalala-canvas-slot";
+  const follow = document.createElement("span");
+  follow.className = "lalala-follow-slot";
   const input = document.createElement("span");
   input.className = "lalala-input-slot";
   const mic = document.createElement("span");
@@ -119,7 +123,7 @@ function makeStatusTab(frameEl: HTMLElement) {
   inbox.className = "lalala-inbox-slot";
   const row = document.createElement("div");
   row.className = "lalala-tabs";
-  row.append(inbox, settings, canvas, mic, input, tab);
+  row.append(inbox, settings, canvas, follow, mic, input, tab);
   // The row's slot: it clips the row at the frame's top edge, so revealed content rises out of it.
   const clip = document.createElement("div");
   clip.className = "lalala-tabs-clip";
@@ -188,9 +192,12 @@ export function VoiceBar(props: {
     readonly bar: HTMLElement;
   } | null>(null);
   const [canvasHost, setCanvasHost] = useState<HTMLElement | null>(null);
+  const [followHost, setFollowHost] = useState<HTMLElement | null>(null);
   const [settingsHost, setSettingsHost] = useState<HTMLElement | null>(null);
   const [inboxHost, setInboxHost] = useState<HTMLElement | null>(null);
   const [room, setRoom] = useState<HTMLElement | null>(null);
+  const onCanvas = useLocation({ select: (location) => location.pathname === "/canvas" });
+  const following = useSyncExternalStore(subscribeFollow, isFollowing, () => false);
   // An update starts playing: UPDATE wipes over the room for a moment, the wave running on beneath it.
   // How long it shows (the update sound's length, ms); 0 when it doesn't.
   const [topicMs, setTopicMs] = useState(0);
@@ -315,6 +322,7 @@ export function VoiceBar(props: {
     if (!previewing()) map.dataset.loading = "";
     (frameEl.querySelector(".fr-in") ?? frameEl).append(map);
     setMicHost(root.querySelector<HTMLElement>(".lalala-mic-slot"));
+    setFollowHost(root.querySelector<HTMLElement>(".lalala-follow-slot"));
     setCanvasHost(root.querySelector<HTMLElement>(".lalala-canvas-slot"));
     setSettingsHost(root.querySelector<HTMLElement>(".lalala-settings-slot"));
     setInboxHost(root.querySelector<HTMLElement>(".lalala-inbox-slot"));
@@ -486,6 +494,28 @@ export function VoiceBar(props: {
       {canvasHost !== null && inputHosts !== null ? (
         <CanvasTabs tabHost={canvasHost} panelHost={inputHosts.panel} bar={inputHosts.bar} />
       ) : null}
+      {followHost !== null && onCanvas
+        ? createPortal(
+            <Toggle
+              data-lalala-follow=""
+              data-lalala-tab=""
+              data-open={following ? "" : undefined}
+              pressed={following}
+              aria-label="Follow canvas"
+              title={following ? "Follow canvas (on)" : "Follow canvas (off)"}
+              onPressedChange={(next) => {
+                setFollowing(next);
+                voiceLog("user", "follow.toggle", { on: next });
+              }}
+            >
+              <svg viewBox="0 0 24 24" aria-hidden="true">
+                <circle cx="12" cy="12" r="4.5" />
+                <path d="M12 2.5v3.5M12 18v3.5M2.5 12H6M18 12h3.5" />
+              </svg>
+            </Toggle>,
+            followHost,
+          )
+        : null}
       {/* Only the real bar: a preview copy (the bar states card) would show and answer it too. */}
       {inputHosts !== null && !previewed ? (
         <SecretAsks host={inputHosts.panel} bar={inputHosts.bar} />

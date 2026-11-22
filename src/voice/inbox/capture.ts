@@ -131,7 +131,7 @@ export function shortId(source: string): string {
 }
 
 // lalala's own reply tags (VoiceHost, brainCards, follow): never spoken, so never in a summary.
-const CONTROL_TAG = /\[(?:new topic|about|focus|tidy|streamer|heard|card)\b[^\]]*\]/gi;
+const CONTROL_TAG = /\[(?:new topic|about|focus|tidy|settle|streamer|heard|card)\b[^\]]*\]/gi;
 const NEW_TOPIC = /\[new topic\]/i;
 const BARE_HEARD = /\[heard\]/i;
 

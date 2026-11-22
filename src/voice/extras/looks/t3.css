@@ -266,6 +266,7 @@
   [data-lalala-presence]
   :is(
     [data-lalala-canvas-name],
+    [data-lalala-follow],
     [data-lalala-input-tab],
     [data-lalala-mic],
     [data-lalala-settings-tab]
@@ -274,6 +275,7 @@
   [data-lalala-presence]
   :is(
     [data-lalala-canvas-name],
+    [data-lalala-follow],
     [data-lalala-input-tab],
     [data-lalala-mic],
     [data-lalala-settings-tab]
@@ -289,6 +291,7 @@
   [data-lalala-presence]
   :is(
     [data-lalala-canvas-name],
+    [data-lalala-follow],
     [data-lalala-input-tab],
     [data-lalala-mic],
     [data-lalala-settings-tab],
@@ -300,6 +303,7 @@
   [data-lalala-presence]
   :is(
     [data-lalala-canvas-name],
+    [data-lalala-follow],
     [data-lalala-input-tab],
     [data-lalala-mic],
     [data-lalala-settings-tab]
@@ -310,6 +314,7 @@
   [data-lalala-presence]
   :is(
     [data-lalala-canvas-name],
+    [data-lalala-follow],
     [data-lalala-input-tab],
     [data-lalala-mic],
     [data-lalala-settings-tab]
@@ -320,6 +325,7 @@
   [data-lalala-presence]
   :is(
     [data-lalala-canvas-name],
+    [data-lalala-follow],
     [data-lalala-input-tab],
     [data-lalala-settings-tab]
   )[data-open] {
@@ -329,6 +335,7 @@
   [data-lalala-presence]
   :is(
     [data-lalala-canvas-name],
+    [data-lalala-follow],
     [data-lalala-input-tab],
     [data-lalala-settings-tab]
   )[data-open]::after {

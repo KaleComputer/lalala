@@ -399,6 +399,9 @@
 :root[data-lala-look="paper"] [data-lalala-presence] [data-lalala-canvas-name] {
   --lalala-fill: linear-gradient(#fde3e8, #f9cfd8);
 }
+:root[data-lala-look="paper"] [data-lalala-presence] [data-lalala-follow] {
+  --lalala-fill: linear-gradient(#e4f5f0, #cbeae1);
+}
 :root[data-lala-look="paper"] [data-lalala-presence] [data-lalala-input-tab] {
   --lalala-fill: linear-gradient(#fdf1c4, #f9e39a);
 }
@@ -413,6 +416,8 @@
 }
 :root[data-lala-look="paper"] [data-lalala-presence] [data-lalala-canvas-name]::before,
 :root[data-lala-look="paper"] [data-lalala-presence] [data-lalala-canvas-name]::after,
+:root[data-lala-look="paper"] [data-lalala-presence] [data-lalala-follow]::before,
+:root[data-lala-look="paper"] [data-lalala-presence] [data-lalala-follow]::after,
 :root[data-lala-look="paper"] [data-lalala-presence] [data-lalala-input-tab]::before,
 :root[data-lala-look="paper"] [data-lalala-presence] [data-lalala-input-tab]::after,
 :root[data-lala-look="paper"] [data-lalala-presence] [data-lalala-mic]::before,

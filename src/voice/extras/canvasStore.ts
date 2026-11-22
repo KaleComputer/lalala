@@ -457,6 +457,7 @@ export function select(key: string | null) {
 export function touchCard(id: string) {
   if (touched === id) return;
   touched = id;
+  emitFollowSignal(live.canvas, cardOf(id));
   changed();
 }
 
@@ -617,6 +618,8 @@ export function fitCard(id: string, more: { readonly w: number; readonly h: numb
   const h = more.h > 1 && widen === rect.w ? Math.min(FIT_MAX.h, Math.ceil(rect.h + more.h)) : rect.h;
   if (w <= rect.w && h <= rect.h) return;
   setCard(id, roomToGrow(id, rect, { ...rect, w: Math.max(w, rect.w), h: Math.max(h, rect.h) }));
+  // If Follow is on after boot and a card grows with new content, pan/zoom to show it.
+  if (bootSettled && Date.now() > suppressFollowUntil) followCard(cardOf(id), "grown");
 }
 
 /**
@@ -685,11 +688,18 @@ const storage = () => {
 /** Whether every device shares this layout (the app's server), not this browser alone (lalala.talk). */
 export const isLayoutShared = () => storage() !== null;
 const POLL_MS = 3_000;
+type FollowSignal = {
+  readonly canvas: string;
+  readonly card?: string;
+  readonly at: number;
+  readonly by?: string;
+};
 type Shared = {
   readonly cards: Readonly<Record<string, Rect>>;
   readonly canvases?: Canvases;
   readonly marks?: Marks;
   readonly state?: CardState;
+  readonly follow?: FollowSignal;
   readonly at: number;
 };
 /** What each card had open (cardState.ts), card to key to value: it rides the layout's sends. */
@@ -771,6 +781,7 @@ function applyShared(shared: Shared) {
     cardStateLink?.adopt(shared.state);
   }
   adoptCards(shared.cards);
+  if (shared.follow) adoptFollowSignal(shared.follow);
   // Always, not only on a change here: the next load starts from this layout, not an older one.
   try {
     const stored = read();
@@ -800,6 +811,7 @@ async function push(leaving = false) {
     (unsynced.size === 0 &&
       unsentCanvases.size === 0 &&
       unsentMarks.size === 0 &&
+      unsentFollow === null &&
       Object.keys(cardStateLink?.unsent() ?? {}).length === 0);
   if (store === null || idle()) return;
   if (held !== null && !leaving) return;
@@ -818,6 +830,7 @@ async function push(leaving = false) {
   const sentMarks = Object.fromEntries([...unsentMarks].map((key) => [key, live.marks[key] ?? {}]));
   const sentState = cardStateLink?.unsent() ?? {};
   const hasState = Object.keys(sentState).length > 0;
+  const sentFollow = unsentFollow;
   pushing = true;
   try {
     const shared = (await store.write(
@@ -828,10 +841,12 @@ async function push(leaving = false) {
         ...(unsentCanvases.size > 0 && { canvases: sentCanvases }),
         ...(unsentMarks.size > 0 && { marks: sentMarks }),
         ...(hasState && { state: sentState }),
+        ...(sentFollow !== null && { follow: sentFollow }),
       },
       { leaving },
     )) as Shared | null;
     if (shared === null) return;
+    if (sentFollow !== null && unsentFollow === sentFollow) unsentFollow = null;
     lastExchange = Date.now();
     // Changed again while sending: what the shared layout now has is this tab's own last box.
     for (const [id, rect] of Object.entries(sent)) {
@@ -1016,13 +1031,15 @@ function removedList() {
 }
 
 /** Opens a canvas on this device, at the camera it had here. */
-function selectCanvas(id: string) {
+function selectCanvas(id: string, broadcast = true) {
   const next = exists(live.canvases, id) ? id : fallback(live.canvases);
   if (next === live.canvas) return;
+  suppressFollowUntil = Date.now() + 800;
   save();
   live.canvas = next;
   live.camera = cameraOf(next);
   writeJson(ACTIVE, next);
+  if (broadcast) emitFollowSignal(next);
   canvasesChanged();
   changed();
 }
@@ -1069,7 +1086,12 @@ export function declareCard(
   group?: string,
   byDefault = false,
 ) {
+  const existed = cardsInCode.has(id);
   cardsInCode.set(id, { canvas, title, group, private: byDefault });
+  // A brand-new card added to code on ANY canvas (even one not currently open) auto-follows.
+  if (!existed && bootSettled && Date.now() >= suppressFollowUntil) {
+    followCard(id, "declared-new");
+  }
 }
 /** A card in code by its id: its title, group and default privacy, for its menu. */
 export const cardInfo = (id: string) => cardsInCode.get(id);
@@ -1083,11 +1105,135 @@ const FOCUS_MS = 380;
 const FOCUS_MAX_ZOOM = 1.25;
 let focusFrame = 0;
 
+const FOLLOW_KEY = "lalala:follow";
+const FOLLOW_SIGNAL_STORAGE = "lalala:canvas-follow";
+const DEVICE_ID = Math.random().toString(36).slice(2, 10);
+const USER_ACT_GRACE_MS = 1_200;
+let lastUserActAt = 0;
+let bootSettled = false;
+let suppressFollowUntil = 0;
+let unsentFollow: FollowSignal | null = null;
+let seenFollowAt = 0;
+let followSeeded = false;
+const knownCards = new Set<string>();
+let pendingFollowCard: string | null = null;
+let pendingFollowTimer = 0;
+
+/** Records a user pointer/wheel interaction so auto-follow never fights their hand. */
+export function noteUserActivity() {
+  lastUserActAt = performance.now();
+}
+
+const isFollowOn = () => {
+  try {
+    return localStorage.getItem(FOLLOW_KEY) === "1";
+  } catch {
+    return false;
+  }
+};
+
+/** Broadcasts this device's active canvas / focused card so other devices with Follow ON follow along. */
+function emitFollowSignal(canvas: string, card?: string) {
+  if (!bootSettled || canvas === "") return;
+  const signal: FollowSignal = {
+    canvas,
+    ...(card ? { card } : {}),
+    at: Math.max(Date.now(), seenFollowAt + 1),
+    by: DEVICE_ID,
+  };
+  seenFollowAt = signal.at;
+  unsentFollow = signal;
+  writeJson(FOLLOW_SIGNAL_STORAGE, signal);
+  schedulePush();
+}
+
+/** Applies a cross-device (or cross-tab) Follow signal when Follow is ON on this device. */
+function adoptFollowSignal(signal: FollowSignal) {
+  if (!followSeeded) {
+    followSeeded = true;
+    seenFollowAt = Math.max(seenFollowAt, signal.at);
+    return;
+  }
+  if (signal.at <= seenFollowAt || signal.by === DEVICE_ID) return;
+  seenFollowAt = signal.at;
+  if (!bootSettled || !isFollowOn() || held !== null) return;
+  if (performance.now() - lastUserActAt < USER_ACT_GRACE_MS) return;
+  if (signal.card) {
+    if (focusCard(signal.card, false)) {
+      globalThis.__lalalaLog?.("system", "follow.sync", {
+        canvas: signal.canvas,
+        card: signal.card,
+      });
+    }
+  } else if (signal.canvas && signal.canvas !== live.canvas) {
+    selectCanvas(signal.canvas, false);
+    globalThis.__lalalaLog?.("system", "follow.sync", { canvas: signal.canvas });
+  }
+}
+
+/**
+ * Auto-follows a newly added or updated card when Follow is ON (even with voice off), coalescing
+ * rapid bursts and never fighting an active hand gesture.
+ */
+export function followCard(name: string, reason: string) {
+  if (!bootSettled || !isFollowOn()) return false;
+  if (held !== null || Date.now() < suppressFollowUntil) return false;
+  if (performance.now() - lastUserActAt < USER_ACT_GRACE_MS) return false;
+  pendingFollowCard = name;
+  window.clearTimeout(pendingFollowTimer);
+  pendingFollowTimer = window.setTimeout(() => {
+    const target = pendingFollowCard;
+    pendingFollowCard = null;
+    if (target === null || !isFollowOn() || held !== null) return;
+    if (performance.now() - lastUserActAt < USER_ACT_GRACE_MS) return;
+    if (focusCard(target, false)) {
+      globalThis.__lalalaLog?.("system", "follow.card", { card: target, reason });
+    }
+  }, 60);
+  return true;
+}
+
+const normStem = (value: string) => value.toLowerCase().replace(/[^a-z0-9]+/g, "");
+
+/** Matches an HMR-updated card file path against declared cards and follows it when Follow is on. */
+export function followModuleUpdate(modulePath: string): string | null {
+  if (!bootSettled || !isFollowOn()) return null;
+  const clean = modulePath.split("?")[0] ?? modulePath;
+  const segments = clean.split("/").filter(Boolean);
+  const file = segments.at(-1) ?? "";
+  const stem = file.replace(/\.[^.]+$/, "");
+  if (stem === "" || stem === "index") return null;
+  const parent = segments.length >= 2 ? segments.at(-2)! : "";
+  const candidates = [stem, stem.replace(/data$/i, ""), parent]
+    .map(normStem)
+    .filter((part) => part.length >= 3);
+  if (candidates.length === 0) return null;
+
+  let best: string | null = null;
+  let bestScore = 0;
+  for (const [id, card] of cardsInCode) {
+    const idNorm = normStem(id);
+    const titleNorm = normStem(card.title);
+    for (const candidate of candidates) {
+      let score = 0;
+      if (candidate === idNorm || candidate === titleNorm) score = 3;
+      else if (idNorm.length >= 3 && (candidate.includes(idNorm) || idNorm.includes(candidate))) score = 2;
+      else if (titleNorm.length >= 4 && (candidate.includes(titleNorm) || titleNorm.includes(candidate))) score = 1;
+      if (score > bestScore) {
+        bestScore = score;
+        best = id;
+      }
+    }
+  }
+  if (best !== null) followCard(best, "hmr-file");
+  return best;
+}
+
 /**
  * Pans and zooms to fit a card (its id or title), opening its canvas first. A short ease; any
  * camera move from elsewhere (the user's hand) stops it.
  */
-function focusCard(name: string) {
+function focusCard(name: string, broadcast = true) {
   const wanted = name.trim().toLowerCase();
   const found = [...cardsInCode].find(
     ([id, card]) => id.toLowerCase() === wanted || card.title.toLowerCase() === wanted,
@@ -1095,7 +1241,9 @@ function focusCard(name: string) {
   // Removed: not on the canvas to go to (Settings › Canvas puts it back).
   if (!found || isRemoved(found[0], found[1].group)) return false;
   const [id, card] = found;
-  selectCanvas(homeOf(card.canvas, listOf(live.canvases)));
+  const targetCanvas = homeOf(card.canvas, listOf(live.canvases));
+  selectCanvas(targetCanvas, false);
+  if (broadcast) emitFollowSignal(targetCanvas, id);
   const key = boxKey(live.canvas, id);
   window.cancelAnimationFrame(focusFrame);
   let waited = 0;
@@ -1492,7 +1640,17 @@ function placeNew() {
     );
     newlyPlaced.add(id);
   }
+  const added = waiting.map(([id]) => id);
   unplaced.clear();
+  if (!bootSettled) {
+    for (const id of mounted) knownCards.add(id);
+    window.setTimeout(() => {
+      for (const id of mounted) knownCards.add(id);
+      bootSettled = true;
+    }, 600);
+  } else if (added.length > 0) {
+    followCard(cardOf(added.at(-1)!), "added");
+  }
 }
 
 /**
@@ -1507,9 +1665,12 @@ export function mountCard(id: string, fallback: Rect, exact = false) {
     placing = true;
     void firstPull.then(placeNew);
   }
+  const isNew = bootSettled && !knownCards.has(id) && Date.now() >= suppressFollowUntil;
+  knownCards.add(id);
   if (live.cards[id] === undefined) unplaced.set(id, { rect: fallback, exact });
   mounted.add(id);
   changed();
+  if (isNew && live.cards[id] !== undefined) followCard(cardOf(id), "mounted");
   return () => {
     mounted.delete(id);
     changed();
@@ -1527,6 +1688,12 @@ function adopt(event: StorageEvent) {
   if (event.key === STORE && event.newValue !== null) adoptCards(read().cards);
   if (event.key === CANVASES && event.newValue !== null) adoptCanvases(readCanvases());
   if (event.key === MARKS && event.newValue !== null) adoptMarks(readMarks());
+  if (event.key === FOLLOW_SIGNAL_STORAGE && event.newValue !== null) {
+    try {
+      const sig = JSON.parse(event.newValue) as FollowSignal;
+      if (sig && typeof sig.canvas === "string" && Number.isFinite(sig.at)) adoptFollowSignal(sig);
+    } catch {}
+  }
 }
 
 const leave = () => {
