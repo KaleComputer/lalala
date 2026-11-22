@@ -262,55 +262,72 @@ export function CanvasTabs(props: {
           </div>
         </>
       ) : (
-        <div data-lalala-canvas-actions="">
-          <Button
-            aria-label="New canvas"
-            onClick={() => {
-              api.create();
-              setRenaming(true);
-            }}
-          >
-            New
-          </Button>
+        <>
           {current ? (
-            <>
-              <Button aria-label="Rename canvas" onClick={() => setRenaming(true)}>
-                Rename
-              </Button>
-              <Button
-                aria-label="Tidy canvas"
-                onClick={() => {
-                  api.tidy();
-                  close();
-                }}
-              >
-                Tidy
-              </Button>
-              <Button
-                aria-label="Settle thread"
-                disabled={!connected || settling}
-                onClick={() => {
-                  setSettling(true);
-                  close();
-                  void settleBrainThread("user").finally(() => setSettling(false));
-                }}
-              >
-                Settle
-              </Button>
-              <Button
-                ref={deleteRef}
-                aria-label="Delete canvas"
-                data-danger=""
-                onClick={() => {
-                  setRenaming(false);
-                  setDeleting({ id: current.id, name: current.name });
-                }}
-              >
-                Delete
-              </Button>
-            </>
+            <Button
+              data-lalala-canvas-starter=""
+              aria-label="Templates and starter"
+              onClick={() => {
+                api.openStarter?.();
+                close();
+              }}
+            >
+              <svg viewBox="0 0 24 24" aria-hidden="true">
+                <path d="M12 5v14M5 12h14" />
+              </svg>
+              <span>Templates &amp; starter…</span>
+            </Button>
           ) : null}
-        </div>
+          <div data-lalala-canvas-actions="">
+            <Button
+              aria-label="New canvas"
+              onClick={() => {
+                api.create();
+                setRenaming(true);
+              }}
+            >
+              New
+            </Button>
+            {current ? (
+              <>
+                <Button aria-label="Rename canvas" onClick={() => setRenaming(true)}>
+                  Rename
+                </Button>
+                <Button
+                  aria-label="Tidy canvas"
+                  onClick={() => {
+                    api.tidy();
+                    close();
+                  }}
+                >
+                  Tidy
+                </Button>
+                <Button
+                  aria-label="Settle thread"
+                  disabled={!connected || settling}
+                  onClick={() => {
+                    setSettling(true);
+                    close();
+                    void settleBrainThread("user").finally(() => setSettling(false));
+                  }}
+                >
+                  Settle
+                </Button>
+                <Button
+                  ref={deleteRef}
+                  aria-label="Delete canvas"
+                  data-danger=""
+                  onClick={() => {
+                    setRenaming(false);
+                    setDeleting({ id: current.id, name: current.name });
+                  }}
+                >
+                  Delete
+                </Button>
+              </>
+            ) : null}
+          </div>
+        </>
       )}
     </div>
   );

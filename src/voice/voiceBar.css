@@ -607,6 +607,45 @@
   font: 400 var(--tab-fs) / 1 var(--font-mono);
   letter-spacing: 0.06em;
 }
+[data-lalala-presence] [data-lalala-canvas-starter] {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  min-height: 24px;
+  padding: 5px 10px;
+  border: 0;
+  color: var(--hud);
+  background: var(--lalala-fill);
+  font: 400 calc(var(--tab-fs) - 1px) / 1.2 var(--font-mono);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  text-align: left;
+  cursor: pointer;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+}
+[data-lalala-presence] [data-lalala-canvas-starter] > svg {
+  flex: none;
+  width: 10px;
+  height: 10px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2.2;
+  stroke-linecap: round;
+}
+[data-lalala-presence] [data-lalala-canvas-starter]:is(:hover, :focus-visible) {
+  outline: 0;
+  background:
+    linear-gradient(
+      color-mix(in srgb, var(--lala-accent, #3dff8f) 14%, transparent),
+      color-mix(in srgb, var(--lala-accent, #3dff8f) 14%, transparent)
+    ),
+    var(--lalala-fill);
+}
+[data-lalala-presence] [data-lalala-canvas-starter]:focus-visible {
+  box-shadow: inset 0 0 0 1px var(--lalala-live);
+}
 [data-lalala-presence] [data-lalala-canvas-actions] {
   clip-path: polygon(0 0, 100% 0, 100% calc(100% - 5.4px), calc(100% - 5.4px) 100%, 0 100%);
   display: grid;
@@ -675,6 +714,9 @@
   [data-lalala-presence] [data-lalala-canvas-panel] li > input {
     height: 36px;
     font-size: 16px;
+  }
+  [data-lalala-presence] [data-lalala-canvas-starter] {
+    min-height: 36px;
   }
   [data-lalala-presence] [data-lalala-canvas-actions] > button {
     height: 32px;

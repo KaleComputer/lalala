@@ -1,3 +1,4 @@
+import { STARTER_CARD_ID, openStarterState } from "./starterLogic";
 import { AREA, GROUP_GAP, areaAround, packInWidth, spotInGroup, tidyLayout } from "./tidyPack";
 
 /**
@@ -1506,6 +1507,28 @@ function cardInView(name: string) {
   return shown >= (rect.w * rect.h) / 3 || shown >= (seen.w * seen.h) / 2;
 }
 
+/** Re-opens the Starter Selector card on the active canvas and pans to it. */
+function openStarter() {
+  if (live.canvas === "") return;
+  if (isRemoved(STARTER_CARD_ID, undefined)) restoreMarked(cardMark(STARTER_CARD_ID));
+  openStarterState();
+  if (typeof window !== "undefined") {
+    window.requestAnimationFrame(() => void focusCard(STARTER_CARD_ID, false));
+  }
+}
+
+/** Number of currently mounted cards on `canvas`, optionally excluding one card id (e.g. Starter). */
+export function mountedUserCardCount(canvas = live.canvas, excludeId?: string): number {
+  if (canvas === "") return 0;
+  let count = 0;
+  for (const key of mounted) {
+    if (!onCanvas(key, canvas)) continue;
+    const id = canvas === MAIN ? key : key.slice(canvas.length + 1);
+    if (id !== excludeId) count += 1;
+  }
+  return count;
+}
+
 /** What the top bar's canvas switcher and the voice host (outside this bundle) reach. */
 const api = {
   snapshot: getCanvases,
@@ -1517,6 +1540,7 @@ const api = {
   tidy: tidyCanvas,
   tidyGroup,
   inView: cardInView,
+  openStarter,
   /** The settings' "Removed from the canvas" list. */
   removed: removedList,
   restore: restoreMarked,
