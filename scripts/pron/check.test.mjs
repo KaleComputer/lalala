@@ -1,7 +1,7 @@
-// Pronunciation regression guard (KAL-3115, 21 Nov 2026):
+// Pronunciation regression guard (21 Nov 2026):
 // Catches the sunday -> "someday" (d03 en-gb) regression, the 21 Nov override regressions
 // (cosimo, italo, elisha gb, iwatani, plato, othniel, ullrich, guillermo, jurado, elizabeth us),
-// and preserves the known improvements (activityjigsawhalf, leia, languag, kwame, mozart).
+// and preserves the vetted public overrides (leia, kwame, mozart).
 // Run: node --experimental-strip-types --test scripts/pron/check.test.mjs
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
@@ -74,9 +74,7 @@ test("21–22 Nov regression words use their clean pronunciations (no corrupted 
 
 test("21 Nov improvements stay intact in both accents", () => {
   const keep = [
-    ["activityjigsawhalf", "ˈæktɪvˌɪɾidʒˌɪɡsɑːhˌæf", "ˈæktɪvˌɪtidʒˌɪɡsɑːhˌæf"],
     ["leia", "lˈeɪɐ", "lˈeɪɐ"],
-    ["languag", "lˈæŋɡwɪdʒ", "lˈæŋɡwɪdʒ"],
     ["kwame", "kwˈɑːmeɪ", "kwˈɒmeɪ"],
     ["mozart", "mˈoʊtsɑːɹt", "mˈəʊtsɑːt"],
   ];
