@@ -9,6 +9,69 @@ import { Normalizer, spokenText } from "../dizione/spoken.js";
 import { covers, pronounce } from "../dizione/homographs.js";
 import { ENDINGS } from "../dizione/tables.js";
 
+// ------------------------------------------------------------------------------------------------ mood tags
+const VOICE_MOODS = Object.freeze(["neutral", "excited", "warm", "gentle"]);
+const DEFAULT_VOICE_MOOD = "neutral";
+const VALID_MOOD_SET = new Set(VOICE_MOODS);
+const MOOD_TAG_TOKEN = /(?<!\[)\[([A-Za-z][A-Za-z_-]{0,23})\](?!\]|\()/g;
+
+function normalizeVoiceMood(mood, fallback = DEFAULT_VOICE_MOOD) {
+  const safe = VALID_MOOD_SET.has(fallback) ? fallback : DEFAULT_VOICE_MOOD;
+  if (typeof mood !== "string") return safe;
+  const candidate = mood.trim().toLowerCase();
+  return VALID_MOOD_SET.has(candidate) ? candidate : safe;
+}
+
+/** Strips known and unknown single-word mood tags (`[excited]`, `[happy]`), preserving `[1, 2]`, `[[...]]`, and `[label](url)`. */
+function stripMoodTags(text) {
+  if (typeof text !== "string" || !text.includes("[")) return typeof text === "string" ? text : "";
+  return text
+    .replace(MOOD_TAG_TOKEN, " ")
+    .split("\n")
+    .map((line) => line.replace(/[ \t]{2,}/g, " ").trim())
+    .join("\n")
+    .trim();
+}
+
+/** Parses one utterance with an optional leading mood tag and/or explicit mood override, returning `{ mood, text }`. */
+function parseMoodText(text, explicitMood = null, defaultMood = DEFAULT_VOICE_MOOD) {
+  const fallback = normalizeVoiceMood(defaultMood, DEFAULT_VOICE_MOOD);
+  const trimmed = String(text ?? "").trim();
+  let parsedMood = null;
+  MOOD_TAG_TOKEN.lastIndex = 0;
+  const lead = MOOD_TAG_TOKEN.exec(trimmed);
+  if (lead && lead.index === 0) {
+    const token = lead[1].toLowerCase();
+    parsedMood = VALID_MOOD_SET.has(token) ? token : fallback;
+  }
+  const clean = stripMoodTags(trimmed);
+  const resolved = explicitMood != null ? normalizeVoiceMood(explicitMood, fallback) : (parsedMood ?? fallback);
+  return { mood: resolved, text: clean };
+}
+
+/** Splits a multi-segment utterance with leading or inline `[mood]` tags into `[{ mood, text }, ...]`. */
+function splitMoodSegments(text, explicitMood = null, defaultMood = DEFAULT_VOICE_MOOD) {
+  const fallback = normalizeVoiceMood(defaultMood, DEFAULT_VOICE_MOOD);
+  const source = String(text ?? "");
+  if (explicitMood != null) {
+    const clean = stripMoodTags(source);
+    return clean ? [{ mood: normalizeVoiceMood(explicitMood, fallback), text: clean }] : [];
+  }
+  const segments = [];
+  let curMood = fallback;
+  let pos = 0;
+  for (const match of source.matchAll(MOOD_TAG_TOKEN)) {
+    const chunk = source.slice(pos, match.index).replace(/[ \t]{2,}/g, " ").trim();
+    if (chunk) segments.push({ mood: curMood, text: chunk });
+    const token = match[1].toLowerCase();
+    curMood = VALID_MOOD_SET.has(token) ? token : fallback;
+    pos = match.index + match[0].length;
+  }
+  const tail = source.slice(pos).replace(/[ \t]{2,}/g, " ").trim();
+  if (tail) segments.push({ mood: curMood, text: tail });
+  return segments;
+}
+
 // ------------------------------------------------------------------------------------------------ text -> words
 /**
  * Numbers, money, dates, times, units, codes and abbreviations as words (dizione's rules). `lex` decides
@@ -23,7 +86,7 @@ function normalizer(lex, Rules = Normalizer) {
     return upper.length <= 5 && !(upper.length >= 3 && lex.has(letters.toLowerCase())) ? upper : [...upper].join(" ");
   };
   // The sentence splitter cuts after "Dr.", leaving it last, where dizione cannot tell it from "drive".
-  return (text) => dottedNames(spokenText(weekdayAbbrevs(mathMultiply(mathEquations(relativePaths(sizeSuffixes(text))))).replace(/\bDr\.(?=\s*$)/, "Doctor"), rules, spell));
+  return (text) => dottedNames(spokenText(weekdayAbbrevs(mathMultiply(mathEquations(relativePaths(sizeSuffixes(stripMoodTags(text)))))).replace(/\bDr\.(?=\s*$)/, "Doctor"), rules, spell));
 }
 
 /**
@@ -366,7 +429,7 @@ class G2p {
   constructor(lex, model) { this.lex = lex; this.model = model || null; this.learnt = new Map(); }
 
   phonemes(sentence) {
-    const tokens = fold(sentence).match(TOKEN) || [];
+    const tokens = fold(stripMoodTags(sentence)).match(TOKEN) || [];
     const out = [];
     let skip = false;
     for (let i = 0; i < tokens.length; i++) {
@@ -696,4 +759,23 @@ function wav(pcm, sampleRate = 22050) {
   return new Uint8Array(buf);
 }
 
-export { Voice, G2p, G2pModel, normalizer, dottedNames, readTable, readTokens, toIds, istft, sentences, fold, wav };
+export {
+  Voice,
+  G2p,
+  G2pModel,
+  normalizer,
+  dottedNames,
+  readTable,
+  readTokens,
+  toIds,
+  istft,
+  sentences,
+  fold,
+  wav,
+  VOICE_MOODS,
+  DEFAULT_VOICE_MOOD,
+  normalizeVoiceMood,
+  stripMoodTags,
+  parseMoodText,
+  splitMoodSegments,
+};

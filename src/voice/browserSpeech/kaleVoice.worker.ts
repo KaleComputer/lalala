@@ -5,7 +5,8 @@
 // Transformers.js reports load and run errors; only the words come from Kale's own front end
 // (matcha/kaleTts.js, as the warm voice). Credits: NOTICE.md.
 import "./wasmMeter";
-import { G2p, G2pModel, normalizer, readTable } from "./matcha/kaleTts.js";
+import { G2p, G2pModel, normalizer, readTable, splitMoodSegments, normalizeVoiceMood } from "./matcha/kaleTts.js";
+import type { VoiceMood } from "./matcha/kaleTts.js";
 import { BritishG2p, britishNormalizer } from "./matcha/enGb.js";
 import { EttinTokenizer, ettinInputs, wordIndex } from "./matcha/ettin.js";
 import { webGpuWorks } from "./gpuTrial";
@@ -103,6 +104,10 @@ type Transformers = {
   };
   Tensor: new (type: string, data: Float32Array | BigInt64Array, dims: number[]) => unknown;
 };
+type MoodPack = {
+  readonly defaultMood: VoiceMood;
+  readonly entries: Readonly<Record<string, { readonly style: Float32Array; readonly speed: number }>>;
+};
 type Voice = {
   readonly hf: Transformers;
   readonly model: ((inputs: object) => Promise<{ waveform: Tensor }>) & { dispose(): Promise<unknown> };
@@ -111,6 +116,8 @@ type Voice = {
   readonly speed: number;
   /** Swapped by a "voice" message: another voice of the same model, no second copy of it. */
   voicepack: Float32Array;
+  /** Optional expressive mood vectors + speeds loaded from moods.json (null on models without moods). */
+  readonly moods: MoodPack | null;
   /** A model with all its voices in one graph takes a voice's own constants as inputs (voice_inputs.json). */
   extra: Record<string, unknown>;
   readonly voiceInputs: ReadonlyArray<{ readonly name: string; readonly dims: number[] }>;
@@ -128,6 +135,8 @@ type Message = {
   type: string;
   id?: number;
   text?: string;
+  /** Optional explicit mood override (`neutral`, `excited`, `warm`, `gentle`). */
+  mood?: string;
   device?: string;
   model?: string;
   voice?: string;
@@ -331,6 +340,7 @@ async function loadDirect(
   );
   const ready: Voice = {
     ...{ hf: shim, model, name, speed, tokenize, voicepack, extra, voiceInputs, frontEnd, accents },
+    moods: await moodsFor(name),
     kn: voicesJson.phonemes === "kokoro-native" ? { vocab: tokenizer.model.vocab } : null,
     ettin: await ettinFor(name),
   };
@@ -457,6 +467,7 @@ async function loadOn(
   });
   const ready: Voice = {
     ettin: await ettinFor(name),
+    moods: await moodsFor(name),
     hf,
     model,
     name,
@@ -521,6 +532,33 @@ async function gpuDetails() {
     maxStorageBuffersPerShaderStage: limits.maxStorageBuffersPerShaderStage,
     features: [...(adapter.features ?? [])].join(","),
   };
+}
+
+/** A model with expressive moods ships moods.json + 1 KB `.vec256.bin` style vectors next to it; absent returns null. */
+async function moodsFor(name: string): Promise<MoodPack | null> {
+  const base = `/models/${name}/`;
+  const manifest = await fetch(`${base}moods.json`)
+    .then((response) =>
+      response.ok && !/text\/html/.test(response.headers.get("content-type") ?? "")
+        ? (response.json() as Promise<{ default?: string; moods?: Record<string, { vec256?: string; speed?: number }> }>)
+        : null,
+    )
+    .catch(() => null);
+  if (!manifest?.moods) return null;
+  const entries: Record<string, { style: Float32Array; speed: number }> = {};
+  for (const [mood, spec] of Object.entries(manifest.moods)) {
+    if (!spec?.vec256) continue;
+    const raw = await fetch(`${base}${spec.vec256}`)
+      .then((response) =>
+        response.ok && !/text\/html/.test(response.headers.get("content-type") ?? "") ? response.arrayBuffer() : null,
+      )
+      .catch(() => null);
+    if (!raw || raw.byteLength !== STYLE * 4) continue;
+    const speed = typeof spec.speed === "number" && Number.isFinite(spec.speed) && spec.speed > 0 ? spec.speed : 1;
+    entries[mood] = { style: new Float32Array(raw), speed };
+  }
+  if (Object.keys(entries).length === 0) return null;
+  return { defaultMood: normalizeVoiceMood(manifest.default), entries };
 }
 
 /** A model with the Ettin text side ships Ettin's tokenizer next to it (ettin-tokenizer.json). */
@@ -632,18 +670,34 @@ async function voiceFiles(
   return [new Float32Array(pack), extra];
 }
 
-/** One IPA piece through the model, as kokoro-js's generate_from_ids: its tokens pick the style row. */
+/** One IPA piece through the model, as kokoro-js's generate_from_ids: its tokens pick the style row (or mood vector). */
 type EttinFeeds = { readonly e: ReturnType<typeof ettinInputs>; readonly widx: number[] };
-async function render(ready: Voice, ipa: string, words: EttinFeeds | null = null): Promise<Float32Array> {
+async function render(
+  ready: Voice,
+  ipa: string,
+  words: EttinFeeds | null = null,
+  mood?: VoiceMood,
+): Promise<Float32Array> {
   const input_ids = tokenIds(ready, ipa);
   const n = input_ids.dims.at(-1)! - 2;
   if (n <= 0) return new Float32Array(0);
-  const row = Math.min(n, ready.voicepack.length / STYLE) - 1;
+  const moodSpec = ready.moods
+    ? (ready.moods.entries[normalizeVoiceMood(mood, ready.moods.defaultMood)] ??
+      ready.moods.entries[ready.moods.defaultMood] ??
+      ready.moods.entries.neutral)
+    : undefined;
+  const styleData = moodSpec
+    ? moodSpec.style
+    : (() => {
+        const row = Math.min(n, ready.voicepack.length / STYLE) - 1;
+        return ready.voicepack.slice(row * STYLE, (row + 1) * STYLE);
+      })();
+  const speed = moodSpec ? moodSpec.speed * ready.speed : ready.speed;
   await trace("run", { ids: n });
   const { waveform } = await ready.model({
     input_ids,
-    style: new ready.hf.Tensor("float32", ready.voicepack.slice(row * STYLE, (row + 1) * STYLE), [1, STYLE]),
-    speed: new ready.hf.Tensor("float32", Float32Array.from([ready.speed]), [1]),
+    style: new ready.hf.Tensor("float32", styleData, [1, STYLE]),
+    speed: new ready.hf.Tensor("float32", Float32Array.from([speed]), [1]),
     ...ready.extra,
     ...(words ? ettinTensors(ready, words) : {}),
   });
@@ -662,48 +716,55 @@ function ettinTensors(ready: Voice, { e, widx }: EttinFeeds) {
   };
 }
 
-/** A sentence (the player sends one at a time) as 24 kHz PCM. */
-async function speak(ready: Voice, raw: string) {
+/** A sentence (the player sends one at a time) as 24 kHz PCM; parses & strips leading/inline mood tags before G2P. */
+async function speak(ready: Voice, raw: string, explicitMood?: string) {
   const started = performance.now();
-  const said = ready.frontEnd.normalize(raw);
-  const ipa = ready.frontEnd.g2p.phonemes(said);
-  // Ettin's word features: its sub-tokens of the sentence (the one before as context), and which word
-  // each sound id belongs to, from the same words through the same g2p.
-  let words: { e: ReturnType<typeof ettinInputs>; widx: number[]; all: number[] } | null = null;
-  if (ready.ettin) {
-    const list = said.split(/\s+/).filter(Boolean);
-    const all = idsOf(ready, ipa);
-    // Evaluate non-final words with their right neighbour so proclitics ("the", "a", "an", "to") keep their
-    // in-sentence weak/prevocalic phonemes instead of triggering FINAL_STRONG and breaking exact widx alignment.
-    const per = list.map((word, i) => {
-      const solo = ready.frontEnd.g2p.phonemes(word);
-      let ctx = solo;
-      if (i < list.length - 1) {
-        const nxt = ready.frontEnd.g2p.phonemes(list[i + 1]!);
-        const pair = ready.frontEnd.g2p.phonemes(`${word} ${list[i + 1]!}`);
-        if (nxt && pair.endsWith(` ${nxt}`)) ctx = pair.slice(0, pair.length - nxt.length - 1);
-      }
-      return idsOf(ready, ctx);
-    });
-    words = { e: ettinInputs(ready.ettin.tok, said, ready.ettin.prev), widx: wordIndex(all, per, list.length), all };
-    ready.ettin.prev = said;
-  }
-  const g2pMs = performance.now() - started;
+  const segments = splitMoodSegments(raw, explicitMood ?? null);
   const parts: Float32Array[] = [];
-  let idAt = 0;
-  let prevGapS = 0;
-  for (const { ipa: piece, gapAfterS } of splitIpaPieces(ipa, maxIds)) {
-    if (parts.length > 0 && prevGapS > 0) parts.push(new Float32Array(Math.round(prevGapS * RATE)));
-    prevGapS = gapAfterS;
-    if (!words) {
-      parts.push(await render(ready, piece));
-      continue;
+  let g2pMs = 0;
+  for (const segment of segments) {
+    const segStart = performance.now();
+    const said = ready.frontEnd.normalize(segment.text);
+    const ipa = ready.frontEnd.g2p.phonemes(said);
+    // Ettin's word features: its sub-tokens of the sentence (the one before as context), and which word
+    // each sound id belongs to, from the same words through the same g2p.
+    let words: { e: ReturnType<typeof ettinInputs>; widx: number[]; all: number[] } | null = null;
+    if (ready.ettin) {
+      const list = said.split(/\s+/).filter(Boolean);
+      const all = idsOf(ready, ipa);
+      // Evaluate non-final words with their right neighbour so proclitics ("the", "a", "an", "to") keep their
+      // in-sentence weak/prevocalic phonemes instead of triggering FINAL_STRONG and breaking exact widx alignment.
+      const per = list.map((word, i) => {
+        const solo = ready.frontEnd.g2p.phonemes(word);
+        let ctx = solo;
+        if (i < list.length - 1) {
+          const nxt = ready.frontEnd.g2p.phonemes(list[i + 1]!);
+          const pair = ready.frontEnd.g2p.phonemes(`${word} ${list[i + 1]!}`);
+          if (nxt && pair.endsWith(` ${nxt}`)) ctx = pair.slice(0, pair.length - nxt.length - 1);
+        }
+        return idsOf(ready, ctx);
+      });
+      words = { e: ettinInputs(ready.ettin.tok, said, ready.ettin.prev), widx: wordIndex(all, per, list.length), all };
+      ready.ettin.prev = said;
     }
-    // A piece drops the space it was cut at: find where its ids start in the sentence's.
-    const ids = idsOf(ready, piece);
-    while (idAt < words.all.length && words.all[idAt] !== ids[0]) idAt++;
-    parts.push(await render(ready, piece, { e: words.e, widx: words.widx.slice(idAt, idAt + ids.length) }));
-    idAt += ids.length;
+    g2pMs += performance.now() - segStart;
+    let idAt = 0;
+    let prevGapS = 0;
+    for (const { ipa: piece, gapAfterS } of splitIpaPieces(ipa, maxIds)) {
+      if (parts.length > 0 && prevGapS > 0) parts.push(new Float32Array(Math.round(prevGapS * RATE)));
+      prevGapS = gapAfterS;
+      if (!words) {
+        parts.push(await render(ready, piece, null, segment.mood));
+        continue;
+      }
+      // A piece drops the space it was cut at: find where its ids start in the sentence's.
+      const ids = idsOf(ready, piece);
+      while (idAt < words.all.length && words.all[idAt] !== ids[0]) idAt++;
+      parts.push(
+        await render(ready, piece, { e: words.e, widx: words.widx.slice(idAt, idAt + ids.length) }, segment.mood),
+      );
+      idAt += ids.length;
+    }
   }
   const samples = new Float32Array(parts.reduce((sum, part) => sum + part.length, 0));
   let at = 0;
@@ -789,7 +850,7 @@ self.onmessage = (event: MessageEvent<Message>) => {
   queue = queue.then(async () => {
     try {
       const started = performance.now();
-      const { samples, timing } = await speak(await voice!, message.text!);
+      const { samples, timing } = await speak(await voice!, message.text!, message.mood);
       postMessage(
         {
           type: "audio",
