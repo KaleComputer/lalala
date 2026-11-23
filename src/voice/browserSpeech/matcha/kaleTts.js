@@ -14,6 +14,9 @@ const VOICE_MOODS = Object.freeze(["neutral", "excited", "warm", "gentle"]);
 const DEFAULT_VOICE_MOOD = "neutral";
 const VALID_MOOD_SET = new Set(VOICE_MOODS);
 const MOOD_TAG_TOKEN = /(?<!\[)\[(neutral|excited|warm|gentle)\](?!\]|\()/gi;
+const MOOD_TAG_LINE_LEAD = /^[ \t]*(?:(?<!\[)\[(neutral|excited|warm|gentle)\](?!\]|\()[ \t]*)+/gim;
+const MOOD_TAG_LINE_TRAIL = /(?:[ \t]*(?<!\[)\[(neutral|excited|warm|gentle)\](?!\]|\())+[ \t]*$/gim;
+const MOOD_TAG_INLINE = /(?:[ \t]*(?<!\[)\[(neutral|excited|warm|gentle)\](?!\]|\())+[ \t]*/gi;
 
 function normalizeVoiceMood(mood, fallback = DEFAULT_VOICE_MOOD) {
   const safe = VALID_MOOD_SET.has(fallback) ? fallback : DEFAULT_VOICE_MOOD;
@@ -22,15 +25,13 @@ function normalizeVoiceMood(mood, fallback = DEFAULT_VOICE_MOOD) {
   return VALID_MOOD_SET.has(candidate) ? candidate : safe;
 }
 
-/** Strips ONLY the four exact mood tags (`[neutral]`, `[excited]`, `[warm]`, `[gentle]`), preserving `[x]`, `[1, 2]`, `[[...]]`, and `[label](url)`. */
+/** Strips ONLY the four exact mood tags (`[neutral]`, `[excited]`, `[warm]`, `[gentle]`), preserving `[x]`, `[1, 2]`, `[[...]]`, `[label](url)`, and unrelated whitespace. */
 function stripMoodTags(text) {
   if (typeof text !== "string" || !text.includes("[")) return typeof text === "string" ? text : "";
   return text
-    .replace(MOOD_TAG_TOKEN, " ")
-    .split("\n")
-    .map((line) => line.replace(/[ \t]{2,}/g, " ").trim())
-    .join("\n")
-    .trim();
+    .replace(MOOD_TAG_LINE_LEAD, "")
+    .replace(MOOD_TAG_LINE_TRAIL, "")
+    .replace(MOOD_TAG_INLINE, " ");
 }
 
 /** Resolves ONE mood per reply from explicitMood or a leading exact mood tag, stripping all four exact mood tags anywhere in text. */
