@@ -13,7 +13,7 @@ import { ENDINGS } from "../dizione/tables.js";
 const VOICE_MOODS = Object.freeze(["neutral", "excited", "warm", "gentle"]);
 const DEFAULT_VOICE_MOOD = "neutral";
 const VALID_MOOD_SET = new Set(VOICE_MOODS);
-const MOOD_TAG_TOKEN = /(?<!\[)\[([A-Za-z][A-Za-z_-]{0,23})\](?!\]|\()/g;
+const MOOD_TAG_TOKEN = /(?<!\[)\[(neutral|excited|warm|gentle)\](?!\]|\()/gi;
 
 function normalizeVoiceMood(mood, fallback = DEFAULT_VOICE_MOOD) {
   const safe = VALID_MOOD_SET.has(fallback) ? fallback : DEFAULT_VOICE_MOOD;
@@ -22,7 +22,7 @@ function normalizeVoiceMood(mood, fallback = DEFAULT_VOICE_MOOD) {
   return VALID_MOOD_SET.has(candidate) ? candidate : safe;
 }
 
-/** Strips known and unknown single-word mood tags (`[excited]`, `[happy]`), preserving `[1, 2]`, `[[...]]`, and `[label](url)`. */
+/** Strips ONLY the four exact mood tags (`[neutral]`, `[excited]`, `[warm]`, `[gentle]`), preserving `[x]`, `[1, 2]`, `[[...]]`, and `[label](url)`. */
 function stripMoodTags(text) {
   if (typeof text !== "string" || !text.includes("[")) return typeof text === "string" ? text : "";
   return text

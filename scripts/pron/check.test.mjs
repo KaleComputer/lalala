@@ -168,22 +168,22 @@ test("KAL-3132: 20. Yes! stays one sentence for prosody", () => {
   assert.deepEqual(gb.sentences("20. Yes!"), ["twenty. Yes!"]);
 });
 
-test("KAL-3173: mood tags are parsed, stripped before G2P, and unknown tags fall back to neutral", () => {
+test("KAL-3173: exact four mood tags are parsed and stripped before G2P while arbitrary brackets stay untouched", () => {
   assert.deepEqual(parseMoodText("[excited] 20. Yes!"), { mood: "excited", text: "20. Yes!" });
   assert.deepEqual(parseMoodText("  [WARM]  You worked hard today. "), { mood: "warm", text: "You worked hard today." });
   assert.deepEqual(parseMoodText("[gentle] Time for bed."), { mood: "gentle", text: "Time for bed." });
   assert.deepEqual(parseMoodText("[excited] Good night.", "gentle"), { mood: "gentle", text: "Good night." });
-  assert.deepEqual(parseMoodText("[happy] Great job!"), { mood: "neutral", text: "Great job!" });
-  assert.deepEqual(splitMoodSegments("[excited] Yay! [warm] Nice job! [unknown] Next one."), [
+  assert.deepEqual(parseMoodText("What does [x] mean?"), { mood: "neutral", text: "What does [x] mean?" });
+  assert.deepEqual(splitMoodSegments("[excited] Yay! [warm] Nice job! [neutral] Next one."), [
     { mood: "excited", text: "Yay!" },
     { mood: "warm", text: "Nice job!" },
     { mood: "neutral", text: "Next one." },
   ]);
-  assert.equal(stripMoodTags("Look at [1, 2, 3]."), "Look at [1, 2, 3].");
+  assert.equal(stripMoodTags("Look at [1, 2, 3] and [x]."), "Look at [1, 2, 3] and [x].");
   assert.equal(stripMoodTags("[[QUESTION_JAR]]"), "[[QUESTION_JAR]]");
   assert.equal(stripMoodTags("See [cat](https://example.com)."), "See [cat](https://example.com).");
-  // Tags never reach G2P or spoken output in either accent.
+  // The four mood tags never reach G2P or spoken output in either accent.
   assert.equal(us("[excited] 20. Yes!"), us("20. Yes!"));
   assert.equal(gb("[warm] Good job!"), gb("Good job!"));
-  assert.equal(us("[happy] Hello explorer!"), us("Hello explorer!"));
+  assert.equal(us("[gentle] Good night."), us("Good night."));
 });
