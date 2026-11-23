@@ -2665,12 +2665,10 @@ wednesday	wˈɛnzdeɪ
 # 20 Nov: README is "reed me" as one word, here and not in terms.tsv: replaced there it broke paths ("docs/README.md"),
 # and the picker read "then read me" as the past tense.
 readme	ɹˈiːdmˌiː
-# 21 Nov (KAL-3115): vetted improvements kept across lalala and draft
-activityjigsawhalf	ˈæktɪvˌɪtidʒˌɪɡsɑːhˌæf
+# 21 Nov: vetted pronunciation entries
 kwame	kwˈɒmeɪ
-languag	lˈæŋɡwɪdʒ
 leia	lˈeɪɐ
-# 22 Nov: restore vetted overrides dropped in KAL-3115 (Spanish j in Jurado, Elisha US/GB parity, proper nouns)
+# 22 Nov: restore vetted overrides (Spanish j in Jurado, Elisha US/GB parity, proper nouns)
 jurado	hʊəɹˈɑːdəʊ
 elisha	ɪlˈaɪʃə
 brunel	bɹˈuːnəl

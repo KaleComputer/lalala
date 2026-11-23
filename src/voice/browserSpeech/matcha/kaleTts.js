@@ -80,7 +80,7 @@ function sizeSuffixes(text) {
  *  binary "-" / "−" inside the equation span becomes "minus" before range or dash rules run. Pure equation structure, no word list. */
 const MATH_OPERAND = String.raw`(?:\d+(?:,\d{3})*(?:\.\d+)?|\?)`;
 const MATH_EQUATION = new RegExp(
-  String.raw`(?<![\p{L}\p{N}.])${MATH_OPERAND}(?:\s*[+\-−×÷=]\s*[-−]?${MATH_OPERAND})+(?![\p{L}\p{N}]|\.\d)`,
+  String.raw`(?<![\p{L}\p{N}.])${MATH_OPERAND}(?:\s*[+−×÷=-]\s*[-−]?${MATH_OPERAND})+(?![\p{L}\p{N}]|\.\d)`,
   "gu"
 );
 const MATH_SUB = new RegExp(String.raw`(${MATH_OPERAND})\s*[-−]\s*(?=${MATH_OPERAND})`, "g");

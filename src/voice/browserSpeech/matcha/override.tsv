@@ -2917,14 +2917,12 @@ saturdays	sˈæɾɚdeɪz
 tuesday	tˈuːzdeɪ
 wednesday	wˈɛnzdeɪ
 readme	ɹˈiːdmˌiː
-# 21 Nov (KAL-3115): sunday secondary stress (d03 sunday->someday fix) and vetted improvements kept across lalala and draft
+# 21 Nov: sunday secondary stress (d03 sunday->someday fix) and vetted pronunciation entries
 sunday	sˈʌndˌeɪ
 sundays	sˈʌndˌeɪz
-activityjigsawhalf	ˈæktɪvˌɪɾidʒˌɪɡsɑːhˌæf
 kwame	kwˈɑːmeɪ
-languag	lˈæŋɡwɪdʒ
 leia	lˈeɪɐ
-# 22 Nov: restore vetted overrides dropped in KAL-3115 (h013f Elizabeth canary, Spanish j in Jurado, proper nouns)
+# 22 Nov: restore vetted overrides (Elizabeth canary, Spanish j in Jurado, proper nouns)
 elizabeth	ᵻlˈɪzəbɪθ
 elizabeth's	ᵻlˈɪzəbɪθs
 jurado	hʊɹˈɑːdoʊ
