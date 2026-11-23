@@ -14,7 +14,28 @@ export function speakableText(text: string): string {
 }
 
 const LONG_FRAGMENT = 220;
+const MIN_CLAUSE_CUT = 60;
+const MIN_STREAM_TAIL = 28;
+const TRAILING_SENTENCE_END =
+  /(?:[!?…]|\.{3}|(?<!\b(?:Mr|Mrs|Ms|Dr|St|Jr|Sr|vs|etc))(?<=\p{L}{2})\.)["')\]]*\s*$/u;
 const oneWord = (sentence: string) => (sentence.match(/[\p{L}\p{N}]+(?:['’][\p{L}]+)*/gu) ?? []).length === 1;
+
+/** Picks where to split an unfinished streaming run-on: prefer a clause boundary, leaving enough tail to never strand a lone final word. */
+function longFragmentCut(rest: string): number {
+  const limit = rest.length - MIN_STREAM_TAIL;
+  const clause = /[,;:]\s|[—–]\s?/g;
+  let clauseCut = -1;
+  let match: RegExpExecArray | null;
+  while ((match = clause.exec(rest)) !== null) {
+    const end = match.index + match[0].length;
+    if (end >= MIN_CLAUSE_CUT && end <= limit) clauseCut = end;
+  }
+  if (clauseCut > 0) return clauseCut;
+  const space = rest.lastIndexOf(" ", Math.max(0, limit));
+  if (space >= MIN_CLAUSE_CUT) return space + 1;
+  const anySpace = rest.lastIndexOf(" ");
+  return anySpace > 0 ? anySpace + 1 : -1;
+}
 
 /**
  * Splits the not-yet-spoken tail of a reply into sentences ready to speak. While the reply is
@@ -57,11 +78,17 @@ export function takeSentences(
     else if (rest.trim() !== "") sentences.push(rest);
     consumed = tail.length;
   } else if (rest.length > LONG_FRAGMENT) {
-    // A run-on with no sentence end: speak up to its last comma or space.
-    const cut = Math.max(rest.lastIndexOf(", "), rest.lastIndexOf(" "));
-    if (cut > 0) {
-      sentences.push(rest.slice(0, cut + 1));
-      consumed += cut + 1;
+    // A finished sentence arriving while the turn is still streaming (e.g. before tool calls) has no trailing
+    // space yet, so boundary didn't match its final period: emit it whole instead of chopping off its last word.
+    if (TRAILING_SENTENCE_END.test(rest)) {
+      sentences.push(rest);
+      consumed += rest.length;
+    } else {
+      const cut = longFragmentCut(rest);
+      if (cut > 0) {
+        sentences.push(rest.slice(0, cut));
+        consumed += cut;
+      }
     }
   }
   return { sentences: sentences.filter((sentence) => sentence.trim() !== ""), consumed };
