@@ -33,7 +33,7 @@ function stripMoodTags(text) {
     .trim();
 }
 
-/** Parses one utterance with an optional leading mood tag and/or explicit mood override, returning `{ mood, text }`. */
+/** Resolves ONE mood per reply from explicitMood or a leading exact mood tag, stripping all four exact mood tags anywhere in text. */
 function parseMoodText(text, explicitMood = null, defaultMood = DEFAULT_VOICE_MOOD) {
   const fallback = normalizeVoiceMood(defaultMood, DEFAULT_VOICE_MOOD);
   const trimmed = String(text ?? "").trim();
@@ -47,29 +47,6 @@ function parseMoodText(text, explicitMood = null, defaultMood = DEFAULT_VOICE_MO
   const clean = stripMoodTags(trimmed);
   const resolved = explicitMood != null ? normalizeVoiceMood(explicitMood, fallback) : (parsedMood ?? fallback);
   return { mood: resolved, text: clean };
-}
-
-/** Splits a multi-segment utterance with leading or inline `[mood]` tags into `[{ mood, text }, ...]`. */
-function splitMoodSegments(text, explicitMood = null, defaultMood = DEFAULT_VOICE_MOOD) {
-  const fallback = normalizeVoiceMood(defaultMood, DEFAULT_VOICE_MOOD);
-  const source = String(text ?? "");
-  if (explicitMood != null) {
-    const clean = stripMoodTags(source);
-    return clean ? [{ mood: normalizeVoiceMood(explicitMood, fallback), text: clean }] : [];
-  }
-  const segments = [];
-  let curMood = fallback;
-  let pos = 0;
-  for (const match of source.matchAll(MOOD_TAG_TOKEN)) {
-    const chunk = source.slice(pos, match.index).replace(/[ \t]{2,}/g, " ").trim();
-    if (chunk) segments.push({ mood: curMood, text: chunk });
-    const token = match[1].toLowerCase();
-    curMood = VALID_MOOD_SET.has(token) ? token : fallback;
-    pos = match.index + match[0].length;
-  }
-  const tail = source.slice(pos).replace(/[ \t]{2,}/g, " ").trim();
-  if (tail) segments.push({ mood: curMood, text: tail });
-  return segments;
 }
 
 // ------------------------------------------------------------------------------------------------ text -> words
@@ -777,5 +754,4 @@ export {
   normalizeVoiceMood,
   stripMoodTags,
   parseMoodText,
-  splitMoodSegments,
 };

@@ -40,11 +40,6 @@ export const DEFAULT_VOICE_MOOD: VoiceMood;
 export function normalizeVoiceMood(mood: string | null | undefined, fallback?: VoiceMood): VoiceMood;
 export function stripMoodTags(text: string): string;
 export function parseMoodText(text: string, explicitMood?: string | null, defaultMood?: VoiceMood): { mood: VoiceMood; text: string };
-export function splitMoodSegments(
-  text: string,
-  explicitMood?: string | null,
-  defaultMood?: VoiceMood,
-): { mood: VoiceMood; text: string }[];
 
 export function readTable(text: string, into?: Map<string, string>): Map<string, string>;
 /** Numbers, money, dates and the like as words (dizione's rules), letter runs decided by the word list. */

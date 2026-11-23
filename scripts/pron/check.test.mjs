@@ -15,7 +15,6 @@ import {
   parseMoodText,
   readTable,
   sentences,
-  splitMoodSegments,
   stripMoodTags,
 } from "../../src/voice/browserSpeech/matcha/kaleTts.js";
 import { termsReplacer } from "../../src/voice/browserSpeech/terms.ts";
@@ -174,11 +173,10 @@ test("KAL-3173: exact four mood tags are parsed and stripped before G2P while ar
   assert.deepEqual(parseMoodText("[gentle] Time for bed."), { mood: "gentle", text: "Time for bed." });
   assert.deepEqual(parseMoodText("[excited] Good night.", "gentle"), { mood: "gentle", text: "Good night." });
   assert.deepEqual(parseMoodText("What does [x] mean?"), { mood: "neutral", text: "What does [x] mean?" });
-  assert.deepEqual(splitMoodSegments("[excited] Yay! [warm] Nice job! [neutral] Next one."), [
-    { mood: "excited", text: "Yay!" },
-    { mood: "warm", text: "Nice job!" },
-    { mood: "neutral", text: "Next one." },
-  ]);
+  assert.deepEqual(parseMoodText("[excited] Yay! [warm] Nice job! [neutral] Next one."), {
+    mood: "excited",
+    text: "Yay! Nice job! Next one.",
+  });
   assert.equal(stripMoodTags("Look at [1, 2, 3] and [x]."), "Look at [1, 2, 3] and [x].");
   assert.equal(stripMoodTags("[[QUESTION_JAR]]"), "[[QUESTION_JAR]]");
   assert.equal(stripMoodTags("See [cat](https://example.com)."), "See [cat](https://example.com).");

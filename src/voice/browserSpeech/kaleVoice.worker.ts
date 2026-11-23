@@ -5,7 +5,7 @@
 // Transformers.js reports load and run errors; only the words come from Kale's own front end
 // (matcha/kaleTts.js, as the warm voice). Credits: NOTICE.md.
 import "./wasmMeter";
-import { G2p, G2pModel, normalizer, readTable, splitMoodSegments, normalizeVoiceMood } from "./matcha/kaleTts.js";
+import { G2p, G2pModel, normalizer, readTable, parseMoodText, normalizeVoiceMood } from "./matcha/kaleTts.js";
 import type { VoiceMood } from "./matcha/kaleTts.js";
 import { BritishG2p, britishNormalizer } from "./matcha/enGb.js";
 import { EttinTokenizer, ettinInputs, wordIndex } from "./matcha/ettin.js";
@@ -716,15 +716,15 @@ function ettinTensors(ready: Voice, { e, widx }: EttinFeeds) {
   };
 }
 
-/** A sentence (the player sends one at a time) as 24 kHz PCM; parses & strips leading/inline mood tags before G2P. */
+/** A sentence (the player sends one at a time) as 24 kHz PCM; resolves one mood per utterance and strips mood tags before G2P. */
 async function speak(ready: Voice, raw: string, explicitMood?: string) {
   const started = performance.now();
-  const segments = splitMoodSegments(raw, explicitMood ?? null);
+  const parsed = parseMoodText(raw, explicitMood ?? null);
   const parts: Float32Array[] = [];
   let g2pMs = 0;
-  for (const segment of segments) {
+  if (parsed.text) {
     const segStart = performance.now();
-    const said = ready.frontEnd.normalize(segment.text);
+    const said = ready.frontEnd.normalize(parsed.text);
     const ipa = ready.frontEnd.g2p.phonemes(said);
     // Ettin's word features: its sub-tokens of the sentence (the one before as context), and which word
     // each sound id belongs to, from the same words through the same g2p.
@@ -754,14 +754,14 @@ async function speak(ready: Voice, raw: string, explicitMood?: string) {
       if (parts.length > 0 && prevGapS > 0) parts.push(new Float32Array(Math.round(prevGapS * RATE)));
       prevGapS = gapAfterS;
       if (!words) {
-        parts.push(await render(ready, piece, null, segment.mood));
+        parts.push(await render(ready, piece, null, parsed.mood));
         continue;
       }
       // A piece drops the space it was cut at: find where its ids start in the sentence's.
       const ids = idsOf(ready, piece);
       while (idAt < words.all.length && words.all[idAt] !== ids[0]) idAt++;
       parts.push(
-        await render(ready, piece, { e: words.e, widx: words.widx.slice(idAt, idAt + ids.length) }, segment.mood),
+        await render(ready, piece, { e: words.e, widx: words.widx.slice(idAt, idAt + ids.length) }, parsed.mood),
       );
       idAt += ids.length;
     }
