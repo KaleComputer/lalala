@@ -2665,8 +2665,8 @@ wednesday	wˈɛnzdeɪ
 # 20 Nov: README is "reed me" as one word, here and not in terms.tsv: replaced there it broke paths ("docs/README.md"),
 # and the picker read "then read me" as the past tense.
 readme	ɹˈiːdmˌiː
-# 21 Nov: vetted pronunciation entries
-kwame	kwˈɒmeɪ
+# 21 Nov: vetted pronunciation entries (24 Nov: kwame uses PALM ɑː in GB, not LOT ɒ)
+kwame	kwˈɑːmeɪ
 leia	lˈeɪɐ
 # 22 Nov: restore vetted overrides (Spanish j in Jurado, Elisha US/GB parity, proper nouns)
 jurado	hʊəɹˈɑːdəʊ
