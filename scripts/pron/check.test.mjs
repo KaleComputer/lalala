@@ -9,6 +9,7 @@ import { test } from "node:test";
 
 import { BritishG2p, britishNormalizer } from "../../src/voice/browserSpeech/matcha/enGb.js";
 import { G2p, G2pModel, normalizer, readTable, sentences } from "../../src/voice/browserSpeech/matcha/kaleTts.js";
+import { termsReplacer } from "../../src/voice/browserSpeech/terms.ts";
 
 const MATCHA = new URL("../../src/voice/browserSpeech/matcha/", import.meta.url);
 
@@ -75,13 +76,33 @@ test("21–22 Nov regression words use their clean pronunciations (no corrupted 
 test("21 Nov improvements stay intact in both accents", () => {
   const keep = [
     ["leia", "lˈeɪɐ", "lˈeɪɐ"],
-    ["kwame", "kwˈɑːmeɪ", "kwˈɒmeɪ"],
+    ["kwame", "kwˈɑːmeɪ", "kwˈɑːmeɪ"],
     ["mozart", "mˈoʊtsɑːɹt", "mˈəʊtsɑːt"],
   ];
   for (const [word, wantUs, wantGb] of keep) {
     assert.equal(us(word), wantUs, `${word} (en-us)`);
     assert.equal(gb(word), wantGb, `${word} (en-gb)`);
   }
+});
+
+test("24 Nov: kwame uses PALM vowel in en-gb, dropped internal/typo keys stay absent, camelCase identifiers split cleanly", () => {
+  assert.equal(gb("kwame"), "kwˈɑːmeɪ");
+  assert.equal(gb("Ask Kwame today."), "ˈɑːsk kwˈɑːmeɪ tədˈeɪ.");
+  assert.equal(us("Ask Kwame today."), "ˈæsk kwˈɑːmeɪ tədˈeɪ.");
+
+  const usOverride = readTable(readFileSync(new URL("override.tsv", MATCHA), "utf8"));
+  const gbOverride = readTable(readFileSync(new URL("en-gb/override.tsv", MATCHA), "utf8"));
+  for (const dropped of ["activityjigsawhalf", "activityjigsawnudge", "languag"]) {
+    assert.equal(usOverride.has(dropped), false, `en-us override.tsv must not carry ${dropped}`);
+    assert.equal(gbOverride.has(dropped), false, `en-gb override.tsv must not carry ${dropped}`);
+  }
+
+  const usTerms = termsReplacer(readFileSync(new URL("terms.tsv", MATCHA), "utf8"));
+  const gbTerms = termsReplacer(readFileSync(new URL("en-gb/terms.tsv", MATCHA), "utf8"));
+  assert.equal(usTerms("activityJigsawHalf"), "activity Jigsaw Half");
+  assert.equal(gbTerms("activityJigsawHalf"), "activity Jigsaw Half");
+  assert.equal(us(usTerms("activityJigsawHalf")), "æktˈɪvᵻɾi dʒˈɪɡsɔː hˈæf");
+  assert.equal(gb(gbTerms("activityJigsawHalf")), "æktˈɪvɪti dʒˈɪɡsɔː hˈɑːf");
 });
 
 test("KAL-3132: structured math subtraction equations read minus without affecting ranges or dates", () => {
