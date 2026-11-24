@@ -2648,11 +2648,12 @@ reapply	ɹˌiːɐplˈaɪ
 dont	dˈəʊnt
 hes	hiːz
 haha	hɑːhˈɑː
-# 19 Nov: weekdays end in "-deɪ" (the word list's first readings ended most in "-di"); Monday is "mˈʌn dˌi" (the nano voices glide an unstressed "-deɪ" into "-die"). Possessives unchanged.
+# 19 Nov: weekdays end in "-deɪ" (the word list's first readings ended most in "-di"); 24 Nov: Monday uses secondary stress "-dˌeɪ" like Sunday (not "mˈʌn dˌi").
 friday	fɹˈaɪdeɪ
 fridays	fɹˈaɪdeɪz
-monday	mˈʌn dˌi
-mondays	mˈʌn dˌiz
+monday	mˈʌndˌeɪ
+monday's	mˈʌndˌeɪz
+mondays	mˈʌndˌeɪz
 saturday	sˈætədeɪ
 saturdays	sˈætədeɪz
 sunday	sˈʌndˌeɪ
@@ -2676,3 +2677,5 @@ cauchy	kˈəʊʃi
 ruffalo	ɹˈʌfɪlˌəʊ
 wenceslas	wˈɛnsɪslɑːs
 langevin	lˈɑːndʒəvˌɪn
+# 24 Nov: xhigh reads as "X high" (not G2P fallback "ex-eye")
+xhigh	ˈɛks hˈaɪ

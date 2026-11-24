@@ -192,3 +192,17 @@ test("KAL-3173: exact four mood tags are parsed and stripped before G2P while ar
   assert.equal(gb("[warm] Good job!"), gb("Good job!"));
   assert.equal(us("[gentle] Good night."), us("Good night."));
 });
+
+test("24 Nov: xhigh reads as 'X high' and Monday uses secondary-stressed -dˌeɪ like Sunday", () => {
+  for (const [label, fe] of [["en-us", us], ["en-gb", gb]]) {
+    assert.equal(fe("xhigh"), "ˈɛks hˈaɪ", `${label}: xhigh`);
+    assert.equal(fe("Xhigh"), "ˈɛks hˈaɪ", `${label}: Xhigh`);
+    assert.equal(fe("XHIGH"), "ˈɛks hˈaɪ", `${label}: XHIGH`);
+    assert.equal(fe("Monday"), "mˈʌndˌeɪ", `${label}: Monday`);
+    assert.equal(fe("monday"), "mˈʌndˌeɪ", `${label}: monday`);
+    assert.equal(fe("Mondays"), "mˈʌndˌeɪz", `${label}: Mondays`);
+    assert.equal(fe("Monday's"), "mˈʌndˌeɪz", `${label}: Monday's`);
+  }
+  assert.equal(us("Monday and Tuesday."), "mˈʌndˌeɪ ænd tˈuːzdeɪ.");
+  assert.equal(gb("Monday and Tuesday."), "mˈʌndˌeɪ ænd tjˈuːzdeɪ.");
+});

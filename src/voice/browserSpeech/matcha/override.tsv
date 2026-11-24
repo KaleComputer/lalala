@@ -2907,11 +2907,12 @@ hes	hiːz
 haha	hɑːhˈɑː
 shortcut	ʃˈɔːɹtkʌt
 shortcuts	ʃˈɔːɹtkʌts
-# 19 Nov: weekdays end in "-deɪ" (the word list's first readings ended most in "-di"); Monday is "mˈʌn dˌi" (the nano voices glide an unstressed "-deɪ" into "-die"). Possessives unchanged.
+# 19 Nov: weekdays end in "-deɪ" (the word list's first readings ended most in "-di"); 24 Nov: Monday uses secondary stress "-dˌeɪ" like Sunday (not "mˈʌn dˌi").
 friday	fɹˈaɪdeɪ
 fridays	fɹˈaɪdeɪz
-monday	mˈʌn dˌi
-mondays	mˈʌn dˌiz
+monday	mˈʌndˌeɪ
+monday's	mˈʌndˌeɪz
+mondays	mˈʌndˌeɪz
 saturday	sˈæɾɚdeɪ
 saturdays	sˈæɾɚdeɪz
 tuesday	tˈuːzdeɪ
@@ -2931,3 +2932,5 @@ cauchy	kˈoʊʃi
 ruffalo	ɹˈʌfᵻlˌoʊ
 wenceslas	wˈɛnsɪslɑːs
 langevin	lˈɑːndʒɚvˌɪn
+# 24 Nov: xhigh reads as "X high" (not G2P fallback "shy")
+xhigh	ˈɛks hˈaɪ
