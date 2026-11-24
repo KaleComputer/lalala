@@ -35,7 +35,9 @@ export class G2p {
   phonemes(sentence: string): string;
 }
 export type VoiceMood = "neutral" | "excited" | "warm" | "gentle";
+export type VoiceMoodSpec = { readonly mood: VoiceMood; readonly tag: `[${VoiceMood}]`; readonly guidance: string };
 export const VOICE_MOODS: readonly VoiceMood[];
+export const VOICE_MOOD_SPECS: readonly VoiceMoodSpec[];
 export const DEFAULT_VOICE_MOOD: VoiceMood;
 export function normalizeVoiceMood(mood: string | null | undefined, fallback?: VoiceMood): VoiceMood;
 export function stripMoodTags(text: string): string;

@@ -11,6 +11,12 @@ import { ENDINGS } from "../dizione/tables.js";
 
 // ------------------------------------------------------------------------------------------------ mood tags
 const VOICE_MOODS = Object.freeze(["neutral", "excited", "warm", "gentle"]);
+const VOICE_MOOD_SPECS = Object.freeze([
+  Object.freeze({ mood: "excited", tag: "[excited]", guidance: "celebrations, wins, and high fives" }),
+  Object.freeze({ mood: "warm", tag: "[warm]", guidance: "friendly encouragement" }),
+  Object.freeze({ mood: "gentle", tag: "[gentle]", guidance: "bedtime, calm reassurance, and sad or sensitive moments" }),
+  Object.freeze({ mood: "neutral", tag: "[neutral]", guidance: "everyday answers" }),
+]);
 const DEFAULT_VOICE_MOOD = "neutral";
 const VALID_MOOD_SET = new Set(VOICE_MOODS);
 const MOOD_TAG_TOKEN = /(?<!\[)\[(neutral|excited|warm|gentle)\](?!\]|\()/gi;
@@ -751,6 +757,7 @@ export {
   fold,
   wav,
   VOICE_MOODS,
+  VOICE_MOOD_SPECS,
   DEFAULT_VOICE_MOOD,
   normalizeVoiceMood,
   stripMoodTags,

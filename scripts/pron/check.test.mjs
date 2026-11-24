@@ -11,6 +11,8 @@ import { BritishG2p, britishNormalizer } from "../../src/voice/browserSpeech/mat
 import {
   G2p,
   G2pModel,
+  VOICE_MOODS,
+  VOICE_MOOD_SPECS,
   normalizer,
   parseMoodText,
   readTable,
@@ -180,6 +182,11 @@ test("KAL-3173: exact four mood tags are parsed and stripped before G2P while ar
   assert.equal(stripMoodTags("Look at [1, 2, 3] and [x]."), "Look at [1, 2, 3] and [x].");
   assert.equal(stripMoodTags("[[QUESTION_JAR]]"), "[[QUESTION_JAR]]");
   assert.equal(stripMoodTags("See [cat](https://example.com)."), "See [cat](https://example.com).");
+  // Structured mood specs cover every mood in VOICE_MOODS.
+  assert.deepEqual(
+    VOICE_MOOD_SPECS.map((s) => s.mood).sort(),
+    [...VOICE_MOODS].sort(),
+  );
   // The four mood tags never reach G2P or spoken output in either accent.
   assert.equal(us("[excited] 20. Yes!"), us("20. Yes!"));
   assert.equal(gb("[warm] Good job!"), gb("Good job!"));

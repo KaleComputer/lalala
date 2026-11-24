@@ -534,28 +534,41 @@ async function gpuDetails() {
   };
 }
 
-/** A model with expressive moods ships moods.json + 1 KB `.vec256.bin` style vectors next to it; absent returns null. */
+/** A model with expressive moods ships moods.json with either inline `vec256_values` (256 floats) or sibling 1 KB `.vec256.bin` style vectors; absent returns null. */
 async function moodsFor(name: string): Promise<MoodPack | null> {
   const base = `/models/${name}/`;
   const manifest = await fetch(`${base}moods.json`)
     .then((response) =>
       response.ok && !/text\/html/.test(response.headers.get("content-type") ?? "")
-        ? (response.json() as Promise<{ default?: string; moods?: Record<string, { vec256?: string; speed?: number }> }>)
+        ? (response.json() as Promise<{
+            default?: string;
+            moods?: Record<string, { vec256?: string; vec256_values?: unknown; speed?: number }>;
+          }>)
         : null,
     )
     .catch(() => null);
   if (!manifest?.moods) return null;
   const entries: Record<string, { style: Float32Array; speed: number }> = {};
   for (const [mood, spec] of Object.entries(manifest.moods)) {
-    if (!spec?.vec256) continue;
-    const raw = await fetch(`${base}${spec.vec256}`)
-      .then((response) =>
-        response.ok && !/text\/html/.test(response.headers.get("content-type") ?? "") ? response.arrayBuffer() : null,
-      )
-      .catch(() => null);
-    if (!raw || raw.byteLength !== STYLE * 4) continue;
+    if (!spec) continue;
+    let style: Float32Array | null = null;
+    if (
+      Array.isArray(spec.vec256_values) &&
+      spec.vec256_values.length === STYLE &&
+      spec.vec256_values.every((v) => typeof v === "number" && Number.isFinite(v))
+    ) {
+      style = Float32Array.from(spec.vec256_values);
+    } else if (typeof spec.vec256 === "string" && spec.vec256.length > 0) {
+      const raw = await fetch(`${base}${spec.vec256}`)
+        .then((response) =>
+          response.ok && !/text\/html/.test(response.headers.get("content-type") ?? "") ? response.arrayBuffer() : null,
+        )
+        .catch(() => null);
+      if (raw && raw.byteLength === STYLE * 4) style = new Float32Array(raw);
+    }
+    if (!style) continue;
     const speed = typeof spec.speed === "number" && Number.isFinite(spec.speed) && spec.speed > 0 ? spec.speed : 1;
-    entries[mood] = { style: new Float32Array(raw), speed };
+    entries[mood] = { style, speed };
   }
   if (Object.keys(entries).length === 0) return null;
   return { defaultMood: normalizeVoiceMood(manifest.default), entries };
