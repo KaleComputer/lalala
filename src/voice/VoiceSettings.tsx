@@ -2496,13 +2496,13 @@ function LabsSection() {
         </Row>
       ) : null}
       <Row
-        title="Agent monitor"
-        description="Show the Agents tab in the bar and the pinnable Agent Monitor card for jumping to active threads."
+        title="Threads"
+        description="Show the Threads tab in the bar and the pinnable Threads card for jumping to active top-level threads."
         field
       >
         <Toggle
           on={labs.agentsMonitor}
-          label="labs: agent monitor"
+          label="labs: threads"
           onChange={(on) => setLab("agentsMonitor", on)}
         />
       </Row>

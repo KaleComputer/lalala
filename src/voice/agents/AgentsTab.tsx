@@ -7,7 +7,12 @@ import { SegmentedControl, SegmentedControlItem } from "@ui-sdk/react/segmented-
 import { useAgents } from "../../state/entities";
 import { useSyncedSettings } from "../settingsStore";
 import { StreamerText } from "../streamerMode";
-import { type AgentRun, formatElapsed, isActiveAgent } from "./model";
+import {
+  type AgentRun,
+  formatElapsed,
+  hasSpecificThreadTitle,
+  isActiveAgent,
+} from "./model";
 import { AGENT_MONITOR_CARD_ID, setAgentMonitorPinned, useAgentMonitorPin } from "./pin";
 import "./agents.css";
 
@@ -35,15 +40,13 @@ function compactAgentMeta(agent: AgentRun, now: number): string {
 }
 
 /**
- * Live Agent Monitor in the device bar (behind Settings -> Labs -> Agent monitor): icon + running
- * count (no dot), opening a compact one-line-per-agent list where clicking any row opens the T3
+ * Live Threads monitor in the device bar (behind Settings -> Labs -> Threads): icon + active
+ * count (no dot), opening a compact one-line-per-thread list where clicking any row opens the T3
  * thread directly in one click.
  */
 export function AgentsTab(props: { readonly tabHost: HTMLElement }) {
   const enabled = useSyncedSettings().labs.agentsMonitor;
-  const agents = useAgents().filter(
-    (agent) => agent.title.trim() !== "" && agent.title !== "Background worker",
-  );
+  const threads = useAgents().filter((thread) => hasSpecificThreadTitle(thread.title));
   const pin = useAgentMonitorPin();
   const [open, setOpen] = useState(false);
   const [filter, setFilter] = useState<Filter>("all");
@@ -54,10 +57,11 @@ export function AgentsTab(props: { readonly tabHost: HTMLElement }) {
   const tabRef = useRef<HTMLButtonElement>(null);
   const panelRef = useRef<HTMLDivElement>(null);
 
-  const active = agents.filter(isActiveAgent);
+  const active = threads.filter(isActiveAgent);
   const activeCount = active.length;
-  const waitingCount = active.filter((agent) => agent.status === "waiting").length;
-  const shown = filter === "active" ? active : agents;
+  const runningCount = active.filter((thread) => thread.status === "running").length;
+  const waitingCount = active.filter((thread) => thread.status === "waiting").length;
+  const shown = filter === "active" ? active : threads;
 
   // Tick elapsed timers once per second only while the panel is open and an agent is running.
   // oxlint-disable-next-line t3code/no-unreasoned-state-sync -- live elapsed clock while the popover is open
@@ -137,10 +141,10 @@ export function AgentsTab(props: { readonly tabHost: HTMLElement }) {
 
   const title =
     activeCount > 0
-      ? `Agents · ${activeCount} running`
-      : agents.length > 0
-        ? `Agents · ${agents.length} recent`
-        : "Agent Monitor";
+      ? `Threads · ${activeCount} active`
+      : threads.length > 0
+        ? `Threads · ${threads.length} recent`
+        : "Threads";
 
   const panelStyle: CSSProperties | undefined = anchor
     ? { left: `${anchor.left}px`, bottom: `${anchor.bottom}px` }
@@ -155,9 +159,9 @@ export function AgentsTab(props: { readonly tabHost: HTMLElement }) {
           data-lalala-tab=""
           data-open={open ? "" : undefined}
           data-active={activeCount > 0 ? "" : undefined}
-          data-waiting={waitingCount > 0 ? "" : undefined}
+          data-waiting={runningCount === 0 && waitingCount > 0 ? "" : undefined}
           aria-expanded={open}
-          aria-label={activeCount > 0 ? `agents: open, ${activeCount} running` : "agents: open"}
+          aria-label={activeCount > 0 ? `threads: open, ${activeCount} active` : "threads: open"}
           title={title}
           onClick={toggleOpen}
         >
@@ -176,21 +180,21 @@ export function AgentsTab(props: { readonly tabHost: HTMLElement }) {
               <DialogContent ref={panelRef} data-lalala-agents-panel="" style={panelStyle}>
                 <header>
                   <DialogTitle>
-                    <span>Agents</span>
+                    <span>Threads</span>
                     {activeCount > 0 ? (
-                      <span data-lalala-agents-pill="">{activeCount} running</span>
+                      <span data-lalala-agents-pill="">{activeCount} active</span>
                     ) : null}
                   </DialogTitle>
                   <div data-lalala-agents-filter="">
                     <SegmentedControl
                       value={filter}
                       onValueChange={(value) => setFilter(value as Filter)}
-                      aria-label="agents: filter"
+                      aria-label="threads: filter"
                     >
-                      <SegmentedControlItem value="all" aria-label="agents: show all">
-                        All{agents.length > 0 ? ` ${agents.length}` : ""}
+                      <SegmentedControlItem value="all" aria-label="threads: show all">
+                        All{threads.length > 0 ? ` ${threads.length}` : ""}
                       </SegmentedControlItem>
-                      <SegmentedControlItem value="active" aria-label="agents: show active">
+                      <SegmentedControlItem value="active" aria-label="threads: show active">
                         Active{activeCount > 0 ? ` ${activeCount}` : ""}
                       </SegmentedControlItem>
                     </SegmentedControl>
@@ -198,15 +202,15 @@ export function AgentsTab(props: { readonly tabHost: HTMLElement }) {
                   <Button
                     data-lalala-agents-icon=""
                     data-pinned={pin.pinned ? "" : undefined}
-                    aria-label={pin.pinned ? "agents: unpin card" : "agents: pin card"}
-                    title={pin.pinned ? "Unpin Agent Monitor card" : "Pin Agent Monitor card to canvas"}
+                    aria-label={pin.pinned ? "threads: unpin card" : "threads: pin card"}
+                    title={pin.pinned ? "Unpin Threads card" : "Pin Threads card to canvas"}
                     onClick={togglePin}
                   >
                     <svg viewBox="0 0 24 24" aria-hidden="true">
                       <path d="M12 17v5M9 10.76a2 2 0 0 1-1.11 1.79l-1.78.9A2 2 0 0 0 5 15.24V16h14v-.76a2 2 0 0 0-1.11-1.79l-1.78-.9A2 2 0 0 1 15 10.76V6a1 1 0 0 1 1-1h1V3H7v2h1a1 1 0 0 1 1 1z" />
                     </svg>
                   </Button>
-                  <DialogClose data-lalala-agents-close="" aria-label="agents: close">
+                  <DialogClose data-lalala-agents-close="" aria-label="threads: close">
                     <svg viewBox="0 0 24 24" aria-hidden="true">
                       <path d="M18 6 6 18M6 6l12 12" />
                     </svg>
@@ -215,8 +219,8 @@ export function AgentsTab(props: { readonly tabHost: HTMLElement }) {
                 {shown.length === 0 ? (
                   <p data-lalala-agents-empty="">
                     {filter === "active"
-                      ? "No agents running right now."
-                      : "No agent runs yet. Threads appear here automatically."}
+                      ? "No active threads right now."
+                      : "No threads yet. Top-level threads appear here automatically."}
                   </p>
                 ) : (
                   <ol data-lalala-agents-list="">

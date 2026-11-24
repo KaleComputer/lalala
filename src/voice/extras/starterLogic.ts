@@ -40,9 +40,9 @@ export const STARTER_PRESETS: ReadonlyArray<StarterPreset> = [
   },
   {
     id: "agent-monitor",
-    title: "Agent Monitor",
-    tag: "AGENTS",
-    description: "Track background worker status and completion times.",
+    title: "Threads",
+    tag: "THREADS",
+    description: "Track active top-level threads and jump straight to them.",
     w: 420,
     h: 360,
     defaultSelected: true,

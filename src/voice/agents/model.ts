@@ -40,9 +40,16 @@ export type RawDelegateThread = {
   readonly id: string;
   readonly title?: string | null;
   readonly activeRunId?: string | null;
+  readonly activityRunStatus?: string | null;
+  readonly activityRunStartedAt?: string | null;
+  readonly latestRunStartedAt?: string | null;
+  readonly latestRunCompletedAt?: string | null;
   readonly status?: string | null;
   readonly createdAt?: string | null;
   readonly updatedAt?: string | null;
+  readonly settledAt?: string | null;
+  readonly archivedAt?: string | null;
+  readonly deletedAt?: string | null;
   readonly pendingRuntimeRequest?: { readonly id?: string | null; readonly kind?: string | null } | null;
   readonly pendingBackgroundTasks?: ReadonlyArray<RawPendingBackgroundTask> | null;
   readonly latestRunStatus?: string | null;
@@ -285,6 +292,39 @@ export function describeTurnItemStep(item: RawTurnItem | null | undefined): stri
   return clip(humanizeToolName(type));
 }
 
+/** Generic placeholder titles that never represent a specifically titled thread. */
+const GENERIC_THREAD_TITLES = new Set([
+  "background worker",
+  "new thread",
+  "untitled",
+  "untitled thread",
+]);
+
+/** Whether a thread has a specific, non-placeholder title. */
+export function hasSpecificThreadTitle(title: unknown): title is string {
+  if (typeof title !== "string") return false;
+  const clean = title.trim();
+  if (clean === "") return false;
+  return !GENERIC_THREAD_TITLES.has(clean.toLowerCase());
+}
+
+/** Whether a shell thread is a first-level (top-level) thread rather than a subagent or background child. */
+export function isTopLevelThread(thread: RawDelegateThread | null | undefined): boolean {
+  if (!thread || typeof thread.id !== "string" || thread.id.trim() === "") return false;
+  if (thread.archivedAt != null || thread.deletedAt != null) return false;
+  const relationship = thread.lineage?.relationshipToParent ?? thread.relationshipToParent;
+  if (relationship != null && String(relationship).trim() !== "") return false;
+  const parentId = thread.lineage?.parentThreadId ?? thread.parentThreadId;
+  if (parentId != null && String(parentId).trim() !== "") return false;
+  if (
+    thread.id.startsWith("thread:delegated-task:") ||
+    thread.id.startsWith("thread:subagent:")
+  ) {
+    return false;
+  }
+  return true;
+}
+
 /** Whether a shell thread belongs to the brain as a delegated subagent. */
 export function isBrainDelegateThread(
   thread: RawDelegateThread | null | undefined,
@@ -300,12 +340,15 @@ export function isBrainDelegateThread(
   );
 }
 
+const isThreadSettledOrArchived = (thread: RawDelegateThread | null | undefined): boolean =>
+  Boolean(thread?.settledAt || thread?.archivedAt || thread?.deletedAt);
+
 /**
- * Whether a delegate thread is waiting (on a secret/approval prompt, an awaited background
+ * Whether an unsettled thread is waiting (on a secret/approval prompt, an awaited background
  * command/subagent, or a T3 `waiting` status) even if its current turn already ended (`activeRunId == null`).
  */
 export function isShellThreadWaiting(thread: RawDelegateThread | null | undefined): boolean {
-  if (!thread) return false;
+  if (!thread || isThreadSettledOrArchived(thread)) return false;
   if (thread.pendingRuntimeRequest != null) return true;
   if (Array.isArray(thread.pendingBackgroundTasks) && thread.pendingBackgroundTasks.length > 0) {
     return true;
@@ -313,14 +356,54 @@ export function isShellThreadWaiting(thread: RawDelegateThread | null | undefine
   return typeof thread.status === "string" && normalizeRunStatus(thread.status) === "waiting";
 }
 
-/** Whether a delegate thread shell represents an in-progress run (running or waiting). */
+/** Whether a thread shell represents an in-progress run (running or waiting). */
 export function isShellThreadActive(thread: RawDelegateThread | null | undefined): boolean {
-  if (!thread) return false;
+  if (!thread || thread.archivedAt != null || thread.deletedAt != null) return false;
   if (thread.activeRunId != null) return true;
+  if (
+    typeof thread.activityRunStatus === "string" &&
+    isActiveAgent({ status: normalizeRunStatus(thread.activityRunStatus) })
+  ) {
+    return true;
+  }
   if (isShellThreadWaiting(thread)) return true;
   return (
-    typeof thread.status === "string" && isActiveAgent({ status: normalizeRunStatus(thread.status) })
+    !thread.settledAt &&
+    typeof thread.status === "string" &&
+    isActiveAgent({ status: normalizeRunStatus(thread.status) })
   );
+}
+
+/** Normalizes a shell `thread.updated` payload when `location` moves out of `"active"`. */
+export function shellThreadFromUpdate<T extends RawDelegateThread>(
+  location: string | undefined,
+  thread: T,
+  nowIso = new Date().toISOString(),
+): T {
+  if (location === "active") return thread;
+  if (location === "archived" || thread.archivedAt != null || thread.deletedAt != null) {
+    return {
+      ...thread,
+      archivedAt: thread.archivedAt ?? nowIso,
+      activeRunId: null,
+      activityRunStatus: null,
+      pendingBackgroundTasks: [],
+      pendingRuntimeRequest: null,
+    };
+  }
+  const keepStatus =
+    typeof thread.status === "string" && !isActiveAgent({ status: normalizeRunStatus(thread.status) })
+      ? thread.status
+      : null;
+  return {
+    ...thread,
+    activeRunId: null,
+    activityRunStatus: null,
+    status: keepStatus,
+    pendingBackgroundTasks: [],
+    pendingRuntimeRequest: null,
+    settledAt: thread.settledAt ?? nowIso,
+  };
 }
 
 /** Resolves the delegated child thread id from a brain `subagent` turn item, if derivable. */
@@ -342,7 +425,7 @@ export function subagentThreadIdOf(item: RawSubagentTurnItem | null | undefined)
 }
 
 /**
- * Projects a T3 shell thread update for a delegate into its `AgentRun` entry.
+ * Projects a T3 shell thread update into its `AgentRun` entry.
  * Preserves existing `startedAt`, `step`, and `card` while updating live/finished status.
  */
 export function projectDelegateShell(
@@ -358,18 +441,20 @@ export function projectDelegateShell(
 
   if (active) {
     const waitingPrompt = thread.pendingRuntimeRequest != null;
-    const waitingBackground =
-      thread.activeRunId == null && isShellThreadWaiting(thread);
-    const status: AgentStatus =
-      waitingPrompt || waitingBackground
-        ? "waiting"
-        : prev?.status === "waiting" && thread.activeRunId != null
-          ? "waiting"
-          : "running";
+    const runningNow =
+      thread.activeRunId != null ||
+      (typeof thread.activityRunStatus === "string" &&
+        normalizeRunStatus(thread.activityRunStatus) === "running") ||
+      (!thread.settledAt &&
+        typeof thread.status === "string" &&
+        normalizeRunStatus(thread.status) === "running");
+    const waitingBackground = !runningNow && isShellThreadWaiting(thread);
+    const status: AgentStatus = waitingPrompt || waitingBackground ? "waiting" : "running";
     const startedAt =
-      prev && isActiveAgent(prev)
+      firstString(thread.activityRunStartedAt) ??
+      (prev && isActiveAgent(prev) && prev.status === status
         ? prev.startedAt
-        : firstString(thread.createdAt, thread.updatedAt) ?? nowIso;
+        : firstString(thread.latestRunStartedAt, thread.updatedAt, thread.createdAt) ?? nowIso);
     const bgStep = waitingBackground
       ? firstString(thread.pendingBackgroundTasks?.[0]?.description)
       : null;
@@ -401,8 +486,15 @@ export function projectDelegateShell(
       : prev && !isActiveAgent(prev)
         ? prev.status
         : "completed";
-  const completedAt = prev?.completedAt ?? firstString(thread.updatedAt) ?? nowIso;
-  const startedAt = prev?.startedAt ?? firstString(thread.createdAt, thread.updatedAt) ?? completedAt;
+  const completedAt =
+    firstString(
+      thread.latestRunCompletedAt,
+      prev && !isActiveAgent(prev) ? prev.completedAt : null,
+      thread.updatedAt,
+    ) ?? nowIso;
+  const startedAt =
+    firstString(thread.latestRunStartedAt, prev?.startedAt, thread.createdAt, thread.updatedAt) ??
+    completedAt;
   const step =
     prev?.step && !TRANSIENT_STEPS.has(prev.step) && !prev.step.startsWith("Waiting for ")
       ? prev.step
@@ -415,10 +507,29 @@ export function projectDelegateShell(
     step,
     startedAt,
     completedAt,
-    updatedAt: completedAt,
+    updatedAt: firstString(thread.updatedAt, completedAt) ?? completedAt,
     link: resolvedLink,
     card: prev?.card ?? null,
   };
+}
+
+/**
+ * Projects a first-level (top-level) T3 shell thread into an `AgentRun` entry, or returns `null`
+ * for subagents, archived/deleted threads, and threads without a specific title.
+ */
+export function projectTopLevelThreadShell(
+  prev: AgentRun | undefined,
+  thread: RawDelegateThread,
+  link: string | null,
+  nowIso = new Date().toISOString(),
+): AgentRun | null {
+  if (!isTopLevelThread(thread)) return null;
+  const title = firstString(
+    hasSpecificThreadTitle(thread.title) ? thread.title : null,
+    hasSpecificThreadTitle(prev?.title) ? prev?.title : null,
+  );
+  if (!title) return null;
+  return projectDelegateShell(prev, { ...thread, title }, link, nowIso);
 }
 
 /** Projects a delegate's `run.created` / `run.updated` event onto its `AgentRun`. */
@@ -727,8 +838,9 @@ const timeMs = (iso: string | null | undefined): number => {
 };
 
 /**
- * Sorts agents with active runs first (newest started first), followed by recently finished runs
- * (newest completed/updated first). Always retains all active agents plus recent finished ones up to `max`.
+ * Sorts threads with active runs first (`running` before `waiting`, newest started/updated first),
+ * followed by recently finished runs (newest completed/updated first). Always retains all active
+ * threads plus recent finished ones up to `max`.
  */
 export function sortAgents(agents: Iterable<AgentRun>, max = DEFAULT_MAX_AGENTS): AgentRun[] {
   const active: AgentRun[] = [];
@@ -737,7 +849,14 @@ export function sortAgents(agents: Iterable<AgentRun>, max = DEFAULT_MAX_AGENTS)
     if (isActiveAgent(agent)) active.push(agent);
     else finished.push(agent);
   }
-  active.sort((a, b) => timeMs(b.startedAt) - timeMs(a.startedAt) || a.id.localeCompare(b.id));
+  const activeRank = (status: AgentStatus): number => (status === "running" ? 0 : 1);
+  active.sort(
+    (a, b) =>
+      activeRank(a.status) - activeRank(b.status) ||
+      timeMs(b.startedAt) - timeMs(a.startedAt) ||
+      timeMs(b.updatedAt) - timeMs(a.updatedAt) ||
+      a.id.localeCompare(b.id),
+  );
   finished.sort(
     (a, b) =>
       timeMs(b.completedAt ?? b.updatedAt) - timeMs(a.completedAt ?? a.updatedAt) ||
@@ -810,25 +929,6 @@ type ShellChunk<P = unknown, T extends RawDelegateThread = RawDelegateThread> =
   | { readonly kind: "thread.updated"; readonly location?: string; readonly thread?: T }
   | { readonly kind: "thread.removed"; readonly threadId?: string };
 
-type ChildThreadSnapshot = {
-  readonly thread?: RawDelegateThread;
-  readonly runs?: (RawRun & { readonly id: string })[];
-  readonly turnItems?: RawTurnItem[];
-  readonly visibleTurnItems?: { readonly item: RawTurnItem }[];
-};
-
-type ChildThreadChunk =
-  | { readonly kind: "snapshot"; readonly projection?: ChildThreadSnapshot }
-  | {
-      readonly kind: "event";
-      readonly event?: {
-        readonly type: string;
-        readonly payload: RawTurnItem &
-          RawRun &
-          RawDelegateThread & { readonly id?: string; readonly title?: string };
-      };
-    };
-
 export type BrainProjectionForDelegates = {
   readonly thread?: {
     readonly pendingBackgroundTasks?: ReadonlyArray<RawPendingBackgroundTask> | null;
@@ -849,10 +949,9 @@ export type BrowserDelegateTrackerOptions<P = unknown, T extends RawDelegateThre
 const isThreadLinkable = (threadId: string): boolean => !threadId.startsWith("turn-item:");
 
 /**
- * Live delegate tracker for lalala.talk's browser harness: mirrors vite/t3bridge.mjs's shell and
- * child-thread tracking on a single multiplexed T3Socket, plus direct projection of brain-thread
- * `subagent` turn items and `pendingBackgroundTasks` so running/waiting workers appear immediately
- * and clear cleanly when finished.
+ * Live top-level thread tracker for lalala.talk's browser harness: mirrors vite/t3bridge.mjs's
+ * shell tracking on a single multiplexed T3Socket, showing all specifically titled first-level
+ * threads across projects and excluding nested subagents and background sub-jobs.
  */
 export function createBrowserDelegateTracker<
   P = unknown,
@@ -860,10 +959,7 @@ export function createBrowserDelegateTracker<
 >(options: BrowserDelegateTrackerOptions<P, T>) {
   let socket: DelegateSocket | null = null;
   let shellSub: DelegateStreamHandle | null = null;
-  const delegates = new Map<string, DelegateStreamHandle>();
-  const childWaiting = new Map<string, boolean>();
   const agents = new Map<string, AgentRun>();
-  let pendingTaskIds = new Set<string>();
   let agentsLine = "[]";
 
   const linkContext: AgentLinkContext = {
@@ -881,191 +977,26 @@ export function createBrowserDelegateTracker<
     options.onAgents(list);
   };
 
-  const stopChild = (threadId: string) => {
-    const sub = delegates.get(threadId);
-    if (sub !== undefined) {
-      delegates.delete(threadId);
-      sub.stop();
-    }
-    childWaiting.delete(threadId);
-  };
-
-  const followChild = (link: DelegateSocket, threadId: string, activeRunId?: string | null) => {
-    if (socket !== link || !isThreadLinkable(threadId) || delegates.has(threadId)) return;
-    const takeItem = (item: RawTurnItem | null | undefined, runId?: string | null) => {
-      const existing = agents.get(threadId);
-      if (!existing || !item) return;
-      const updated = projectDelegateTurnItem(existing, item, runId);
-      if (updated !== existing) {
-        agents.set(threadId, updated);
-        emitAgents();
-      }
-    };
-    const takeRun = (run: RawRun | null | undefined, waiting: boolean) => {
-      const existing = agents.get(threadId);
-      if (!existing || !run) return;
-      const updated = projectDelegateRun(existing, run, undefined, { threadWaiting: waiting });
-      if (updated !== existing) {
-        agents.set(threadId, updated);
-        emitAgents();
-      }
-    };
-
-    const sub = link.stream<ChildThreadChunk>(
-      "orchestration.subscribeThread",
-      { threadId, acceptBoundedSnapshot: true },
-      (chunk) => {
-        if (socket !== link || delegates.get(threadId) !== sub) return;
-        if (chunk.kind === "snapshot" && chunk.projection) {
-          const proj = chunk.projection;
-          const projThread = proj.thread;
-          if (projThread && typeof projThread.title === "string" && projThread.title.trim() !== "") {
-            options.onTitle(threadId, projThread.title);
-          }
-          const waiting = isShellThreadWaiting(projThread);
-          childWaiting.set(threadId, waiting);
-          if (projThread) {
-            agents.set(
-              threadId,
-              projectDelegateShell(
-                agents.get(threadId),
-                { ...projThread, id: threadId },
-                linkContext.linkOf(threadId),
-              ),
-            );
-          }
-          const runId = projThread?.activeRunId ?? activeRunId ?? null;
-          const activeRun =
-            proj.runs?.find((run) => run.id === runId) ??
-            proj.runs?.findLast((run) => isActiveAgent({ status: normalizeRunStatus(run.status) })) ??
-            proj.runs?.at(-1);
-          if (activeRun) takeRun(activeRun, waiting);
-          const items =
-            proj.turnItems ?? proj.visibleTurnItems?.map((row) => row.item) ?? [];
-          for (const item of items) takeItem(item, runId);
-          const current = agents.get(threadId);
-          if (current && !isActiveAgent(current) && !isShellThreadActive(projThread)) {
-            stopChild(threadId);
-          }
-          emitAgents();
-        } else if (chunk.kind === "event" && chunk.event) {
-          const { type, payload } = chunk.event;
-          if (type === "turn-item.updated") {
-            takeItem(payload);
-          } else if (type === "run.created" || type === "run.updated") {
-            const waiting = childWaiting.get(threadId) === true;
-            takeRun(payload, waiting);
-          } else if (type === "thread.updated") {
-            if (typeof payload?.title === "string" && payload.title.trim() !== "") {
-              options.onTitle(threadId, payload.title);
-            }
-            const waiting = isShellThreadWaiting(payload);
-            if (
-              payload.pendingBackgroundTasks !== undefined ||
-              payload.pendingRuntimeRequest !== undefined ||
-              payload.status !== undefined
-            ) {
-              childWaiting.set(threadId, waiting);
-            }
-            const existing = agents.get(threadId);
-            if (existing) {
-              const hasLifecycle =
-                payload.activeRunId !== undefined ||
-                payload.status !== undefined ||
-                payload.pendingBackgroundTasks !== undefined ||
-                payload.pendingRuntimeRequest !== undefined ||
-                payload.latestRunStatus !== undefined;
-              if (hasLifecycle) {
-                const updated = projectDelegateShell(
-                  existing,
-                  { ...payload, id: threadId },
-                  linkContext.linkOf(threadId),
-                );
-                agents.set(threadId, updated);
-                if (!isActiveAgent(updated)) stopChild(threadId);
-                emitAgents();
-              } else if (typeof payload.title === "string" && payload.title !== existing.title) {
-                agents.set(threadId, { ...existing, title: payload.title });
-                emitAgents();
-              }
-            }
-          }
-        }
-      },
-    );
-    delegates.set(threadId, sub);
-    sub.done.catch(() => {}).finally(() => {
-      if (delegates.get(threadId) === sub) {
-        delegates.delete(threadId);
-        childWaiting.delete(threadId);
-      }
-    });
-  };
-
   const takeShellThread = (link: DelegateSocket, thread: RawDelegateThread) => {
     if (socket !== link) return;
     if (typeof thread.title === "string" && thread.title.trim() !== "") {
       options.onTitle(thread.id, thread.title);
     }
-    const isDelegate = isBrainDelegateThread(thread, options.brainThreadId);
-    const active = isDelegate && isShellThreadActive(thread);
-    if (isDelegate || agents.has(thread.id)) {
-      const projected = projectDelegateShell(
-        agents.get(thread.id),
-        thread,
-        linkContext.linkOf(thread.id),
-      );
-      agents.set(thread.id, projected);
-      emitAgents();
+    if (thread.archivedAt != null || thread.deletedAt != null) {
+      agents.delete(thread.id);
+      return;
     }
-    if (active) followChild(link, thread.id, thread.activeRunId);
-    else stopChild(thread.id);
-  };
-
-  const syncPendingTasks = (
-    link: DelegateSocket,
-    tasks: ReadonlyArray<RawPendingBackgroundTask> | null | undefined,
-    completeMissing: boolean,
-  ) => {
-    if (!Array.isArray(tasks)) return;
-    const { agents: nextAgents, activeIds } = projectBrainPendingTasks(agents, tasks, linkContext);
-    agents.clear();
-    for (const [id, agent] of nextAgents) agents.set(id, agent);
-
-    if (completeMissing) {
-      for (const prevId of pendingTaskIds) {
-        if (activeIds.has(prevId)) continue;
-        const existing = agents.get(prevId);
-        if (existing && isActiveAgent(existing)) {
-          const nowIso = new Date().toISOString();
-          agents.set(prevId, {
-            ...existing,
-            status: "completed",
-            completedAt: nowIso,
-            updatedAt: nowIso,
-          });
-        }
-        stopChild(prevId);
-      }
+    if (!isTopLevelThread(thread)) {
+      agents.delete(thread.id);
+      return;
     }
-    pendingTaskIds = activeIds;
-    for (const id of activeIds) followChild(link, id);
-    emitAgents();
-  };
-
-  const takeSubagentItem = (link: DelegateSocket, item: RawSubagentTurnItem) => {
-    if (socket !== link || item.type !== "subagent") return;
-    const threadId = subagentThreadIdOf(item) ?? (typeof item.id === "string" ? item.id : null);
-    if (!threadId) return;
-    if (typeof item.title === "string" && item.title.trim() !== "") {
-      options.onTitle(threadId, item.title);
-    }
-    const existing = agents.get(threadId);
-    const projected = projectBrainSubagentItem(existing, item, linkContext);
-    if (!projected) return;
-    agents.set(threadId, projected);
-    if (isActiveAgent(projected)) followChild(link, threadId);
-    else stopChild(threadId);
+    const projected = projectTopLevelThreadShell(
+      agents.get(thread.id),
+      thread,
+      linkContext.linkOf(thread.id),
+    );
+    if (projected) agents.set(thread.id, projected);
+    else agents.delete(thread.id);
   };
 
   return {
@@ -1093,31 +1024,10 @@ export function createBrowserDelegateTracker<
           options.onShellSnapshot?.(chunk.snapshot);
           emitAgents();
         } else if (chunk.kind === "thread.updated" && chunk.thread) {
-          const raw = chunk.thread;
-          const thread: RawDelegateThread =
-            chunk.location === "active"
-              ? raw
-              : {
-                  id: raw.id,
-                  ...(typeof raw.title === "string" ? { title: raw.title } : {}),
-                  ...(typeof raw.updatedAt === "string" ? { updatedAt: raw.updatedAt } : {}),
-                  ...(typeof raw.latestRunStatus === "string"
-                    ? { latestRunStatus: raw.latestRunStatus }
-                    : {}),
-                  activeRunId: null,
-                  status: null,
-                  pendingBackgroundTasks: [],
-                  pendingRuntimeRequest: null,
-                };
-          takeShellThread(link, thread);
+          takeShellThread(link, shellThreadFromUpdate(chunk.location, chunk.thread));
+          emitAgents();
         } else if (chunk.kind === "thread.removed" && typeof chunk.threadId === "string") {
-          takeShellThread(link, {
-            id: chunk.threadId,
-            activeRunId: null,
-            status: null,
-            pendingBackgroundTasks: [],
-            pendingRuntimeRequest: null,
-          });
+          if (agents.delete(chunk.threadId)) emitAgents();
         }
       });
       shellSub = sub;
@@ -1126,51 +1036,30 @@ export function createBrowserDelegateTracker<
       });
     },
 
-    /** Projects the brain thread's snapshot (`subagent` items + `pendingBackgroundTasks`). */
-    takeBrainSnapshot(link: DelegateSocket, projection: BrainProjectionForDelegates) {
+    /** Kept for compatibility; top-level threads come from `orchestration.subscribeShell`. */
+    takeBrainSnapshot(link: DelegateSocket, _projection: BrainProjectionForDelegates) {
       this.attach(link);
-      const items =
-        projection.turnItems ?? projection.visibleTurnItems?.map((row) => row.item) ?? [];
-      for (const item of items) {
-        if (item?.type === "subagent") takeSubagentItem(link, item);
-      }
-      syncPendingTasks(link, projection.thread?.pendingBackgroundTasks, false);
-      emitAgents();
     },
 
-    /** Projects a live brain `turn-item.updated` event when it is a `subagent` item. */
-    takeBrainTurnItem(link: DelegateSocket, item: RawSubagentTurnItem) {
-      if (socket !== link || item.type !== "subagent") return;
-      takeSubagentItem(link, item);
-      emitAgents();
-    },
+    /** Kept for compatibility; nested subagent turn items are excluded from top-level threads. */
+    takeBrainTurnItem(_link: DelegateSocket, _item: RawSubagentTurnItem) {},
 
-    /** Projects a live brain `thread.updated` event (syncing `pendingBackgroundTasks`). */
+    /** Kept for compatibility; top-level thread updates arrive on `orchestration.subscribeShell`. */
     takeBrainThreadUpdated(
-      link: DelegateSocket,
-      thread: { readonly pendingBackgroundTasks?: ReadonlyArray<RawPendingBackgroundTask> | null },
-    ) {
-      if (socket !== link) return;
-      syncPendingTasks(link, thread.pendingBackgroundTasks, true);
-    },
+      _link: DelegateSocket,
+      _thread: { readonly pendingBackgroundTasks?: ReadonlyArray<RawPendingBackgroundTask> | null },
+    ) {},
 
-    /** Backfills finished runs and `[about: card]` links from brain `delegated_task` notifications. */
-    takeBrainNotifications(rows: Iterable<BrainNotificationRow>) {
-      const next = projectBrainNotificationAgents(agents, rows, linkContext);
-      agents.clear();
-      for (const [id, agent] of next) {
-        agents.set(id, agent);
-        if (!isActiveAgent(agent)) stopChild(id);
-      }
-      emitAgents();
-    },
+    /** Kept for compatibility; delegated subagent notifications are excluded from top-level threads. */
+    takeBrainNotifications(_rows: Iterable<BrainNotificationRow>) {},
 
     /** Backfills clickable links and titles once `server.getConfig` / shell has loaded. */
     refreshLinks() {
       let changed = false;
       for (const [id, agent] of agents) {
         const nextLink = linkContext.linkOf(id) ?? agent.link;
-        const nextTitle = linkContext.titleOf(id) ?? agent.title;
+        const resolvedTitle = linkContext.titleOf(id);
+        const nextTitle = hasSpecificThreadTitle(resolvedTitle) ? resolvedTitle : agent.title;
         if (nextLink !== agent.link || nextTitle !== agent.title) {
           agents.set(id, { ...agent, link: nextLink, title: nextTitle });
           changed = true;
@@ -1179,16 +1068,12 @@ export function createBrowserDelegateTracker<
       if (changed) emitAgents();
     },
 
-    /** Stops all active shell/child subscriptions and clears tracked agent runs. */
+    /** Stops the shell subscription and clears tracked threads. */
     reset() {
       socket = null;
       shellSub?.stop();
       shellSub = null;
-      for (const sub of delegates.values()) sub.stop();
-      delegates.clear();
-      childWaiting.clear();
       agents.clear();
-      pendingTaskIds.clear();
       agentsLine = "[]";
     },
   };

@@ -159,9 +159,21 @@ function formatCompactMeta(agent: AgentRunView, now: number): string {
   return `${day} ${hh}:${mm}`;
 }
 
+const GENERIC_THREAD_TITLES = new Set([
+  "background worker",
+  "new thread",
+  "untitled",
+  "untitled thread",
+]);
+
+const hasSpecificTitle = (title: string): boolean => {
+  const clean = title.trim();
+  return clean !== "" && !GENERIC_THREAD_TITLES.has(clean.toLowerCase());
+};
+
 /**
- * Pinnable Agent Monitor card on the canvas (behind Settings -> Labs -> Agent monitor):
- * compact one-line-per-agent direct links that open each T3 thread in one click.
+ * Pinnable Threads card on the canvas (behind Settings -> Labs -> Threads):
+ * compact one-line-per-thread direct links that open each T3 thread in one click.
  */
 export function AgentMonitorCard() {
   const labEnabled = useSyncExternalStore(subscribeLab, () => cachedLab, () => false);
@@ -179,7 +191,7 @@ export function AgentMonitorCard() {
   return (
     <CanvasCard
       id={CARD_ID}
-      title="Agent Monitor"
+      title="Threads"
       at={{ x: 48, y: 48, w: 400, h: 360 }}
       onRemove={unpinCard}
       {...(pin.canvas ? { canvas: pin.canvas } : {})}
@@ -190,16 +202,16 @@ export function AgentMonitorCard() {
 }
 
 function AgentMonitorBody() {
-  const agents = useSyncExternalStore(subscribeAgents, getAgentsSnapshot, () => EMPTY_AGENTS).filter(
-    (agent) => agent.title.trim() !== "" && agent.title !== "Background worker",
+  const threads = useSyncExternalStore(subscribeAgents, getAgentsSnapshot, () => EMPTY_AGENTS).filter(
+    (thread) => hasSpecificTitle(thread.title),
   );
   const [filter, setFilter] = useState<"all" | "active">("all");
   const [now, setNow] = useState(() => Date.now());
 
-  const active = agents.filter(isActive);
-  const shown = filter === "active" ? active : agents;
+  const active = threads.filter(isActive);
+  const shown = filter === "active" ? active : threads;
 
-  // oxlint-disable-next-line t3code/no-unreasoned-state-sync -- live elapsed clock while at least one worker is running
+  // oxlint-disable-next-line t3code/no-unreasoned-state-sync -- live elapsed clock while at least one thread is active
   useEffect(() => {
     if (active.length === 0) return;
     setNow(Date.now());
@@ -209,9 +221,9 @@ function AgentMonitorBody() {
 
   const summary =
     active.length > 0
-      ? `${active.length} running`
-      : agents.length > 0
-        ? `${agents.length} recent`
+      ? `${active.length} active`
+      : threads.length > 0
+        ? `${threads.length} recent`
         : "Idle";
 
   return (
@@ -220,13 +232,13 @@ function AgentMonitorBody() {
         <span data-lalala-agent-card-summary="" data-active={active.length > 0 ? "" : undefined}>
           {summary}
         </span>
-        <div data-lalala-agent-card-filters="" role="group" aria-label="Filter agents">
+        <div data-lalala-agent-card-filters="" role="group" aria-label="Filter threads">
           <Button
             data-selected={filter === "all" ? "" : undefined}
             aria-pressed={filter === "all"}
             onClick={() => setFilter("all")}
           >
-            All{agents.length > 0 ? ` ${agents.length}` : ""}
+            All{threads.length > 0 ? ` ${threads.length}` : ""}
           </Button>
           <Button
             data-selected={filter === "active" ? "" : undefined}
@@ -240,8 +252,8 @@ function AgentMonitorBody() {
       {shown.length === 0 ? (
         <p data-lalala-agent-card-empty="">
           {filter === "active"
-            ? "No agents running right now."
-            : "No agent runs yet. Threads appear here automatically."}
+            ? "No active threads right now."
+            : "No threads yet. Top-level threads appear here automatically."}
         </p>
       ) : (
         <ol data-lalala-agent-card-list="">

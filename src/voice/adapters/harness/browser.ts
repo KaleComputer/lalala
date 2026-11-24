@@ -3,8 +3,6 @@
 import type { HarnessAdapter } from "..";
 import {
   type RawDelegateThread,
-  type RawPendingBackgroundTask,
-  type RawSubagentTurnItem,
   createBrowserDelegateTracker,
 } from "../../agents/model";
 import {
@@ -79,7 +77,6 @@ type Thread = {
   runtimeMode: string;
   interactionMode: string;
   activeProviderThreadId?: string | null;
-  pendingBackgroundTasks?: ReadonlyArray<RawPendingBackgroundTask> | null;
 };
 
 // The page only reads these fields (VoiceHost, brief.ts), as from the app's bridge.
@@ -243,13 +240,9 @@ export function browserHarness(): HarnessAdapter {
   });
   // The first capture in this browser and project finds what the thread already holds: that came
   // before the inbox, so it is heard.
-  const takeAgents = () => {
-    tracker.takeBrainNotifications(state.rows.values());
-  };
   const takeInbox = (seed = false) => {
     const next = captureInbox(state.inbox, state.rows.values(), inboxContext);
     setInbox(seed ? applyInboxChange(next, { heard: "all" }) : next);
-    takeAgents();
   };
   // Once per connection: server config for links/shell flags, live shell stream for running
   // delegates and titles, and the project's away-inbox file.
@@ -365,7 +358,6 @@ export function browserHarness(): HarnessAdapter {
                 providerThreads: { id: string; driver: string }[];
                 providerTurns: ProviderTurn[];
                 visibleTurnItems: { visibility: string; item: Item }[];
-                turnItems?: RawSubagentTurnItem[];
               };
               state.thread = projection.thread;
               state.runs = new Map(projection.runs.map((run) => [run.id, slimRun(run)]));
@@ -385,7 +377,6 @@ export function browserHarness(): HarnessAdapter {
                   .slice(-MAX_ROWS)
                   .map((row) => [row.item.id, slim(row.visibility, row.item)]),
               );
-              tracker.takeBrainSnapshot(next, projection);
               state.connected = true;
               state.error = null;
               failures = 0;
@@ -408,9 +399,6 @@ export function browserHarness(): HarnessAdapter {
                 state.rows.set(row.item.id, row);
                 while (state.rows.size > MAX_ROWS) state.rows.delete(state.rows.keys().next().value!);
                 emit({ type: "row", row });
-                if (payload.type === "subagent") {
-                  tracker.takeBrainTurnItem(next, payload);
-                }
                 if (payload.type === "compaction") {
                   state.compactionItems.set(payload.id, slimCompactionItem(payload));
                   emitContext();
@@ -440,7 +428,6 @@ export function browserHarness(): HarnessAdapter {
                 emitContext();
               } else if (type === "thread.updated" && payload.id === brain.threadId) {
                 if (state.thread) state.thread = { ...state.thread, ...payload };
-                tracker.takeBrainThreadUpdated(next, payload);
               }
             }
           },
