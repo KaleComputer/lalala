@@ -34,6 +34,15 @@ export class G2p {
   constructor(lex: Map<string, string>, model?: G2pModel | null);
   phonemes(sentence: string): string;
 }
+export type VoiceMood = "neutral" | "excited" | "warm" | "gentle";
+export type VoiceMoodSpec = { readonly mood: VoiceMood; readonly tag: `[${VoiceMood}]`; readonly guidance: string };
+export const VOICE_MOODS: readonly VoiceMood[];
+export const VOICE_MOOD_SPECS: readonly VoiceMoodSpec[];
+export const DEFAULT_VOICE_MOOD: VoiceMood;
+export function normalizeVoiceMood(mood: string | null | undefined, fallback?: VoiceMood): VoiceMood;
+export function stripMoodTags(text: string): string;
+export function parseMoodText(text: string, explicitMood?: string | null, defaultMood?: VoiceMood): { mood: VoiceMood; text: string };
+
 export function readTable(text: string, into?: Map<string, string>): Map<string, string>;
 /** Numbers, money, dates and the like as words (dizione's rules), letter runs decided by the word list. */
 export function normalizer(lex: Map<string, string>, Rules?: new (isWord: (word: string) => boolean) => unknown): (text: string) => string;

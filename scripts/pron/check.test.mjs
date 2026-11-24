@@ -8,7 +8,17 @@ import { readFileSync } from "node:fs";
 import { test } from "node:test";
 
 import { BritishG2p, britishNormalizer } from "../../src/voice/browserSpeech/matcha/enGb.js";
-import { G2p, G2pModel, normalizer, readTable, sentences } from "../../src/voice/browserSpeech/matcha/kaleTts.js";
+import {
+  G2p,
+  G2pModel,
+  VOICE_MOODS,
+  VOICE_MOOD_SPECS,
+  normalizer,
+  parseMoodText,
+  readTable,
+  sentences,
+  stripMoodTags,
+} from "../../src/voice/browserSpeech/matcha/kaleTts.js";
 import { termsReplacer } from "../../src/voice/browserSpeech/terms.ts";
 
 const MATCHA = new URL("../../src/voice/browserSpeech/matcha/", import.meta.url);
@@ -157,4 +167,28 @@ test("KAL-3132: sentence-final or isolated the/a/an/to take stressed strong form
 test("KAL-3132: 20. Yes! stays one sentence for prosody", () => {
   assert.deepEqual(us.sentences("20. Yes!"), ["twenty. Yes!"]);
   assert.deepEqual(gb.sentences("20. Yes!"), ["twenty. Yes!"]);
+});
+
+test("KAL-3173: exact four mood tags are parsed and stripped before G2P while arbitrary brackets stay untouched", () => {
+  assert.deepEqual(parseMoodText("[excited] 20. Yes!"), { mood: "excited", text: "20. Yes!" });
+  assert.deepEqual(parseMoodText("  [WARM]  You worked hard today. "), { mood: "warm", text: "You worked hard today." });
+  assert.deepEqual(parseMoodText("[gentle] Time for bed."), { mood: "gentle", text: "Time for bed." });
+  assert.deepEqual(parseMoodText("[excited] Good night.", "gentle"), { mood: "gentle", text: "Good night." });
+  assert.deepEqual(parseMoodText("What does [x] mean?"), { mood: "neutral", text: "What does [x] mean?" });
+  assert.deepEqual(parseMoodText("[excited] Yay! [warm] Nice job! [neutral] Next one."), {
+    mood: "excited",
+    text: "Yay! Nice job! Next one.",
+  });
+  assert.equal(stripMoodTags("Look at [1, 2, 3] and [x]."), "Look at [1, 2, 3] and [x].");
+  assert.equal(stripMoodTags("[[QUESTION_JAR]]"), "[[QUESTION_JAR]]");
+  assert.equal(stripMoodTags("See [cat](https://example.com)."), "See [cat](https://example.com).");
+  // Structured mood specs cover every mood in VOICE_MOODS.
+  assert.deepEqual(
+    VOICE_MOOD_SPECS.map((s) => s.mood).sort(),
+    [...VOICE_MOODS].sort(),
+  );
+  // The four mood tags never reach G2P or spoken output in either accent.
+  assert.equal(us("[excited] 20. Yes!"), us("20. Yes!"));
+  assert.equal(gb("[warm] Good job!"), gb("Good job!"));
+  assert.equal(us("[gentle] Good night."), us("Good night."));
 });
