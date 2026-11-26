@@ -889,19 +889,46 @@ export function openVad(onProbability: (probability: number) => void) {
 /**
  * Kale's standalone 4-action duplex turn-policy ONNX detector (`p2b_standalone_d160_sup`, 1.73 MB)
  * in its own worker. Strictly opt-in: never spawns or downloads anything unless `labs.duplexTurnPolicy`
- * is turned on.
+ * is turned on, and fails open to plain Silero VAD if loading or inference errors.
  */
 let duplexWorker: Worker | null = null;
 let duplexMeter: WorkerMeter | null = null;
 let duplexReady = false;
+let duplexFailed = false;
+let duplexQueued = false;
 let duplexFailures = 0;
+let duplexRetryTimer = 0;
 let duplexListener: ((inference: DuplexInference) => void) | null = null;
+let duplexOnFailed: ((reason: string) => void) | null = null;
 const DUPLEX_RETRIES = 2;
 
-function startDuplexWorker() {
-  if (duplexWorker !== null) return;
+function releaseDuplexWorker() {
+  window.clearTimeout(duplexRetryTimer);
+  duplexRetryTimer = 0;
+  duplexQueued = false;
+  if (duplexWorker !== null) {
+    duplexWorker.terminate();
+    duplexWorker = null;
+  }
+  duplexMeter = null;
+  duplexReady = false;
+  duplexFailed = false;
+  duplexFailures = 0;
+}
+
+function spawnDuplexWorkerNow() {
+  if (duplexWorker !== null || duplexListener === null || duplexFailed) return;
   const startedAt = performance.now();
-  const worker = new Worker(new URL("./duplexTurn.worker.ts", import.meta.url), { type: "module" });
+  let worker: Worker;
+  try {
+    worker = new Worker(new URL("./duplexTurn.worker.ts", import.meta.url), { type: "module" });
+  } catch (error) {
+    const message = String(error);
+    voiceLog("system", "speech.failed", { model: "duplex-turn", message, retries: duplexFailures });
+    duplexFailed = true;
+    duplexOnFailed?.(message);
+    return;
+  }
   duplexWorker = worker;
   const failed = (message: string) => {
     if (duplexWorker !== worker) return;
@@ -912,7 +939,13 @@ function startDuplexWorker() {
     duplexReady = false;
     duplexFailures += 1;
     if (duplexFailures <= DUPLEX_RETRIES && duplexListener !== null) {
-      window.setTimeout(startDuplexWorker, 2_000 * duplexFailures);
+      duplexRetryTimer = window.setTimeout(() => {
+        duplexRetryTimer = 0;
+        spawnDuplexWorkerNow();
+      }, 2_000 * duplexFailures);
+    } else {
+      duplexFailed = true;
+      duplexOnFailed?.(message);
     }
   };
   worker.onmessage = ({
@@ -945,24 +978,40 @@ function startDuplexWorker() {
       });
     } else if (data.type === "ready") {
       duplexReady = true;
+      duplexFailed = false;
       duplexFailures = 0;
       voiceLog("system", "speech.ready", {
         model: "duplex-turn",
         ms: Math.round(performance.now() - startedAt),
       });
     } else if (data.type === "failed") {
-      failed(data.message ?? "");
+      failed(data.message ?? "duplex worker failed");
     }
   };
   worker.onerror = (event) => failed(event.message || "worker error");
-  worker.postMessage({ type: "load" });
+  try {
+    worker.postMessage({ type: "load" });
+  } catch (error) {
+    failed(String(error));
+  }
+}
+
+function startDuplexWorker() {
+  if (duplexWorker !== null || duplexQueued || duplexFailed) return;
+  duplexQueued = true;
+  // Wait for any in-flight model load (VAD / Kokoro) to settle first so iOS doesn't hit concurrent WASM spikes.
+  void modelTurn.then(() => {
+    duplexQueued = false;
+    spawnDuplexWorkerNow();
+  });
 }
 
 export type DuplexTurnHandle = {
   readonly ready: () => boolean;
+  readonly failed: () => boolean;
   readonly listen: (chunk: Float32Array<ArrayBuffer>, state: DuplexSystemState) => void;
   readonly reset: () => void;
-  readonly close: () => void;
+  readonly close: (release?: boolean) => void;
 };
 
 /**
@@ -971,17 +1020,30 @@ export type DuplexTurnHandle = {
  */
 export function openDuplexTurn(
   onDecision: (inference: DuplexInference) => void,
+  onFailed?: (reason: string) => void,
 ): DuplexTurnHandle {
   duplexListener = onDecision;
+  duplexOnFailed = onFailed ?? null;
+  if (duplexFailed) {
+    duplexFailed = false;
+    duplexFailures = 0;
+  }
   startDuplexWorker();
   duplexWorker?.postMessage({ type: "reset" });
   return {
-    ready: () => duplexReady && duplexListener === onDecision,
-    listen: (chunk, state) =>
-      duplexWorker?.postMessage({ type: "frame", pcm: chunk, state }, [chunk.buffer]),
+    ready: () => duplexReady && !duplexFailed && duplexListener === onDecision,
+    failed: () => duplexFailed,
+    listen: (chunk, state) => {
+      if (duplexFailed || duplexWorker === null) return;
+      duplexWorker.postMessage({ type: "frame", pcm: chunk, state }, [chunk.buffer]);
+    },
     reset: () => duplexWorker?.postMessage({ type: "reset" }),
-    close: () => {
-      if (duplexListener === onDecision) duplexListener = null;
+    close: (release = false) => {
+      if (duplexListener === onDecision) {
+        duplexListener = null;
+        duplexOnFailed = null;
+      }
+      if (release) releaseDuplexWorker();
     },
   };
 }

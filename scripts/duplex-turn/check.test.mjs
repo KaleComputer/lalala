@@ -19,6 +19,7 @@ import {
   applyDuplexDecision,
   detectUmaiHesitation,
   evaluateDuplexPolicy,
+  safeEvaluateDuplexPolicy,
 } from "../../src/voice/duplexTurn.ts";
 import { parseSynced } from "../../src/voice/settingsStore.ts";
 
@@ -108,10 +109,13 @@ test("2a. applyDuplexDecision enforces legal-state masking across idle (0) and p
   assert.equal(playing.probs[3], 0);
 });
 
-test("2b. ignore_background drops spurious idle trigger and suppresses false playback barge-in", () => {
+test("2b. ignore_background never blocks adult speech starts or playback barge-in holds", () => {
+  // Regression (26 Nov): the kids-trained standalone head scores adult voices and pre-speech
+  // silence as ignore_background (0.96–1.00). It must never veto close-talk gate starts or
+  // adult barge-in holds in lalala.
   const idleOut = evaluateDuplexPolicy({
     enabled: true,
-    inference: makeInference([4.0, -1.0, -1.0, -1.5], 0),
+    inference: makeInference([4.5, -1.0, -1.0, -1.5], 0),
     now: 10_200,
     baseWaitMs: 2_600,
     baseRule: "no-words-yet",
@@ -122,15 +126,15 @@ test("2b. ignore_background drops spurious idle trigger and suppresses false pla
     playerHolding: false,
     inSpeech: false,
     turnVoiced: false,
-    micDb: -32,
-    floorDb: -50,
+    micDb: -19,
+    floorDb: -74,
   });
   assert.equal(idleOut.active, true);
-  assert.equal(idleOut.suppressStart, true);
+  assert.equal(idleOut.suppressStart, false);
 
   const playOut = evaluateDuplexPolicy({
     enabled: true,
-    inference: makeInference([4.0, -1.0, -1.5, -1.0], 1),
+    inference: makeInference([4.5, -1.0, -1.5, -1.0], 1),
     now: 10_200,
     baseWaitMs: 2_600,
     baseRule: "open",
@@ -141,10 +145,10 @@ test("2b. ignore_background drops spurious idle trigger and suppresses false pla
     playerHolding: false,
     inSpeech: false,
     turnVoiced: false,
-    micDb: -28,
-    floorDb: -50,
+    micDb: -18,
+    floorDb: -74,
   });
-  assert.equal(playOut.suppressHold, true);
+  assert.equal(playOut.suppressHold, false);
   assert.equal(playOut.triggerHold, false);
 });
 
@@ -342,4 +346,115 @@ test("4. ONNX bundle asset and metadata exist and match standalone input/output 
   for (const name of ["mel", "pros", "state", "logits"]) {
     assert.ok(raw.includes(Buffer.from(name, "ascii")), `ONNX graph missing tensor name "${name}"`);
   }
+});
+
+test("5. fail-open: failed worker, null/corrupted inference, or thrown errors fall back to plain Silero VAD", () => {
+  // 5a. Worker load/runtime failure (`failed: true`) returns exact plain-VAD passthrough.
+  const failedOut = evaluateDuplexPolicy({
+    enabled: true,
+    failed: true,
+    inference: makeInference([-1.0, 3.5, -1.5, -1.0], 1, { acousticFiller: true }),
+    now: 10_200,
+    baseWaitMs: 1_500,
+    baseRule: "sentence",
+    partial: "So I want to, uhm...",
+    hasRealWords: true,
+    replyAudible: true,
+    playerSpeaking: true,
+    playerHolding: false,
+    inSpeech: true,
+    turnVoiced: true,
+    micDb: -24,
+    floorDb: -60,
+  });
+  assert.equal(failedOut.active, false);
+  assert.equal(failedOut.suppressStart, false);
+  assert.equal(failedOut.suppressHold, false);
+  assert.equal(failedOut.triggerHold, false);
+  assert.equal(failedOut.effectiveWaitMs, 1_500);
+  assert.equal(failedOut.rule, "sentence");
+  assert.equal(failedOut.umai.detected, false);
+
+  // 5b. Null inference while worker is still loading or unavailable never blocks speech or alters wait.
+  const nullOut = evaluateDuplexPolicy({
+    enabled: true,
+    inference: null,
+    now: 10_200,
+    baseWaitMs: 2_600,
+    baseRule: "open",
+    partial: "Check the logs",
+    hasRealWords: true,
+    replyAudible: false,
+    playerSpeaking: false,
+    playerHolding: false,
+    inSpeech: true,
+    turnVoiced: true,
+    micDb: -50,
+    floorDb: -54,
+  });
+  assert.equal(nullOut.suppressStart, false);
+  assert.equal(nullOut.suppressHold, false);
+  assert.equal(nullOut.triggerHold, false);
+  assert.equal(nullOut.effectiveWaitMs, 2_600);
+  assert.equal(nullOut.rule, "open");
+
+  // 5c. Non-finite logits and corrupted inference probabilities fail open safely without NaN.
+  const nanDecision = applyDuplexDecision([Number.NaN, Number.POSITIVE_INFINITY, -1, 0], 0);
+  for (const p of nanDecision.probs) assert.ok(Number.isFinite(p), `expected finite prob, got ${p}`);
+  const corruptOut = evaluateDuplexPolicy({
+    enabled: true,
+    inference: {
+      action: "keep_listening",
+      probs: [Number.NaN, 1, 0, 0],
+      logits: [0, 0, 0, 0],
+      state: 1,
+      at: 10_100,
+      acousticFiller: true,
+    },
+    now: 10_200,
+    baseWaitMs: 1_500,
+    baseRule: "sentence",
+    partial: "Hello",
+    hasRealWords: true,
+    replyAudible: true,
+    playerSpeaking: true,
+    playerHolding: false,
+    inSpeech: false,
+    turnVoiced: false,
+    micDb: -22,
+    floorDb: -60,
+  });
+  assert.equal(corruptOut.suppressHold, false);
+  assert.equal(corruptOut.triggerHold, false);
+
+  // 5d. safeEvaluateDuplexPolicy catches any unexpected runtime throw and falls back to plain VAD.
+  let caught = null;
+  const throwingInput = {
+    enabled: true,
+    inference: null,
+    now: 10_200,
+    baseWaitMs: 2_600,
+    baseRule: "open",
+    get partial() {
+      throw new Error("boom");
+    },
+    hasRealWords: false,
+    replyAudible: false,
+    playerSpeaking: false,
+    playerHolding: false,
+    inSpeech: true,
+    turnVoiced: true,
+    micDb: -30,
+    floorDb: -60,
+  };
+  const safeOut = safeEvaluateDuplexPolicy(throwingInput, (err) => {
+    caught = err;
+  });
+  assert.ok(caught instanceof Error && caught.message === "boom");
+  assert.equal(safeOut.active, false);
+  assert.equal(safeOut.suppressStart, false);
+  assert.equal(safeOut.suppressHold, false);
+  assert.equal(safeOut.triggerHold, false);
+  assert.equal(safeOut.effectiveWaitMs, 2_600);
+  assert.equal(safeOut.rule, "open");
 });

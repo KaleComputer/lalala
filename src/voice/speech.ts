@@ -5,7 +5,7 @@
  */
 import { type BargeHold, createBargeHold, voiceOverHold } from "./bargeIn";
 import { openDuplexTurn, type DuplexTurnHandle } from "./browserSpeech/browser";
-import { type DuplexInference, evaluateDuplexPolicy } from "./duplexTurn";
+import { type DuplexInference, safeEvaluateDuplexPolicy } from "./duplexTurn";
 import { SpeechPlayer } from "./player";
 import { type CloseTalkMode, createCloseTalk } from "./presence/closetalk";
 import { RealtimeStt, STT_SAMPLE_RATE } from "./realtimeStt";
@@ -363,6 +363,7 @@ export class VoiceSession {
   /** Opt-in (`labs.duplexTurnPolicy`, default OFF) standalone ONNX duplex turn policy + UMAI hold. */
   private duplexHandle: DuplexTurnHandle | null = null;
   private duplexInference: DuplexInference | null = null;
+  private duplexFailed = false;
   private duplexBuf: Float32Array<ArrayBuffer> = new Float32Array(DUPLEX_CHUNK_SAMPLES);
   private duplexFilled = 0;
   private duplexSettingsUnsub: (() => void) | null = null;
@@ -868,22 +869,49 @@ export class VoiceSession {
     this.checkMic();
   }
 
+  /** Fails open to plain Silero VAD if the duplex head fails to load or throws at runtime. */
+  private failOpenDuplex(reason: string): void {
+    if (this.duplexFailed && this.duplexHandle === null) return;
+    this.duplexFailed = true;
+    voiceLog("voice", "duplex.fallback", { reason });
+    try {
+      this.duplexHandle?.close(true);
+    } catch {
+      // Ignore cleanup errors during fail-open teardown.
+    }
+    this.duplexHandle = null;
+    this.duplexInference = null;
+    this.duplexFilled = 0;
+  }
+
   /** Lazily attaches or detaches the opt-in duplex turn-policy worker following Settings → Labs. */
   private syncDuplexPolicy(): void {
     const enabled = this.stream !== null && syncedSettings().labs.duplexTurnPolicy;
-    if (enabled && this.duplexHandle === null) {
+    if (enabled && this.duplexHandle === null && !this.duplexFailed) {
       this.duplexFilled = 0;
       this.duplexInference = null;
-      this.duplexHandle = openDuplexTurn((inference) => {
-        this.duplexInference = inference;
-      });
-      voiceLog("voice", "duplex.enabled", { enabled: true });
-    } else if (!enabled && this.duplexHandle !== null) {
-      this.duplexHandle.close();
-      this.duplexHandle = null;
-      this.duplexInference = null;
-      this.duplexFilled = 0;
-      voiceLog("voice", "duplex.enabled", { enabled: false });
+      try {
+        this.duplexHandle = openDuplexTurn(
+          (inference) => {
+            this.duplexInference = inference;
+          },
+          (reason) => {
+            this.failOpenDuplex(reason);
+          },
+        );
+        voiceLog("voice", "duplex.enabled", { enabled: true });
+      } catch (error) {
+        this.failOpenDuplex(String(error));
+      }
+    } else if (!enabled) {
+      this.duplexFailed = false;
+      if (this.duplexHandle !== null) {
+        this.duplexHandle.close(true);
+        this.duplexHandle = null;
+        this.duplexInference = null;
+        this.duplexFilled = 0;
+        voiceLog("voice", "duplex.enabled", { enabled: false });
+      }
     }
   }
 
@@ -920,9 +948,10 @@ export class VoiceSession {
     this.clockTimer = null;
     this.duplexSettingsUnsub?.();
     this.duplexSettingsUnsub = null;
-    this.duplexHandle?.close();
+    this.duplexHandle?.close(this.duplexFailed);
     this.duplexHandle = null;
     this.duplexInference = null;
+    this.duplexFailed = false;
     this.duplexFilled = 0;
     this.clockStuck = false;
     this.clockKicks = 0;
@@ -1171,12 +1200,18 @@ export class VoiceSession {
     this.releaseTopic(player, now);
     // The reply is heard while it plays, between its sentences and for its echo's tail.
     const replyAudible = player.speaking || now < player.audibleUntil + ECHO_TAIL_MS;
-    const duplexEnabled = this.duplexHandle !== null;
+    const duplexEnabled =
+      this.duplexHandle !== null && !this.duplexFailed && !this.duplexHandle.failed();
     if (duplexEnabled) {
       for (let i = 0; i < pcm.length; i += 1) {
         this.duplexBuf[this.duplexFilled++] = pcm[i]! / 0x8000;
         if (this.duplexFilled === DUPLEX_CHUNK_SAMPLES) {
-          this.duplexHandle!.listen(this.duplexBuf, replyAudible ? 1 : 0);
+          try {
+            this.duplexHandle!.listen(this.duplexBuf, replyAudible ? 1 : 0);
+          } catch (error) {
+            this.failOpenDuplex(String(error));
+            break;
+          }
           this.duplexBuf = new Float32Array(DUPLEX_CHUNK_SAMPLES);
           this.duplexFilled = 0;
         }
@@ -1221,22 +1256,26 @@ export class VoiceSession {
       voiceNow: vadVoice,
     };
     const baseWait = endpointWait(this.partial, this.stt.speechOnly);
-    const duplex = evaluateDuplexPolicy({
-      enabled: duplexEnabled,
-      inference: this.duplexInference,
-      now,
-      baseWaitMs: baseWait.ms,
-      baseRule: baseWait.rule,
-      partial: this.partial,
-      hasRealWords: hasRealWords(this.partial),
-      replyAudible,
-      playerSpeaking: player.speaking,
-      playerHolding: player.holding,
-      inSpeech: this.inSpeech,
-      turnVoiced: this.turnVoiced,
-      micDb,
-      floorDb: this.floorDb,
-    });
+    const duplex = safeEvaluateDuplexPolicy(
+      {
+        enabled: this.duplexHandle !== null && !this.duplexFailed,
+        failed: this.duplexFailed,
+        inference: this.duplexInference,
+        now,
+        baseWaitMs: baseWait.ms,
+        baseRule: baseWait.rule,
+        partial: this.partial,
+        hasRealWords: hasRealWords(this.partial),
+        replyAudible,
+        playerSpeaking: player.speaking,
+        playerHolding: player.holding,
+        inSpeech: this.inSpeech,
+        turnVoiced: this.turnVoiced,
+        micDb,
+        floorDb: this.floorDb,
+      },
+      (error) => this.failOpenDuplex(String(error)),
+    );
     const rawHold = this.bargeHold.step({
       frameMs: FRAME_MS,
       micDb,

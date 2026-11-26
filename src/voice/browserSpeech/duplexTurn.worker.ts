@@ -26,7 +26,7 @@ const RING_SAMPLES = DUPLEX_SAMPLE_RATE * 4; // 4.0 s ring buffer
 
 type Tensor = { readonly data: Float32Array };
 type Ort = {
-  env: { wasm: { wasmPaths: string; numThreads: number } };
+  env: { wasm: { wasmPaths: string; numThreads: number; proxy?: boolean } };
   Tensor: new (type: string, data: unknown, dims: number[]) => Tensor;
   InferenceSession: {
     create(
@@ -38,8 +38,12 @@ type Ort = {
 
 type Runner = (wav: Float32Array, state: DuplexSystemState) => Promise<void>;
 
+const MAX_RUNTIME_ERRORS = 3;
+
 let runner: Promise<Runner> | null = null;
+let loadFailed = false;
 let busy = false;
+let consecutiveErrors = 0;
 let pendingState: DuplexSystemState | null = null;
 
 // Circular 16 kHz Float32 audio buffer.
@@ -85,9 +89,12 @@ function resetBuffer(): void {
 async function load(): Promise<Runner> {
   const ort = (await import(/* @vite-ignore */ /* webpackIgnore: true */ /* turbopackIgnore: true */ ORT)) as Ort;
   ort.env.wasm.wasmPaths = ORT_DIST;
+  // Single-threaded in-worker WASM: avoids SharedArrayBuffer / COOP-COEP and nested sub-workers on iOS WebKit.
   ort.env.wasm.numThreads = 1;
+  ort.env.wasm.proxy = false;
   const modelUrl = new URL(MODEL_PATH, self.location.origin).href;
   const session = await ort.InferenceSession.create(modelUrl, { executionProviders: ["wasm"] });
+  consecutiveErrors = 0;
   postMessage({ type: "ready" });
 
   return async (wav: Float32Array, state: DuplexSystemState) => {
@@ -106,7 +113,11 @@ async function load(): Promise<Runner> {
       state: new ort.Tensor("int64", BigInt64Array.from([BigInt(state)]), [1]),
     });
     const logitsData = out.logits?.data;
-    if (!logitsData || logitsData.length < 4) return;
+    if (!logitsData || logitsData.length < 4) throw new Error("missing duplex logits");
+    for (let i = 0; i < 4; i += 1) {
+      if (!Number.isFinite(logitsData[i])) throw new Error("non-finite duplex logits");
+    }
+    consecutiveErrors = 0;
     const decision = applyDuplexDecision(logitsData, state);
     postMessage({
       type: "decision",
@@ -121,7 +132,7 @@ async function load(): Promise<Runner> {
 }
 
 function pump(state: DuplexSystemState): void {
-  if (runner === null) return;
+  if (runner === null || loadFailed) return;
   if (busy) {
     // Coalesce backlog: always evaluate the latest audio window rather than queueing stale frames.
     pendingState = state;
@@ -133,17 +144,27 @@ function pump(state: DuplexSystemState): void {
     Math.min(MAX_WINDOW_FRAMES, Math.floor(totalWritten / DUPLEX_FRAME_SAMPLES)),
   );
   const wav = readWindow(frames * DUPLEX_FRAME_SAMPLES);
-  void runner
+  const currentRunner = runner;
+  void currentRunner
     .then((run) => run(wav, state))
-    .catch(() => {
-      // Transient inference error on a single window; continue cleanly on the next chunk.
+    .catch((error: unknown) => {
+      if (loadFailed || runner !== currentRunner) return;
+      consecutiveErrors += 1;
+      if (consecutiveErrors >= MAX_RUNTIME_ERRORS) {
+        runner = null;
+        loadFailed = true;
+        pendingState = null;
+        postMessage({ type: "failed", message: `inference error: ${String(error)}` });
+      }
     })
     .finally(() => {
       busy = false;
-      if (pendingState !== null) {
+      if (pendingState !== null && !loadFailed && runner !== null) {
         const next = pendingState;
         pendingState = null;
         pump(next);
+      } else {
+        pendingState = null;
       }
     });
 }
@@ -151,10 +172,15 @@ function pump(state: DuplexSystemState): void {
 self.onmessage = (
   event: MessageEvent<{ type: string; pcm?: Float32Array; state?: DuplexSystemState }>,
 ) => {
-  if (runner === null) {
+  if (event.data.type === "load") {
+    loadFailed = false;
+  }
+  if (runner === null && !loadFailed) {
     runner = load();
     runner.catch((error: unknown) => {
       runner = null;
+      loadFailed = true;
+      pendingState = null;
       postMessage({ type: "failed", message: String(error) });
     });
   }
@@ -162,7 +188,7 @@ self.onmessage = (
     resetBuffer();
     return;
   }
-  if (event.data.type !== "frame" || event.data.pcm === undefined) return;
+  if (event.data.type !== "frame" || event.data.pcm === undefined || loadFailed) return;
   appendSamples(event.data.pcm);
   pump(event.data.state === 1 ? 1 : 0);
 };

@@ -2519,7 +2519,7 @@ function LabsSection() {
       </Row>
       <Row
         title="Duplex turn policy (beta)"
-        description="On-device 4-action turn-policy ONNX model with UMAI filled-pause (“uhm”) hold-the-floor detection. Filters background speech and echo, sharpens barge-in, and extends silence timeouts when you hesitate mid-thought."
+        description="On-device turn-policy ONNX model with UMAI filled-pause (“uhm”) hold-the-floor detection. Extends silence timeouts when you hesitate mid-thought and sharpens barge-in; fails open to Silero VAD if unavailable."
         field
       >
         <Toggle

@@ -31,8 +31,6 @@ export type DuplexInference = {
 export const DUPLEX_STALE_MS = 1_200;
 
 /** Confidence thresholds tuned for living-room precision without missing real speech. */
-const IGNORE_BG_START_PROB = 0.7;
-const IGNORE_BG_HOLD_PROB = 0.65;
 const KEEP_LISTENING_HOLD_PROB = 0.55;
 const BACKCHANNEL_SUPPRESS_PROB = 0.6;
 const PAUSE_PLAYBACK_PROB = 0.6;
@@ -48,6 +46,11 @@ const ANSWER_NOW_MIN_WAIT_MS = 650;
 /** Require mic at least this far above the room floor before allowing duplex `pause_playback`. */
 const DUPLEX_BARGE_OVER_FLOOR_DB = 6;
 
+const finiteOrZero = (v: unknown): number => {
+  const n = Number(v);
+  return Number.isFinite(n) ? n : 0;
+};
+
 /**
  * Applies legal-state masking (`state=0` masks `pause_playback`, `state=1` masks `answer_now`),
  * computes softmax probabilities, and returns the winning action.
@@ -61,10 +64,10 @@ export function applyDuplexDecision(
   readonly logits: [number, number, number, number];
 } {
   const masked: [number, number, number, number] = [
-    Number(rawLogits[0] ?? 0),
-    Number(rawLogits[1] ?? 0),
-    Number(rawLogits[2] ?? 0),
-    Number(rawLogits[3] ?? 0),
+    finiteOrZero(rawLogits[0]),
+    finiteOrZero(rawLogits[1]),
+    finiteOrZero(rawLogits[2]),
+    finiteOrZero(rawLogits[3]),
   ];
   if (state === 0) masked[2] = -1e9; // idle -> cannot pause_playback
   else masked[3] = -1e9; // reply playing -> cannot answer_now directly
@@ -128,6 +131,8 @@ export function detectUmaiHesitation(partial: string, acousticFiller: boolean): 
 export type DuplexPolicyInput = {
   /** Strictly follows `syncedSettings().labs.duplexTurnPolicy` (default false). */
   readonly enabled: boolean;
+  /** True when the duplex worker failed to load or threw: fail open to plain Silero VAD. */
+  readonly failed?: boolean;
   readonly inference: DuplexInference | null;
   readonly now: number;
   readonly baseWaitMs: number;
@@ -147,7 +152,7 @@ export type DuplexPolicyOutput = {
   readonly active: boolean;
   /** Suppress opening a new idle turn when the model sees background speech/echo/TV. */
   readonly suppressStart: boolean;
-  /** Suppress a non-level barge-in hold when the model sees background echo or a backchannel. */
+  /** Suppress a non-level barge-in hold when the model sees a backchannel. */
   readonly suppressHold: boolean;
   /** Trigger an immediate barge-in hold during playback on confident `pause_playback`. */
   readonly triggerHold: boolean;
@@ -161,42 +166,57 @@ export type DuplexPolicyOutput = {
 
 const PASSTHROUGH_UMAI: UmaiHesitation = { detected: false, source: "none", extensionMs: 0 };
 
+function passthroughPolicy(baseWaitMs: number, baseRule: string): DuplexPolicyOutput {
+  return {
+    active: false,
+    suppressStart: false,
+    suppressHold: false,
+    triggerHold: false,
+    effectiveWaitMs: baseWaitMs,
+    rule: baseRule,
+    umai: PASSTHROUGH_UMAI,
+  };
+}
+
+function isValidDuplexInference(inf: DuplexInference | null): inf is DuplexInference {
+  if (inf === null || !Number.isFinite(inf.at)) return false;
+  if (!DUPLEX_ACTIONS.includes(inf.action)) return false;
+  if (!inf.probs || inf.probs.length < 4) return false;
+  for (let i = 0; i < 4; i += 1) {
+    const p = inf.probs[i];
+    if (typeof p !== "number" || !Number.isFinite(p) || p < 0 || p > 1) return false;
+  }
+  return true;
+}
+
 /**
  * Evaluates the 4-action duplex turn policy + UMAI hesitation add-on for the current audio frame.
- * When `enabled` is false, returns an exact no-op passthrough.
+ * When `enabled` is false or `failed` is true, returns an exact no-op passthrough (plain Silero VAD).
  */
 export function evaluateDuplexPolicy(input: DuplexPolicyInput): DuplexPolicyOutput {
-  if (!input.enabled) {
-    return {
-      active: false,
-      suppressStart: false,
-      suppressHold: false,
-      triggerHold: false,
-      effectiveWaitMs: input.baseWaitMs,
-      rule: input.baseRule,
-      umai: PASSTHROUGH_UMAI,
-    };
+  if (!input.enabled || input.failed === true) {
+    return passthroughPolicy(input.baseWaitMs, input.baseRule);
   }
 
   const inf =
-    input.inference !== null && input.now - input.inference.at <= DUPLEX_STALE_MS
+    isValidDuplexInference(input.inference) && input.now - input.inference.at <= DUPLEX_STALE_MS
       ? input.inference
       : null;
 
   const umai = detectUmaiHesitation(input.partial, inf?.acousticFiller === true);
 
-  let suppressStart = false;
   let suppressHold = false;
   let triggerHold = false;
   let effectiveWaitMs = input.baseWaitMs;
   let rule = input.baseRule;
 
-  // --- Playback state (state = 1): barge-in vs background/backchannel suppression ---
+  // --- Playback state (state = 1): barge-in sharpening + backchannel suppression ---
+  // Note: `p2b_standalone_d160_sup` was trained for Kale (ages 5–9) with adult voices labeled as
+  // `ignore_background` (`bg_adult_near` / `bg_adult_far_rir`). Never suppress holds on
+  // `ignore_background` here or adult barge-ins in lalala get silently vetoed.
   if (input.replyAudible) {
     if (inf !== null && inf.state === 1) {
-      if (inf.action === "ignore_background" && inf.probs[0] >= IGNORE_BG_HOLD_PROB) {
-        suppressHold = true;
-      } else if (inf.action === "keep_listening" && inf.probs[1] >= BACKCHANNEL_SUPPRESS_PROB) {
+      if (inf.action === "keep_listening" && inf.probs[1] >= BACKCHANNEL_SUPPRESS_PROB) {
         // Backchannel ("okay", "mhm", "cool") while assistant speaks: do not interrupt!
         suppressHold = true;
       } else if (
@@ -211,7 +231,7 @@ export function evaluateDuplexPolicy(input: DuplexPolicyInput): DuplexPolicyOutp
     }
     return {
       active: true,
-      suppressStart,
+      suppressStart: false,
       suppressHold,
       triggerHold,
       effectiveWaitMs,
@@ -220,21 +240,16 @@ export function evaluateDuplexPolicy(input: DuplexPolicyInput): DuplexPolicyOutp
     };
   }
 
-  // --- Idle state (state = 0): background trigger suppression ---
+  // --- Idle state (state = 0): never veto close-talk gate starts on `ignore_background` ---
+  // Presence's close-talk gate + harmonic comb + Silero VAD already reject distant room noise.
+  // Both pre-speech silence (0.95) and adult voices (0.96–1.00) score `ignore_background` on the
+  // kids-trained standalone head, so vetoing `beginSpeech` blocks adult users completely (26 Nov).
   if (!input.inSpeech) {
-    if (
-      inf !== null &&
-      inf.state === 0 &&
-      inf.action === "ignore_background" &&
-      inf.probs[0] >= IGNORE_BG_START_PROB
-    ) {
-      suppressStart = true;
-    }
     return {
       active: true,
-      suppressStart,
-      suppressHold,
-      triggerHold,
+      suppressStart: false,
+      suppressHold: false,
+      triggerHold: false,
       effectiveWaitMs,
       rule,
       umai,
@@ -272,11 +287,27 @@ export function evaluateDuplexPolicy(input: DuplexPolicyInput): DuplexPolicyOutp
 
   return {
     active: true,
-    suppressStart,
+    suppressStart: false,
     suppressHold,
     triggerHold,
     effectiveWaitMs,
     rule,
     umai,
   };
+}
+
+/**
+ * Fail-open wrapper around `evaluateDuplexPolicy`: if evaluation throws for any reason, invokes
+ * `onError` and falls back to plain Silero VAD passthrough so voice always keeps working.
+ */
+export function safeEvaluateDuplexPolicy(
+  input: DuplexPolicyInput,
+  onError?: (error: unknown) => void,
+): DuplexPolicyOutput {
+  try {
+    return evaluateDuplexPolicy(input);
+  } catch (error) {
+    onError?.(error);
+    return passthroughPolicy(input.baseWaitMs, input.baseRule);
+  }
 }
