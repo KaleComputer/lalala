@@ -36,6 +36,8 @@ export type Labs = {
   readonly agentsMonitor: boolean;
   /** Follow toggle button in the bottom voice bar (src/voice/VoiceBar). */
   readonly followButton: boolean;
+  /** On-device 4-action duplex turn-policy ONNX model + UMAI "uhm" filled-pause floor hold (default OFF). */
+  readonly duplexTurnPolicy: boolean;
 };
 const isSiteHost = () => import.meta.env?.LALALA_HOST === "site";
 
@@ -44,6 +46,7 @@ const DEFAULT_LABS: Labs = {
   awayDigest: false,
   agentsMonitor: isSiteHost(),
   followButton: false,
+  duplexTurnPolicy: false,
 };
 
 // The brain's model with its own defaults: options are per provider (Claude's `effort`, Codex's
@@ -112,6 +115,7 @@ export function parseSynced(
           ? value.labs.agentsMonitor
           : defaultAgentsMonitor,
       followButton: isRecord(value.labs) && value.labs.followButton === true,
+      duplexTurnPolicy: isRecord(value.labs) && value.labs.duplexTurnPolicy === true,
     },
     onboardingDismissed: value.onboardingDismissed === true,
     at: typeof value.at === "number" ? value.at : 0,

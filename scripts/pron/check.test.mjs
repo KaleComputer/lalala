@@ -4,7 +4,7 @@
 // and preserves the vetted public overrides (leia, kwame, mozart).
 // Run: node --experimental-strip-types --test scripts/pron/check.test.mjs
 import assert from "node:assert/strict";
-import { readdirSync, readFileSync } from "node:fs";
+import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { test } from "node:test";
 
 import { BritishG2p, britishNormalizer } from "../../src/voice/browserSpeech/matcha/enGb.js";
@@ -232,7 +232,9 @@ test("26 Nov: ellipsis maps to ... (never dropped by Kokoro vocab) and token-tab
 
   // Every bundled Kokoro/Hazel tokenizer.json agrees with ipa2kokoro.json (including ID 7 = U+0329, never ¡).
   const modelsDir = new URL("../../public/models/", import.meta.url);
-  const modelNames = readdirSync(modelsDir, { withFileTypes: true }).filter((d) => d.isDirectory()).map((d) => d.name);
+  const modelNames = readdirSync(modelsDir, { withFileTypes: true })
+    .filter((d) => d.isDirectory() && (d.name.startsWith("kale-") || existsSync(new URL(`${d.name}/tokenizer.json`, modelsDir))))
+    .map((d) => d.name);
   assert.ok(modelNames.length > 0);
   for (const name of modelNames) {
     const tok = JSON.parse(readFileSync(new URL(`${name}/tokenizer.json`, modelsDir), "utf8"));

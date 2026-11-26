@@ -2517,6 +2517,17 @@ function LabsSection() {
           onChange={(on) => setLab("followButton", on)}
         />
       </Row>
+      <Row
+        title="Duplex turn policy (beta)"
+        description="On-device 4-action turn-policy ONNX model with UMAI filled-pause (“uhm”) hold-the-floor detection. Filters background speech and echo, sharpens barge-in, and extends silence timeouts when you hesitate mid-thought."
+        field
+      >
+        <Toggle
+          on={labs.duplexTurnPolicy}
+          label="labs: duplex turn policy"
+          onChange={(on) => setLab("duplexTurnPolicy", on)}
+        />
+      </Row>
     </Section>
   );
 }

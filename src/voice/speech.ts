@@ -3,7 +3,9 @@
  * replies spoken sentence by sentence. Only Tim talking close to the mic starts a turn or cuts a reply
  * (presence/closetalk.js); a reply stops only when the gate hears him and the transcript has his words.
  */
-import { createBargeHold, voiceOverHold } from "./bargeIn";
+import { type BargeHold, createBargeHold, voiceOverHold } from "./bargeIn";
+import { openDuplexTurn, type DuplexTurnHandle } from "./browserSpeech/browser";
+import { type DuplexInference, evaluateDuplexPolicy } from "./duplexTurn";
 import { SpeechPlayer } from "./player";
 import { type CloseTalkMode, createCloseTalk } from "./presence/closetalk";
 import { RealtimeStt, STT_SAMPLE_RATE } from "./realtimeStt";
@@ -18,7 +20,7 @@ import {
 } from "./speechText";
 import { heldReply, TopicHold, type TopicSentence, unheardLines } from "./topicHold";
 import { VoiceComb } from "./voiceComb";
-import { micDeviceId } from "./settingsStore";
+import { micDeviceId, subscribeSettings, syncedSettings } from "./settingsStore";
 import {
   matchHardwareContext,
   routeRebuildCheck,
@@ -44,6 +46,7 @@ export type VoiceSessionEvents = {
 
 const FRAME_MS = 20;
 const FRAME_SAMPLES = (STT_SAMPLE_RATE * FRAME_MS) / 1000;
+const DUPLEX_CHUNK_SAMPLES = (STT_SAMPLE_RATE * 160) / 1000; // 160 ms = 2 encoder frames @ 80 ms
 const PRE_ROLL_FRAMES = 15;
 // Wind, breath and handling rumble sit under this (Presence's WIND_CUT_HZ).
 const WIND_CUT_HZ = 180;
@@ -357,6 +360,13 @@ export class VoiceSession {
   /** Tim muted his mic: the call goes on, and nothing waits for his turn. */
   private muted = false;
   private phase: VoicePhase = "off";
+  /** Opt-in (`labs.duplexTurnPolicy`, default OFF) standalone ONNX duplex turn policy + UMAI hold. */
+  private duplexHandle: DuplexTurnHandle | null = null;
+  private duplexInference: DuplexInference | null = null;
+  private duplexBuf: Float32Array<ArrayBuffer> = new Float32Array(DUPLEX_CHUNK_SAMPLES);
+  private duplexFilled = 0;
+  private duplexSettingsUnsub: (() => void) | null = null;
+  private duplexSuppressLogAt = 0;
 
   constructor(private readonly events: VoiceSessionEvents) {
     this.stt.onPartial = (text) => this.onPartial(text);
@@ -851,9 +861,30 @@ export class VoiceSession {
     // A touch anywhere is the surest way to get a stalled iOS context running again.
     document.addEventListener("touchend", this.onTouch, { passive: true });
     this.clockTimer = window.setInterval(this.watchClock, 1_000);
+    this.duplexSettingsUnsub = subscribeSettings(() => this.syncDuplexPolicy());
+    this.syncDuplexPolicy();
     this.updatePhase();
     this.sounds.connected();
     this.checkMic();
+  }
+
+  /** Lazily attaches or detaches the opt-in duplex turn-policy worker following Settings → Labs. */
+  private syncDuplexPolicy(): void {
+    const enabled = this.stream !== null && syncedSettings().labs.duplexTurnPolicy;
+    if (enabled && this.duplexHandle === null) {
+      this.duplexFilled = 0;
+      this.duplexInference = null;
+      this.duplexHandle = openDuplexTurn((inference) => {
+        this.duplexInference = inference;
+      });
+      voiceLog("voice", "duplex.enabled", { enabled: true });
+    } else if (!enabled && this.duplexHandle !== null) {
+      this.duplexHandle.close();
+      this.duplexHandle = null;
+      this.duplexInference = null;
+      this.duplexFilled = 0;
+      voiceLog("voice", "duplex.enabled", { enabled: false });
+    }
   }
 
   private readonly onTouch = (): void => {
@@ -887,6 +918,12 @@ export class VoiceSession {
     this.reviveTimer = null;
     if (this.clockTimer !== null) window.clearInterval(this.clockTimer);
     this.clockTimer = null;
+    this.duplexSettingsUnsub?.();
+    this.duplexSettingsUnsub = null;
+    this.duplexHandle?.close();
+    this.duplexHandle = null;
+    this.duplexInference = null;
+    this.duplexFilled = 0;
     this.clockStuck = false;
     this.clockKicks = 0;
     this.clockRebuilt = false;
@@ -1134,6 +1171,17 @@ export class VoiceSession {
     this.releaseTopic(player, now);
     // The reply is heard while it plays, between its sentences and for its echo's tail.
     const replyAudible = player.speaking || now < player.audibleUntil + ECHO_TAIL_MS;
+    const duplexEnabled = this.duplexHandle !== null;
+    if (duplexEnabled) {
+      for (let i = 0; i < pcm.length; i += 1) {
+        this.duplexBuf[this.duplexFilled++] = pcm[i]! / 0x8000;
+        if (this.duplexFilled === DUPLEX_CHUNK_SAMPLES) {
+          this.duplexHandle!.listen(this.duplexBuf, replyAudible ? 1 : 0);
+          this.duplexBuf = new Float32Array(DUPLEX_CHUNK_SAMPLES);
+          this.duplexFilled = 0;
+        }
+      }
+    }
     const mode: CloseTalkMode = replyAudible ? "speak" : this.thinking ? "think" : "listen";
     const decision =
       now < this.ignoreGateUntil
@@ -1172,7 +1220,24 @@ export class VoiceSession {
       voiceMs: this.stt.voiceMs,
       voiceNow: vadVoice,
     };
-    const hold = this.bargeHold.step({
+    const baseWait = endpointWait(this.partial, this.stt.speechOnly);
+    const duplex = evaluateDuplexPolicy({
+      enabled: duplexEnabled,
+      inference: this.duplexInference,
+      now,
+      baseWaitMs: baseWait.ms,
+      baseRule: baseWait.rule,
+      partial: this.partial,
+      hasRealWords: hasRealWords(this.partial),
+      replyAudible,
+      playerSpeaking: player.speaking,
+      playerHolding: player.holding,
+      inSpeech: this.inSpeech,
+      turnVoiced: this.turnVoiced,
+      micDb,
+      floorDb: this.floorDb,
+    });
+    const rawHold = this.bargeHold.step({
       frameMs: FRAME_MS,
       micDb,
       replyDb: 20 * Math.log10(player.level() + 1e-9),
@@ -1183,6 +1248,22 @@ export class VoiceSession {
       vad,
       canHold: replyAudible && player.speaking && !player.holding,
     });
+    let hold: BargeHold | "duplex" | null = rawHold;
+    if (duplex.active) {
+      if (hold !== null && hold !== "level" && duplex.suppressHold) {
+        if (now - this.duplexSuppressLogAt >= 1_000) {
+          this.duplexSuppressLogAt = now;
+          voiceLog("voice", "barge.duplex-suppressed", {
+            by: hold,
+            action: this.duplexInference?.action ?? null,
+          });
+        }
+        hold = null;
+      } else if (hold === null && duplex.triggerHold) {
+        hold = "duplex";
+        this.closeVoiceAt = this.strongVoiceAt = now;
+      }
+    }
     if (hold !== null) {
       voiceLog("voice", "barge.hold", {
         by: hold,
@@ -1243,6 +1324,16 @@ export class VoiceSession {
       if (replyAudible) {
         if (this.gate.voiced || this.gate.open || vadVoice) this.beginProbe();
       } else if (decision?.opened || this.gate.open) {
+        if (duplex.suppressStart) {
+          if (now - this.duplexSuppressLogAt >= 1_000) {
+            this.duplexSuppressLogAt = now;
+            voiceLog("voice", "turn.duplex-suppressed", {
+              action: this.duplexInference?.action ?? null,
+              prob: this.duplexInference ? Math.round(this.duplexInference.probs[0] * 100) / 100 : null,
+            });
+          }
+          return;
+        }
         // Opened now, or already open from the reply's last moments: either way Tim is talking.
         this.beginSpeech(false);
       }
@@ -1270,14 +1361,21 @@ export class VoiceSession {
       !vadTurn && this.turnVoiced && this.gateHasTim && now - this.timHeardAt < GATE_CARRY_MS;
     this.closedMs = heard || carried ? 0 : this.closedMs + FRAME_MS;
     if (this.turnVoiced && this.closedMs === 0) this.timVoiceAt = now;
-    const wait = endpointWait(this.partial, vadTurn);
-    if (this.closedMs >= wait.ms) {
+    const waitMs = duplex.active ? duplex.effectiveWaitMs : baseWait.ms;
+    const waitRule = duplex.active ? duplex.rule : baseWait.rule;
+    if (this.closedMs >= waitMs) {
       if (!this.turnVoiced) return this.dropNoiseTurn("no voice");
       voiceLog("voice", "turn.end", {
-        rule: wait.rule,
+        rule: waitRule,
         quietMs: this.closedMs,
         voiceMs: this.turnVoiceMs,
         partial: this.partial,
+        ...(duplex.active
+          ? {
+              duplexAction: this.duplexInference?.action ?? null,
+              umai: duplex.umai.source,
+            }
+          : {}),
       });
       this.inSpeech = false;
       this.finishUtterance();

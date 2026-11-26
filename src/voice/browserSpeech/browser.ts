@@ -23,6 +23,7 @@ import type { LoadMessage, WorkerMeter } from "./readout";
 import { memoryMoment, registerMeter } from "../memoryTrail";
 import { type ComputerSpeech, computerRoute } from "./computerRoute";
 import type { Heard } from "../sttPieces";
+import type { DuplexAction, DuplexInference, DuplexSystemState } from "../duplexTurn";
 
 type Reply =
   | { type: "text"; id: number; text: string; words?: Heard["words"] }
@@ -885,6 +886,106 @@ export function openVad(onProbability: (probability: number) => void) {
   };
 }
 
+/**
+ * Kale's standalone 4-action duplex turn-policy ONNX detector (`p2b_standalone_d160_sup`, 1.73 MB)
+ * in its own worker. Strictly opt-in: never spawns or downloads anything unless `labs.duplexTurnPolicy`
+ * is turned on.
+ */
+let duplexWorker: Worker | null = null;
+let duplexMeter: WorkerMeter | null = null;
+let duplexReady = false;
+let duplexFailures = 0;
+let duplexListener: ((inference: DuplexInference) => void) | null = null;
+const DUPLEX_RETRIES = 2;
+
+function startDuplexWorker() {
+  if (duplexWorker !== null) return;
+  const startedAt = performance.now();
+  const worker = new Worker(new URL("./duplexTurn.worker.ts", import.meta.url), { type: "module" });
+  duplexWorker = worker;
+  const failed = (message: string) => {
+    if (duplexWorker !== worker) return;
+    voiceLog("system", "speech.failed", { model: "duplex-turn", message, retries: duplexFailures });
+    worker.terminate();
+    duplexWorker = null;
+    duplexMeter = null;
+    duplexReady = false;
+    duplexFailures += 1;
+    if (duplexFailures <= DUPLEX_RETRIES && duplexListener !== null) {
+      window.setTimeout(startDuplexWorker, 2_000 * duplexFailures);
+    }
+  };
+  worker.onmessage = ({
+    data,
+  }: MessageEvent<
+    | {
+        type: "decision";
+        action: DuplexAction;
+        probs: [number, number, number, number];
+        logits: [number, number, number, number];
+        state: DuplexSystemState;
+        acousticFiller: boolean;
+        inferMs?: number;
+      }
+    | { type: "ready" }
+    | { type: "failed"; message?: string }
+    | WorkerMeter
+  >) => {
+    if (data.type === "meter") {
+      duplexMeter = data as WorkerMeter;
+      memoryMoment(null);
+    } else if (data.type === "decision") {
+      duplexListener?.({
+        action: data.action,
+        probs: data.probs,
+        logits: data.logits,
+        state: data.state,
+        at: performance.now(),
+        acousticFiller: data.acousticFiller,
+      });
+    } else if (data.type === "ready") {
+      duplexReady = true;
+      duplexFailures = 0;
+      voiceLog("system", "speech.ready", {
+        model: "duplex-turn",
+        ms: Math.round(performance.now() - startedAt),
+      });
+    } else if (data.type === "failed") {
+      failed(data.message ?? "");
+    }
+  };
+  worker.onerror = (event) => failed(event.message || "worker error");
+  worker.postMessage({ type: "load" });
+}
+
+export type DuplexTurnHandle = {
+  readonly ready: () => boolean;
+  readonly listen: (chunk: Float32Array<ArrayBuffer>, state: DuplexSystemState) => void;
+  readonly reset: () => void;
+  readonly close: () => void;
+};
+
+/**
+ * Opens a call-scoped handle to the standalone duplex turn-policy worker. Only call when
+ * `syncedSettings().labs.duplexTurnPolicy` is enabled.
+ */
+export function openDuplexTurn(
+  onDecision: (inference: DuplexInference) => void,
+): DuplexTurnHandle {
+  duplexListener = onDecision;
+  startDuplexWorker();
+  duplexWorker?.postMessage({ type: "reset" });
+  return {
+    ready: () => duplexReady && duplexListener === onDecision,
+    listen: (chunk, state) =>
+      duplexWorker?.postMessage({ type: "frame", pcm: chunk, state }, [chunk.buffer]),
+    reset: () => duplexWorker?.postMessage({ type: "reset" }),
+    close: () => {
+      if (duplexListener === onDecision) duplexListener = null;
+    },
+  };
+}
+
 /** One sentence as 24 kHz PCM from Kale's voice, and how long it took. */
 export async function warmSpeak(
   text: string,
@@ -991,5 +1092,11 @@ registerMeter("models", () => {
   const models: unknown[] = [ears.memory(), warm.memory()].filter(Boolean);
   if (vadWorker !== null)
     models.push({ model: "vad", phase: vadReady ? "ready" : "loading", wasmMB: vadMeter?.wasmMB });
+  if (duplexWorker !== null)
+    models.push({
+      model: "duplex-turn",
+      phase: duplexReady ? "ready" : "loading",
+      wasmMB: duplexMeter?.wasmMB,
+    });
   return models;
 });

@@ -1,0 +1,24 @@
+{
+  "tag": "p2b_standalone_d160_sup",
+  "backbone": "standalone",
+  "modelFile": "model.int8.onnx",
+  "quantization": "qint8-dynamic-reduce-range",
+  "sampleRate": 16000,
+  "hopMel": 160,
+  "encSubsample": 8,
+  "frameSamples": 1280,
+  "nMels": 80,
+  "prosodyDim": 12,
+  "inputs": ["mel", "pros", "state"],
+  "outputs": ["logits"],
+  "classes": ["ignore_background", "keep_listening", "pause_playback", "answer_now"],
+  "states": {
+    "0": "idle",
+    "1": "reply_playing"
+  },
+  "devBiasBakedIn": [0.0375, -0.0125, -0.0125, -0.0125],
+  "umaiAddon": {
+    "source": "arXiv:2611.34256",
+    "mode": "lexical-and-acoustic-end-gap-hold"
+  }
+}

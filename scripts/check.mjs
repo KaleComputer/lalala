@@ -47,6 +47,9 @@ console.log(`  ${files.length} files clean`);
 step("barge-in holds for Tim, never for noise or echo (scripts/barge-in)");
 run(process.execPath, ["--experimental-strip-types", "--no-warnings", "--test", "scripts/barge-in/check.test.mjs"]);
 
+step("duplex turn-policy ONNX + UMAI filled-pause hold-the-floor hold (scripts/duplex-turn)");
+run(process.execPath, ["--experimental-strip-types", "--no-warnings", "--test", "scripts/duplex-turn/check.test.mjs"]);
+
 step("tidy packs every group about square (scripts/tidy)");
 run(process.execPath, ["--experimental-strip-types", "--no-warnings", "--test", "scripts/tidy/check.test.mjs"]);
 
