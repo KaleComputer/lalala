@@ -193,11 +193,13 @@ test("KAL-3173: exact four mood tags are parsed and stripped before G2P while ar
   assert.equal(us("[gentle] Good night."), us("Good night."));
 });
 
-test("24 Nov: xhigh reads as 'X high' and Monday uses secondary-stressed -dˌeɪ like Sunday", () => {
+test("24–26 Nov: Monday uses secondary-stressed -dˌeɪ like Sunday, and word-gate-dropped xhigh stays absent", () => {
+  const usOverride = readTable(readFileSync(new URL("override.tsv", MATCHA), "utf8"));
+  const gbOverride = readTable(readFileSync(new URL("en-gb/override.tsv", MATCHA), "utf8"));
+  assert.equal(usOverride.has("xhigh"), false, "en-us override.tsv must not carry xhigh");
+  assert.equal(gbOverride.has("xhigh"), false, "en-gb override.tsv must not carry xhigh");
+
   for (const [label, fe] of [["en-us", us], ["en-gb", gb]]) {
-    assert.equal(fe("xhigh"), "ˈɛks hˈaɪ", `${label}: xhigh`);
-    assert.equal(fe("Xhigh"), "ˈɛks hˈaɪ", `${label}: Xhigh`);
-    assert.equal(fe("XHIGH"), "ˈɛks hˈaɪ", `${label}: XHIGH`);
     assert.equal(fe("Monday"), "mˈʌndˌeɪ", `${label}: Monday`);
     assert.equal(fe("monday"), "mˈʌndˌeɪ", `${label}: monday`);
     assert.equal(fe("Mondays"), "mˈʌndˌeɪz", `${label}: Mondays`);
