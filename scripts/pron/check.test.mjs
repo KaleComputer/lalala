@@ -4,7 +4,7 @@
 // and preserves the vetted public overrides (leia, kwame, mozart).
 // Run: node --experimental-strip-types --test scripts/pron/check.test.mjs
 import assert from "node:assert/strict";
-import { readFileSync } from "node:fs";
+import { readdirSync, readFileSync } from "node:fs";
 import { test } from "node:test";
 
 import { BritishG2p, britishNormalizer } from "../../src/voice/browserSpeech/matcha/enGb.js";
@@ -16,6 +16,7 @@ import {
   normalizer,
   parseMoodText,
   readTable,
+  readTokens,
   sentences,
   stripMoodTags,
 } from "../../src/voice/browserSpeech/matcha/kaleTts.js";
@@ -146,9 +147,11 @@ test("KAL-3132: well read uses past-tense heteronym while Well, read stays prese
 test("KAL-3132: sentence-final or isolated the/a/an/to take stressed strong forms while proclitics stay weak", () => {
   for (const [label, fe] of [["en-us", us], ["en-gb", gb]]) {
     assert.equal(fe("the"), "ðˈʌ", `${label}: isolated the`);
+    assert.equal(fe("an"), "ˈæn", `${label}: isolated an`);
     assert.ok(fe("The word is the.").startsWith("ðə ") && fe("The word is the.").endsWith(" ðˈʌ."), `${label}: The word is the.`);
     assert.ok(fe("Copy the word the.").endsWith(" ðˈʌ."), `${label}: Copy the word the.`);
     assert.ok(fe("Copy the word a.").endsWith(" ˈeɪ."), `${label}: Copy the word a.`);
+    assert.ok(fe("Copy the word an.").endsWith(" ˈæn."), `${label}: Copy the word an.`);
     assert.ok(fe("Peek whenever you need to.").endsWith(" tˈuː."), `${label}: final to`);
     assert.ok(fe("the cat").startsWith("ðə "), `${label}: proclitic the`);
     assert.ok(fe("a dog").startsWith("ɐ "), `${label}: proclitic a`);
@@ -207,4 +210,66 @@ test("24–26 Nov: Monday uses secondary-stressed -dˌeɪ like Sunday, and word-
   }
   assert.equal(us("Monday and Tuesday."), "mˈʌndˌeɪ ænd tˈuːzdeɪ.");
   assert.equal(gb("Monday and Tuesday."), "mˈʌndˌeɪ ænd tjˈuːzdeɪ.");
+});
+
+test("26 Nov: ellipsis maps to ... (never dropped by Kokoro vocab) and token-table ID-7 parity holds", () => {
+  const kokoroVocab = JSON.parse(
+    readFileSync(new URL("../../src/voice/browserSpeech/kaleKokoro/ipa2kokoro.json", import.meta.url), "utf8"),
+  );
+  const matchaTokens = readTokens(readFileSync(new URL("tokens.txt", MATCHA), "utf8"));
+
+  // Matcha tokens.txt (used by matcha-f40warm.onnx) maps ¡ -> 7 and U+0329 -> 175,
+  // while Kokoro / Hazel models map U+0329 -> 7 and omit ¡. All 52 other symbols match identically.
+  assert.equal(Object.keys(kokoroVocab).length, 53);
+  assert.equal(kokoroVocab["\u0329"], 7);
+  assert.equal("¡" in kokoroVocab, false);
+  assert.equal(matchaTokens.get("¡"), 7);
+  assert.equal(matchaTokens.get("\u0329"), 175);
+  for (const [sym, id] of Object.entries(kokoroVocab)) {
+    if (sym === "\u0329") continue;
+    assert.equal(matchaTokens.get(sym), id, `symbol ${JSON.stringify(sym)} id mismatch between kokoro and matcha`);
+  }
+
+  // Every bundled Kokoro/Hazel tokenizer.json agrees with ipa2kokoro.json (including ID 7 = U+0329, never ¡).
+  const modelsDir = new URL("../../public/models/", import.meta.url);
+  const modelNames = readdirSync(modelsDir, { withFileTypes: true }).filter((d) => d.isDirectory()).map((d) => d.name);
+  assert.ok(modelNames.length > 0);
+  for (const name of modelNames) {
+    const tok = JSON.parse(readFileSync(new URL(`${name}/tokenizer.json`, modelsDir), "utf8"));
+    const vocab = tok.model.vocab;
+    assert.equal(vocab["\u0329"], 7, `${name}: U+0329 must be ID 7`);
+    assert.equal("¡" in vocab, false, `${name}: ¡ must not collide with ID 7`);
+    for (const [sym, id] of Object.entries(kokoroVocab)) {
+      assert.equal(vocab[sym], id, `${name}: symbol ${JSON.stringify(sym)} id mismatch`);
+    }
+  }
+
+  // Ellipsis maps to "..." so every emitted IPA codepoint is in Kokoro's 53-symbol vocab (zero silent drops).
+  for (const [label, fe] of [["en-us", us], ["en-gb", gb]]) {
+    assert.equal(fe("Getting the picture ready…"), fe("Getting the picture ready..."), `${label}: terminal ellipsis`);
+    assert.ok(fe("Getting the picture ready…").endsWith("..."), `${label}: keeps pause dots`);
+    assert.equal(fe("Wait… did you see that?"), fe("Wait... did you see that?"), `${label}: mid-sentence ellipsis`);
+    for (const s of ["Getting the picture ready…", "Wait… did you see that?", "Let's go — right now!", "A–B"]) {
+      const ipa = fe(s);
+      for (const ch of ipa) {
+        assert.ok(ch in kokoroVocab, `${label}: dropped char ${JSON.stringify(ch)} in ${JSON.stringify(s)} -> ${ipa}`);
+      }
+    }
+  }
+
+  // All 9 weekday overrides resolve cleanly to -deɪ / -dˌeɪ over unmodified CMUdict lexicon.tsv.
+  const weekdays = [
+    ["Monday", "mˈʌndˌeɪ"],
+    ["Monday's", "mˈʌndˌeɪz"],
+    ["Mondays", "mˈʌndˌeɪz"],
+    ["Tuesday", "tˈuːzdeɪ"],
+    ["Wednesday", "wˈɛnzdeɪ"],
+    ["Friday", "fɹˈaɪdeɪ"],
+    ["Fridays", "fɹˈaɪdeɪz"],
+    ["Saturday", "sˈæɾɚdeɪ"],
+    ["Saturdays", "sˈæɾɚdeɪz"],
+  ];
+  for (const [word, want] of weekdays) {
+    assert.equal(us(word), want, `en-us weekday: ${word}`);
+  }
 });

@@ -1,4 +1,4 @@
-# Word list: word<TAB>IPA, made from CMUdict (no espeak code or output) by Kale's build_lexicon.py.
+# Hazel's word list: word<TAB>IPA, made by build_lexicon.py from CMUdict (no espeak code or output).
 # CMUdict: https://github.com/cmusphinx/cmudict commit 74790861f652b15e4ac49015a90074ad62a27690, its LICENSE:
 #
 # Copyright (C) 1993-2015 Carnegie Mellon University. All rights reserved.
@@ -41380,9 +41380,9 @@ friction	fɹˈɪkʃən
 frictionless	fɹˈɪkʃənlɪs
 frictions	fɹˈɪkʃənz
 frida	fɹˈiːdə
-friday	fɹˈaɪdeɪ
+friday	fɹˈaɪdi
 friday's	fɹˈaɪdiz
-fridays	fɹˈaɪdeɪz
+fridays	fɹˈaɪdiz
 friddle	fɹˈɪdəl
 fridge	fɹˈɪdʒ
 fridges	fɹˈɪdʒᵻz
@@ -74353,9 +74353,9 @@ mondale	mˈɑːndeɪl
 mondale's	mˈɑːndeɪlz
 mondallo	mɑːndˈæloʊ
 mondavi	mɑːndˈɑːvi
-monday	mˈʌndˌeɪ
-monday's	mˈʌndˌeɪz
-mondays	mˈʌndˌeɪz
+monday	mˈʌndi
+monday's	mˈʌndiz
+mondays	mˈʌndiz
 monde	mˈɑːnd
 mondelli	moʊndˈɛli
 mondello	mɑːndˈɛloʊ
@@ -97564,9 +97564,9 @@ saturate	sˈætʃɚɹˌeɪt
 saturated	sˈætʃɚɹˌeɪɾᵻd
 saturating	sˈætʃɚɹˌeɪɾɪŋ
 saturation	sˌætʃɚɹˈeɪʃən
-saturday	sˈæɾɚdeɪ
+saturday	sˈæɾɚdi
 saturday's	sˈæɾɚdiz
-saturdays	sˈæɾɚdeɪz
+saturdays	sˈæɾɚdiz
 saturn	sˈætɚn
 saturn's	sˈætɚnz
 saturns	sˈætɚnz
@@ -114363,7 +114363,7 @@ tudor's	tjˈuːdɚz
 tue	tˈuː
 tuel	tˈuːl
 tuell	tˈuːl
-tuesday	tˈuːzdeɪ
+tuesday	tˈuːzdi
 tuesday's	tˈuːzdiz
 tuesdays	tˈuːzdeɪz
 tufa	tˈuːfə
@@ -119869,7 +119869,7 @@ wedgwood	wˈɛdʒwʊd
 wedig	wˈɛdɪɡ
 wedin	wˈɛdɪn
 wedlock	wˈɛdlɑːk
-wednesday	wˈɛnzdeɪ
+wednesday	wˈɛnzdi
 wednesday's	wˈɛnzdiz
 wednesdays	wˈɛnzdeɪz
 wedowee	wɛdˈaʊwi
