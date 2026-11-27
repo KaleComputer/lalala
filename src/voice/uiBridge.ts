@@ -2,6 +2,7 @@
 // sends one call to the page the user last touched, and this page answers it with ui-sdk's bridge.
 // Controls marked `data-agent-confirm` refuse the brain ("Needs a person"), so it asks instead.
 import { createAgent, type AgentStep, type ObservedChange } from "@ui-sdk/react/agent";
+import { elementOf } from "@ui-sdk/react/observe";
 
 type Call =
   | { tool: "snapshot"; filter?: string }
@@ -144,6 +145,94 @@ async function run(call: Call): Promise<unknown> {
     case "history":
       return done.map((entry) => entry.said);
   }
+}
+
+const SELECT_KINDS = ["listbox", "tabs", "select"] as const;
+let selectSeq = 0;
+
+function findCardElement(cardKey: string): HTMLElement | null {
+  for (const el of document.querySelectorAll<HTMLElement>("[data-lalala-card]")) {
+    if (el.getAttribute("data-lalala-card") === cardKey) return el;
+  }
+  return null;
+}
+
+async function queryInCard(cardEl: HTMLElement, kind: string) {
+  const found = await agent.query({ kind });
+  if (!Array.isArray(found)) return [];
+  return found.filter((component) => {
+    if (component.offPage || component.disabled) return false;
+    const el = elementOf(component.ref);
+    return el !== null && cardEl.contains(el);
+  });
+}
+
+/**
+ * Selects an item inside a card through its ui-sdk controls (Listbox, Tabs, or Select): waits for
+ * the card to mount and draw, clears any filled search input inside it, and applies `setValue`
+ * (revealing hidden done items first if a "show done" toggle is off and the item wasn't visible).
+ */
+async function selectCardItem(cardKey: string, item: string): Promise<boolean> {
+  const seq = ++selectSeq;
+  for (let tries = 0; tries < 40; tries += 1) {
+    if (seq !== selectSeq) return false;
+    const cardEl = findCardElement(cardKey);
+    if (cardEl && !cardEl.hasAttribute("data-lalala-card-off")) {
+      const targets = [];
+      for (const kind of SELECT_KINDS) {
+        targets.push(...(await queryInCard(cardEl, kind)));
+      }
+      if (targets.length > 0) {
+        if (seq !== selectSeq) return false;
+        const inputs = await queryInCard(cardEl, "input");
+        let clearedSearch = false;
+        for (const input of inputs) {
+          const el = elementOf(input.ref);
+          const isSearch =
+            (el instanceof HTMLInputElement && el.type === "search") ||
+            /\bsearch\b/i.test(input.label ?? "");
+          if (isSearch && typeof input.value === "string" && input.value !== "") {
+            await agent.act({ steps: [{ ref: input.ref, action: "clear" }] });
+            clearedSearch = true;
+          }
+        }
+        if (clearedSearch) await new Promise((resolve) => setTimeout(resolve, 40));
+        if (seq !== selectSeq) return false;
+        for (const target of targets) {
+          const result = await agent.act({
+            steps: [{ ref: target.ref, action: "setValue", args: [item] }],
+          });
+          if (result.ok) return true;
+        }
+        // Item may be hidden behind an unpressed "show done" toggle: reveal it and retry once.
+        const toggles = await queryInCard(cardEl, "toggle");
+        const showDone = toggles.find(
+          (toggle) => toggle.pressed === false && /\bshow done\b/i.test(toggle.label ?? ""),
+        );
+        if (showDone) {
+          await agent.act({ steps: [{ ref: showDone.ref, action: "setPressed", args: [true] }] });
+          await new Promise((resolve) => setTimeout(resolve, 40));
+          if (seq !== selectSeq) return false;
+          for (const target of targets) {
+            const retry = await agent.act({
+              steps: [{ ref: target.ref, action: "setValue", args: [item] }],
+            });
+            if (retry.ok) return true;
+          }
+        }
+        return false;
+      }
+    }
+    await new Promise((resolve) => setTimeout(resolve, 100));
+  }
+  return false;
+}
+
+declare global {
+  var __lalalaSelectItem: ((cardKey: string, item: string) => Promise<boolean>) | undefined;
+}
+if (typeof window !== "undefined") {
+  globalThis.__lalalaSelectItem = selectCardItem;
 }
 
 const hot = import.meta.hot;

@@ -1347,11 +1347,15 @@ export function followModuleUpdate(modulePath: string): string | null {
 }
 
 /**
- * Pans and zooms to fit a card (its id or title), opening its canvas first. A short ease; any
- * camera move from elsewhere (the user's hand) stops it.
+ * Pans and zooms to fit a card (its id or title, optionally `card#item`), opening its canvas first.
+ * A short ease; any camera move from elsewhere (the user's hand) stops it. When `#item` is given,
+ * selects that item via the card's ui-sdk controls once drawn.
  */
 function focusCard(name: string, broadcast = false) {
-  const wanted = name.trim().toLowerCase();
+  const hash = name.indexOf("#");
+  const cardPart = hash < 0 ? name : name.slice(0, hash);
+  const itemPart = hash < 0 ? "" : name.slice(hash + 1).trim();
+  const wanted = cardPart.trim().toLowerCase();
   const found = [...cardsInCode].find(
     ([id, card]) => id.toLowerCase() === wanted || card.title.toLowerCase() === wanted,
   );
@@ -1360,8 +1364,9 @@ function focusCard(name: string, broadcast = false) {
   const [id, card] = found;
   const targetCanvas = homeOf(card.canvas, listOf(live.canvases));
   selectCanvas(targetCanvas, false);
-  if (broadcast) emitFollowSignal(targetCanvas, id);
+  if (broadcast) emitFollowSignal(targetCanvas, itemPart ? `${id}#${itemPart}` : id);
   const key = boxKey(live.canvas, id);
+  if (itemPart !== "") void globalThis.__lalalaSelectItem?.(key, itemPart);
   window.cancelAnimationFrame(focusFrame);
   let waited = 0;
   // A just-opened canvas mounts its cards (and a new card gets its box) a few frames later.
@@ -1667,6 +1672,7 @@ const api = {
 export type CanvasesApi = typeof api;
 declare global {
   var __lalalaCanvases: CanvasesApi | undefined;
+  var __lalalaSelectItem: ((cardKey: string, item: string) => Promise<boolean>) | undefined;
 }
 
 /** Cards waiting for a box, placed together once the whole canvas has mounted. */

@@ -11,6 +11,7 @@ import {
   isFollowing,
   isFollowLabEnabled,
   matchCardByModulePath,
+  parseFocusTarget,
   setFollowing,
   subscribeFollow,
   takeAboutCards,
@@ -100,6 +101,19 @@ test("takeAboutCards, takeFocus, and matchCardByModulePath extract updated cards
     text: "Opening it now.",
     cards: ["demo-board"],
   });
+  assert.deepEqual(
+    takeFocus("[focus: todo-board#ship-checklist-v2] Here it is."),
+    {
+      text: "Here it is.",
+      cards: ["todo-board#ship-checklist-v2"],
+    },
+  );
+  assert.deepEqual(parseFocusTarget("todo-board#ship-checklist-v2"), {
+    card: "todo-board",
+    item: "ship-checklist-v2",
+  });
+  assert.deepEqual(parseFocusTarget("todo-board#"), { card: "todo-board", item: null });
+  assert.deepEqual(parseFocusTarget(" `demo-board` "), { card: "demo-board", item: null });
 
   const cards = [
     { id: "release-slides", title: "Release Slides" },
@@ -295,8 +309,13 @@ test("viewport jump guards stay intact across canvasStore, CanvasSurface, BrainC
   const mountBody = storeSrc.slice(storeSrc.indexOf("export function mountCard("), storeSrc.indexOf("export function setView("));
   assert.doesNotMatch(mountBody, /followCard\(/);
 
-  // focusCard must default broadcast to false so local focus never hijacks another device.
+  // focusCard must default broadcast to false so local focus never hijacks another device,
+  // and must hand any `#item` suffix to the ui-sdk selection helper.
   assert.match(storeSrc, /function focusCard\(name: string, broadcast = false\)/);
+  assert.match(storeSrc, /globalThis\.__lalalaSelectItem\?\.\(key,\s*itemPart\)/);
+
+  const bridgeSrc = NodeFS.readFileSync(NodePath.join(root, "src/voice/uiBridge.ts"), "utf8");
+  assert.match(bridgeSrc, /globalThis\.__lalalaSelectItem\s*=\s*selectCardItem/);
 
   // emitFollowSignal must require isFollowOn().
   const emitBody = storeSrc.slice(storeSrc.indexOf("function emitFollowSignal("), storeSrc.indexOf("function adoptFollowSignal("));

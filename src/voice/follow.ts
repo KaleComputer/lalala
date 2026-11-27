@@ -76,12 +76,25 @@ export function followCommand(text: string): boolean | undefined {
 const FOCUS_TAG = /\[focus:\s*([^\]]*)\]\s*/gi;
 const ABOUT_TAG = /\[about:\s*([^\]]*)\]\s*/gi;
 
-/** The reply without its focus tags (never spoken), and the card ids they name, in order. */
+/** Splits a focus target like `open-questions#item-id` into its card name and optional item id or label. */
+export function parseFocusTarget(target: string): {
+  readonly card: string;
+  readonly item: string | null;
+} {
+  const clean = target.replace(/[`"']/g, "").trim();
+  const hash = clean.indexOf("#");
+  if (hash < 0) return { card: clean, item: null };
+  const card = clean.slice(0, hash).trim();
+  const item = clean.slice(hash + 1).trim();
+  return { card, item: item === "" ? null : item };
+}
+
+/** The reply without its focus tags (never spoken), and the card targets they name (optionally `card#item`), in order. */
 export function takeFocus(text: string): { readonly text: string; readonly cards: string[] } {
   const cards: string[] = [];
   const clean = text.replace(FOCUS_TAG, (_, id: string) => {
-    const card = id.replace(/[`"']/g, "").trim();
-    if (card !== "") cards.push(card);
+    const { card, item } = parseFocusTarget(id);
+    if (card !== "") cards.push(item === null ? card : `${card}#${item}`);
     return "";
   });
   return { text: clean, cards };
